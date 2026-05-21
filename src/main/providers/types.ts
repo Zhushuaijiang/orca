@@ -45,6 +45,8 @@ export type PtySpawnOptions = {
 }
 
 export type PtySpawnResult = {
+  /** App-facing PTY id. Remote providers must return globally routable ids,
+   *  not relay-local handles, because renderer/runtime IPC routes by this key. */
   id: string
   /** OS-level pid of the shell process, when available at spawn time.
    *  Why: the memory collector needs this to walk each PTY's process
