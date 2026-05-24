@@ -3,15 +3,26 @@ export type ExpectedTeardownScope = 'none' | 'renderer-reload' | 'app-shutdown'
 
 export function shouldRecordProcessGoneCrash({
   source,
+  processType,
   reason,
   exitCode,
   expectedTeardown
 }: {
   source: ProcessGoneSource
+  processType: string
   reason: string
   exitCode: number | null
   expectedTeardown: ExpectedTeardownScope
 }): boolean {
+  // Why: Chromium's GPU helper can emit a crash-shaped exit while Electron is
+  // already intentionally exiting/relaunching; that is shutdown noise.
+  if (
+    expectedTeardown === 'app-shutdown' &&
+    source === 'child' &&
+    processType.toLowerCase() === 'gpu'
+  ) {
+    return false
+  }
   // Why: Electron reports intentional reload/update/quit teardown as `killed`.
   // Real renderer OOMs and Chromium crashes should still reach crash reporting.
   if (reason !== 'killed') {
