@@ -11,12 +11,10 @@
  * postinstall step to fail and prevents `pnpm install` from completing.
  *
  * This script replaces `electron-builder install-app-deps` in the postinstall
- * lifecycle.  It calls @electron/rebuild's JS API directly so that we can pass
- * `ignoreModules: ['cpu-features']` on Windows.  Skipping cpu-features is
- * safe: ssh2 detects the missing native module and falls back to pure-JS CPU
- * feature detection automatically.
- *
- * On macOS and Linux the full rebuild (including cpu-features) runs as usual.
+ * lifecycle.  It calls @electron/rebuild's JS API directly so that we can skip
+ * `cpu-features` when rebuilding modules against Electron. Skipping
+ * cpu-features is safe: ssh2 detects the missing native module and falls back
+ * to pure-JS CPU feature detection automatically.
  */
 
 import { rebuild } from '@electron/rebuild'
@@ -31,10 +29,10 @@ const electronVersion = JSON.parse(
   readFileSync(resolve(electronPackageDir, 'package.json'), 'utf8')
 ).version
 
-const ignoreModules = process.platform === 'win32' ? ['cpu-features'] : []
+const ignoreModules = ['cpu-features']
 
 if (ignoreModules.length > 0) {
-  console.log(`[rebuild] Skipping modules on Windows: ${ignoreModules.join(', ')}`)
+  console.log(`[rebuild] Skipping optional Electron rebuild modules: ${ignoreModules.join(', ')}`)
 }
 
 // Why: @electron/rebuild's default module walker doesn't reliably find native
