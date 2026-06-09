@@ -3,16 +3,7 @@
 </h1>
 
 <p align="center">
-  <a href="https://github.com/stablyai/orca/stargazers"><img src="https://img.shields.io/badge/Stars-4.5k-6E7681?style=for-the-badge&logo=github&logoColor=white" alt="GitHub stars" /></a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-blue?style=for-the-badge" alt="Supported Platforms" />
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/fzjDKHxv8Q"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
-  <a href="https://x.com/orca_build"><img src="https://img.shields.io/badge/%E2%80%8E-Follow_@orca__build-000000?style=for-the-badge&logo=x&logoColor=white" alt="Follow on X" /></a>
+  <a href="https://github.com/stablyai/orca/stargazers"><img src="https://img.shields.io/badge/★-4.5k-6E7681?style=flat-square" alt="GitHub stars" /></a>
 </p>
 
 <p align="center">
