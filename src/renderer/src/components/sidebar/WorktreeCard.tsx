@@ -511,7 +511,6 @@ const WorktreeCard = React.memo(function WorktreeCard({
   const showAutomation = cardProps.includes('automation')
   const showComment = cardProps.includes('comment')
   const showPorts = cardProps.includes('ports')
-  const hasAutomationMetadata = showAutomation && !!worktree.automationProvenance
   const shouldRefreshHostedReview = newCardStyle ? showStatus : showPR
   const detailsHoverControl = useWorktreeCardDetailsHoverControl()
   const hoverDetailsOpen = detailsHoverControl.hoverOpen
@@ -1052,7 +1051,7 @@ const WorktreeCard = React.memo(function WorktreeCard({
   // carrying a persistent rebase chip while preserving other interruption cues.
   const showConflictOperationBadge =
     !!conflictOperation && conflictOperation !== 'unknown' && conflictOperation !== 'rebase'
-  const hasMetadataBadge = showConflictOperationBadge || hasAutomationMetadata
+  const hasMetadataBadge = showConflictOperationBadge
   const showUnreadQuickAction = !affiliateListMode && showStatus && !newCardStyle
   // Why: the slot owns the tiny unread/status lane; legacy keeps the bell
   // toggle, while the experimental card keeps the status glyph passive.
@@ -1070,7 +1069,6 @@ const WorktreeCard = React.memo(function WorktreeCard({
     showBranch ||
     showDetachedHeadInMetaRow ||
     showConflictOperationBadge ||
-    hasAutomationMetadata ||
     cacheStartedAt != null ||
     showMetaRowDetails
   )
@@ -1558,23 +1556,6 @@ const WorktreeCard = React.memo(function WorktreeCard({
                 >
                   <GitMerge className="size-2.5" />
                   {CONFLICT_OPERATION_LABELS[conflictOperation]}
-                </Badge>
-              )}
-
-              {hasAutomationMetadata && (
-                <Badge
-                  variant="outline"
-                  className="h-[16px] px-1.5 text-[10px] font-medium rounded shrink-0 gap-1 text-muted-foreground border-border/60 bg-muted/30 leading-none"
-                  title={translate(
-                    'auto.components.sidebar.WorktreeCard.automationCreated',
-                    'Created by automation'
-                  )}
-                  aria-label={translate(
-                    'auto.components.sidebar.WorktreeCard.automationCreated',
-                    'Created by automation'
-                  )}
-                >
-                  <Workflow className="size-2.5" />
                 </Badge>
               )}
 
