@@ -2589,7 +2589,8 @@
             "sessionQueued": "会话已排队",
             "runtimeWorkspacesUnsupported": "在远程运行时托管的工作区中无法从历史记录恢复会话。",
             "openSupportedWorkspace": "在恢复会话之前，请先打开一个本地或 SSH 工作区。",
-            "localSessionSshWorkspaceUnsupported": "此会话的历史记录存储在本机上，因此无法在 SSH 工作区中恢复。请改为将其拖放到本地工作区。"
+            "localSessionSshWorkspaceUnsupported": "此会话的历史记录存储在本机上，因此无法在 SSH 工作区中恢复。请改为将其拖放到本地工作区。",
+            "sessionHostMismatchUnsupported": "此会话属于其他主机。请将其拖放到同一主机上的工作区。"
           },
           "TabGroupDropOverlay": {
             "paneColumnLabel": "新建拆分"
@@ -9590,7 +9591,8 @@
             "runtimeBrowseLocalHistory": "远程运行时托管的工作区可以浏览本地历史。恢复操作在本地和 SSH 工作区中可用。",
             "runtimeWorkspacesUnsupported": "在远程运行时托管的工作区中无法从历史记录恢复会话。",
             "openSupportedWorkspace": "在恢复会话之前，请先打开一个本地或 SSH 工作区。",
-            "localSessionSshWorkspaceUnsupported": "此会话的历史记录存储在本机上，因此无法在 SSH 工作区中恢复。请改为打开一个本地工作区。"
+            "localSessionSshWorkspaceUnsupported": "此会话的历史记录存储在本机上，因此无法在 SSH 工作区中恢复。请改为打开一个本地工作区。",
+            "sessionHostMismatchUnsupported": "此会话属于其他主机。请打开同一主机上的工作区以恢复它。"
           },
           "AiVaultPanelControls": {
             "scanningSessions": "正在扫描会话",
@@ -9619,7 +9621,9 @@
             "globalScope": "全局",
             "projectScope": "项目",
             "currentProjectLower": "当前项目",
-            "project": "项目"
+            "project": "项目",
+            "hostScopeAriaLabel": "Session History host: {{value0}}",
+            "host": "Host"
           },
           "AiVaultSessionDetails": {
             "updated": "更新时间",

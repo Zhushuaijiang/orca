@@ -2589,7 +2589,8 @@
             "sessionQueued": "Sesión en cola",
             "runtimeWorkspacesUnsupported": "Reanudar desde el historial no está disponible en espacios de trabajo alojados en un host.",
             "openSupportedWorkspace": "Abre un espacio de trabajo local o SSH antes de reanudar una sesión.",
-            "localSessionSshWorkspaceUnsupported": "El historial de esta sesión solo existe en este equipo. Para reanudarla, arrástrala a un workspace local. Los workspaces SSH no tienen acceso a ese historial."
+            "localSessionSshWorkspaceUnsupported": "El historial de esta sesión solo existe en este equipo. Para reanudarla, arrástrala a un workspace local. Los workspaces SSH no tienen acceso a ese historial.",
+            "sessionHostMismatchUnsupported": "Esta sesión pertenece a un host diferente. Suéltala en un espacio de trabajo del mismo host."
           },
           "TabGroupDropOverlay": {
             "paneColumnLabel": "Nueva división"
@@ -9590,7 +9591,8 @@
             "runtimeBrowseLocalHistory": "Los workspaces alojados en runtime pueden explorar el historial local. Las acciones de reanudación están disponibles en workspaces locales y SSH.",
             "runtimeWorkspacesUnsupported": "Reanudar desde el historial no está disponible en workspaces alojados en runtime.",
             "openSupportedWorkspace": "Abre un workspace local o SSH antes de reanudar una sesión.",
-            "localSessionSshWorkspaceUnsupported": "El historial de esta sesión solo existe en este equipo. Para reanudarla, abre un workspace local. Los workspaces SSH no tienen acceso a ese historial."
+            "localSessionSshWorkspaceUnsupported": "El historial de esta sesión solo existe en este equipo. Para reanudarla, abre un workspace local. Los workspaces SSH no tienen acceso a ese historial.",
+            "sessionHostMismatchUnsupported": "Esta sesión pertenece a un host diferente. Abre un espacio de trabajo en el mismo host para reanudarla."
           },
           "AiVaultPanelControls": {
             "scanningSessions": "Buscando sesiones",
@@ -9619,7 +9621,9 @@
             "globalScope": "Global",
             "projectScope": "Proyecto",
             "currentProjectLower": "proyecto actual",
-            "project": "Proyecto"
+            "project": "Proyecto",
+            "hostScopeAriaLabel": "Session History host: {{value0}}",
+            "host": "Host"
           },
           "AiVaultSessionDetails": {
             "updated": "Actualizado",
