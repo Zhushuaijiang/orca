@@ -1743,6 +1743,10 @@ export type GitHubCreateIssueFields = {
   assignees?: string[]
 }
 
+export type GitHubCreateIssueResult =
+  | { ok: true; number: number; url: string; bodySaveWarning?: string }
+  | { ok: false; error: string }
+
 export type GitHubIssueCloseReason = 'completed' | 'not_planned' | 'duplicate'
 
 export type GitHubIssueUpdate = {
