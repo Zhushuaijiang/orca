@@ -10092,6 +10092,13 @@ export class OrcaRuntimeService {
     throw new Error('no_active_terminal')
   }
 
+  // Why: orchestration records the pane key as the remint-stable assignee
+  // identity at dispatch time; null (best-effort) rather than throwing so
+  // dispatch still works for handles without a resolvable pane.
+  getTerminalPaneKey(handle: string): string | null {
+    return this.getPaneKeyForTerminalHandle(handle)
+  }
+
   resolveTerminalPane(paneKey: string): RuntimeTerminalResolvePane {
     // Why: the renderer context menu only knows the stable pane key; main owns
     // the runtime terminal handle that agents and CLI commands can address.
@@ -14629,6 +14636,7 @@ export class OrcaRuntimeService {
       const shouldActivate = args.activate === true || args.runHooks === true
       let warning: string | undefined
       let didSpawnStartup = false
+      let startupTerminal: CreateWorktreeResult['startupTerminal']
       if (effectiveStartup && this.ptyController?.spawn) {
         try {
           const startupTrustAgent = effectiveDraftPaste?.agent ?? effectiveCreatedWithAgent
@@ -14652,6 +14660,14 @@ export class OrcaRuntimeService {
             this.sendStartupFollowupWhenReady(terminal.handle, effectiveStartupFollowup)
           }
           didSpawnStartup = true
+          startupTerminal = {
+            spawned: true,
+            handle: terminal.handle,
+            ...(terminal.tabId ? { tabId: terminal.tabId } : {}),
+            ...(terminal.paneKey ? { paneKey: terminal.paneKey } : {}),
+            ...(terminal.ptyId ? { ptyId: terminal.ptyId } : {}),
+            surface: 'background'
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           warning = `Failed to create the startup terminal for ${worktree.path}: ${message}`
@@ -14689,6 +14705,7 @@ export class OrcaRuntimeService {
             isMainWorktree: worktree.isMainWorktree
           }
         },
+        ...(startupTerminal ? { startupTerminal } : {}),
         ...(warning ? { warning } : {})
       }
     }
