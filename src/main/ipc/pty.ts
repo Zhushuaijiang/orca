@@ -3331,6 +3331,13 @@ export function registerPtyHandlers(
         /* best effort: renderer clear still handles local PTYs */
       }
     },
+    hasPty: (ptyId) => {
+      try {
+        return getProviderForPty(ptyId).hasPty?.(ptyId) ?? null
+      } catch {
+        return null
+      }
+    },
     listProcesses: async () => {
       const providerSessions = await Promise.all([
         localProvider.listProcesses(),
