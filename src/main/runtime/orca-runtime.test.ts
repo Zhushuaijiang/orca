@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { lstat, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { join, win32 } from 'node:path'
+import { basename, join, win32 } from 'node:path'
 import { ipcMain } from 'electron'
 import type {
   FolderWorkspace,
@@ -24854,19 +24854,34 @@ describe('OrcaRuntimeService', () => {
     })
   })
 
-  it('emits only instance-validated lineage parents in mobile summaries', async () => {
+  it('emits only instance- and boundary-validated lineage parents in mobile summaries', async () => {
     // Regression: shipped mobile clients trust parentWorktreeId blindly, so worktree.ps must not emit stale same-path lineage.
-    const parentPath = '/tmp/worktree-parent'
-    const validChildPath = '/tmp/worktree-child-valid'
-    const staleChildPath = '/tmp/worktree-child-stale'
+    const parentPath = join(tmpdir(), 'worktree-parent')
+    const validChildPath = join(tmpdir(), 'worktree-child-valid')
+    const staleChildPath = join(tmpdir(), 'worktree-child-stale')
+    const crossHostChildPath = join(tmpdir(), 'worktree-child-cross-host')
     const parentId = `${TEST_REPO_ID}::${parentPath}`
     const validChildId = `${TEST_REPO_ID}::${validChildPath}`
     const staleChildId = `${TEST_REPO_ID}::${staleChildPath}`
+    const crossHostChildId = `${TEST_REPO_ID}::${crossHostChildPath}`
     const metaById: Record<string, WorktreeMeta> = {
-      [parentId]: makeWorktreeMeta({ instanceId: 'parent-instance' }),
-      [validChildId]: makeWorktreeMeta({ instanceId: 'child-instance' }),
+      [parentId]: makeWorktreeMeta({
+        instanceId: 'parent-instance',
+        hostId: 'local',
+        projectId: 'project-a'
+      }),
+      [validChildId]: makeWorktreeMeta({
+        instanceId: 'child-instance',
+        hostId: 'local',
+        projectId: 'project-a'
+      }),
       // The stale child path was reused by a replacement checkout.
-      [staleChildId]: makeWorktreeMeta({ instanceId: 'replacement-instance' })
+      [staleChildId]: makeWorktreeMeta({ instanceId: 'replacement-instance' }),
+      [crossHostChildId]: makeWorktreeMeta({
+        instanceId: 'cross-host-child-instance',
+        hostId: 'runtime:other-host',
+        projectId: 'project-a'
+      })
     }
     const makeLineage = (childId: string, worktreeInstanceId: string): WorktreeLineage => ({
       worktreeId: childId,
@@ -24879,7 +24894,8 @@ describe('OrcaRuntimeService', () => {
     })
     const lineageById: Record<string, WorktreeLineage> = {
       [validChildId]: makeLineage(validChildId, 'child-instance'),
-      [staleChildId]: makeLineage(staleChildId, 'old-child-instance')
+      [staleChildId]: makeLineage(staleChildId, 'old-child-instance'),
+      [crossHostChildId]: makeLineage(crossHostChildId, 'cross-host-child-instance')
     }
     const runtimeStore = {
       ...store,
@@ -24893,10 +24909,10 @@ describe('OrcaRuntimeService', () => {
       getWorktreeLineage: (worktreeId: string) => lineageById[worktreeId]
     }
     vi.mocked(listWorktrees).mockResolvedValue(
-      [parentPath, validChildPath, staleChildPath].map((path) => ({
+      [parentPath, validChildPath, staleChildPath, crossHostChildPath].map((path) => ({
         path,
         head: 'abc',
-        branch: `feature/${path.split('/').pop()}`,
+        branch: `feature/${basename(path)}`,
         isBare: false,
         isMainWorktree: false
       }))
@@ -24918,6 +24934,13 @@ describe('OrcaRuntimeService', () => {
     })
     expect(staleSummary?.lineageWorktreeInstanceId).toBeUndefined()
     expect(staleSummary?.parentWorktreeInstanceId).toBeUndefined()
+    const crossHostSummary = worktrees.find((worktree) => worktree.worktreeId === crossHostChildId)
+    expect(crossHostSummary).toMatchObject({
+      parentWorktreeId: null,
+      worktreeInstanceId: 'cross-host-child-instance'
+    })
+    expect(crossHostSummary?.lineageWorktreeInstanceId).toBeUndefined()
+    expect(crossHostSummary?.parentWorktreeInstanceId).toBeUndefined()
     expect(worktrees.find((worktree) => worktree.worktreeId === parentId)).toMatchObject({
       childWorktreeIds: [validChildId]
     })
@@ -28051,6 +28074,80 @@ describe('OrcaRuntimeService', () => {
     )
   })
 
+  it.each([
+    {
+      boundary: 'repository',
+      childRepoId: 'repo-child',
+      parentRepoId: 'repo-parent',
+      childMeta: {},
+      parentMeta: {}
+    },
+    {
+      boundary: 'known host',
+      childRepoId: TEST_REPO_ID,
+      parentRepoId: TEST_REPO_ID,
+      childMeta: { hostId: 'runtime:child-host' as const },
+      parentMeta: { hostId: 'runtime:parent-host' as const }
+    },
+    {
+      boundary: 'known project',
+      childRepoId: TEST_REPO_ID,
+      parentRepoId: TEST_REPO_ID,
+      childMeta: { projectId: 'project-child' },
+      parentMeta: { projectId: 'project-parent' }
+    }
+  ])('rejects manual lineage writes across a $boundary boundary', async (scenario) => {
+    const repos = [...new Set([scenario.childRepoId, scenario.parentRepoId])].map((id) => ({
+      id,
+      path: join(tmpdir(), id),
+      displayName: id,
+      badgeColor: 'blue' as const,
+      addedAt: 1
+    }))
+    const childRepoPath = repos.find((repo) => repo.id === scenario.childRepoId)!.path
+    const parentRepoPath = repos.find((repo) => repo.id === scenario.parentRepoId)!.path
+    const childPath = join(childRepoPath, 'child')
+    const parentPath = join(parentRepoPath, 'parent')
+    const childId = `${scenario.childRepoId}::${childPath}`
+    const parentId = `${scenario.parentRepoId}::${parentPath}`
+    const metaById: Record<string, WorktreeMeta> = {
+      [childId]: makeWorktreeMeta({ instanceId: 'child-instance', ...scenario.childMeta }),
+      [parentId]: makeWorktreeMeta({ instanceId: 'parent-instance', ...scenario.parentMeta })
+    }
+    const setWorktreeLineage = vi.fn()
+    const setWorkspaceLineage = vi.fn()
+    const runtimeStore = {
+      ...store,
+      getRepos: () => repos,
+      getRepo: (id: string) => repos.find((repo) => repo.id === id),
+      getAllWorktreeMeta: () => metaById,
+      getWorktreeMeta: (worktreeId: string) => metaById[worktreeId],
+      setWorktreeMeta: (worktreeId: string, meta: Partial<WorktreeMeta>) => {
+        metaById[worktreeId] = { ...metaById[worktreeId], ...meta }
+        return metaById[worktreeId]
+      },
+      getWorktreeLineage: () => undefined,
+      setWorktreeLineage,
+      setWorkspaceLineage
+    }
+    vi.mocked(listWorktrees).mockImplementation(async (repoPath) => [
+      ...(repoPath === childRepoPath ? [makeWorktreeInfo(childPath)] : []),
+      ...(repoPath === parentRepoPath ? [makeWorktreeInfo(parentPath)] : [])
+    ])
+    const runtime = new OrcaRuntimeService(runtimeStore as never)
+
+    await expect(
+      runtime.updateManagedWorktreeMeta(`id:${childId}`, {
+        lineage: { parentWorktree: `id:${parentId}` }
+      })
+    ).rejects.toThrow(
+      'Parent worktree must belong to the same repository, execution host, and project.'
+    )
+
+    expect(setWorktreeLineage).not.toHaveBeenCalled()
+    expect(setWorkspaceLineage).not.toHaveBeenCalled()
+  })
+
   it('clears workspace lineage when manually removing a parent', async () => {
     const childPath = '/tmp/worktree-child'
     const childId = `${TEST_REPO_ID}::${childPath}`
@@ -28375,6 +28472,110 @@ describe('OrcaRuntimeService', () => {
     })
 
     expect(removeWorktreeLineage).not.toHaveBeenCalled()
+  })
+
+  it('hydrates runtime detected lists with instance-validated legacy lineage', async () => {
+    const parentPath = join(tmpdir(), 'worktree-parent')
+    const childPath = join(tmpdir(), 'worktree-child')
+    const parentId = `${TEST_REPO_ID}::${parentPath}`
+    const childId = `${TEST_REPO_ID}::${childPath}`
+    const metaById: Record<string, WorktreeMeta> = {
+      [parentId]: makeWorktreeMeta({ instanceId: 'parent-instance' }),
+      [childId]: makeWorktreeMeta({ instanceId: 'child-instance' })
+    }
+    const lineageById: Record<string, WorktreeLineage> = {
+      [childId]: {
+        worktreeId: childId,
+        worktreeInstanceId: 'child-instance',
+        parentWorktreeId: parentId,
+        parentWorktreeInstanceId: 'parent-instance',
+        origin: 'cli',
+        capture: { source: 'explicit-cli-flag', confidence: 'explicit' },
+        createdAt: 1
+      }
+    }
+    const runtime = new OrcaRuntimeService({
+      ...store,
+      getAllWorktreeMeta: () => metaById,
+      getWorktreeMeta: (worktreeId: string) => metaById[worktreeId],
+      getAllWorktreeLineage: () => lineageById
+    } as never)
+    vi.mocked(listWorktrees).mockResolvedValue([
+      makeWorktreeInfo(childPath),
+      makeWorktreeInfo(parentPath)
+    ])
+
+    const result = await runtime.listDetectedManagedWorktrees(`id:${TEST_REPO_ID}`)
+
+    expect(result.worktrees).toEqual([
+      expect.objectContaining({
+        id: childId,
+        parentWorktreeId: parentId,
+        lineage: expect.objectContaining({ parentWorktreeInstanceId: 'parent-instance' })
+      }),
+      expect.objectContaining({
+        id: parentId,
+        parentWorktreeId: null,
+        childWorktreeIds: [childId],
+        lineage: null
+      })
+    ])
+  })
+
+  it('hydrates folder-repo detected rows with instance-validated legacy lineage', async () => {
+    const folderRepo = {
+      id: 'folder-repo',
+      path: '/workspace/folder',
+      displayName: 'folder',
+      badgeColor: 'blue' as const,
+      addedAt: 1,
+      kind: 'folder' as const
+    }
+    const parentId = `${folderRepo.id}::${folderRepo.path}`
+    const childId = `${parentId}::workspace:child-instance`
+    const metaById: Record<string, WorktreeMeta> = {
+      [parentId]: makeWorktreeMeta({ instanceId: 'parent-instance' }),
+      [childId]: makeWorktreeMeta({ instanceId: 'child-instance' })
+    }
+    const lineageById: Record<string, WorktreeLineage> = {
+      [childId]: {
+        worktreeId: childId,
+        worktreeInstanceId: 'child-instance',
+        parentWorktreeId: parentId,
+        parentWorktreeInstanceId: 'parent-instance',
+        origin: 'cli',
+        capture: { source: 'explicit-cli-flag', confidence: 'explicit' },
+        createdAt: 1
+      }
+    }
+    const runtime = new OrcaRuntimeService({
+      ...store,
+      getRepos: () => [folderRepo],
+      getRepo: (id: string) => (id === folderRepo.id ? folderRepo : undefined),
+      getAllWorktreeMeta: () => metaById,
+      getWorktreeMeta: (worktreeId: string) => metaById[worktreeId],
+      setWorktreeMeta: (worktreeId: string, meta: Partial<WorktreeMeta>) => {
+        metaById[worktreeId] = { ...(metaById[worktreeId] ?? makeWorktreeMeta()), ...meta }
+        return metaById[worktreeId]
+      },
+      getAllWorktreeLineage: () => lineageById
+    } as never)
+
+    const result = await runtime.listDetectedManagedWorktrees(`id:${folderRepo.id}`)
+
+    expect(result.worktrees).toEqual([
+      expect.objectContaining({
+        id: parentId,
+        parentWorktreeId: null,
+        childWorktreeIds: [childId],
+        lineage: null
+      }),
+      expect.objectContaining({
+        id: childId,
+        parentWorktreeId: parentId,
+        lineage: expect.objectContaining({ parentWorktreeInstanceId: 'parent-instance' })
+      })
+    ])
   })
 
   it('hides agent scratch created inside a linked checkout from runtime listings', async () => {
