@@ -82,6 +82,20 @@ jobs:
           pnpm run build:desktop
           pnpm exec electron-builder --config config/electron-builder.config.cjs --win --publish never
 
+      - name: Verify Windows installer artifact
+        shell: pwsh
+        run: |
+          $exe = Get-Item 'dist/orca-windows-setup.exe' -ErrorAction Stop
+          Write-Host "Installer: $($exe.FullName) ($($exe.Length) bytes)"
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: orca-windows-setup-${{ github.run_id }}
+          path: dist/orca-windows-setup.exe
+          retention-days: 7
+          if-no-files-found: error
+
       # Why: install the branch build, open a terminal, update the SAME build
       # over it, and assert the relocated daemon survives. Same build on both
       # sides isolates the survival mechanism (NSIS kill sweep + userData daemon
