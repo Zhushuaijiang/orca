@@ -756,7 +756,9 @@
         "devSearchKeywordNotification": "notification",
         "projectHostsSummary": "{{value0}} hosts",
         "linearTitle": "Linear",
-        "linearDescription": "Give agents the skill to read and update your linked Linear tickets."
+        "linearDescription": "Give agents the skill to read and update your linked Linear tickets.",
+        "ygtEnvironmentTitle": "YGT Setup",
+        "ygtEnvironmentDescription": "Check GitLab, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start."
       },
       "useAppMenuPaste": {
         "pasteTooLarge": "Paste is too large."
@@ -1044,7 +1046,8 @@
         "3a051b8ade": "Work item",
         "32f8bef818": "No log output.",
         "4168eb2c51": "Resolve",
-        "commentTooLarge": "Comment is too large to submit safely."
+        "commentTooLarge": "Comment is too large to submit safely.",
+        "filesUnavailable": "Couldn't load changed files."
       },
       "JiraIssueWorkspace": {
         "b0b92666c9": "Comment",
@@ -1811,7 +1814,33 @@
         "jiraToggleSortDirection": "Sort {{value0}}",
         "75a38d7df8": "GitHub data is temporarily unavailable. Its API may be down, rate-limited, or unreachable. Please try again shortly.",
         "noGithubSourceDetected": "No GitHub source detected for",
-        "noGithubSourceDetectedHint": "it may have no GitHub remote, or the source could not be resolved."
+        "noGithubSourceDetectedHint": "it may have no GitHub remote, or the source could not be resolved.",
+        "gitLabMrFilterOpen": "Open",
+        "gitLabMrFilterMerged": "Merged",
+        "gitLabMrFilterClosed": "Closed",
+        "f14f60f39e": "Opened GitLab issue #{{value0}}",
+        "ae3894e891": "Failed to create Yunxiao requirement.",
+        "14cb2e282f": "Yunxiao requirement",
+        "633c9bd347": "Created {{value0}}",
+        "f1a03a62c3": "Archived and dispatched to the Yunxiao requirement skill.",
+        "7c80f6a313": "New Yunxiao requirement",
+        "2fc21cc61c": "New {{value0}} issue",
+        "c57bf5f830": "Submits through official Yunxiao MCP. After creation, Orca can archive it and dispatch it to the Yunxiao requirement skill.",
+        "1d4de0491e": "Target",
+        "c7759fab5d": "GitHub issue",
+        "3b86ec0b27": "GitLab issue",
+        "72c283c5e8": "Archive and dispatch to the Yunxiao requirement skill after creation",
+        "56851d859e": "Create requirement",
+        "b87e7c39ef": "Created the Yunxiao requirement, but failed to link it back to GitLab.",
+        "357ed17b2b": "Created the GitLab issue, but failed to create the linked Yunxiao requirement.",
+        "d2f9f4a4de": "Linked Yunxiao requirement {{value0}}.",
+        "c8604b1bf2": "New GitLab issue",
+        "a4498dc284": "Filing GitLab issue in",
+        "c4e4b59344": ", code changes in",
+        "c5769a85fd": "Code workspace",
+        "7dd5845268": "Used for code changes after creation",
+        "219357cf23": "GitLab issue owner",
+        "e65804f357": "Create and link a Yunxiao requirement"
       },
       "Terminal": {
         "73768427cf": "Close",
@@ -4731,7 +4760,8 @@
           "toastInstallCliDescription": "Install the Orca CLI to enable your agents to read and edit Linear tasks.",
           "toastInstallSkillDescription": "Install the Linear skill to enable your agents to read and edit Linear tasks through the Orca CLI.",
           "toastRemoteDescription": "{{value0}} Remote agent environments may need their own setup.",
-          "toastWslDescription": "{{value0}} This setup runs in the selected WSL agent runtime."
+          "toastWslDescription": "{{value0}} This setup runs in the selected WSL agent runtime.",
+          "notNow": "Not now"
         },
         "FolderWorkspaceComposerDialog": {
           "connectFailed": "Failed to connect to project.",
@@ -5032,7 +5062,8 @@
           "remoteEmptyClaudeAccounts": "No managed Claude accounts on {{value0}}. It uses its system default Claude login; add accounts on that server.",
           "remoteEmptyCodexAccounts": "No managed Codex accounts on {{value0}}. It uses its system default Codex login; add accounts on that server.",
           "codexSystemDefaultCustomProvider": "Custom provider — no usage tracked.",
-          "codexSystemDefaultNeedsSignIn": "No Codex sign-in was found for {{value0}}."
+          "codexSystemDefaultNeedsSignIn": "No Codex sign-in was found for {{value0}}.",
+          "99c8f9e498": "Orca will delete the managed Codex home for this saved account. If it is currently active, Orca falls back to the system default Codex login."
         },
         "AdvancedPane": {
           "40b29e0bf3": "Restart",
@@ -6603,7 +6634,9 @@
           "dev": "Dev Tools",
           "devDescription": "Dev-only tools for exercising UI states.",
           "linearTitle": "Linear",
-          "linearDescription": "Give agents the skill to read and update your linked Linear tickets."
+          "linearDescription": "Give agents the skill to read and update your linked Linear tickets.",
+          "ygtEnvironmentTitle": "YGT Setup",
+          "ygtEnvironmentDescription": "Check GitLab access, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start."
         },
         "SettingsFormControls": {
           "42a4d15a30": "No matching fonts.",
@@ -7091,7 +7124,8 @@
           "cf37ff69f6": "Base",
           "8abdab9f7c": "Restart now",
           "907131d741": "Restarting…",
-          "605a35d600": "Not applied by the terminal renderer yet — xterm.js has no bold color slot. A saved value is preserved."
+          "605a35d600": "Not applied by the terminal renderer yet — xterm.js has no bold color slot. A saved value is preserved.",
+          "fb8c6f1967": "Color for bold text. Falls back to the normal color if not set."
         },
         "UIZoomControl": {
           "c2c64b24d0": "Reset"
@@ -9309,6 +9343,43 @@
           "title": "Editor Font Family",
           "description": "Font used by file editors and diff views. Leave empty to follow the terminal font.",
           "placeholder": "Same as terminal font"
+        },
+        "YgtEnvironmentPane": {
+          "statusReady": "Ready",
+          "statusNeedsLogin": "Needs login",
+          "statusMissing": "Missing",
+          "autoFixable": "Auto-fixable",
+          "copyCommand": "Copy command",
+          "checkFailed": "YGT environment check failed.",
+          "installFailed": "YGT environment repair failed.",
+          "commandCopied": "Command copied",
+          "summary": "{{value0}} of {{value1}} prerequisites ready",
+          "description": "Run a local readiness check before teammates use GitLab, Yunxiao, HIS, and YGT workflows in Orca.",
+          "checkAll": "Check all",
+          "installRepair": "Install / repair",
+          "loading": "Checking prerequisites...",
+          "searchTitle": "YGT setup",
+          "searchDescription": "Check GitLab access, Yunxiao MCP, HIS MCP, and the YGT skill.",
+          "searchKeywordYgt": "ygt",
+          "searchKeywordGitLab": "gitlab",
+          "searchKeywordGlab": "glab",
+          "searchKeywordYunxiao": "yunxiao",
+          "searchKeywordHis": "his",
+          "searchKeywordMcp": "mcp",
+          "searchKeywordPrerequisites": "prerequisites",
+          "gitlabHost": "GitLab host",
+          "gitlabToken": "GitLab access token",
+          "saved": "Saved",
+          "keepSavedToken": "Leave blank to keep saved token",
+          "yunxiaoToken": "Yunxiao access token",
+          "yunxiaoMcpUrl": "Yunxiao MCP URL",
+          "hisToken": "HIS MCP token",
+          "hisMcpUrl": "HIS MCP URL",
+          "configStorageNote": "Tokens are saved only on this machine under Orca user data and are not shown after saving.",
+          "gitlabHostPlaceholder": "gitlab.df-mic.com",
+          "gitlabTokenPlaceholder": "glpat-...",
+          "yunxiaoTokenPlaceholder": "YUNXIAO_ACCESS_TOKEN",
+          "hisTokenPlaceholder": "HIS_MCP_TOKEN"
         }
       },
       "right": {
@@ -10580,6 +10651,9 @@
                 }
               }
             }
+          },
+          "aiVaultSessionLaunch": {
+            "prepareFailed": "Could not prepare this session for resume."
           }
         }
       },
@@ -13474,6 +13548,11 @@
           },
           "undo": "Undo",
           "widthOption": "{{value0}} px"
+        }
+      },
+      "tabGroup": {
+        "AiVaultSessionDropLayer": {
+          "prepareFailed": "Could not prepare this session for resume."
         }
       }
     },

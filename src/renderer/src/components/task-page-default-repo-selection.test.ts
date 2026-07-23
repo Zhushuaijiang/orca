@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Repo } from '../../../shared/types'
 import {
+  expandSelectedTaskSourceRepos,
   getDefaultTaskRepoSelection,
   getTaskProjectPickerGroups,
   getTaskProjectPickerRepos,
+  getTaskWorkspaceRepoForSourceRepo,
   normalizeTaskRepoSelection
 } from './task-page-default-repo-selection'
 
@@ -212,6 +214,72 @@ describe('getTaskProjectPickerGroups', () => {
 
     expect(groups[0]?.repo.id).toBe('ssh-orca')
     expect(groups[0]?.sources.map((source) => source.id)).toEqual(['local-orca', 'ssh-orca'])
+  })
+})
+
+describe('expandSelectedTaskSourceRepos', () => {
+  it('expands a selected parent workspace to nested Git remotes for task fetching', () => {
+    const parent = repo({ id: 'ygt-workspace', path: '/repos/ygt-workspace' })
+    const main = repo({
+      id: 'df-ygt-main',
+      path: '/repos/ygt-workspace/df-ygt/df-ygt-main',
+      gitRemoteIdentity: {
+        canonicalKey: 'gitlab.df-mic.com/df-ygt/df-ygt-main',
+        remoteName: 'origin',
+        remoteUrl: 'git@gitlab.df-mic.com:df-ygt/df-ygt-main.git'
+      }
+    })
+    const biz = repo({
+      id: 'df-ygt-biz-base',
+      path: '/repos/ygt-workspace/df-ygt/df-ygt-biz-base',
+      gitRemoteIdentity: {
+        canonicalKey: 'gitlab.df-mic.com/df-ygt/df-ygt-biz-base',
+        remoteName: 'origin',
+        remoteUrl: 'git@gitlab.df-mic.com:df-ygt/df-ygt-biz-base.git'
+      }
+    })
+
+    const expanded = expandSelectedTaskSourceRepos([parent, main, biz], new Set([parent.id]))
+
+    expect(expanded.map((candidate) => candidate.id)).toEqual([main.id, biz.id])
+  })
+
+  it('keeps a selected remote-backed repo as the task source', () => {
+    const source = repo({
+      id: 'df-ygt-main',
+      gitRemoteIdentity: {
+        canonicalKey: 'gitlab.df-mic.com/df-ygt/df-ygt-main',
+        remoteName: 'origin',
+        remoteUrl: 'git@gitlab.df-mic.com:df-ygt/df-ygt-main.git'
+      }
+    })
+
+    const expanded = expandSelectedTaskSourceRepos([source], new Set([source.id]))
+
+    expect(expanded.map((candidate) => candidate.id)).toEqual([source.id])
+  })
+})
+
+describe('getTaskWorkspaceRepoForSourceRepo', () => {
+  it('returns the selected parent workspace for a nested task source', () => {
+    const parent = repo({ id: 'ygt-workspace', path: '/repos/ygt-workspace' })
+    const source = repo({
+      id: 'df-ygt-main',
+      path: '/repos/ygt-workspace/df-ygt/df-ygt-main',
+      gitRemoteIdentity: {
+        canonicalKey: 'gitlab.df-mic.com/df-ygt/df-ygt-main',
+        remoteName: 'origin',
+        remoteUrl: 'git@gitlab.df-mic.com:df-ygt/df-ygt-main.git'
+      }
+    })
+
+    const workspaceRepo = getTaskWorkspaceRepoForSourceRepo(
+      source.id,
+      [parent, source],
+      new Set([parent.id])
+    )
+
+    expect(workspaceRepo?.id).toBe(parent.id)
   })
 })
 

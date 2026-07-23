@@ -4,6 +4,7 @@ import { i18n } from '@/i18n/i18n'
 import {
   getGitHubModeButtons,
   getGitHubTaskKindPresets,
+  getGitLabMRFilters,
   getLinearPriorityLabel
 } from './task-page-localized-options'
 
@@ -54,5 +55,18 @@ describe('task-page-localized-options', () => {
     await i18n.changeLanguage('en')
 
     expect(getLinearPriorityLabel(0)).toBe('No priority')
+  })
+
+  it('uses explicit GitLab MR state labels in Chinese', async () => {
+    await i18n.changeLanguage('zh')
+
+    expect(getGitLabMRFilters().map((filter) => filter.label)).toEqual([
+      '待合并',
+      '已合并',
+      '已关闭',
+      '全部'
+    ])
+
+    await i18n.changeLanguage('en')
   })
 })

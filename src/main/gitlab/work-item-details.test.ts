@@ -142,6 +142,113 @@ describe('getWorkItemDetails', () => {
     expect(glabExecFileAsyncMock.mock.calls.flatMap(([args]) => args)).not.toContain('--paginate')
   })
 
+  it('falls back to legacy MR changes when the diffs endpoint is unavailable', async () => {
+    glabExecFileAsyncMock.mockImplementation(async (args: string[]) => {
+      const endpoint = args.at(-1)
+      if (endpoint === 'projects/g%2Fp/merge_requests/12') {
+        return {
+          stdout: JSON.stringify({
+            id: 120,
+            iid: 12,
+            title: 'Legacy changes',
+            state: 'opened',
+            web_url: 'https://gitlab.com/g/p/-/merge_requests/12',
+            updated_at: '2026-05-31T12:00:00Z',
+            description: 'MR body',
+            changes_count: '1',
+            head_pipeline: null,
+            reviewers: []
+          })
+        }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/discussions?per_page=100') {
+        return { stdout: '[]' }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/reviewers') {
+        return { stdout: '[]' }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/approvals') {
+        return { stdout: JSON.stringify({ approvals_required: 0, approvals_left: 0 }) }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/approval_state') {
+        return { stdout: JSON.stringify({ rules: [] }) }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/diffs?per_page=100') {
+        throw new Error('404 Not Found')
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/changes') {
+        return {
+          stdout: JSON.stringify({
+            changes: [
+              {
+                new_path: 'src/legacy.ts',
+                old_path: 'src/legacy.ts',
+                diff: '@@ -1 +1 @@\n-old\n+new'
+              }
+            ]
+          })
+        }
+      }
+      throw new Error(`unexpected glab call: ${args.join(' ')}`)
+    })
+
+    const details = await getWorkItemDetails('/repo', 12, 'mr')
+
+    expect(details?.filesUnavailable).toBeUndefined()
+    expect(details?.files).toHaveLength(1)
+    expect(details?.files?.[0]?.path).toBe('src/legacy.ts')
+    expect(glabExecFileAsyncMock.mock.calls.map(([args]) => args)).toContainEqual([
+      'api',
+      'projects/g%2Fp/merge_requests/12/changes'
+    ])
+  })
+
+  it('marks MR files unavailable when both diff endpoints fail', async () => {
+    glabExecFileAsyncMock.mockImplementation(async (args: string[]) => {
+      const endpoint = args.at(-1)
+      if (endpoint === 'projects/g%2Fp/merge_requests/12') {
+        return {
+          stdout: JSON.stringify({
+            id: 120,
+            iid: 12,
+            title: 'Unavailable changes',
+            state: 'opened',
+            web_url: 'https://gitlab.com/g/p/-/merge_requests/12',
+            updated_at: '2026-05-31T12:00:00Z',
+            description: 'MR body',
+            changes_count: '1',
+            head_pipeline: null,
+            reviewers: []
+          })
+        }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/discussions?per_page=100') {
+        return { stdout: '[]' }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/reviewers') {
+        return { stdout: '[]' }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/approvals') {
+        return { stdout: JSON.stringify({ approvals_required: 0, approvals_left: 0 }) }
+      }
+      if (endpoint === 'projects/g%2Fp/merge_requests/12/approval_state') {
+        return { stdout: JSON.stringify({ rules: [] }) }
+      }
+      if (
+        endpoint === 'projects/g%2Fp/merge_requests/12/diffs?per_page=100' ||
+        endpoint === 'projects/g%2Fp/merge_requests/12/changes'
+      ) {
+        throw new Error('diff unavailable')
+      }
+      throw new Error(`unexpected glab call: ${args.join(' ')}`)
+    })
+
+    const details = await getWorkItemDetails('/repo', 12, 'mr')
+
+    expect(details?.files).toEqual([])
+    expect(details?.filesUnavailable).toBe(true)
+  })
+
   it('routes local WSL MR detail fetches through project resolution and glab options', async () => {
     const localGitOptions = { wslDistro: 'Ubuntu' }
     glabExecFileAsyncMock.mockImplementation(async (args: string[]) => {

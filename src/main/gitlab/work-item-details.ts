@@ -185,7 +185,7 @@ function countDiffLines(diff: string): { additions: number; deletions: number } 
   return { additions, deletions }
 }
 
-function mapMRFile(raw: {
+type GitLabRawMRFile = {
   new_path?: string
   old_path?: string
   diff?: string
@@ -194,7 +194,14 @@ function mapMRFile(raw: {
   renamed_file?: boolean
   binary?: boolean
   too_large?: boolean
-}): GitLabMRFile {
+}
+
+type GitLabMRFilesResult = {
+  files: GitLabMRFile[]
+  filesUnavailable?: boolean
+}
+
+function mapMRFile(raw: GitLabRawMRFile): GitLabMRFile {
   const diff = raw.diff ?? ''
   const counts = countDiffLines(diff)
   const status = raw.new_file
@@ -215,7 +222,12 @@ function mapMRFile(raw: {
   }
 }
 
-async function fetchMRFiles(
+function hasKnownChangedFiles(changesCount?: string | null): boolean {
+  const value = changesCount?.trim()
+  return Boolean(value && value !== '0')
+}
+
+async function fetchMRDiffFiles(
   repoPath: string,
   projectRef: ProjectRef,
   iid: number,
@@ -232,8 +244,59 @@ async function fetchMRFiles(
     ],
     glabRepoExecOptions(repoPath, connectionId, localGitOptions)
   )
-  const data = JSON.parse(stdout) as Parameters<typeof mapMRFile>[0][]
+  const data = JSON.parse(stdout) as GitLabRawMRFile[]
   return data.map(mapMRFile).filter((file) => file.path)
+}
+
+async function fetchMRLegacyChangeFiles(
+  repoPath: string,
+  projectRef: ProjectRef,
+  iid: number,
+  connectionId?: string | null,
+  localGitOptions: LocalGitExecOptions = {}
+): Promise<GitLabMRFile[]> {
+  const { stdout } = await glabExecFileAsync(
+    [
+      'api',
+      ...glabHostnameArgs(projectRef, connectionId),
+      // Why: older self-managed GitLab can lack `/diffs`; keep the deprecated
+      // endpoint as a compatibility fallback until GitLab API v5 removes it.
+      `projects/${encodedProject(projectRef.path)}/merge_requests/${iid}/changes`
+    ],
+    glabRepoExecOptions(repoPath, connectionId, localGitOptions)
+  )
+  const data = JSON.parse(stdout) as { changes?: GitLabRawMRFile[] }
+  return (data.changes ?? []).map(mapMRFile).filter((file) => file.path)
+}
+
+async function fetchMRFiles(
+  repoPath: string,
+  projectRef: ProjectRef,
+  iid: number,
+  changesCount?: string | null,
+  connectionId?: string | null,
+  localGitOptions: LocalGitExecOptions = {}
+): Promise<GitLabMRFilesResult> {
+  try {
+    const files = await fetchMRDiffFiles(repoPath, projectRef, iid, connectionId, localGitOptions)
+    if (files.length > 0 || !hasKnownChangedFiles(changesCount)) {
+      return { files }
+    }
+  } catch {
+    // Fall through to the legacy endpoint below.
+  }
+  try {
+    const files = await fetchMRLegacyChangeFiles(
+      repoPath,
+      projectRef,
+      iid,
+      connectionId,
+      localGitOptions
+    )
+    return { files }
+  } catch {
+    return { files: [], filesUnavailable: true }
+  }
 }
 
 // ── Top-level aggregator ───────────────────────────────────────────
@@ -246,6 +309,7 @@ type GitLabRawIssue = Parameters<typeof mapIssueToWorkItem>[0] & {
 type GitLabRawMR = Parameters<typeof mapMRToWorkItem>[0] & {
   description?: string | null
   sha?: string
+  changes_count?: string | null
   diff_refs?: { base_sha?: string; head_sha?: string; start_sha?: string } | null
   head_pipeline?: { id?: number } | null
   reviewers?: GitLabRawUser[] | null
@@ -459,14 +523,21 @@ async function fetchMRDetails(
           localGitOptions
         ).catch(() => [])
       : undefined
-  const [reviewers, approvalState, files] = await Promise.all([
+  const [reviewers, approvalState, filesResult] = await Promise.all([
     fetchMRReviewers(repoPath, projectRef, iid, connectionId, localGitOptions).catch(() =>
       (mrRaw.reviewers ?? []).map(mapGitLabUser).filter((u): u is GitLabAssignableUser => !!u)
     ),
     fetchMRApprovalState(repoPath, projectRef, iid, connectionId, localGitOptions).catch(
       () => undefined
     ),
-    fetchMRFiles(repoPath, projectRef, iid, connectionId, localGitOptions).catch(() => [])
+    fetchMRFiles(
+      repoPath,
+      projectRef,
+      iid,
+      mrRaw.changes_count,
+      connectionId,
+      localGitOptions
+    ).catch(() => ({ files: [], filesUnavailable: true }))
   ])
   return {
     item,
@@ -475,7 +546,8 @@ async function fetchMRDetails(
     headSha: mrRaw.sha,
     baseSha: mrRaw.diff_refs?.base_sha,
     startSha: mrRaw.diff_refs?.start_sha,
-    files,
+    files: filesResult.files,
+    ...(filesResult.filesUnavailable ? { filesUnavailable: true } : {}),
     ...(pipelineJobs !== undefined ? { pipelineJobs } : {}),
     reviewers,
     ...(approvalState ? { approvalState } : {})

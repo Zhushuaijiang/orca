@@ -2940,16 +2940,19 @@ describe('createMainWindow', () => {
     })
   })
 
-  it('does not install the startup reveal fallback on macOS', () => {
+  it('reveals the startup window on macOS when ready-to-show never fires', () => {
     vi.useFakeTimers()
     const { browserWindowInstance } = createStartupRevealWindowFixture()
 
     withPlatform('darwin', () => {
       createMainWindow(null)
-      vi.advanceTimersByTime(10_000)
+      vi.advanceTimersByTime(9_999)
 
       expect(browserWindowInstance.show).not.toHaveBeenCalled()
-      expect(browserWindowInstance.maximize).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(10_000)
+
+      expect(browserWindowInstance.show).toHaveBeenCalledTimes(1)
     })
   })
 

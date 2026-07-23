@@ -52,9 +52,9 @@ export function LinearIcon({ className }: { className?: string }): React.JSX.Ele
 
 export const getGitLabMRFilters = createLocalizedCatalog(
   (): { id: GitLabTaskFilter; label: string }[] => [
-    { id: 'opened', label: translate('auto.components.TaskPage.606a85c774', 'Open') },
-    { id: 'merged', label: translate('auto.components.TaskPage.37a82eaaf8', 'Merged') },
-    { id: 'closed', label: translate('auto.components.TaskPage.d09bf34db7', 'Closed') },
+    { id: 'opened', label: translate('auto.components.TaskPage.gitLabMrFilterOpen', 'Open') },
+    { id: 'merged', label: translate('auto.components.TaskPage.gitLabMrFilterMerged', 'Merged') },
+    { id: 'closed', label: translate('auto.components.TaskPage.gitLabMrFilterClosed', 'Closed') },
     { id: 'all', label: translate('auto.components.TaskPage.c2268a9982', 'All') }
   ]
 )

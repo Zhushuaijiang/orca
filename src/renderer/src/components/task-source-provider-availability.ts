@@ -39,7 +39,8 @@ function getRepoBackedProviderToolStatus(
 }
 
 function getProviderReason(
-  status: ProviderAvailabilityStatus
+  status: ProviderAvailabilityStatus,
+  context?: TaskSourceContext
 ): TaskSourceHostAvailability['reason'] | null {
   if (status === 'unsupported') {
     return 'unsupported-provider'
@@ -48,9 +49,28 @@ function getProviderReason(
     return 'unavailable-source-tool'
   }
   if (!status.authenticated) {
+    if (context?.provider === 'gitlab' && isSelfHostedGitLabSource(context)) {
+      return null
+    }
     return 'missing-provider-auth'
   }
   return null
+}
+
+function isSelfHostedGitLabSource(context: TaskSourceContext): boolean {
+  if (context.providerIdentity?.provider !== 'gitlab') {
+    return false
+  }
+  const webUrl = context.providerIdentity.webUrl?.trim()
+  if (!webUrl) {
+    return false
+  }
+  try {
+    const host = new URL(webUrl).host.toLowerCase()
+    return Boolean(host && host !== 'gitlab.com')
+  } catch {
+    return false
+  }
 }
 
 export function getRepoBackedProviderAvailability(args: {
@@ -71,7 +91,7 @@ export function getRepoBackedProviderAvailability(args: {
       return []
     }
     const status = getRepoBackedProviderToolStatus(args.provider, hostPreflight.status)
-    const reason = status ? getProviderReason(status) : null
+    const reason = status ? getProviderReason(status, context) : null
     return reason ? [{ hostId: context.hostId, reason }] : []
   })
 }

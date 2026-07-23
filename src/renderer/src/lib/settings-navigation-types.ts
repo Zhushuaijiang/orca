@@ -12,6 +12,7 @@ export type SettingsNavInstallStatus =
 
 export type SettingsNavTarget =
   | 'general'
+  | 'ygt-environment'
   | 'integrations'
   | 'accounts'
   | 'browser'

@@ -11,6 +11,10 @@ import type {
   IssueSourcePreference,
   MRComment
 } from '../../shared/types'
+import { randomUUID } from 'node:crypto'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { mapGitLabIssueInfo } from './mappers'
 // prettier-ignore
 import { glabExecFileAsync, acquire, release, getIssueProjectRef, resolveIssueSource, classifyGlabError, classifyListIssuesError, getGlabKnownHosts, glabRepoExecOptions, glabHostnameArgs, type LocalGitExecOptions, type ProjectRef } from './gl-utils'
@@ -27,6 +31,273 @@ export type IssueListResult = {
 // are easy to miss).
 function encodedProject(projectPath: string): string {
   return encodeURIComponent(projectPath)
+}
+
+const MARKDOWN_DATA_IMAGE_PATTERN =
+  /!\[([^\]]*)\]\((data:image\/(png|jpe?g|gif|webp);base64,([A-Za-z0-9+/=\s]+))\)/gi
+
+function gitLabUploadImageExtension(mimeSubtype: string): string {
+  return mimeSubtype.toLowerCase() === 'jpeg' ? 'jpg' : mimeSubtype.toLowerCase()
+}
+
+function sanitizeGitLabUploadFileName(alt: string, extension: string, index: number): string {
+  const base = alt
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return `${base || `image-${index}`}.${extension}`
+}
+
+function parseGitLabRestApiEndpoint(authStatusOutput: string, host: string): string {
+  const match = authStatusOutput.match(/REST API Endpoint:\s*(\S+)/i)
+  if (match?.[1]) {
+    return match[1]
+  }
+  const protocol = host === 'gitlab.com' ? 'https' : 'http'
+  return `${protocol}://${host}/api/v4/`
+}
+
+function execErrorOutput(error: unknown): string {
+  if (!error || typeof error !== 'object') {
+    return String(error)
+  }
+  const execLike = error as { stdout?: unknown; stderr?: unknown; message?: unknown }
+  return (
+    [execLike.stdout, execLike.stderr, execLike.message]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join('\n') || String(error)
+  )
+}
+
+async function getGlabAuthStatusOutput(args: {
+  repoPath: string
+  projectRef: ProjectRef
+  connectionId?: string | null
+  localGitOptions: LocalGitExecOptions
+}): Promise<string> {
+  try {
+    const statusResult = await glabExecFileAsync(
+      ['auth', 'status', '--hostname', args.projectRef.host],
+      glabRepoExecOptions(args.repoPath, args.connectionId, args.localGitOptions)
+    )
+    return `${statusResult.stdout}\n${statusResult.stderr}`
+  } catch (error) {
+    const output = execErrorOutput(error)
+    // Why: glab exits non-zero for a bad alias token but still prints the usable REST endpoint.
+    if (/REST API Endpoint:/i.test(output)) {
+      return output
+    }
+    throw error
+  }
+}
+
+function gitLabTokenHostCandidates(restApiEndpoint: string, projectHost: string): string[] {
+  const hosts = new Set<string>()
+  try {
+    hosts.add(new URL(restApiEndpoint).host)
+  } catch {
+    // Ignore malformed endpoints; the project host remains a usable fallback candidate.
+  }
+  hosts.add(projectHost)
+  return [...hosts].filter((host) => host.trim().length > 0)
+}
+
+async function getGitLabUploadFallbackToken(args: {
+  repoPath: string
+  projectRef: ProjectRef
+  restApiEndpoint: string
+  connectionId?: string | null
+  localGitOptions: LocalGitExecOptions
+}): Promise<string> {
+  const hosts = gitLabTokenHostCandidates(args.restApiEndpoint, args.projectRef.host)
+  const errors: string[] = []
+  for (const host of hosts) {
+    try {
+      const tokenResult = await glabExecFileAsync(
+        ['config', 'get', 'token', '--host', host],
+        glabRepoExecOptions(args.repoPath, args.connectionId, args.localGitOptions)
+      )
+      const token = tokenResult.stdout.trim()
+      if (token) {
+        return token
+      }
+    } catch (error) {
+      errors.push(`${host}: ${execErrorOutput(error)}`)
+    }
+  }
+  const detail = errors.length > 0 ? ` (${errors.join('; ')})` : ''
+  throw new Error(`GitLab token not found for image upload fallback${detail}`)
+}
+
+function gitLabMultipartUploadBody(args: {
+  boundary: string
+  fieldName: string
+  fileName: string
+  contentType: string
+  imageBytes: Buffer
+}): Buffer {
+  return Buffer.concat([
+    Buffer.from(
+      `--${args.boundary}\r\n` +
+        `Content-Disposition: form-data; name="${args.fieldName}"; filename="${args.fileName}"\r\n` +
+        `Content-Type: ${args.contentType}\r\n\r\n`
+    ),
+    args.imageBytes,
+    Buffer.from(`\r\n--${args.boundary}--\r\n`)
+  ])
+}
+
+async function uploadGitLabIssueBodyImageWithNodeMultipart(args: {
+  repoPath: string
+  projectRef: ProjectRef
+  connectionId?: string | null
+  localGitOptions: LocalGitExecOptions
+  alt: string
+  fileName: string
+  contentType: string
+  imageBytes: Buffer
+}): Promise<string> {
+  const authStatusOutput = await getGlabAuthStatusOutput(args)
+  const restApiEndpoint = parseGitLabRestApiEndpoint(
+    authStatusOutput,
+    args.projectRef.host
+  )
+  const token = await getGitLabUploadFallbackToken({ ...args, restApiEndpoint })
+
+  const boundary = `----orca-gitlab-upload-${randomUUID()}`
+  const body = gitLabMultipartUploadBody({
+    boundary,
+    fieldName: 'file',
+    fileName: args.fileName,
+    contentType: args.contentType,
+    imageBytes: args.imageBytes
+  })
+  const uploadUrl = new URL(`projects/${encodedProject(args.projectRef.path)}/uploads`, restApiEndpoint)
+  const requestBody = new Uint8Array(body).buffer
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      'Content-Length': String(body.byteLength),
+      'PRIVATE-TOKEN': token
+    },
+    body: requestBody
+  })
+  const text = await response.text()
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${text}`)
+  }
+  const data = JSON.parse(text) as { markdown?: string; url?: string }
+  if (typeof data.markdown === 'string' && data.markdown.trim()) {
+    return data.markdown
+  }
+  if (typeof data.url === 'string' && data.url.trim()) {
+    return `![${args.alt}](${data.url})`
+  }
+  throw new Error('Unexpected response from GitLab upload')
+}
+
+async function uploadGitLabIssueBodyImage(args: {
+  repoPath: string
+  projectRef: ProjectRef
+  connectionId?: string | null
+  localGitOptions: LocalGitExecOptions
+  alt: string
+  extension: string
+  index: number
+  base64Content: string
+}): Promise<string> {
+  const tempDirName = `orca-gitlab-upload-${randomUUID()}`
+  const fileName = sanitizeGitLabUploadFileName(args.alt, args.extension, args.index)
+  const tempDirPath = join(tmpdir(), tempDirName)
+  const filePath = join(tempDirPath, fileName)
+
+  try {
+    const imageBytes = Buffer.from(args.base64Content.replace(/\s/g, ''), 'base64')
+    await mkdir(tempDirPath)
+    await writeFile(filePath, imageBytes)
+
+    await acquire()
+    try {
+      const { stdout } = await glabExecFileAsync(
+        [
+          'api',
+          ...glabHostnameArgs(args.projectRef, args.connectionId),
+          '-X',
+          'POST',
+          `projects/${encodedProject(args.projectRef.path)}/uploads`,
+          '--form',
+          `file=@${filePath}`
+        ],
+        glabRepoExecOptions(args.repoPath, args.connectionId, args.localGitOptions)
+      )
+      const data = JSON.parse(stdout) as { markdown?: string; url?: string }
+      if (typeof data.markdown === 'string' && data.markdown.trim()) {
+        return data.markdown
+      }
+      if (typeof data.url === 'string' && data.url.trim()) {
+        return `![${args.alt}](${data.url})`
+      }
+      throw new Error('Unexpected response from GitLab upload')
+    } catch (error) {
+      try {
+        return await uploadGitLabIssueBodyImageWithNodeMultipart({
+          repoPath: args.repoPath,
+          projectRef: args.projectRef,
+          connectionId: args.connectionId,
+          localGitOptions: args.localGitOptions,
+          alt: args.alt,
+          fileName,
+          contentType: `image/${args.extension === 'jpg' ? 'jpeg' : args.extension}`,
+          imageBytes
+        })
+      } catch (fallbackError) {
+        const original = error instanceof Error ? error.message : String(error)
+        const fallback =
+          fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+        throw new Error(`${original}; fallback upload failed: ${fallback}`)
+      }
+    } finally {
+      release()
+    }
+  } finally {
+    await rm(tempDirPath, { recursive: true, force: true })
+  }
+}
+
+async function uploadGitLabIssueBodyImages(
+  repoPath: string,
+  body: string,
+  projectRef: ProjectRef,
+  connectionId?: string | null,
+  localGitOptions: LocalGitExecOptions = {}
+): Promise<string> {
+  const matches = [...body.matchAll(MARKDOWN_DATA_IMAGE_PATTERN)]
+  if (matches.length === 0) {
+    return body
+  }
+
+  let result = ''
+  let cursor = 0
+  for (const [index, match] of matches.entries()) {
+    const matchStart = match.index ?? cursor
+    const fullMatch = match[0]
+    result += body.slice(cursor, matchStart)
+    result += await uploadGitLabIssueBodyImage({
+      repoPath,
+      projectRef,
+      connectionId,
+      localGitOptions,
+      alt: match[1] || `Image ${index + 1}`,
+      extension: gitLabUploadImageExtension(match[3] || 'png'),
+      index: index + 1,
+      base64Content: match[4] || ''
+    })
+    cursor = matchStart + fullMatch.length
+  }
+  result += body.slice(cursor)
+  return result
 }
 
 /**
@@ -176,6 +447,19 @@ export async function createIssue(
       error: 'Could not resolve GitLab project for this repository'
     }
   }
+  let issueBody = body
+  try {
+    issueBody = await uploadGitLabIssueBodyImages(
+      repoPath,
+      body,
+      projectRef,
+      connectionId,
+      localGitOptions
+    )
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: `Could not upload GitLab issue image: ${message}` }
+  }
   await acquire()
   try {
     const { stdout } = await glabExecFileAsync(
@@ -189,7 +473,7 @@ export async function createIssue(
         `title=${trimmedTitle}`,
         '-f',
         // Why: GitLab uses `description` (not `body`) for issue text.
-        `description=${body}`
+        `description=${issueBody}`
       ],
       glabRepoExecOptions(repoPath, connectionId, localGitOptions)
     )

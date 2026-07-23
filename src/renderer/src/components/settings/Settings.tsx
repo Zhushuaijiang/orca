@@ -121,6 +121,7 @@ import {
   removeSettingsProjectFromAllHosts,
   resolveSettingsTargetRepoId
 } from './settings-project-list'
+import { YgtEnvironmentPane } from './YgtEnvironmentPane'
 
 const DevToolsPane = import.meta.env.DEV
   ? lazy(() => import('./DevToolsPane').then((module) => ({ default: module.DevToolsPane })))
@@ -1305,6 +1306,23 @@ function Settings(): React.JSX.Element {
                     />
                   ) : null}
                 </SettingsSection>
+
+                {showDesktopOnlySettings ? (
+                  <SettingsSection
+                    id="ygt-environment"
+                    title={translate(
+                      'auto.components.settings.Settings.ygtEnvironmentTitle',
+                      'YGT Setup'
+                    )}
+                    description={translate(
+                      'auto.components.settings.Settings.ygtEnvironmentDescription',
+                      'Check GitLab access, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start.'
+                    )}
+                    searchEntries={getSectionSearchEntries('ygt-environment')}
+                  >
+                    {isSectionMounted('ygt-environment') ? <YgtEnvironmentPane /> : null}
+                  </SettingsSection>
+                ) : null}
 
                 <SettingsSection
                   id="integrations"

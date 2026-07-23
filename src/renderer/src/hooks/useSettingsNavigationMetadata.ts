@@ -82,6 +82,7 @@ import {
 import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
 import { useLinearProviderConnected } from '@/hooks/useLinearProviderConnected'
 import { translate } from '@/i18n/i18n'
+import { getYgtEnvironmentPaneSearchEntries } from '@/components/settings/ygt-environment-search'
 
 export { isWebClientLocation } from '@/lib/web-client-location'
 
@@ -271,6 +272,24 @@ export function buildSettingsNavigationMetadata({
       searchEntries: getGeneralPaneSearchEntries({ includeProjectRuntime: isWindowsTerminalHost }),
       group: 'setup'
     },
+    ...(showDesktopOnlySettings
+      ? [
+          {
+            id: 'ygt-environment',
+            title: translate(
+              'auto.hooks.useSettingsNavigationMetadata.ygtEnvironmentTitle',
+              'YGT Setup'
+            ),
+            description: translate(
+              'auto.hooks.useSettingsNavigationMetadata.ygtEnvironmentDescription',
+              'Check GitLab, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start.'
+            ),
+            icon: ShieldCheck,
+            searchEntries: getYgtEnvironmentPaneSearchEntries(),
+            group: 'setup'
+          }
+        ]
+      : []),
     {
       id: 'integrations',
       title: translate('auto.hooks.useSettingsNavigationMetadata.2b043783ef', 'Integrations'),

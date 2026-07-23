@@ -282,14 +282,11 @@ export function createMainWindow(
 
   // Why: macOS+Electron 41 re-emits ready-to-show on webview-guest creation; a one-shot guard stops re-running maximize() after resize (#591).
   let handledInitialReadyToShow = false
-  let initialRevealFallbackTimer: ReturnType<typeof setTimeout> | null =
-    process.platform === 'win32' || process.platform === 'linux'
-      ? setTimeout(() => {
-          // Why: GPU/driver failures on Windows/Linux can prevent ready-to-show forever, hiding the only app window (#8421).
-          initialRevealFallbackTimer = null
-          revealInitialWindow()
-        }, 10_000)
-      : null
+  let initialRevealFallbackTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    // Why: ready-to-show is best-effort across Chromium renderer/webview startup; without this a healthy process can strand the only app window hidden.
+    initialRevealFallbackTimer = null
+    revealInitialWindow()
+  }, 10_000)
   initialRevealFallbackTimer?.unref?.()
 
   const clearInitialRevealFallbackTimer = (): void => {

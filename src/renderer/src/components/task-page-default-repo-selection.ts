@@ -8,6 +8,79 @@ export type TaskProjectPickerGroup = {
   sources: Repo[]
 }
 
+function normalizeComparablePath(value: string): string {
+  const normalized = value.replace(/\\/g, '/').replace(/\/+$/, '')
+  return /^[a-z]:/i.test(normalized) ? normalized.toLowerCase() : normalized
+}
+
+function isDescendantPath(parentPath: string, candidatePath: string): boolean {
+  const parent = normalizeComparablePath(parentPath)
+  const candidate = normalizeComparablePath(candidatePath)
+  return candidate.length > parent.length && candidate.startsWith(`${parent}/`)
+}
+
+function sameTaskRepoHost(a: Repo, b: Repo): boolean {
+  return getRepoExecutionHostId(a) === getRepoExecutionHostId(b)
+}
+
+function hasTaskSourceRemote(repo: Repo): boolean {
+  return Boolean(repo.gitRemoteIdentity?.canonicalKey || repo.gitRemoteIdentity?.remoteUrl)
+}
+
+function compareAncestorSpecificity(a: Repo, b: Repo): number {
+  return normalizeComparablePath(b.path).length - normalizeComparablePath(a.path).length
+}
+
+export function expandSelectedTaskSourceRepos(
+  repos: readonly Repo[],
+  selection: ReadonlySet<string>
+): Repo[] {
+  const selectedIds = new Set(selection)
+  const expandedIds = new Set<string>()
+  for (const selected of repos) {
+    if (!selectedIds.has(selected.id)) {
+      continue
+    }
+    const nestedSources = repos.filter(
+      (candidate) =>
+        candidate.id !== selected.id &&
+        sameTaskRepoHost(candidate, selected) &&
+        hasTaskSourceRemote(candidate) &&
+        isDescendantPath(selected.path, candidate.path)
+    )
+    if (nestedSources.length > 0 && !hasTaskSourceRemote(selected)) {
+      for (const source of nestedSources) {
+        expandedIds.add(source.id)
+      }
+      continue
+    }
+    expandedIds.add(selected.id)
+  }
+  return repos.filter((repo) => expandedIds.has(repo.id))
+}
+
+export function getTaskWorkspaceRepoForSourceRepo(
+  sourceRepoId: string,
+  repos: readonly Repo[],
+  selection: ReadonlySet<string>
+): Repo | null {
+  const source = repos.find((repo) => repo.id === sourceRepoId)
+  if (!source) {
+    return null
+  }
+  const selectedIds = new Set(selection)
+  const ancestors = repos
+    .filter(
+      (candidate) =>
+        selectedIds.has(candidate.id) &&
+        candidate.id !== source.id &&
+        sameTaskRepoHost(candidate, source) &&
+        isDescendantPath(candidate.path, source.path)
+    )
+    .sort(compareAncestorSpecificity)
+  return ancestors[0] ?? source
+}
+
 export function getDefaultTaskRepoSelection(repos: readonly Repo[]): Set<string> {
   const selectedByProject = new Map<string, Repo>()
   for (const repo of repos) {

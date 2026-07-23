@@ -98,6 +98,22 @@ describe('resolveCodexCommand', () => {
     expect(resolveCodexCommand({ platform: 'darwin', pathEnv: '', homePath: root })).toBe(pnpmPath)
   })
 
+  it('finds ChatGPT-bundled Codex on macOS', () => {
+    const root = mkdtempSync(join(tmpdir(), 'orca-codex-command-'))
+    const applicationsPath = join(root, 'Applications')
+    const bundledCodexPath = join(applicationsPath, 'ChatGPT.app', 'Contents', 'Resources', 'codex')
+    makeExecutable(bundledCodexPath)
+
+    expect(
+      resolveCodexCommand({
+        platform: 'darwin',
+        pathEnv: '',
+        homePath: root,
+        macApplicationsPath: applicationsPath
+      })
+    ).toBe(bundledCodexPath)
+  })
+
   it('finds Codex in pnpm global bin on Linux', () => {
     const root = mkdtempSync(join(tmpdir(), 'orca-codex-command-'))
     const pnpmPath = join(root, '.local', 'share', 'pnpm', 'codex')
@@ -158,6 +174,22 @@ describe('resolveCodexCommand', () => {
     const root = mkdtempSync(join(tmpdir(), 'orca-codex-command-'))
 
     expect(resolveCodexCommand({ platform: 'linux', pathEnv: '', homePath: root })).toBe('codex')
+  })
+
+  it('bulk-resolves ChatGPT-bundled Codex on macOS', () => {
+    const root = mkdtempSync(join(tmpdir(), 'orca-codex-command-'))
+    const applicationsPath = join(root, 'Applications')
+    const bundledCodexPath = join(applicationsPath, 'ChatGPT.app', 'Contents', 'Resources', 'codex')
+    makeExecutable(bundledCodexPath)
+
+    expect(
+      resolveCliCommands(['codex'], {
+        platform: 'darwin',
+        pathEnv: '',
+        homePath: root,
+        macApplicationsPath: applicationsPath
+      }).get('codex')
+    ).toBe(bundledCodexPath)
   })
 })
 

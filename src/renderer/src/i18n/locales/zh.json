@@ -733,7 +733,9 @@
         "devSearchKeywordNotification": "notification",
         "projectHostsSummary": "{{value0}} 个主机",
         "linearTitle": "Linear",
-        "linearDescription": "Give agents the skill to read and update your linked Linear tickets."
+        "linearDescription": "Give agents the skill to read and update your linked Linear tickets.",
+        "ygtEnvironmentTitle": "YGT Setup",
+        "ygtEnvironmentDescription": "Check GitLab, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start."
       },
       "useAppMenuPaste": {
         "pasteTooLarge": "粘贴内容过大。"
@@ -1021,7 +1023,8 @@
         "3a051b8ade": "工作项目",
         "32f8bef818": "无日志输出。",
         "4168eb2c51": "解决",
-        "commentTooLarge": "评论过长，无法安全提交。"
+        "commentTooLarge": "评论过长，无法安全提交。",
+        "filesUnavailable": "Couldn't load changed files."
       },
       "JiraIssueWorkspace": {
         "b0b92666c9": "评论",
@@ -1788,7 +1791,33 @@
         "jiraToggleSortDirection": "按{{value0}}排序",
         "75a38d7df8": "GitHub data is temporarily unavailable. Its API may be down, rate-limited, or unreachable. Please try again shortly.",
         "noGithubSourceDetected": "No GitHub source detected for",
-        "noGithubSourceDetectedHint": "it may have no GitHub remote, or the source could not be resolved."
+        "noGithubSourceDetectedHint": "it may have no GitHub remote, or the source could not be resolved.",
+        "gitLabMrFilterOpen": "待合并",
+        "gitLabMrFilterMerged": "已合并",
+        "gitLabMrFilterClosed": "已关闭",
+        "f14f60f39e": "已打开 GitLab 议题 #{{value0}}",
+        "ae3894e891": "创建云效需求失败。",
+        "14cb2e282f": "云效需求",
+        "633c9bd347": "已创建 {{value0}}",
+        "f1a03a62c3": "已归档并派发给云效需求技能。",
+        "7c80f6a313": "新的云效需求",
+        "2fc21cc61c": "新的 {{value0}} 议题",
+        "c57bf5f830": "通过官方云效 MCP 提交。创建后，Orca 可以归档并派发给云效需求技能。",
+        "1d4de0491e": "目标",
+        "c7759fab5d": "GitHub 议题",
+        "3b86ec0b27": "GitLab 议题",
+        "72c283c5e8": "创建后归档并派发给云效需求技能",
+        "56851d859e": "创建需求",
+        "b87e7c39ef": "Created the Yunxiao requirement, but failed to link it back to GitLab.",
+        "357ed17b2b": "Created the GitLab issue, but failed to create the linked Yunxiao requirement.",
+        "d2f9f4a4de": "Linked Yunxiao requirement {{value0}}.",
+        "c8604b1bf2": "New GitLab issue",
+        "a4498dc284": "Filing GitLab issue in",
+        "c4e4b59344": ", code changes in",
+        "c5769a85fd": "Code workspace",
+        "7dd5845268": "Used for code changes after creation",
+        "219357cf23": "GitLab issue owner",
+        "e65804f357": "Create and link a Yunxiao requirement"
       },
       "Terminal": {
         "73768427cf": "关闭",
@@ -4627,7 +4656,8 @@
           "toastInstallCliDescription": "安装 Orca CLI，让智能体可以读取并编辑 Linear 任务。",
           "toastInstallSkillDescription": "安装 Linear 技能，让智能体可以通过 Orca CLI 读取并编辑 Linear 任务。",
           "toastRemoteDescription": "{{value0}} 远程智能体环境可能仍需要自己的设置。",
-          "toastWslDescription": "{{value0}} 此设置会在所选 WSL 智能体运行时中执行。"
+          "toastWslDescription": "{{value0}} 此设置会在所选 WSL 智能体运行时中执行。",
+          "notNow": "暂不"
         },
         "FolderWorkspaceComposerDialog": {
           "connectFailed": "无法连接到项目。",
@@ -4978,7 +5008,8 @@
           "remoteEmptyClaudeAccounts": "{{value0}} 上没有受管理的 Claude 账户。它使用其系统默认的 Claude 登录；请在该服务器上添加账户。",
           "remoteEmptyCodexAccounts": "{{value0}} 上没有受管理的 Codex 账户。它使用其系统默认的 Codex 登录；请在该服务器上添加账户。",
           "codexSystemDefaultCustomProvider": "自定义提供商 — 不跟踪使用情况。",
-          "codexSystemDefaultNeedsSignIn": "未找到 {{value0}} 的 Codex 登录信息。"
+          "codexSystemDefaultNeedsSignIn": "未找到 {{value0}} 的 Codex 登录信息。",
+          "99c8f9e498": "Orca 将删除此已保存账户的托管 Codex 主目录。如果当前处于活动状态，Orca 将回退到系统默认的 Codex 登录。"
         },
         "AdvancedPane": {
           "40b29e0bf3": "重新启动",
@@ -6512,7 +6543,9 @@
           "dev": "开发工具",
           "devDescription": "仅用于调试 UI 状态的开发工具。",
           "linearTitle": "Linear",
-          "linearDescription": "Give agents the skill to read and update your linked Linear tickets."
+          "linearDescription": "Give agents the skill to read and update your linked Linear tickets.",
+          "ygtEnvironmentTitle": "YGT Setup",
+          "ygtEnvironmentDescription": "Check GitLab access, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start."
         },
         "SettingsFormControls": {
           "42a4d15a30": "没有匹配的字体。",
@@ -7000,7 +7033,8 @@
           "cf37ff69f6": "根据",
           "8abdab9f7c": "立即重启",
           "907131d741": "正在重新启动...",
-          "605a35d600": "Not applied by the terminal renderer yet — xterm.js has no bold color slot. A saved value is preserved."
+          "605a35d600": "Not applied by the terminal renderer yet — xterm.js has no bold color slot. A saved value is preserved.",
+          "fb8c6f1967": "粗体文本的颜色。如果未设置，则返回正常颜色。"
         },
         "UIZoomControl": {
           "c2c64b24d0": "重置"
@@ -9270,6 +9304,43 @@
           "title": "Editor Font Family",
           "description": "Font used by file editors and diff views. Leave empty to follow the terminal font.",
           "placeholder": "Same as terminal font"
+        },
+        "YgtEnvironmentPane": {
+          "statusReady": "Ready",
+          "statusNeedsLogin": "Needs login",
+          "statusMissing": "Missing",
+          "autoFixable": "Auto-fixable",
+          "copyCommand": "Copy command",
+          "checkFailed": "YGT environment check failed.",
+          "installFailed": "YGT environment repair failed.",
+          "commandCopied": "Command copied",
+          "summary": "{{value0}} of {{value1}} prerequisites ready",
+          "description": "Run a local readiness check before teammates use GitLab, Yunxiao, HIS, and YGT workflows in Orca.",
+          "checkAll": "Check all",
+          "installRepair": "Install / repair",
+          "loading": "Checking prerequisites...",
+          "searchTitle": "YGT setup",
+          "searchDescription": "Check GitLab access, Yunxiao MCP, HIS MCP, and the YGT skill.",
+          "searchKeywordYgt": "ygt",
+          "searchKeywordGitLab": "gitlab",
+          "searchKeywordGlab": "glab",
+          "searchKeywordYunxiao": "yunxiao",
+          "searchKeywordHis": "his",
+          "searchKeywordMcp": "mcp",
+          "searchKeywordPrerequisites": "prerequisites",
+          "gitlabHost": "GitLab host",
+          "gitlabToken": "GitLab access token",
+          "saved": "Saved",
+          "keepSavedToken": "Leave blank to keep saved token",
+          "yunxiaoToken": "Yunxiao access token",
+          "yunxiaoMcpUrl": "Yunxiao MCP URL",
+          "hisToken": "HIS MCP token",
+          "hisMcpUrl": "HIS MCP URL",
+          "configStorageNote": "Tokens are saved only on this machine under Orca user data and are not shown after saving.",
+          "gitlabHostPlaceholder": "gitlab.df-mic.com",
+          "gitlabTokenPlaceholder": "glpat-...",
+          "yunxiaoTokenPlaceholder": "YUNXIAO_ACCESS_TOKEN",
+          "hisTokenPlaceholder": "HIS_MCP_TOKEN"
         }
       },
       "right": {
@@ -10541,6 +10612,9 @@
                 }
               }
             }
+          },
+          "aiVaultSessionLaunch": {
+            "prepareFailed": "Could not prepare this session for resume."
           }
         }
       },
@@ -13435,6 +13509,11 @@
           },
           "undo": "撤销",
           "widthOption": "{{value0}} px"
+        }
+      },
+      "tabGroup": {
+        "AiVaultSessionDropLayer": {
+          "prepareFailed": "Could not prepare this session for resume."
         }
       }
     },

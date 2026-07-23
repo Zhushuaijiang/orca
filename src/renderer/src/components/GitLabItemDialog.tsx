@@ -28,6 +28,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VisuallyHidden } from 'radix-ui'
 import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
+import { GitLabMRFileDiff } from '@/components/gitlab-mr-file-diff'
 import { isScreenSubmitShortcut } from '@/lib/screen-submit-shortcut'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import { cn } from '@/lib/utils'
@@ -54,6 +55,7 @@ type Props = {
   sourceContext?: TaskSourceContext | null
   onClose: () => void
   onCreateWorkspace?: (item: GitLabWorkItem) => void
+  onOpenFiles?: (item: GitLabWorkItem) => void
 }
 
 type GitLabDialogRepoSelector = {
@@ -327,7 +329,8 @@ export default function GitLabItemDialog({
   repoId,
   sourceContext,
   onClose,
-  onCreateWorkspace
+  onCreateWorkspace,
+  onOpenFiles
 }: Props): React.JSX.Element {
   const [details, setDetails] = useState<GitLabWorkItemDetails | null>(null)
   const [loading, setLoading] = useState(false)
@@ -1445,8 +1448,29 @@ export default function GitLabItemDialog({
                       <div className="flex items-center justify-center py-12">
                         <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
                       </div>
+                    ) : details?.filesUnavailable ? (
+                      <p className="text-sm text-muted-foreground">
+                        {translate(
+                          'auto.components.GitLabItemDialog.filesUnavailable',
+                          "Couldn't load changed files."
+                        )}
+                      </p>
                     ) : details?.files?.length ? (
                       <>
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => item && onOpenFiles?.(item)}
+                            disabled={!item || !onOpenFiles}
+                          >
+                            {translate(
+                              'auto.components.GitLabItemDialog.openFilesDialog',
+                              'Open file viewer'
+                            )}
+                          </Button>
+                        </div>
                         <div className="rounded-md border border-border/50 bg-muted/20 p-3">
                           <div className="grid grid-cols-[minmax(0,1fr)_80px] gap-2">
                             <select
@@ -1527,14 +1551,16 @@ export default function GitLabItemDialog({
                                   ) : null}
                                 </div>
                                 <div className="shrink-0 text-[11px] text-muted-foreground">
-                                  <span className="text-emerald-600">+{file.additions}</span>{' '}
-                                  <span className="text-rose-600">-{file.deletions}</span>
+                                  <span className="text-[var(--git-decoration-added)]">
+                                    +{file.additions}
+                                  </span>{' '}
+                                  <span className="text-[var(--git-decoration-deleted)]">
+                                    -{file.deletions}
+                                  </span>
                                 </div>
                               </div>
                               {file.diff ? (
-                                <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-4 text-foreground scrollbar-sleek">
-                                  {file.diff}
-                                </pre>
+                                <GitLabMRFileDiff diff={file.diff} />
                               ) : (
                                 <div className="px-3 py-3 text-xs text-muted-foreground">
                                   {translate(

@@ -131,6 +131,10 @@ import type {
   GitLabMRUpdate,
   GitLabProjectRef,
   GitLabRetryJobResult,
+  YunxiaoArchiveRequirementArgs,
+  YunxiaoArchiveRequirementResult,
+  YunxiaoCreateRequirementArgs,
+  YunxiaoRequirementResult,
   GitLabTodo,
   GitLabViewer,
   GitLabWorkItem,
@@ -343,6 +347,12 @@ import type {
 } from '../shared/shell-open-types'
 import type { SkillDiscoveryResult, SkillDiscoveryTarget } from '../shared/skills'
 import type { SkillFreshnessInventory } from '../shared/skill-freshness'
+import type {
+  YgtEnvironmentConfigInput,
+  YgtEnvironmentConfigSnapshot,
+  YgtEnvironmentCheckResult,
+  YgtEnvironmentInstallResult
+} from '../shared/ygt-environment-types'
 import type {
   CrashReportBreadcrumbData,
   CrashReportCopyDiagnosticsArgs,
@@ -2101,6 +2111,12 @@ export type PreloadApi = {
       siteId?: string
     }) => Promise<JiraProjectStatusOrder>
   }
+  yunxiao: {
+    createRequirement: (args: YunxiaoCreateRequirementArgs) => Promise<YunxiaoRequirementResult>
+    archiveRequirement: (
+      args: YunxiaoArchiveRequirementArgs
+    ) => Promise<YunxiaoArchiveRequirementResult>
+  }
   starNag: {
     onShow: (
       callback: (payload?: { mode?: 'gh' | 'web'; surface?: 'card' | 'toast' }) => void
@@ -2297,6 +2313,11 @@ export type PreloadApi = {
   skills: {
     discover: (target?: SkillDiscoveryTarget) => Promise<SkillDiscoveryResult>
     freshnessInventory: () => Promise<SkillFreshnessInventory>
+  }
+  ygtEnvironment: {
+    getConfig: () => Promise<YgtEnvironmentConfigSnapshot>
+    check: () => Promise<YgtEnvironmentCheckResult>
+    install: (config?: YgtEnvironmentConfigInput) => Promise<YgtEnvironmentInstallResult>
   }
   pet: {
     import: () => Promise<CustomPet | null>

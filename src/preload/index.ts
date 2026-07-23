@@ -63,7 +63,11 @@ import type {
   WorktreeBaseStatusEvent,
   WorktreeDefaultTabsLaunch,
   WorktreeHeadIdentity,
-  WorktreeRemoteBranchConflictEvent
+  WorktreeRemoteBranchConflictEvent,
+  YunxiaoArchiveRequirementArgs,
+  YunxiaoArchiveRequirementResult,
+  YunxiaoCreateRequirementArgs,
+  YunxiaoRequirementResult
 } from '../shared/types'
 import type { PtyModelRestoreNeededEvent } from '../shared/pty-model-restore-marker'
 import type {
@@ -85,6 +89,12 @@ import type {
 } from '../shared/shell-open-types'
 import type { SkillDiscoveryResult, SkillDiscoveryTarget } from '../shared/skills'
 import type { SkillFreshnessInventory } from '../shared/skill-freshness'
+import type {
+  YgtEnvironmentConfigInput,
+  YgtEnvironmentConfigSnapshot,
+  YgtEnvironmentCheckResult,
+  YgtEnvironmentInstallResult
+} from '../shared/ygt-environment-types'
 import type {
   RuntimeBrowserDriverState,
   RuntimeMobileSessionTabMove,
@@ -1774,6 +1784,15 @@ const api = {
     }): Promise<JiraProjectStatusOrder> => ipcRenderer.invoke('jira:getProjectStatusOrder', args)
   },
 
+  yunxiao: {
+    createRequirement: (args: YunxiaoCreateRequirementArgs): Promise<YunxiaoRequirementResult> =>
+      ipcRenderer.invoke('yunxiao:createRequirement', args),
+    archiveRequirement: (
+      args: YunxiaoArchiveRequirementArgs
+    ): Promise<YunxiaoArchiveRequirementResult> =>
+      ipcRenderer.invoke('yunxiao:archiveRequirement', args)
+  },
+
   starNag: {
     onShow: (
       callback: (payload?: { mode?: 'gh' | 'web'; surface?: 'card' | 'toast' }) => void
@@ -2221,6 +2240,14 @@ const api = {
       ipcRenderer.invoke('skills:discover', target),
     freshnessInventory: (): Promise<SkillFreshnessInventory> =>
       ipcRenderer.invoke('skills:freshnessInventory')
+  },
+
+  ygtEnvironment: {
+    getConfig: (): Promise<YgtEnvironmentConfigSnapshot> =>
+      ipcRenderer.invoke('ygtEnvironment:getConfig'),
+    check: (): Promise<YgtEnvironmentCheckResult> => ipcRenderer.invoke('ygtEnvironment:check'),
+    install: (config?: YgtEnvironmentConfigInput): Promise<YgtEnvironmentInstallResult> =>
+      ipcRenderer.invoke('ygtEnvironment:install', config)
   },
 
   pet: {

@@ -892,19 +892,17 @@ export async function mergeMR(
     async (projectRef, repoFlag) => {
       await acquire()
       try {
-        // Why: omitting both --squash and --rebase yields a regular merge commit.
-        const methodFlag =
-          method === 'squash' ? ['--squash'] : method === 'rebase' ? ['--rebase'] : []
         await glabExecFileAsync(
           [
-            'mr',
-            'merge',
-            String(iid),
-            '-R',
-            repoFlag,
-            '--yes',
-            ...methodFlag,
-            ...glabHostnameArgs(projectRef, connectionId)
+            'api',
+            ...glabHostnameArgs(projectRef, connectionId),
+            '-X',
+            'PUT',
+            `projects/${encodedProject(repoFlag)}/merge_requests/${iid}/merge`,
+            '-f',
+            `squash=${method === 'squash' ? 'true' : 'false'}`,
+            '-f',
+            'should_remove_source_branch=false'
           ],
           glabRepoExecOptions(repoPath, connectionId, localGitOptions)
         )

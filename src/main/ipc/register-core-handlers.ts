@@ -16,6 +16,8 @@ import { registerGitLabHandlers } from './gitlab'
 import { registerHostedReviewHandlers } from './hosted-review'
 import { registerLinearHandlers } from './linear'
 import { registerJiraHandlers } from './jira'
+import { registerYunxiaoHandlers } from './yunxiao'
+import { registerYgtEnvironmentHandlers } from './ygt-environment'
 import { registerFeedbackHandlers } from './feedback'
 import { registerCrashReportingHandlers } from './crash-reporting'
 import { registerExportHandlers } from './export'
@@ -147,6 +149,8 @@ export function registerCoreHandlers(
   registerHostedReviewHandlers(store, stats)
   registerLinearHandlers()
   registerJiraHandlers()
+  registerYunxiaoHandlers()
+  registerYgtEnvironmentHandlers()
   registerFeedbackHandlers()
   if (crashReports) {
     registerCrashReportingHandlers(crashReports)

@@ -44,6 +44,7 @@ describe('TaskPage source switching host boundary', () => {
     expect(section).toContain('openTaskPage(')
     expect(section).toContain('taskSource: source.id')
     expect(section).toContain('defaultTaskSource: source.id')
+    expect(section).not.toContain('sourceAvailabilityNotice?.blocking')
     expect(section).not.toContain('activeRuntimeEnvironmentId')
     expect(section).not.toContain('projectHostSetupId')
     expect(section).not.toContain('workspaceRunContext')

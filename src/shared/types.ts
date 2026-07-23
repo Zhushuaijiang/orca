@@ -1956,6 +1956,14 @@ export type {
   JiraViewer
 } from './jira-types'
 
+export type {
+  YunxiaoArchiveRequirementArgs,
+  YunxiaoArchiveRequirementResult,
+  YunxiaoCreateRequirementArgs,
+  YunxiaoRequirementPriority,
+  YunxiaoRequirementResult
+} from './yunxiao-types'
+
 /**
  * GitHub API rate-limit buckets surfaced in the TaskPage header so users can
  * see remaining budget before they hit the wall. `core` = REST (5000/hr),

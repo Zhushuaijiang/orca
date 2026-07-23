@@ -249,6 +249,8 @@ export type GitLabWorkItemDetails = {
   baseSha?: string
   startSha?: string
   files?: GitLabMRFile[]
+  /** True when GitLab rejected both diff endpoints; avoids showing a false empty file list. */
+  filesUnavailable?: boolean
   /** MR-only — populated when the MR's head_pipeline exists. */
   pipelineJobs?: GitLabPipelineJob[]
   /** MR-only reviewers and approval status. */

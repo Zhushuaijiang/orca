@@ -48,6 +48,7 @@ import {
 } from '../../../shared/execution-host'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   Command,
@@ -143,6 +144,7 @@ import { useRepoAssigneesBySlug } from '@/hooks/useGitHubSlugMetadata'
 import GitHubItemDialog, { type ItemDialogTab } from '@/components/GitHubItemDialog'
 import PullRequestPage from '@/components/PullRequestPage'
 import GitLabItemDialog from '@/components/GitLabItemDialog'
+import { GitLabMRFilesDialog } from '@/components/gitlab-mr-files-dialog'
 import ProjectViewWrapper from '@/components/github-project/ProjectViewWrapper'
 import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
 import {
@@ -237,7 +239,9 @@ import {
 import { findTaskPageJiraIssue } from '@/components/task-page-jira-cache-selectors'
 import { getRepoBackedTaskEmptyState } from '@/components/task-page-empty-state'
 import {
+  expandSelectedTaskSourceRepos,
   getDefaultTaskRepoSelection,
+  getTaskWorkspaceRepoForSourceRepo,
   getTaskProjectPickerGroups,
   normalizeTaskRepoSelection
 } from '@/components/task-page-default-repo-selection'
@@ -279,6 +283,7 @@ import type {
   GitHubPRMergeMethod,
   GitHubIssueUpdate,
   GitHubWorkItem,
+  GitLabCommentResult,
   GitLabTodo,
   GitLabWorkItem,
   JiraCreateField,
@@ -394,6 +399,78 @@ const GITHUB_TASK_ROW_SURFACE_CLASS =
 const GITHUB_TASK_ROW_HOVER_SURFACE_CLASS =
   'group-hover/github-task-row:[background:color-mix(in_srgb,var(--muted)_70%,var(--background))]'
 
+type NewIssueProvider = 'github' | 'gitlab' | 'yunxiao'
+
+function getNewIssueProviderLabel(provider: NewIssueProvider): string {
+  if (provider === 'gitlab') {
+    return 'GitLab'
+  }
+  if (provider === 'yunxiao') {
+    return '云效'
+  }
+  return 'GitHub'
+}
+
+function buildGitLabLinkedYunxiaoDescription(
+  body: string,
+  issue: { number: number; url?: string | null },
+  repoName: string
+): string {
+  const details = [
+    '## GitLab association',
+    `GitLab issue: ${issue.url || `#${issue.number}`}`,
+    `GitLab project: ${repoName}`
+  ].join('\n')
+  const trimmedBody = body.trim()
+  return trimmedBody ? `${trimmedBody}\n\n---\n\n${details}` : details
+}
+
+function buildGitLabIssueBodyWithWorkspaceContext(
+  body: string,
+  context: {
+    issueRepo: Repo
+    workspaceRepo: Repo | null
+    sourceRepos: readonly Repo[]
+  }
+): string {
+  const workspaceRepo = context.workspaceRepo
+  if (!workspaceRepo || workspaceRepo.id === context.issueRepo.id) {
+    return body
+  }
+  const sourceNames = context.sourceRepos
+    .filter((repo) => repo.id !== workspaceRepo.id)
+    .map((repo) => repo.displayName)
+  const details = [
+    '## Orca workspace context',
+    `Code workspace: ${workspaceRepo.displayName}`,
+    `GitLab issue owner: ${context.issueRepo.displayName}`,
+    sourceNames.length > 0 ? `Possible affected repositories: ${sourceNames.join(', ')}` : null
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join('\n')
+  const trimmedBody = body.trim()
+  return trimmedBody ? `${trimmedBody}\n\n---\n\n${details}` : details
+}
+
+function buildYunxiaoLinkedGitLabComment(result: {
+  workItemId: string | null
+  url: string | null
+  archiveMessage?: string
+}): string {
+  const identifier = result.workItemId ?? 'Yunxiao requirement'
+  const target = result.url ? `[${identifier}](${result.url})` : identifier
+  return [
+    `Linked Yunxiao requirement: ${target}`,
+    result.archiveMessage ? 'Archived and dispatched to the Yunxiao requirement skill.' : null
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join('\n\n')
+}
+
+function isGitLabCommentResult(value: unknown): value is GitLabCommentResult {
+  return Boolean(value && typeof value === 'object' && 'ok' in value)
+}
+
 function getGitHubWorkItemWorkspaceSeed(item: GitHubWorkItem): string {
   return getLinkedWorkItemWorkspaceName(item)?.seedName ?? getLinkedWorkItemSuggestedName(item)
 }
@@ -446,6 +523,23 @@ function getTaskPageRepoSourceContext(
     repoId: repo.id,
     providerIdentity
   })
+}
+
+function getGitLabProjectRefFromRepo(repo: Repo | null | undefined): GitLabProjectRef | null {
+  const canonicalKey = repo?.gitRemoteIdentity?.canonicalKey?.trim()
+  if (!canonicalKey) {
+    return null
+  }
+  const separator = canonicalKey.indexOf('/')
+  if (separator <= 0 || separator === canonicalKey.length - 1) {
+    return null
+  }
+  const host = canonicalKey.slice(0, separator).toLowerCase()
+  const path = canonicalKey.slice(separator + 1)
+  if (host === 'github.com' || host === 'bitbucket.org') {
+    return null
+  }
+  return host && path ? { host, path } : null
 }
 
 function buildGitLabProviderIdentity(projectRef: GitLabProjectRef) {
@@ -3200,8 +3294,12 @@ export default function TaskPage(): React.JSX.Element {
   }, [eligibleRepos, repoSelection, taskPickerRepos])
 
   const selectedRepos = useMemo(
-    () => eligibleRepos.filter((r) => repoSelection.has(r.id)),
+    () => expandSelectedTaskSourceRepos(eligibleRepos, repoSelection),
     [eligibleRepos, repoSelection]
+  )
+  const selectedWorkspaceRepos = useMemo(
+    () => taskPickerRepos.filter((repo) => repoSelection.has(repo.id)),
+    [repoSelection, taskPickerRepos]
   )
 
   // Why: many affordances need *a* repo; use the first selected as default, while cross-repo dialogs still let the user override per-action.
@@ -3310,7 +3408,13 @@ export default function TaskPage(): React.JSX.Element {
     () =>
       taskSource === 'github' || taskSource === 'gitlab'
         ? selectedRepos
-            .map((repo) => getTaskPageRepoSourceContext(repo, taskSource))
+            .map((repo) =>
+              getTaskPageRepoSourceContext(
+                repo,
+                taskSource,
+                taskSource === 'gitlab' ? getGitLabProjectRefFromRepo(repo) : null
+              )
+            )
             .filter((context): context is TaskSourceContext => context !== null)
         : [],
     [selectedRepos, taskSource]
@@ -3572,7 +3676,9 @@ export default function TaskPage(): React.JSX.Element {
           hostAvailability: availabilityForContexts(
             'gitlab',
             selectedRepos
-              .map((repo) => getTaskPageRepoSourceContext(repo, 'gitlab'))
+              .map((repo) =>
+                getTaskPageRepoSourceContext(repo, 'gitlab', getGitLabProjectRefFromRepo(repo))
+              )
               .filter((context): context is TaskSourceContext => context !== null)
           )
         }) ?? undefined,
@@ -3714,6 +3820,7 @@ export default function TaskPage(): React.JSX.Element {
   const [gitlabRefreshNonce, setGitlabRefreshNonce] = useState(0)
   // Why: separate from gitlabItems so the dialog target survives a list refresh that removes the item from the visible filter (e.g. closing an MR).
   const [gitlabDialogItem, setGitlabDialogItem] = useState<GitLabWorkItem | null>(null)
+  const [gitlabFilesDialogItem, setGitlabFilesDialogItem] = useState<GitLabWorkItem | null>(null)
 
   // Why: GitLab tab has two sub-views — the project MR/issue list and the user's cross-project Todos (a separate stream).
   const [gitlabView, setGitlabView] = useState<'issues' | 'mrs' | 'todos'>('mrs')
@@ -3884,6 +3991,23 @@ export default function TaskPage(): React.JSX.Element {
     pageData.openGitLabSourceContext,
     pageData.openGitLabWorkItem
   ])
+  const gitlabFilesDialogRepo = useMemo(
+    () =>
+      gitlabFilesDialogItem
+        ? (selectedRepos.find((r) => r.id === gitlabFilesDialogItem.repoId) ?? primaryRepo)
+        : null,
+    [gitlabFilesDialogItem, primaryRepo, selectedRepos]
+  )
+  const gitlabFilesDialogSourceContext = useMemo(() => {
+    if (!gitlabFilesDialogItem) {
+      return null
+    }
+    return getTaskPageRepoSourceContext(
+      gitlabFilesDialogRepo,
+      'gitlab',
+      gitlabFilesDialogItem.projectRef
+    )
+  }, [gitlabFilesDialogItem, gitlabFilesDialogRepo])
 
   const setDialogWorkItem = useCallback(
     (item: GitHubWorkItem | null, initialTab: ItemDialogTab = 'conversation') => {
@@ -4060,6 +4184,9 @@ export default function TaskPage(): React.JSX.Element {
   const [newIssueAssignees, setNewIssueAssignees] = useState<GitHubAssignableUser[]>([])
   const [newIssueSubmitting, setNewIssueSubmitting] = useState(false)
   const [newIssueRepoId, setNewIssueRepoId] = useState<string | null>(null)
+  const [newIssueProvider, setNewIssueProvider] = useState<NewIssueProvider>('github')
+  const [newIssueLinkYunxiao, setNewIssueLinkYunxiao] = useState(false)
+  const [newIssueArchiveYunxiao, setNewIssueArchiveYunxiao] = useState(true)
   // Why: session-only draft recovers an in-progress issue across dismissal/remount; read imperatively (not subscribed) so per-keystroke writes don't re-render all of TaskPage.
   const setNewIssueDraft = useAppStore((s) => s.setNewIssueDraft)
   const clearNewIssueDraft = useAppStore((s) => s.clearNewIssueDraft)
@@ -4070,9 +4197,33 @@ export default function TaskPage(): React.JSX.Element {
     [selectedRepos, newIssueRepoId]
   )
   const newIssueSourceContext = useMemo(
-    () => getTaskPageRepoSourceContext(newIssueTargetRepo, 'github'),
-    [newIssueTargetRepo]
+    () =>
+      getTaskPageRepoSourceContext(
+        newIssueTargetRepo,
+        newIssueProvider === 'gitlab' ? 'gitlab' : 'github'
+      ),
+    [newIssueProvider, newIssueTargetRepo]
   )
+  const newIssueWorkspaceRepo = useMemo(() => {
+    if (!newIssueTargetRepo) {
+      return selectedWorkspaceRepos[0] ?? null
+    }
+    return (
+      getTaskWorkspaceRepoForSourceRepo(newIssueTargetRepo.id, eligibleRepos, repoSelection) ??
+      selectedWorkspaceRepos[0] ??
+      newIssueTargetRepo
+    )
+  }, [eligibleRepos, newIssueTargetRepo, repoSelection, selectedWorkspaceRepos])
+  const newIssueGitLabBody = useMemo(() => {
+    if (newIssueProvider !== 'gitlab' || !newIssueTargetRepo) {
+      return newIssueBody
+    }
+    return buildGitLabIssueBodyWithWorkspaceContext(newIssueBody, {
+      issueRepo: newIssueTargetRepo,
+      workspaceRepo: newIssueWorkspaceRepo,
+      sourceRepos: selectedRepos
+    })
+  }, [newIssueBody, newIssueProvider, newIssueTargetRepo, newIssueWorkspaceRepo, selectedRepos])
   const newIssueRuntimeTarget = useMemo(() => {
     if (!newIssueTargetRepo?.id) {
       return null
@@ -4095,13 +4246,13 @@ export default function TaskPage(): React.JSX.Element {
     return repos.some((repo) => repo.id === newIssueTargetRepo.id) ? target : null
   }, [newIssueSourceContext, newIssueTargetRepo, repos, settings])
   const newIssueRepoLabels = useRepoLabels(
-    newIssueOpen ? (newIssueTargetRepo?.path ?? null) : null,
-    newIssueOpen ? (newIssueTargetRepo?.id ?? null) : null,
+    newIssueOpen && newIssueProvider === 'github' ? (newIssueTargetRepo?.path ?? null) : null,
+    newIssueOpen && newIssueProvider === 'github' ? (newIssueTargetRepo?.id ?? null) : null,
     { runtimeEnvironmentId: newIssueOpen ? (newIssueRuntimeTarget?.environmentId ?? null) : null }
   )
   const newIssueRepoAssignees = useRepoAssignees(
-    newIssueOpen ? (newIssueTargetRepo?.path ?? null) : null,
-    newIssueOpen ? (newIssueTargetRepo?.id ?? null) : null,
+    newIssueOpen && newIssueProvider === 'github' ? (newIssueTargetRepo?.path ?? null) : null,
+    newIssueOpen && newIssueProvider === 'github' ? (newIssueTargetRepo?.id ?? null) : null,
     { runtimeEnvironmentId: newIssueOpen ? (newIssueRuntimeTarget?.environmentId ?? null) : null }
   )
 
@@ -4875,7 +5026,11 @@ export default function TaskPage(): React.JSX.Element {
               .listIssues({
                 repoPath: repo.path,
                 repoId: repo.id,
-                sourceContext: getTaskPageRepoSourceContext(repo, 'gitlab'),
+                sourceContext: getTaskPageRepoSourceContext(
+                  repo,
+                  'gitlab',
+                  getGitLabProjectRefFromRepo(repo)
+                ),
                 state: 'opened',
                 assignee: isAssignedToMe ? '@me' : undefined,
                 limit: 50
@@ -4895,7 +5050,11 @@ export default function TaskPage(): React.JSX.Element {
               .listMRs({
                 repoPath: repo.path,
                 repoId: repo.id,
-                sourceContext: getTaskPageRepoSourceContext(repo, 'gitlab'),
+                sourceContext: getTaskPageRepoSourceContext(
+                  repo,
+                  'gitlab',
+                  getGitLabProjectRefFromRepo(repo)
+                ),
                 state: activeMRFilter ?? 'opened',
                 page: 1,
                 perPage: 50
@@ -4962,7 +5121,11 @@ export default function TaskPage(): React.JSX.Element {
       .todos({
         repoPath: primaryRepo.path,
         repoId: primaryRepo.id,
-        sourceContext: getTaskPageRepoSourceContext(primaryRepo, 'gitlab')
+        sourceContext: getTaskPageRepoSourceContext(
+          primaryRepo,
+          'gitlab',
+          getGitLabProjectRefFromRepo(primaryRepo)
+        )
       })
       .then((todos) => {
         if (!stale) {
@@ -6655,6 +6818,9 @@ export default function TaskPage(): React.JSX.Element {
         title: item.title,
         url: item.url
       }
+      const workspaceRepo =
+        getTaskWorkspaceRepoForSourceRepo(item.repoId, eligibleRepos, repoSelection) ??
+        repoMap.get(item.repoId)
       openModal('new-workspace-composer', {
         linkedWorkItem,
         taskSourceContext: getTaskPageRepoSourceContext(
@@ -6663,11 +6829,11 @@ export default function TaskPage(): React.JSX.Element {
           item.projectRef
         ),
         prefilledName: getGitLabWorkItemWorkspaceSeed(item),
-        initialRepoId: item.repoId,
+        initialRepoId: workspaceRepo?.id ?? item.repoId,
         telemetrySource: 'sidebar'
       })
     },
-    [openModal, repoMap]
+    [eligibleRepos, openModal, repoMap, repoSelection]
   )
 
   const handleUseGitLabItem = useCallback(
@@ -6688,6 +6854,196 @@ export default function TaskPage(): React.JSX.Element {
     }
     setNewIssueSubmitting(true)
     try {
+      if (newIssueProvider === 'gitlab') {
+        const gitlabRepoSelector =
+          newIssueSourceContext?.provider === 'gitlab'
+            ? (newIssueSourceContext.repoId ?? newIssueTargetRepo.id)
+            : newIssueTargetRepo.id
+        const result = newIssueRuntimeTarget
+          ? await callRuntimeRpc<Awaited<ReturnType<typeof window.api.gl.createIssue>>>(
+              newIssueRuntimeTarget,
+              'gitlab.createIssue',
+              {
+                repo: gitlabRepoSelector,
+                title,
+                body: newIssueGitLabBody
+              },
+              { timeoutMs: 65_000 }
+            )
+          : await window.api.gl.createIssue({
+              repoPath: newIssueTargetRepo.path,
+              repoId: newIssueTargetRepo.id,
+              sourceContext: newIssueSourceContext,
+              title,
+              body: newIssueGitLabBody
+            })
+        if (!result.ok) {
+          toast.error(
+            result.error ||
+              translate('auto.components.TaskPage.7437e340b4', 'Failed to create issue.')
+          )
+          return
+        }
+        let linkWarning: string | null = null
+        let linkedYunxiao: {
+          workItemId: string | null
+          url: string | null
+          archiveMessage?: string
+        } | null = null
+        if (newIssueLinkYunxiao) {
+          const yunxiaoResult = await window.api.yunxiao.createRequirement({
+            title,
+            description: buildGitLabLinkedYunxiaoDescription(
+              newIssueGitLabBody,
+              result,
+              newIssueTargetRepo.displayName
+            ),
+            archiveAfterCreate: newIssueArchiveYunxiao
+          })
+          if (yunxiaoResult.ok) {
+            linkedYunxiao = {
+              workItemId: yunxiaoResult.workItemId,
+              url: yunxiaoResult.url,
+              ...(yunxiaoResult.archiveMessage
+                ? { archiveMessage: yunxiaoResult.archiveMessage }
+                : {})
+            }
+            const commentBody = buildYunxiaoLinkedGitLabComment(yunxiaoResult)
+            const commentResult = newIssueRuntimeTarget
+              ? await callRuntimeRpc<GitLabCommentResult>(
+                  newIssueRuntimeTarget,
+                  'gitlab.addIssueComment',
+                  {
+                    repo: gitlabRepoSelector,
+                    number: result.number,
+                    body: commentBody
+                  },
+                  { timeoutMs: 30_000 }
+                )
+              : await window.api.gl.addIssueComment({
+                  repoPath: newIssueTargetRepo.path,
+                  repoId: newIssueTargetRepo.id,
+                  sourceContext: newIssueSourceContext,
+                  number: result.number,
+                  body: commentBody
+                })
+            if (isGitLabCommentResult(commentResult) && !commentResult.ok) {
+              linkWarning =
+                commentResult.error ||
+                translate(
+                  'auto.components.TaskPage.b87e7c39ef',
+                  'Created the Yunxiao requirement, but failed to link it back to GitLab.'
+                )
+            }
+          } else {
+            linkWarning =
+              yunxiaoResult.error ||
+              translate(
+                'auto.components.TaskPage.357ed17b2b',
+                'Created the GitLab issue, but failed to create the linked Yunxiao requirement.'
+              )
+          }
+        }
+        const toastMessage = translate(
+          'auto.components.TaskPage.f14f60f39e',
+          'Opened GitLab issue #{{value0}}',
+          {
+            value0: result.number
+          }
+        )
+        const toastOptions = {
+          description: linkWarning
+            ? linkWarning
+            : linkedYunxiao
+              ? translate(
+                  'auto.components.TaskPage.d2f9f4a4de',
+                  'Linked Yunxiao requirement {{value0}}.',
+                  {
+                    value0: linkedYunxiao.workItemId ?? 'created'
+                  }
+                )
+              : undefined,
+          action: result.url
+            ? {
+                label: translate('auto.components.TaskPage.9c57663908', 'View'),
+                onClick: () => window.open(result.url, '_blank')
+              }
+            : undefined
+        }
+        if (linkWarning) {
+          toast.warning(toastMessage, toastOptions)
+        } else {
+          toast.success(toastMessage, toastOptions)
+        }
+        setNewIssueOpen(false)
+        setNewIssueTitle('')
+        setNewIssueBody('')
+        setNewIssueLabels([])
+        setNewIssueAssignees([])
+        clearNewIssueDraft()
+        setTaskRefreshNonce((current) => current + 1)
+        openGitLabDetailPage({
+          id: `gitlab-issue:${String(result.number)}`,
+          repoId: newIssueTargetRepo.id,
+          type: 'issue',
+          number: result.number,
+          title,
+          state: 'opened',
+          url: result.url,
+          labels: [],
+          updatedAt: new Date().toISOString(),
+          author: null
+        })
+        return
+      }
+
+      if (newIssueProvider === 'yunxiao') {
+        const result = await window.api.yunxiao.createRequirement({
+          title,
+          description: newIssueBody,
+          archiveAfterCreate: newIssueArchiveYunxiao
+        })
+        if (!result.ok) {
+          toast.error(
+            result.error ||
+              translate(
+                'auto.components.TaskPage.ae3894e891',
+                'Failed to create Yunxiao requirement.'
+              )
+          )
+          return
+        }
+        const identifier =
+          result.workItemId ??
+          translate('auto.components.TaskPage.14cb2e282f', 'Yunxiao requirement')
+        toast.success(
+          translate('auto.components.TaskPage.633c9bd347', 'Created {{value0}}', {
+            value0: identifier
+          }),
+          {
+            description: result.archiveMessage
+              ? translate(
+                  'auto.components.TaskPage.f1a03a62c3',
+                  'Archived and dispatched to the Yunxiao requirement skill.'
+                )
+              : undefined,
+            action: result.url
+              ? {
+                  label: translate('auto.components.TaskPage.9c57663908', 'View'),
+                  onClick: () => window.open(result.url ?? '', '_blank')
+                }
+              : undefined
+          }
+        )
+        setNewIssueOpen(false)
+        setNewIssueTitle('')
+        setNewIssueBody('')
+        setNewIssueLabels([])
+        setNewIssueAssignees([])
+        clearNewIssueDraft()
+        return
+      }
+
       const result = newIssueRuntimeTarget
         ? await callRuntimeRpc<Awaited<ReturnType<typeof window.api.gh.createIssue>>>(
             newIssueRuntimeTarget,
@@ -6810,13 +7166,18 @@ export default function TaskPage(): React.JSX.Element {
   }, [
     newIssueBody,
     newIssueAssignees,
+    newIssueGitLabBody,
     newIssueLabels,
+    newIssueArchiveYunxiao,
+    newIssueLinkYunxiao,
+    newIssueProvider,
     newIssueRuntimeTarget,
     newIssueSourceContext,
     newIssueSubmitting,
     newIssueTargetRepo,
     newIssueTitle,
     openGitHubDetailPage,
+    openGitLabDetailPage,
     setDialogWorkItem,
     clearNewIssueDraft,
     setNewIssueDraft
@@ -7972,17 +8333,13 @@ export default function TaskPage(): React.JSX.Element {
                       const active = taskSource === source.id
                       const sourceAvailabilityNotice =
                         taskSourceAvailabilityNoticeByProvider[source.id] ?? null
-                      const sourceDisabled = source.disabled || sourceAvailabilityNotice?.blocking
                       return (
                         <Tooltip key={source.id}>
                           <TooltipTrigger asChild>
                             <button
                               type="button"
-                              disabled={sourceDisabled}
+                              disabled={source.disabled}
                               onClick={() => {
-                                if (sourceAvailabilityNotice?.blocking) {
-                                  return
-                                }
                                 taskSourceManuallyChangedRef.current = true
                                 openTaskPage(
                                   { taskSource: source.id },
@@ -8001,14 +8358,14 @@ export default function TaskPage(): React.JSX.Element {
                               aria-label={sourceAvailabilityNotice?.label ?? source.label}
                               aria-pressed={active}
                               className={cn(
-                                'group flex h-8 w-8 items-center justify-center rounded-md border transition',
+                                'group flex h-8 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition',
                                 active
                                   ? 'border-foreground/40 bg-muted/70 text-foreground shadow-sm'
-                                  : 'border-border/40 bg-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-                                sourceDisabled && 'cursor-not-allowed opacity-55'
+                                  : 'border-border/40 bg-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground'
                               )}
                             >
                               <source.Icon className="size-3.5" />
+                              <span>{source.label}</span>
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="bottom" sideOffset={6}>
@@ -8352,6 +8709,8 @@ export default function TaskPage(): React.JSX.Element {
                                 setNewIssueLabels(seed.labels)
                                 setNewIssueAssignees(seed.assignees)
                                 setNewIssueRepoId(seed.repoId)
+                                setNewIssueProvider('github')
+                                setNewIssueLinkYunxiao(false)
                                 setNewIssueOpen(true)
                               }}
                               disabled={!newIssueTargetRepo}
@@ -8955,6 +9314,45 @@ export default function TaskPage(): React.JSX.Element {
                           className="flex shrink-0 items-center gap-2"
                           data-contextual-tour-target="tasks-actions"
                         >
+                          {gitlabView === 'issues' ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => {
+                                    const seed = resolveNewIssueOpenSeed({
+                                      draft: useAppStore.getState().newIssueDraft,
+                                      selectedRepoIds: selectedRepos.map((r) => r.id)
+                                    })
+                                    setNewIssueTitle(seed.title)
+                                    setNewIssueBody(seed.body)
+                                    setNewIssueLabels([])
+                                    setNewIssueAssignees([])
+                                    setNewIssueRepoId(seed.repoId)
+                                    setNewIssueProvider('gitlab')
+                                    setNewIssueLinkYunxiao(true)
+                                    setNewIssueArchiveYunxiao(true)
+                                    setNewIssueOpen(true)
+                                  }}
+                                  disabled={!newIssueTargetRepo}
+                                  aria-label={translate(
+                                    'auto.components.TaskPage.c8604b1bf2',
+                                    'New GitLab issue'
+                                  )}
+                                  className="size-8 border-border/50 bg-transparent hover:bg-muted/50 backdrop-blur-md supports-[backdrop-filter]:bg-transparent"
+                                >
+                                  <Plus className="size-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" sideOffset={6}>
+                                {translate(
+                                  'auto.components.TaskPage.c8604b1bf2',
+                                  'New GitLab issue'
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : null}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -9767,7 +10165,7 @@ export default function TaskPage(): React.JSX.Element {
                           openGitLabDetailPage(item)
                         }
                       }}
-                      className="grid w-full cursor-pointer gap-3 px-3 py-2 text-left grid-cols-[80px_minmax(0,3fr)_120px_110px_50px] hover:bg-muted/50"
+                      className="grid w-full cursor-pointer gap-3 px-3 py-2 text-left grid-cols-[80px_minmax(0,3fr)_120px_110px_78px] hover:bg-muted/50"
                     >
                       <span className="font-mono text-xs text-muted-foreground">
                         {/* Why: GitLab uses !N for MRs and #N for issues — match gitlab.com so rows map to web links. */}
@@ -9785,6 +10183,33 @@ export default function TaskPage(): React.JSX.Element {
                         {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}
                       </span>
                       <div className="flex items-center justify-end gap-1">
+                        {item.type === 'mr' ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  useAppStore.getState().recordFeatureInteraction('gitlab-tasks')
+                                  setGitlabFilesDialogItem(item)
+                                }}
+                                aria-label={translate(
+                                  'auto.components.TaskPage.viewGitLabMRFiles',
+                                  'View files'
+                                )}
+                              >
+                                <Files className="size-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" sideOffset={6}>
+                              {translate(
+                                'auto.components.TaskPage.viewGitLabMRFiles',
+                                'View files'
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : null}
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -10948,9 +11373,23 @@ export default function TaskPage(): React.JSX.Element {
         >
           <DialogHeader>
             <DialogTitle>
-              {translate('auto.components.TaskPage.d3d0998b7d', 'New GitHub issue')}
+              {newIssueProvider === 'yunxiao'
+                ? translate('auto.components.TaskPage.7c80f6a313', 'New Yunxiao requirement')
+                : translate('auto.components.TaskPage.2fc21cc61c', 'New {{value0}} issue', {
+                    value0: getNewIssueProviderLabel(newIssueProvider)
+                  })}
             </DialogTitle>
             {(() => {
+              if (newIssueProvider === 'yunxiao') {
+                return (
+                  <DialogDescription>
+                    {translate(
+                      'auto.components.TaskPage.c57bf5f830',
+                      'Submits through official Yunxiao MCP. After creation, Orca can archive it and dispatch it to the Yunxiao requirement skill.'
+                    )}
+                  </DialogDescription>
+                )
+              }
               // Why: inline the resolved {owner}/{repo} slug as the source indicator; fall back to displayName when unresolved.
               const entry = newIssueTargetRepo
                 ? perRepoSourceState.find((s) => s.repoId === newIssueTargetRepo.id)
@@ -10959,14 +11398,32 @@ export default function TaskPage(): React.JSX.Element {
                 ? `${entry.sources.issues.owner}/${entry.sources.issues.repo}`
                 : null
               const fallback = newIssueTargetRepo?.displayName ?? 'this repository'
+              if (
+                newIssueProvider === 'gitlab' &&
+                newIssueWorkspaceRepo &&
+                newIssueTargetRepo &&
+                newIssueWorkspaceRepo.id !== newIssueTargetRepo.id
+              ) {
+                return (
+                  <DialogDescription>
+                    {translate('auto.components.TaskPage.a4498dc284', 'Filing GitLab issue in')}{' '}
+                    {fallback}
+                    {translate('auto.components.TaskPage.c4e4b59344', ', code changes in')}{' '}
+                    {newIssueWorkspaceRepo.displayName}
+                  </DialogDescription>
+                )
+              }
               return (
                 <DialogDescription>
-                  {translate('auto.components.TaskPage.9f2b4c03a6', 'Filing in')}
+                  {translate('auto.components.TaskPage.9f2b4c03a6', 'Filing in')}{' '}
                   {issuesSlug ?? fallback}
                 </DialogDescription>
               )
             })()}
             {(() => {
+              if (newIssueProvider !== 'github') {
+                return null
+              }
               // Why: mirror the Tasks-view target selector so a fork contributor can flip target at filing time (fork-routing regression #1076).
               // Sibling (not nested) because DialogDescription renders a <p> and the selector a <div> — nesting is invalid HTML.
               if (!newIssueTargetRepo) {
@@ -11003,10 +11460,66 @@ export default function TaskPage(): React.JSX.Element {
             })()}
           </DialogHeader>
           <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium text-muted-foreground">
+                {translate('auto.components.TaskPage.1d4de0491e', 'Target')}
+              </label>
+              <Select
+                value={newIssueProvider}
+                onValueChange={(value) => {
+                  const provider = value as NewIssueProvider
+                  setNewIssueProvider(provider)
+                  setNewIssueLinkYunxiao(provider === 'gitlab')
+                  if (provider !== 'github') {
+                    setNewIssueLabels([])
+                    setNewIssueAssignees([])
+                  }
+                }}
+                disabled={newIssueSubmitting}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="github">
+                    {translate('auto.components.TaskPage.c7759fab5d', 'GitHub issue')}
+                  </SelectItem>
+                  <SelectItem value="gitlab">
+                    {translate('auto.components.TaskPage.3b86ec0b27', 'GitLab issue')}
+                  </SelectItem>
+                  <SelectItem value="yunxiao">
+                    {translate('auto.components.TaskPage.14cb2e282f', 'Yunxiao requirement')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {newIssueProvider === 'gitlab' && newIssueWorkspaceRepo ? (
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-medium text-muted-foreground">
+                  {translate('auto.components.TaskPage.c5769a85fd', 'Code workspace')}
+                </label>
+                <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-sm">
+                  <RepoBadgeLabel
+                    name={newIssueWorkspaceRepo.displayName}
+                    color={newIssueWorkspaceRepo.badgeColor}
+                  />
+                  {newIssueTargetRepo && newIssueWorkspaceRepo.id !== newIssueTargetRepo.id ? (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {translate(
+                        'auto.components.TaskPage.7dd5845268',
+                        'Used for code changes after creation'
+                      )}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             {selectedRepos.length > 1 ? (
               <div className="flex flex-col gap-1">
                 <label className="text-[11px] font-medium text-muted-foreground">
-                  {translate('auto.components.TaskPage.00022ec0ba', 'Project')}
+                  {newIssueProvider === 'gitlab'
+                    ? translate('auto.components.TaskPage.219357cf23', 'GitLab issue owner')
+                    : translate('auto.components.TaskPage.00022ec0ba', 'Project')}
                 </label>
                 <Select
                   value={newIssueRepoId ?? undefined}
@@ -11066,24 +11579,67 @@ export default function TaskPage(): React.JSX.Element {
                 onSubmitShortcut={() => void handleCreateNewIssue()}
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <GitHubIssueLabelSelector
-                labels={newIssueRepoLabels.data}
-                selectedLabels={newIssueLabels}
-                loading={newIssueRepoLabels.loading}
-                error={newIssueRepoLabels.error}
-                disabled={newIssueSubmitting || !newIssueTargetRepo}
-                onChange={setNewIssueLabels}
-              />
-              <GitHubIssueAssigneeSelector
-                assignees={newIssueRepoAssignees.data}
-                selectedAssignees={newIssueAssignees}
-                loading={newIssueRepoAssignees.loading}
-                error={newIssueRepoAssignees.error}
-                disabled={newIssueSubmitting || !newIssueTargetRepo}
-                onChange={setNewIssueAssignees}
-              />
-            </div>
+            {newIssueProvider === 'github' ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <GitHubIssueLabelSelector
+                  labels={newIssueRepoLabels.data}
+                  selectedLabels={newIssueLabels}
+                  loading={newIssueRepoLabels.loading}
+                  error={newIssueRepoLabels.error}
+                  disabled={newIssueSubmitting || !newIssueTargetRepo}
+                  onChange={setNewIssueLabels}
+                />
+                <GitHubIssueAssigneeSelector
+                  assignees={newIssueRepoAssignees.data}
+                  selectedAssignees={newIssueAssignees}
+                  loading={newIssueRepoAssignees.loading}
+                  error={newIssueRepoAssignees.error}
+                  disabled={newIssueSubmitting || !newIssueTargetRepo}
+                  onChange={setNewIssueAssignees}
+                />
+              </div>
+            ) : null}
+            {newIssueProvider === 'gitlab' ? (
+              <div className="flex flex-col gap-2 rounded-md border border-border/50 bg-muted/30 px-3 py-2">
+                <label className="flex items-center gap-2 text-xs text-foreground">
+                  <Checkbox
+                    checked={newIssueLinkYunxiao}
+                    disabled={newIssueSubmitting}
+                    onCheckedChange={(checked) => setNewIssueLinkYunxiao(checked === true)}
+                  />
+                  {translate(
+                    'auto.components.TaskPage.e65804f357',
+                    'Create and link a Yunxiao requirement'
+                  )}
+                </label>
+                {newIssueLinkYunxiao ? (
+                  <label className="flex items-center gap-2 pl-6 text-xs text-muted-foreground">
+                    <Checkbox
+                      checked={newIssueArchiveYunxiao}
+                      disabled={newIssueSubmitting}
+                      onCheckedChange={(checked) => setNewIssueArchiveYunxiao(checked === true)}
+                    />
+                    {translate(
+                      'auto.components.TaskPage.72c283c5e8',
+                      'Archive and dispatch to the Yunxiao requirement skill after creation'
+                    )}
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
+            {newIssueProvider === 'yunxiao' ? (
+              <label className="flex items-center gap-2 text-xs text-foreground">
+                <Checkbox
+                  checked={newIssueArchiveYunxiao}
+                  disabled={newIssueSubmitting}
+                  onCheckedChange={(checked) => setNewIssueArchiveYunxiao(checked === true)}
+                />
+                {translate(
+                  'auto.components.TaskPage.72c283c5e8',
+                  'Archive and dispatch to the Yunxiao requirement skill after creation'
+                )}
+              </label>
+            ) : null}
             <p className="text-[10px] text-muted-foreground">
               {submitShortcutLabel} {translate('auto.components.TaskPage.fc0d8a1fa4', 'to submit.')}
             </p>
@@ -11105,6 +11661,8 @@ export default function TaskPage(): React.JSX.Element {
                   <LoaderCircle className="size-4 animate-spin" />
                   {translate('auto.components.TaskPage.8ff6fdc368', 'Creating…')}
                 </>
+              ) : newIssueProvider === 'yunxiao' ? (
+                translate('auto.components.TaskPage.56851d859e', 'Create requirement')
               ) : (
                 translate('auto.components.TaskPage.e15ba2d2eb', 'Create issue')
               )}
@@ -12411,7 +12969,21 @@ export default function TaskPage(): React.JSX.Element {
           setGitlabDialogItem(null)
           handleUseGitLabItem(item)
         }}
+        onOpenFiles={(item) => setGitlabFilesDialogItem(item)}
         onClose={() => setGitlabDialogItem(null)}
+      />
+
+      <GitLabMRFilesDialog
+        open={Boolean(gitlabFilesDialogItem)}
+        item={gitlabFilesDialogItem}
+        repoPath={gitlabFilesDialogRepo?.path ?? null}
+        repoId={gitlabFilesDialogItem?.repoId ?? null}
+        sourceContext={gitlabFilesDialogSourceContext}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setGitlabFilesDialogItem(null)
+          }
+        }}
       />
 
       <LinearApiKeyDialog

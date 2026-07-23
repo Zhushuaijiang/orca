@@ -50,6 +50,8 @@ const {
   registerAppHandlersMock,
   registerLinearHandlersMock,
   registerJiraHandlersMock,
+  registerYunxiaoHandlersMock,
+  registerYgtEnvironmentHandlersMock,
   registerGitLabHandlersMock,
   registerHostedReviewHandlersMock,
   registerExportHandlersMock,
@@ -114,6 +116,8 @@ const {
   registerAppHandlersMock: vi.fn(),
   registerLinearHandlersMock: vi.fn(),
   registerJiraHandlersMock: vi.fn(),
+  registerYunxiaoHandlersMock: vi.fn(),
+  registerYgtEnvironmentHandlersMock: vi.fn(),
   registerGitLabHandlersMock: vi.fn(),
   registerHostedReviewHandlersMock: vi.fn(),
   registerExportHandlersMock: vi.fn(),
@@ -360,6 +364,14 @@ vi.mock('./jira', () => ({
   registerJiraHandlers: registerJiraHandlersMock
 }))
 
+vi.mock('./yunxiao', () => ({
+  registerYunxiaoHandlers: registerYunxiaoHandlersMock
+}))
+
+vi.mock('./ygt-environment', () => ({
+  registerYgtEnvironmentHandlers: registerYgtEnvironmentHandlersMock
+}))
+
 vi.mock('./gitlab', () => ({
   registerGitLabHandlers: registerGitLabHandlersMock
 }))
@@ -426,6 +438,8 @@ describe('registerCoreHandlers', () => {
     registerAppHandlersMock.mockReset()
     registerLinearHandlersMock.mockReset()
     registerJiraHandlersMock.mockReset()
+    registerYunxiaoHandlersMock.mockReset()
+    registerYgtEnvironmentHandlersMock.mockReset()
     registerGitLabHandlersMock.mockReset()
     registerHostedReviewHandlersMock.mockReset()
     registerExportHandlersMock.mockReset()
@@ -498,6 +512,8 @@ describe('registerCoreHandlers', () => {
     expect(registerGitHubHandlersMock).toHaveBeenCalledWith(store, stats)
     expect(registerLinearHandlersMock).toHaveBeenCalled()
     expect(registerJiraHandlersMock).toHaveBeenCalled()
+    expect(registerYunxiaoHandlersMock).toHaveBeenCalled()
+    expect(registerYgtEnvironmentHandlersMock).toHaveBeenCalled()
     expect(registerGitLabHandlersMock).toHaveBeenCalledWith(store)
     expect(registerHostedReviewHandlersMock).toHaveBeenCalledWith(store, stats)
     expect(registerFeedbackHandlersMock).toHaveBeenCalled()

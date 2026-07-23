@@ -6,6 +6,7 @@ type ResolveCommandOptions = {
   pathEnv?: string | null
   platform?: NodeJS.Platform
   homePath?: string
+  macApplicationsPath?: string
 }
 
 function getExecutableNames(platform: NodeJS.Platform, commandName: string): string[] {
@@ -85,6 +86,16 @@ function isRunnableCommand(platform: NodeJS.Platform, candidate: string): boolea
   }
 }
 
+function getMacApplicationCliDirectories(
+  platform: NodeJS.Platform,
+  applicationsPath: string
+): string[] {
+  if (platform !== 'darwin') {
+    return []
+  }
+  return [join(applicationsPath, 'ChatGPT.app', 'Contents', 'Resources')]
+}
+
 function getBaseVersionManagerDirectories(platform: NodeJS.Platform, homePath: string): string[] {
   const directories = [
     join(homePath, '.volta', 'bin'),
@@ -139,9 +150,16 @@ function getNvmVersionDirectories(homePath: string): string[] {
 function getVersionManagerDirectories(
   platform: NodeJS.Platform,
   homePath: string,
-  executableNames: string[]
+  executableNames: string[],
+  applicationsPath?: string,
+  includeMacApplicationCliDirectories = true
 ): string[] {
   const directories = getBaseVersionManagerDirectories(platform, homePath)
+  if (includeMacApplicationCliDirectories) {
+    directories.push(
+      ...getMacApplicationCliDirectories(platform, applicationsPath ?? '/Applications')
+    )
+  }
 
   // Why: GUI-launched Electron apps do not inherit shell init from nvm, so
   // command resolution probes the newest installed Node versions explicitly.
@@ -172,7 +190,7 @@ export function resolveCliCommand(
   const homePath = options.homePath ?? homedir()
   const versionManagerCandidate = findFirstExecutable(
     platform,
-    getVersionManagerDirectories(platform, homePath, executableNames),
+    getVersionManagerDirectories(platform, homePath, executableNames, options.macApplicationsPath),
     executableNames
   )
   return versionManagerCandidate ?? commandName
@@ -190,7 +208,8 @@ export function resolveCliCommands(
   // directories, especially nvm versions, once per detection pass.
   const installDirectories = [
     ...getNvmVersionDirectories(homePath),
-    ...getBaseVersionManagerDirectories(platform, homePath)
+    ...getBaseVersionManagerDirectories(platform, homePath),
+    ...getMacApplicationCliDirectories(platform, options.macApplicationsPath ?? '/Applications')
   ]
   const resolved = new Map<string, string>()
 
@@ -222,5 +241,5 @@ export function getVersionManagerBinPaths(options: ResolveCommandOptions = {}): 
   const platform = options.platform ?? process.platform
   const homePath = options.homePath ?? homedir()
   const nodeNames = getExecutableNames(platform, 'node')
-  return getVersionManagerDirectories(platform, homePath, nodeNames)
+  return getVersionManagerDirectories(platform, homePath, nodeNames, undefined, false)
 }

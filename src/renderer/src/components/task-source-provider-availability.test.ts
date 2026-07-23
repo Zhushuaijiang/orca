@@ -19,6 +19,21 @@ function source(hostId: TaskSourceContext['hostId']): TaskSourceContext {
   }
 }
 
+function gitLabSource(hostId: TaskSourceContext['hostId'], webUrl: string): TaskSourceContext {
+  return {
+    kind: 'task-source',
+    provider: 'gitlab',
+    projectId: 'gitlab:df-ygt/df-ygt-biz-shujumx',
+    hostId,
+    repoId: `repo-${hostId}`,
+    providerIdentity: {
+      provider: 'gitlab',
+      projectId: 'df-ygt/df-ygt-biz-shujumx',
+      webUrl
+    }
+  }
+}
+
 describe('task source provider availability', () => {
   it('marks desktop-owned GitHub sources unavailable when gh auth is missing', () => {
     expect(
@@ -62,6 +77,34 @@ describe('task source provider availability', () => {
         preflightStatus: preGitLabPreflight
       })
     ).toEqual([{ hostId: 'local', reason: 'unsupported-provider' }])
+  })
+
+  it('does not block self-hosted GitLab sources on the global glab auth result', () => {
+    expect(
+      getRepoBackedProviderAvailability({
+        provider: 'gitlab',
+        contexts: [gitLabSource('local', 'http://192.168.1.206/df-ygt/df-ygt-biz-shujumx')],
+        preflightReady: true,
+        preflightStatus: {
+          ...readyPreflight,
+          glab: { installed: true, authenticated: false }
+        }
+      })
+    ).toEqual([])
+  })
+
+  it('still blocks gitlab.com sources when glab auth is missing', () => {
+    expect(
+      getRepoBackedProviderAvailability({
+        provider: 'gitlab',
+        contexts: [gitLabSource('local', 'https://gitlab.com/stablyai/orca')],
+        preflightReady: true,
+        preflightStatus: {
+          ...readyPreflight,
+          glab: { installed: true, authenticated: false }
+        }
+      })
+    ).toEqual([{ hostId: 'local', reason: 'missing-provider-auth' }])
   })
 
   it('does not apply desktop preflight to runtime-owned sources', () => {

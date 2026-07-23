@@ -206,6 +206,40 @@ describe('gitlab client — MR operations', () => {
     expect(glabExecFileAsyncMock.mock.calls.every((call) => call[1]?.wslDistro === 'Ubuntu')).toBe(
       true
     )
+    expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
+      3,
+      [
+        'api',
+        '-X',
+        'PUT',
+        'projects/g%2Fp/merge_requests/12/merge',
+        '-f',
+        'squash=true',
+        '-f',
+        'should_remove_source_branch=false'
+      ],
+      { cwd: '/repo', wslDistro: 'Ubuntu' }
+    )
+  })
+
+  it('merges via GitLab REST API instead of glab mr merge', async () => {
+    glabExecFileAsyncMock.mockResolvedValueOnce({ stdout: '{}' })
+
+    await expect(mergeMR('/repo', 12, 'merge')).resolves.toEqual({ ok: true })
+
+    expect(glabExecFileAsyncMock).toHaveBeenCalledWith(
+      [
+        'api',
+        '-X',
+        'PUT',
+        'projects/g%2Fp/merge_requests/12/merge',
+        '-f',
+        'squash=false',
+        '-f',
+        'should_remove_source_branch=false'
+      ],
+      { cwd: '/repo' }
+    )
   })
 
   describe('getMergeRequest', () => {
