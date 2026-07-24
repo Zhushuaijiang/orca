@@ -39,14 +39,31 @@ function getDfHisEnvironmentApi(): DfHisEnvironmentApi {
   return api
 }
 
-function getStatusLabel(status: DfHisEnvironmentPrerequisiteStatus): string {
+function isWorkflowPackPrerequisite(prerequisite: DfHisEnvironmentPrerequisiteResult): boolean {
+  return prerequisite.id.startsWith('dfhis-workflow-pack-')
+}
+
+function getStatusLabel(prerequisite: DfHisEnvironmentPrerequisiteResult): string {
+  const { status } = prerequisite
   if (status === 'ok') {
     return translate('auto.components.settings.DfHisEnvironmentPane.statusReady', 'Ready')
   }
   if (status === 'invalid') {
+    if (prerequisite.id === 'gitlab') {
+      return translate(
+        'auto.components.settings.DfHisEnvironmentPane.statusNeedsLogin',
+        'Needs login'
+      )
+    }
+    if (isWorkflowPackPrerequisite(prerequisite) || prerequisite.fixable) {
+      return translate(
+        'auto.components.settings.DfHisEnvironmentPane.statusNeedsRepair',
+        'Needs repair'
+      )
+    }
     return translate(
-      'auto.components.settings.DfHisEnvironmentPane.statusNeedsLogin',
-      'Needs login'
+      'auto.components.settings.DfHisEnvironmentPane.statusNeedsAttention',
+      'Needs attention'
     )
   }
   return translate('auto.components.settings.DfHisEnvironmentPane.statusMissing', 'Missing')
@@ -95,7 +112,7 @@ function PrerequisiteRow({
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-medium text-foreground">{prerequisite.label}</h3>
           <SettingsBadge tone={getStatusTone(prerequisite.status)}>
-            {getStatusLabel(prerequisite.status)}
+            {getStatusLabel(prerequisite)}
           </SettingsBadge>
           {prerequisite.fixable ? (
             <SettingsBadge tone="muted">

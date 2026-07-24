@@ -232,9 +232,9 @@ async function checkWorkflowPackTarget(
       id: target.id,
       label: target.label,
       status: 'invalid',
-      summary: 'Installed pack was modified after Orca installed it',
+      summary: 'Installed pack differs from bundled version',
       detail: targetDirectory,
-      fixable: false
+      fixable: true
     }
   }
 

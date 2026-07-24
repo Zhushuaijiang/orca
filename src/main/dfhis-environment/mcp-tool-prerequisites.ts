@@ -13,6 +13,10 @@ const REQUIRED_YUNXIAO_MCP_TOOLS = [
   'get_current_organization_info',
   'get_current_user',
   'get_work_item',
+  'list_workitem_attachments',
+  'get_workitem_file',
+  'list_work_item_comments',
+  'create_work_item_comment',
   'get_work_item_type_field_config',
   'get_work_item_workflow',
   'update_work_item'
@@ -25,8 +29,20 @@ async function checkRequiredMcpTools(args: {
   connection: McpConnection | null
   clientName: string
   requiredTools: readonly string[]
+  optionalWhenMissing?: boolean
 }): Promise<DfHisEnvironmentPrerequisiteResult> {
   if (!args.connection || (!args.connection.bearerToken && !args.connection.hasQueryToken)) {
+    if (args.optionalWhenMissing) {
+      return {
+        id: args.id,
+        label: args.label,
+        status: 'ok',
+        summary: 'Optional fallback is not configured',
+        detail:
+          'Direct Yunxiao archive uses the official Yunxiao MCP. Configure HIS MCP only for legacy fallback.',
+        fixable: true
+      }
+    }
     return {
       id: args.id,
       label: args.label,
@@ -72,11 +88,12 @@ async function checkRequiredMcpTools(args: {
 export function checkHisMcpToolsPrerequisite(): Promise<DfHisEnvironmentPrerequisiteResult> {
   return checkRequiredMcpTools({
     id: 'his-mcp-tools',
-    label: 'HIS MCP tools',
+    label: 'HIS MCP fallback tools',
     missingTokenSummary: 'HIS MCP token is not set',
     connection: getHisMcpConnection(),
     clientName: 'orca-dfhis-his-mcp-check',
-    requiredTools: REQUIRED_HIS_MCP_TOOLS
+    requiredTools: REQUIRED_HIS_MCP_TOOLS,
+    optionalWhenMissing: true
   })
 }
 

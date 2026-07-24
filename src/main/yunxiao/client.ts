@@ -8,6 +8,7 @@ import type {
 import { callTool, type McpToolCallResult, openMcpSession } from './mcp-http-transport'
 import { getHisMcpConnection, getOfficialYunxiaoConnection } from './mcp-connections'
 import { callStdioTool } from './mcp-stdio-transport'
+import { runDirectYunxiaoArchive } from './direct-archive-runner'
 import {
   DEFAULT_YUNXIAO_ORGANIZATION_ID,
   DEFAULT_YUNXIAO_PROJECT_ID,
@@ -24,6 +25,7 @@ import {
 } from './work-item-result-extraction'
 
 const DEFAULT_EXPERT = '云效需求归档专家'
+
 function buildCreateRequirementMessage(args: YunxiaoCreateRequirementArgs): string {
   const parts = [
     '请在云效创建一条需求。',
@@ -268,7 +270,34 @@ export async function archiveYunxiaoRequirement(
     return { ok: false, error: 'Yunxiao work item id or URL is required.' }
   }
   try {
-    const message = await archiveMessage(target, args.dispatch ?? true, args.reviewMode ?? 'deep')
+    let directError: Error | null = null
+    if (getOfficialYunxiaoConnection()) {
+      try {
+        const direct = await runDirectYunxiaoArchive(target)
+        if (direct.ok) {
+          return {
+            ok: true,
+            workItemId: direct.work_item_id ?? extractWorkItemId(target),
+            message: direct.message ?? ''
+          }
+        }
+        directError = new Error(direct.error || 'Direct Yunxiao archive failed.')
+      } catch (error) {
+        directError = error instanceof Error ? error : new Error(String(error))
+      }
+    }
+    let message: string
+    try {
+      message = await archiveMessage(target, args.dispatch ?? true, args.reviewMode ?? 'deep')
+    } catch (error) {
+      if (directError) {
+        const fallbackError = error instanceof Error ? error.message : String(error)
+        throw new Error(
+          `Direct Yunxiao archive failed: ${directError.message}; HIS MCP fallback failed: ${fallbackError}`
+        )
+      }
+      throw error
+    }
     return {
       ok: true,
       workItemId: extractWorkItemId(message) ?? extractWorkItemId(target),

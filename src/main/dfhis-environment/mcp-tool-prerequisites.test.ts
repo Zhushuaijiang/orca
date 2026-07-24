@@ -27,7 +27,7 @@ describe('DFHIS MCP tool prerequisites', () => {
     mocks.openMcpSession.mockResolvedValue('session-1')
   })
 
-  it('reports missing HIS token without opening an MCP session', async () => {
+  it('treats missing HIS token as an optional fallback without opening an MCP session', async () => {
     mocks.getHisMcpConnection.mockReturnValue({
       url: 'http://192.168.1.10:9020/mcp',
       bearerToken: null,
@@ -36,7 +36,8 @@ describe('DFHIS MCP tool prerequisites', () => {
 
     await expect(checkHisMcpToolsPrerequisite()).resolves.toMatchObject({
       id: 'his-mcp-tools',
-      status: 'missing'
+      status: 'ok',
+      summary: 'Optional fallback is not configured'
     })
     expect(mocks.openMcpSession).not.toHaveBeenCalled()
   })
@@ -66,6 +67,10 @@ describe('DFHIS MCP tool prerequisites', () => {
       'get_current_organization_info',
       'get_current_user',
       'get_work_item',
+      'list_workitem_attachments',
+      'get_workitem_file',
+      'list_work_item_comments',
+      'create_work_item_comment',
       'get_work_item_type_field_config',
       'get_work_item_workflow',
       'update_work_item'

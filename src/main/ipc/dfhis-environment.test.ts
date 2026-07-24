@@ -93,11 +93,11 @@ describe('dfhis-environment', () => {
           'skills',
           'yunxiao-requirement-archiver',
           'scripts',
-          'download_mcp_archive.py'
+          'run_direct_archive.py'
         ),
         'utf8'
       )
-    ).resolves.toContain('download_yunxiao_archive')
+    ).resolves.toContain('official Yunxiao MCP')
     await expect(
       readFile(
         path.join(
@@ -143,6 +143,40 @@ describe('dfhis-environment', () => {
     ).resolves.toBe('keep me')
   })
 
+  it('repairs drifted managed DFHIS workflow pack files without deleting extra files', async () => {
+    const homeDirectory = await createTemporaryHome()
+    const skillPath = getDfHisSkillPath(homeDirectory)
+    const extraFilePath = path.join(path.dirname(skillPath), 'local-note.md')
+
+    await ensureDfHisWorkflowPackInstalled(homeDirectory)
+    await writeFile(skillPath, 'edited installed skill', 'utf8')
+    await writeFile(extraFilePath, 'keep me', 'utf8')
+
+    await expect(checkDfHisWorkflowPackPrerequisites(homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'dfhis-workflow-pack-codex',
+          status: 'invalid',
+          summary: 'Installed pack differs from bundled version',
+          fixable: true
+        })
+      ])
+    )
+
+    await expect(ensureDfHisWorkflowPackInstalled(homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([expect.stringContaining('DFHIS workflow pack for Codex')])
+    )
+    await expect(readFile(skillPath, 'utf8')).resolves.toContain(
+      'name: yunxiao-requirement-archiver'
+    )
+    await expect(readFile(extraFilePath, 'utf8')).resolves.toBe('keep me')
+    await expect(checkDfHisWorkflowPackPrerequisites(homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'dfhis-workflow-pack-codex', status: 'ok' })
+      ])
+    )
+  })
+
   it('reports Yunxiao MCP token readiness without exposing the token', () => {
     expect(checkYunxiaoMcpPrerequisite()).toMatchObject({
       id: 'yunxiao-mcp',
@@ -159,7 +193,8 @@ describe('dfhis-environment', () => {
   it('reports HIS MCP credential readiness without exposing the token', () => {
     expect(checkHisMcpPrerequisite()).toMatchObject({
       id: 'his-mcp',
-      status: 'missing',
+      status: 'ok',
+      summary: 'Optional fallback is not configured',
       command: 'export HIS_MCP_TOKEN=...'
     })
 

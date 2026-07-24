@@ -9461,6 +9461,8 @@
         "DfHisEnvironmentPane": {
           "statusReady": "Ready",
           "statusNeedsLogin": "Needs login",
+          "statusNeedsRepair": "Needs repair",
+          "statusNeedsAttention": "Needs attention",
           "statusMissing": "Missing",
           "autoFixable": "Auto-fixable",
           "copyCommand": "Copy command",

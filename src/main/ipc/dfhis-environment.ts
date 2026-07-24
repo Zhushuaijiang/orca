@@ -77,17 +77,18 @@ export function checkHisMcpPrerequisite(): DfHisEnvironmentPrerequisiteResult {
   if (!connection.bearerToken && !connection.hasQueryToken) {
     return {
       id: 'his-mcp',
-      label: 'HIS MCP',
-      status: 'missing',
-      summary: 'HIS MCP token is not set',
-      detail: 'Paste the HIS MCP token in DFHIS Setup, then click Save & install.',
+      label: 'HIS MCP fallback',
+      status: 'ok',
+      summary: 'Optional fallback is not configured',
+      detail:
+        'Direct Yunxiao archive uses the official Yunxiao MCP. Paste a HIS MCP token only for legacy fallback.',
       command: HIS_MCP_TOKEN_COMMAND,
       fixable: true
     }
   }
   return {
     id: 'his-mcp',
-    label: 'HIS MCP',
+    label: 'HIS MCP fallback',
     status: 'ok',
     summary: 'Credentials configured',
     detail: connection.url,

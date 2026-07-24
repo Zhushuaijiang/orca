@@ -1,4 +1,4 @@
 interface:
   display_name: "云效需求到代码修复"
-  short_description: "通过 HIS MCP 归档、定位仓库并本地修复"
+  short_description: "直连云效归档、定位仓库并本地修复"
   default_prompt: "Use $yunxiao-requirement-archiver to archive DFHIS-12345, locate the affected HIS repository, and prepare a local fix branch."
