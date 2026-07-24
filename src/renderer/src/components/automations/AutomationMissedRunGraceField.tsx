@@ -30,7 +30,7 @@ export function AutomationMissedRunGraceField({
         <span className="inline-flex items-center gap-1">
           {translate(
             'auto.components.automations.AutomationMissedRunGraceField.fc089e5fde',
-            'Grace'
+            'Missed-run grace'
           )}
           <Tooltip>
             <TooltipTrigger asChild>

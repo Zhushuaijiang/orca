@@ -257,7 +257,10 @@ export function AutomationDetail({
           />
         ) : null}
         <DetailMetric
-          label={translate('auto.components.automations.AutomationDetail.620b22145e', 'Grace')}
+          label={translate(
+            'auto.components.automations.AutomationDetail.620b22145e',
+            'Missed-run grace'
+          )}
           value={formatGrace(automation.missedRunGraceMinutes)}
         />
         <DetailMetric

@@ -229,7 +229,7 @@ function TodoPoolFilters({
           onSelect={(event) => event.preventDefault()}
           onCheckedChange={() => onTodoPoolStatusChange([])}
         >
-          {translate('auto.components.TaskPage.yunxiaoAllPoolStatuses', 'All pool states')}
+          {translate('auto.components.TaskPage.yunxiaoOpenPoolStatuses', 'Open pool states')}
         </DropdownMenuCheckboxItem>
         {YUNXIAO_TODO_POOL_STATUSES.map((status) => (
           <DropdownMenuCheckboxItem

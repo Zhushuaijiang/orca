@@ -68,7 +68,15 @@ export function getAutomationRunStatusVariant(
   return 'dot'
 }
 
-export function getAutomationRunStatusLabel(status: AutomationRun['status']): string {
+const YUNXIAO_TODO_POOL_EMPTY_ERRORS = new Set([
+  'No matching Yunxiao todo pool items are queued.',
+  'No matching actionable Yunxiao todo pool items are available.'
+])
+
+export function getAutomationRunStatusLabel(
+  status: AutomationRun['status'],
+  run?: Pick<AutomationRun, 'error'>
+): string {
   switch (status) {
     case 'pending':
       return 'Queued'
@@ -79,6 +87,9 @@ export function getAutomationRunStatusLabel(status: AutomationRun['status']): st
     case 'completed':
       return 'Done'
     case 'skipped_precheck':
+      if (run?.error && YUNXIAO_TODO_POOL_EMPTY_ERRORS.has(run.error)) {
+        return 'No actionable items'
+      }
       return 'Precheck skipped'
     case 'skipped_missed':
       return 'Skipped'

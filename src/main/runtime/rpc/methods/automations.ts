@@ -16,7 +16,10 @@ import {
   requiredNumber,
   requiredString
 } from '../schemas'
-import type { YunxiaoTodoPoolStatus as SharedYunxiaoTodoPoolStatus } from '../../../../shared/yunxiao-types'
+import {
+  DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES,
+  type YunxiaoTodoPoolStatus as SharedYunxiaoTodoPoolStatus
+} from '../../../../shared/yunxiao-types'
 
 const TuiAgent = requiredString('Missing provider').refine(isTuiAgent, {
   message: 'Unknown provider'
@@ -69,7 +72,7 @@ const AutomationYunxiaoTodoPoolSource = z
   .transform((value) => {
     const statuses: SharedYunxiaoTodoPoolStatus[] = value.statuses?.length
       ? value.statuses
-      : ['queued']
+      : [...DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES]
     return {
       kind: value.kind,
       statuses,

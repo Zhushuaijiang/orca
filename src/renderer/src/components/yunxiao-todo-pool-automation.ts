@@ -23,6 +23,7 @@ import type {
   AutomationCreateInput,
   AutomationUpdateInput
 } from '../../../shared/automations-types'
+import { DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES } from '../../../shared/yunxiao-types'
 import type {
   GlobalSettings,
   ProjectHostSetup,
@@ -37,7 +38,7 @@ type TodoPoolAutomationTarget = {
 }
 
 const TODO_POOL_AUTOMATION_PROMPT =
-  'Process the next queued Yunxiao todo pool requirement. Follow the runtime-provided claim details and use the Yunxiao requirement archiver workflow.'
+  'Process the next actionable Yunxiao todo pool requirement. Follow the runtime-provided claim details and use the Yunxiao requirement archiver workflow.'
 
 function getDefaultWorktree(worktrees: readonly Worktree[]): Worktree | null {
   return worktrees.find((worktree) => worktree.isMainWorktree) ?? worktrees[0] ?? null
@@ -155,7 +156,7 @@ function buildTodoPoolAutomationInput(target: TodoPoolAutomationTarget): Automat
     precheck: null,
     yunxiaoTodoPool: {
       kind: 'yunxiao-todo-pool',
-      statuses: ['queued'],
+      statuses: [...DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES],
       batchSize: 1
     },
     agentId: getDefaultAgent(state.settings),

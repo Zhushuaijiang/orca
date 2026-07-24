@@ -177,6 +177,26 @@ describe('electron-builder config', () => {
     }
   })
 
+  it('treats Electron runtime builtins as packaged runtime deps', async () => {
+    const resourcesDir = await mkdtemp(join(tmpdir(), 'orca-runtime-builtins-'))
+    try {
+      await writeFile(join(resourcesDir, 'app.asar'), '', 'utf8')
+
+      const sources = new Map([
+        ['out/main/index.js', 'const sqlite = require("node:sqlite")'],
+        ['out/main/agent-hooks/managed-agent-hook-controls.js', 'const fs = require("node:fs")']
+      ])
+      const asar = {
+        listPackage: () => [...sources.keys()],
+        extractFile: (_asarPath, internalPath) => Buffer.from(sources.get(internalPath), 'utf8')
+      }
+
+      expect(() => verifyPackagedMainRuntimeDeps(resourcesDir, asar)).not.toThrow()
+    } finally {
+      await rm(resourcesDir, { recursive: true, force: true })
+    }
+  })
+
   it('normalizes host-specific asar entry separators', () => {
     expect(findAsarEntry(['\\out\\main\\index.js'], 'out/main/index.js')).toBe(
       '\\out\\main\\index.js'

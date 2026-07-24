@@ -21,6 +21,8 @@ export const YUNXIAO_TODO_POOL_STATUSES: YunxiaoTodoPoolStatus[] = [
   'done',
   'dismissed'
 ]
+export const DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES: YunxiaoTodoPoolStatus[] =
+  YUNXIAO_TODO_POOL_STATUSES.filter((status) => status !== 'done' && status !== 'dismissed')
 
 export function formatYunxiaoDate(value: string | null): string {
   if (!value) {
@@ -83,7 +85,7 @@ export function todoPoolStatusSelectionLabel(
   selectedStatuses: readonly YunxiaoTodoPoolStatus[]
 ): string {
   if (selectedStatuses.length === 0) {
-    return translate('auto.components.TaskPage.yunxiaoAllPoolStatuses', 'All pool states')
+    return translate('auto.components.TaskPage.yunxiaoOpenPoolStatuses', 'Open pool states')
   }
   if (selectedStatuses.length === 1) {
     return todoPoolStatusLabel(selectedStatuses[0])

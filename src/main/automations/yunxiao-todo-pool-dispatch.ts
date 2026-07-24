@@ -1,8 +1,13 @@
 import type { Store } from '../persistence'
 import type { Automation, AutomationRun } from '../../shared/automations-types'
-import type { YunxiaoTodoPoolItem } from '../../shared/yunxiao-types'
+import {
+  DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES,
+  type YunxiaoTodoPoolItem,
+  type YunxiaoTodoPoolStatus
+} from '../../shared/yunxiao-types'
 
-export const EMPTY_YUNXIAO_TODO_POOL_MESSAGE = 'No matching Yunxiao todo pool items are queued.'
+export const EMPTY_YUNXIAO_TODO_POOL_MESSAGE =
+  'No matching actionable Yunxiao todo pool items are available.'
 
 export type PreparedYunxiaoTodoPoolRun =
   | { ok: true; automation: Automation; run: AutomationRun }
@@ -20,7 +25,7 @@ export function prepareYunxiaoTodoPoolRun(args: {
   const claimed = args.store.claimYunxiaoTodoPoolItems({
     automationId: args.automation.id,
     runId: args.run.id,
-    statuses: source.statuses,
+    statuses: getYunxiaoTodoPoolClaimStatuses(source.statuses),
     limit: source.batchSize
   })
   if (claimed.length === 0) {
@@ -47,12 +52,13 @@ export function prepareYunxiaoTodoPoolRun(args: {
   }
 }
 
-export function finishYunxiaoTodoPoolClaim(store: Store, run: AutomationRun): void {
-  store.finishYunxiaoTodoPoolClaim({
-    runId: run.id,
-    poolStatus: run.status === 'completed' ? 'workspace-created' : 'failed',
-    error: run.error
-  })
+function getYunxiaoTodoPoolClaimStatuses(
+  statuses: readonly YunxiaoTodoPoolStatus[]
+): readonly YunxiaoTodoPoolStatus[] {
+  if (statuses.length === 0 || (statuses.length === 1 && statuses[0] === 'queued')) {
+    return DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES
+  }
+  return statuses
 }
 
 function buildYunxiaoTodoPoolPrompt(

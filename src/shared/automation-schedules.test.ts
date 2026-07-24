@@ -146,6 +146,11 @@ describe('automation schedules', () => {
     expect(formatAutomationSchedule('30 12 * * 7')).toBe(`Sundays at ${formatTimeForTest(12, 30)}`)
   })
 
+  it('formats evenly spaced hourly cron schedules with friendly labels', () => {
+    expect(formatAutomationSchedule('0 */3 * * *')).toBe('Every 3 hours')
+    expect(formatAutomationSchedule('15 1,7,13,19 * * *')).toBe('Every 6 hours at :15')
+  })
+
   it('tokenizes pasted cron whitespace without regex field splitting', () => {
     const split = vi.spyOn(String.prototype, 'split')
     const schedule = ['15', String.fromCharCode(160), '10\n*\t*\rMON-FRI'].join('')

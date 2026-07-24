@@ -15,7 +15,7 @@ import { resolveAutomationRunTarget } from './run-target-resolution'
 import { collectAutomationRunUsage } from './run-usage-collection'
 import type { HeadlessAutomationDispatcher } from './headless-dispatch'
 import { clearAutomationDispatchTokens, createAutomationDispatchToken } from './dispatch-tokens'
-import { finishYunxiaoTodoPoolClaim, prepareYunxiaoTodoPoolRun } from './yunxiao-todo-pool-dispatch'
+import { prepareYunxiaoTodoPoolRun } from './yunxiao-todo-pool-dispatch'
 import { requestHeadlessAutomationDispatch } from './headless-automation-dispatch-request'
 
 const DEFAULT_TICK_MS = 60 * 1000
@@ -262,11 +262,6 @@ export class AutomationService {
   }
 
   private updateAutomationRun(result: AutomationDispatchResult): AutomationRun {
-    const run = this.store.updateAutomationRun(result)
-    if (!isFinalAutomationRunStatus(run.status) || !run.yunxiaoTodoPoolClaim) {
-      return run
-    }
-    finishYunxiaoTodoPoolClaim(this.store, run)
-    return run
+    return this.store.updateAutomationRun(result)
   }
 }

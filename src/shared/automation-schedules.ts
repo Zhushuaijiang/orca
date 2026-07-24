@@ -357,6 +357,28 @@ function setContainsRange(values: Set<number>, min: number, max: number): boolea
   return true
 }
 
+function getEvenHourInterval(hours: Set<number>): number | null {
+  if (hours.size <= 1 || hours.size >= 24) {
+    return null
+  }
+  const sorted = [...hours].sort((a, b) => a - b)
+  const interval = sorted[1] - sorted[0]
+  if (interval <= 1 || 24 % interval !== 0 || sorted.length !== 24 / interval) {
+    return null
+  }
+  for (let index = 1; index < sorted.length; index += 1) {
+    if (sorted[index] - sorted[index - 1] !== interval) {
+      return null
+    }
+  }
+  return 24 - sorted[sorted.length - 1] + sorted[0] === interval ? interval : null
+}
+
+function formatHourlyIntervalLabel(hours: number, minute: number): string {
+  const minuteLabel = minute === 0 ? '' : ` at :${String(minute).padStart(2, '0')}`
+  return `Every ${hours} hours${minuteLabel}`
+}
+
 function formatParsedRruleSchedule(schedule: ReturnType<typeof parseAutomationRrule>): string {
   if (schedule.preset === 'hourly') {
     return `Hourly at :${String(schedule.minute).padStart(2, '0')}`
@@ -395,6 +417,15 @@ function classifyParsedCronSchedule(rule: ParsedCron): AutomationCronScheduleCla
       minute,
       label: `Hourly at :${String(minute).padStart(2, '0')}`
     }
+  }
+  const hourInterval = getEvenHourInterval(rule.hours)
+  if (
+    minute !== null &&
+    hourInterval !== null &&
+    unrestrictedCalendar &&
+    unrestrictedDayOfWeek
+  ) {
+    return { kind: 'custom', label: formatHourlyIntervalLabel(hourInterval, minute) }
   }
   if (minute !== null && hour !== null && unrestrictedCalendar) {
     const time = formatTime(hour, minute)

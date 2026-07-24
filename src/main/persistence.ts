@@ -14,18 +14,19 @@ import { writeFile, rename, mkdir, rm, copyFile } from 'node:fs/promises'
 import { join, dirname, isAbsolute, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
 import { createHash, randomUUID } from 'node:crypto'
-import type {
-  Automation,
-  AutomationCreateInput,
-  AutomationDispatchResult,
-  AutomationPrecheckResult,
-  AutomationRunOutputSnapshot,
-  AutomationRun,
-  AutomationSchedulerOwner,
-  AutomationRunTrigger,
-  AutomationUpdateInput,
-  AutomationYunxiaoTodoPoolClaim,
-  AutomationYunxiaoTodoPoolSource
+import {
+  isFinalAutomationRunStatus,
+  type Automation,
+  type AutomationCreateInput,
+  type AutomationDispatchResult,
+  type AutomationPrecheckResult,
+  type AutomationRunOutputSnapshot,
+  type AutomationRun,
+  type AutomationSchedulerOwner,
+  type AutomationRunTrigger,
+  type AutomationUpdateInput,
+  type AutomationYunxiaoTodoPoolClaim,
+  type AutomationYunxiaoTodoPoolSource
 } from '../shared/automations-types'
 import {
   latestAutomationOccurrenceAtOrBefore,
@@ -78,11 +79,12 @@ import {
   buildWorkspaceRunContext
 } from '../shared/task-source-context'
 import type { MigrationUnsupportedPtyEntry } from '../shared/agent-status-types'
-import type {
-  YunxiaoTodoPoolItem,
-  YunxiaoTodoPoolStatus,
-  YunxiaoWorkItem,
-  YunxiaoWorkItemCategory
+import {
+  DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES,
+  type YunxiaoTodoPoolItem,
+  type YunxiaoTodoPoolStatus,
+  type YunxiaoWorkItem,
+  type YunxiaoWorkItemCategory
 } from '../shared/yunxiao-types'
 import { MOBILE_PAIRING_USERDATA_FILES } from './runtime/mobile-pairing-files'
 import { normalizePersistedMobileClientTabSelections } from './runtime/client-session-tab-selection-persistence'
@@ -1110,6 +1112,59 @@ function backfillLegacyAutomationContexts(
       automationRuns
     },
     changed: true
+  }
+}
+
+function reconcileCompletedYunxiaoTodoPoolClaims(
+  state: Pick<PersistedState, 'automationRuns' | 'yunxiaoTodoPool'>
+): {
+  state: Pick<PersistedState, 'automationRuns' | 'yunxiaoTodoPool'>
+  changed: boolean
+} {
+  const completedClaimItemIds = new Set<string>()
+  const completedClaimRunIds = new Set<string>()
+  for (const run of state.automationRuns ?? []) {
+    if (run.status !== 'completed' || !run.yunxiaoTodoPoolClaim) {
+      continue
+    }
+    completedClaimRunIds.add(run.id)
+    for (const itemId of run.yunxiaoTodoPoolClaim.itemIds) {
+      const normalizedItemId = normalizeOptionalNonEmptyString(itemId)
+      if (normalizedItemId) {
+        completedClaimItemIds.add(normalizedItemId)
+      }
+    }
+  }
+  if (completedClaimRunIds.size === 0 && completedClaimItemIds.size === 0) {
+    return { state, changed: false }
+  }
+  let changed = false
+  const now = Date.now()
+  const yunxiaoTodoPool = (state.yunxiaoTodoPool ?? []).map((item) => {
+    const matchesClaim = item.claimedByRunId
+      ? completedClaimRunIds.has(item.claimedByRunId)
+      : completedClaimItemIds.has(item.id)
+    if (!matchesClaim) {
+      return item
+    }
+    if (
+      item.poolStatus !== 'running' &&
+      item.poolStatus !== 'dispatched' &&
+      item.poolStatus !== 'workspace-created'
+    ) {
+      return item
+    }
+    changed = true
+    return {
+      ...item,
+      poolStatus: 'done' as const,
+      poolUpdatedAt: now,
+      lastError: null
+    }
+  })
+  return {
+    state: changed ? { ...state, yunxiaoTodoPool } : state,
+    changed
   }
 }
 
@@ -2691,13 +2746,17 @@ function normalizeAutomationYunxiaoTodoPoolSource(
     ? candidate.statuses.map((status) => normalizeYunxiaoTodoPoolStatus(status))
     : []
   const uniqueStatuses = [...new Set(statuses)]
+  const normalizedStatuses =
+    uniqueStatuses.length === 0 || (uniqueStatuses.length === 1 && uniqueStatuses[0] === 'queued')
+      ? [...DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES]
+      : uniqueStatuses
   const batchSize =
     Number.isFinite(candidate.batchSize) && Number(candidate.batchSize) > 0
       ? Math.min(Math.floor(Number(candidate.batchSize)), 10)
       : 1
   return {
     kind: 'yunxiao-todo-pool',
-    statuses: uniqueStatuses.length > 0 ? uniqueStatuses : ['queued'],
+    statuses: normalizedStatuses,
     batchSize
   }
 }
@@ -3629,6 +3688,15 @@ export class Store {
       automationRuns: automationContextMigration.state.automationRuns
     }
 
+    const completedYunxiaoTodoPoolClaims = reconcileCompletedYunxiaoTodoPoolClaims(result)
+    if (completedYunxiaoTodoPoolClaims.changed) {
+      this.loadNeedsSave = true
+    }
+    result = {
+      ...result,
+      yunxiaoTodoPool: completedYunxiaoTodoPoolClaims.state.yunxiaoTodoPool
+    }
+
     const folderScopeConnectionMigration = backfillFolderScopeConnectionIds({
       ...result,
       repos,
@@ -4353,6 +4421,47 @@ export class Store {
     return [...this.state.yunxiaoTodoPool]
   }
 
+  private updateYunxiaoTodoPoolClaimStatus(args: {
+    runId: string
+    itemIds?: readonly string[]
+    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed'>
+    error?: string | null
+  }): YunxiaoTodoPoolItem[] {
+    const now = Date.now()
+    const claimedItemIds = new Set(
+      (args.itemIds ?? [])
+        .map((id) => normalizeOptionalNonEmptyString(id))
+        .filter((id): id is string => id !== null)
+    )
+    const activeClaimStatuses = new Set<YunxiaoTodoPoolStatus>([
+      'queued',
+      'running',
+      'dispatched',
+      'workspace-created'
+    ])
+    const updatedItems: YunxiaoTodoPoolItem[] = []
+    this.state.yunxiaoTodoPool = this.getYunxiaoTodoPool().map((item) => {
+      const matchesClaim = item.claimedByRunId
+        ? item.claimedByRunId === args.runId
+        : claimedItemIds.has(item.id)
+      if (!matchesClaim || !activeClaimStatuses.has(item.poolStatus)) {
+        return item
+      }
+      const next: YunxiaoTodoPoolItem = {
+        ...item,
+        poolStatus: args.poolStatus,
+        poolUpdatedAt: now,
+        lastError:
+          args.poolStatus === 'failed'
+            ? (normalizeOptionalNonEmptyString(args.error) ?? 'Automation run failed.')
+            : null
+      }
+      updatedItems.push(next)
+      return next
+    })
+    return updatedItems
+  }
+
   addYunxiaoTodoPoolItems(items: readonly YunxiaoWorkItem[]): YunxiaoTodoPoolItem[] {
     const now = Date.now()
     const poolByIdentity = new Map(
@@ -4484,27 +4593,11 @@ export class Store {
 
   finishYunxiaoTodoPoolClaim(args: {
     runId: string
-    poolStatus: Extract<YunxiaoTodoPoolStatus, 'workspace-created' | 'failed'>
+    itemIds?: readonly string[]
+    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed'>
     error?: string | null
   }): YunxiaoTodoPoolItem[] {
-    const now = Date.now()
-    const updatedItems: YunxiaoTodoPoolItem[] = []
-    this.state.yunxiaoTodoPool = this.getYunxiaoTodoPool().map((item) => {
-      if (item.claimedByRunId !== args.runId) {
-        return item
-      }
-      const next: YunxiaoTodoPoolItem = {
-        ...item,
-        poolStatus: args.poolStatus,
-        poolUpdatedAt: now,
-        lastError:
-          args.poolStatus === 'failed'
-            ? (normalizeOptionalNonEmptyString(args.error) ?? 'Automation run failed.')
-            : null
-      }
-      updatedItems.push(next)
-      return next
-    })
+    const updatedItems = this.updateYunxiaoTodoPoolClaimStatus(args)
     if (updatedItems.length > 0) {
       this.scheduleSave()
     }
@@ -5219,6 +5312,14 @@ export class Store {
       dispatchedAt: result.status === 'dispatched' ? now : current.dispatchedAt
     }
     this.state.automationRuns[index] = updated
+    if (isFinalAutomationRunStatus(updated.status) && updated.yunxiaoTodoPoolClaim) {
+      this.updateYunxiaoTodoPoolClaimStatus({
+        runId: updated.id,
+        itemIds: updated.yunxiaoTodoPoolClaim.itemIds,
+        poolStatus: updated.status === 'completed' ? 'done' : 'failed',
+        error: updated.error
+      })
+    }
     const automation = this.state.automations.find((entry) => entry.id === updated.automationId)
     if (automation) {
       automation.lastRunAt = now

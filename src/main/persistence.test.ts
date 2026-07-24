@@ -444,6 +444,76 @@ describe('Store', () => {
       claimedByRunId: null,
       lastError: null
     })
+
+    store.claimYunxiaoTodoPoolItems({
+      automationId: 'automation-3',
+      runId: 'run-3',
+      statuses: ['queued'],
+      limit: 1
+    })
+    const done = store.finishYunxiaoTodoPoolClaim({
+      runId: 'run-3',
+      poolStatus: 'done'
+    })
+
+    expect(done[0]).toMatchObject({
+      poolStatus: 'done',
+      lastError: null
+    })
+  })
+
+  it('reconciles completed Yunxiao todo pool claims that were left in workspace-created state', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+    store.setAutomationRunYunxiaoTodoPoolClaim(run.id, {
+      itemIds: [item.id],
+      claimedAt: Date.now()
+    })
+    store.updateYunxiaoTodoPoolItem(item.id, {
+      poolStatus: 'workspace-created',
+      lastError: 'stale failure'
+    })
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'done',
+      lastError: null
+    })
+
+    const reloaded = await createStore()
+
+    expect(reloaded.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'done',
+      lastError: null
+    })
   })
 
   it('does not restore a terminal tab after its durable close flush returns', async () => {

@@ -54,6 +54,11 @@ export type YunxiaoTodoPoolStatus =
   | 'done'
   | 'dismissed'
 
+export const DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES = [
+  'queued',
+  'workspace-created'
+] as const satisfies readonly YunxiaoTodoPoolStatus[]
+
 export type YunxiaoTodoPoolItem = YunxiaoWorkItem & {
   poolStatus: YunxiaoTodoPoolStatus
   addedAt: number

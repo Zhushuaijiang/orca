@@ -172,7 +172,11 @@ function YunxiaoTableHeader({
       </span>
       <span>{translate('auto.components.TaskPage.eb10c32872', 'ID')}</span>
       <span>{translate('auto.components.TaskPage.16cba35bee', 'Title')}</span>
-      <span>{translate('auto.components.TaskPage.154b0fa623', 'Status')}</span>
+      <span>
+        {view === 'todo-pool'
+          ? translate('auto.components.TaskPage.yunxiaoPoolState', 'Pool state')
+          : translate('auto.components.TaskPage.154b0fa623', 'Status')}
+      </span>
       <span>{translate('auto.components.TaskPage.yunxiaoCustomer', 'Customer')}</span>
       <span>{translate('auto.components.TaskPage.c8d5bec5f7', 'Priority')}</span>
       <span>{translate('auto.components.TaskPage.d2a876ca53', 'Assignee')}</span>
@@ -299,9 +303,7 @@ function YunxiaoTableRow({
         <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
         <div className="mt-1 flex min-w-0 gap-2 text-[11px] text-muted-foreground">
           <span className="truncate">{item.typeName ?? item.category}</span>
-          {poolItem ? (
-            <span className="truncate">{todoPoolStatusLabel(poolItem.poolStatus)}</span>
-          ) : null}
+          {poolItem && item.statusName ? <span className="truncate">{item.statusName}</span> : null}
           {item.participants.length > 0 ? (
             <span className="truncate">
               {translate('auto.components.TaskPage.yunxiaoParticipants', 'Participants')}:{' '}
@@ -310,7 +312,9 @@ function YunxiaoTableRow({
           ) : null}
         </div>
       </div>
-      <span className="truncate text-xs text-muted-foreground">{item.statusName ?? '-'}</span>
+      <span className="truncate text-xs text-muted-foreground">
+        {poolItem ? todoPoolStatusLabel(poolItem.poolStatus) : (item.statusName ?? '-')}
+      </span>
       <span className="truncate text-xs text-muted-foreground">{item.customer ?? '-'}</span>
       <span className="truncate text-xs text-muted-foreground">{item.priority ?? '-'}</span>
       <span className="truncate text-xs text-muted-foreground">{item.assignee?.name ?? '-'}</span>

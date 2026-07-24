@@ -13,6 +13,7 @@ import { TaskPageYunxiaoWorkItemTable } from './task-page-yunxiao-work-item-tabl
 import { TaskPageYunxiaoWorkItemToolbar } from './task-page-yunxiao-work-item-toolbar'
 import { useYunxiaoTodoPoolAutomation } from './yunxiao-todo-pool-automation'
 import {
+  DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES,
   facetLabel,
   itemMatchesText,
   statusSelectionLabel,
@@ -133,14 +134,18 @@ export function TaskPageYunxiaoWorkItemList({
     [todoPool]
   )
   const visibleTodoPoolItems = useMemo(
-    () =>
-      todoPool.filter(
+    () => {
+      const defaultStatuses = new Set(DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES)
+      return todoPool.filter(
         (item) =>
-          (todoPoolStatuses.length === 0 || todoPoolStatuses.includes(item.poolStatus)) &&
+          (todoPoolStatuses.length === 0
+            ? defaultStatuses.has(item.poolStatus)
+            : todoPoolStatuses.includes(item.poolStatus)) &&
           (!appliedQuery ||
             itemMatchesText(item, appliedQuery) ||
             todoPoolStatusLabel(item.poolStatus).includes(appliedQuery))
-      ),
+      )
+    },
     [appliedQuery, todoPool, todoPoolStatuses]
   )
   const selectedWorkItems = useMemo(

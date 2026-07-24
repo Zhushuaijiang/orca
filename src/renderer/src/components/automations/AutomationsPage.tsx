@@ -2936,7 +2936,10 @@ export default function AutomationsPage(): React.JSX.Element {
                         ? 'Latest saved output'
                         : null
                     }
-                    statusLabel={getAutomationRunStatusLabel(selectedAutomationRunPage.status)}
+                    statusLabel={getAutomationRunStatusLabel(
+                      selectedAutomationRunPage.status,
+                      selectedAutomationRunPage
+                    )}
                     statusVariant={getAutomationRunStatusVariant(selectedAutomationRunPage.status)}
                     actions={
                       <>

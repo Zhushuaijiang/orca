@@ -186,7 +186,108 @@ describe('AutomationService', () => {
       workspaceId: 'wt1'
     })
 
-    expect(store.getYunxiaoTodoPool()[0]?.poolStatus).toBe('workspace-created')
+    expect(store.getYunxiaoTodoPool()[0]?.poolStatus).toBe('done')
+  })
+
+  it('claims legacy workspace-created Yunxiao todo pool items for queued-only automations', async () => {
+    vi.setSystemTime(new Date('2026-05-13T08:00:00Z'))
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    store.addYunxiaoTodoPoolItems([makeYunxiaoWorkItem()])
+    store.updateYunxiaoTodoPoolItem('item-1', { poolStatus: 'workspace-created' })
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const send = vi.fn()
+    const service = new AutomationService(store, { tickMs: 60_000 })
+    service.setWebContents({
+      isDestroyed: () => false,
+      send
+    } as never)
+    service.setRendererReady()
+
+    const run = await service.runNow(automation.id)
+
+    expect(run.status).toBe('dispatching')
+    expect(run.yunxiaoTodoPoolClaim?.itemIds).toEqual(['item-1'])
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: 'item-1',
+      poolStatus: 'running',
+      attempts: 1
+    })
+    expect(send).toHaveBeenCalled()
+
+    await service.markDispatchResult({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1'
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]?.poolStatus).toBe('done')
+  })
+
+  it('finishes an existing Yunxiao claim when the renderer marks the run completed', async () => {
+    vi.setSystemTime(new Date('2026-05-13T08:00:00Z'))
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    store.addYunxiaoTodoPoolItems([makeYunxiaoWorkItem()])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+    store.setAutomationRunYunxiaoTodoPoolClaim(run.id, {
+      itemIds: ['item-1'],
+      claimedAt: Date.now()
+    })
+    store.updateYunxiaoTodoPoolItem('item-1', { poolStatus: 'workspace-created' })
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'dispatched',
+      workspaceId: 'wt1',
+      terminalSessionId: 'tab-1',
+      terminalPaneKey: 'tab-1:pane-1',
+      error: null
+    })
+    const service = new AutomationService(store, { tickMs: 60_000 })
+
+    await service.markDispatchResult({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      terminalSessionId: 'tab-1',
+      terminalPaneKey: 'tab-1:pane-1',
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: 'item-1',
+      poolStatus: 'done',
+      lastError: null
+    })
   })
 
   it('skips a Yunxiao todo pool automation when no matching items are queued', async () => {
@@ -216,7 +317,7 @@ describe('AutomationService', () => {
     const run = await service.runNow(automation.id)
 
     expect(run.status).toBe('skipped_precheck')
-    expect(run.error).toBe('No matching Yunxiao todo pool items are queued.')
+    expect(run.error).toBe('No matching actionable Yunxiao todo pool items are available.')
     expect(send).not.toHaveBeenCalled()
   })
 
