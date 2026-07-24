@@ -161,3 +161,30 @@ export async function callTool(
   )
   return { text: extractToolText(response) }
 }
+
+export async function listTools(
+  connection: McpConnection,
+  sessionId: string,
+  timeoutMs: number
+): Promise<string[]> {
+  const { response } = await mcpPost(
+    connection,
+    {
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/list',
+      params: {}
+    },
+    timeoutMs,
+    sessionId
+  )
+  const result = response.result && typeof response.result === 'object' ? response.result : {}
+  const tools = 'tools' in result && Array.isArray(result.tools) ? result.tools : []
+  return tools
+    .map((tool) =>
+      tool && typeof tool === 'object' && typeof (tool as { name?: unknown }).name === 'string'
+        ? (tool as { name: string }).name
+        : ''
+    )
+    .filter(Boolean)
+}

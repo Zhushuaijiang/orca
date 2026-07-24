@@ -16,6 +16,7 @@ import {
   requiredNumber,
   requiredString
 } from '../schemas'
+import type { YunxiaoTodoPoolStatus as SharedYunxiaoTodoPoolStatus } from '../../../../shared/yunxiao-types'
 
 const TuiAgent = requiredString('Missing provider').refine(isTuiAgent, {
   message: 'Unknown provider'
@@ -48,6 +49,36 @@ const AutomationPrecheck = z
   .nullable()
   .optional()
 
+const YunxiaoTodoPoolStatus = z.enum([
+  'queued',
+  'archived',
+  'running',
+  'dispatched',
+  'workspace-created',
+  'failed',
+  'done',
+  'dismissed'
+])
+
+const AutomationYunxiaoTodoPoolSource = z
+  .object({
+    kind: z.literal('yunxiao-todo-pool'),
+    statuses: z.array(YunxiaoTodoPoolStatus).min(1).optional(),
+    batchSize: OptionalPositiveInt.optional()
+  })
+  .transform((value) => {
+    const statuses: SharedYunxiaoTodoPoolStatus[] = value.statuses?.length
+      ? value.statuses
+      : ['queued']
+    return {
+      kind: value.kind,
+      statuses,
+      batchSize: Math.min(Math.max(value.batchSize ?? 1, 1), 10)
+    }
+  })
+  .nullable()
+  .optional()
+
 const OptionalNullablePlainString = z
   .unknown()
   .transform((value) => (value === null || typeof value === 'string' ? value : undefined))
@@ -60,7 +91,7 @@ const TaskProviderIdentity = z
       value !== null &&
       typeof value === 'object' &&
       'provider' in value &&
-      ['github', 'gitlab', 'linear', 'jira'].includes(String(value.provider))
+      ['github', 'gitlab', 'linear', 'jira', 'yunxiao'].includes(String(value.provider))
   )
   .optional()
   .nullable()
@@ -68,7 +99,7 @@ const TaskProviderIdentity = z
 const TaskSourceContext = z
   .object({
     kind: z.literal('task-source'),
-    provider: z.enum(['github', 'gitlab', 'linear', 'jira']),
+    provider: z.enum(['github', 'gitlab', 'linear', 'jira', 'yunxiao']),
     projectId: requiredString('Missing source project id'),
     hostId: ExecutionHostId,
     projectHostSetupId: OptionalNullablePlainString,
@@ -103,6 +134,7 @@ const AutomationCreate = z.object({
   name: requiredString('Missing automation name'),
   prompt: requiredString('Missing automation prompt'),
   precheck: AutomationPrecheck,
+  yunxiaoTodoPool: AutomationYunxiaoTodoPoolSource,
   agentId: TuiAgent,
   runContext: WorkspaceRunContext,
   sourceContext: TaskSourceContext,
@@ -123,6 +155,7 @@ const AutomationUpdateFields = z.object({
   name: OptionalString,
   prompt: OptionalString,
   precheck: AutomationPrecheck,
+  yunxiaoTodoPool: AutomationYunxiaoTodoPoolSource,
   agentId: TuiAgent.optional(),
   runContext: WorkspaceRunContext,
   sourceContext: TaskSourceContext,

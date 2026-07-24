@@ -757,8 +757,8 @@
         "projectHostsSummary": "{{value0}} hosts",
         "linearTitle": "Linear",
         "linearDescription": "Give agents the skill to read and update your linked Linear tickets.",
-        "ygtEnvironmentTitle": "YGT Setup",
-        "ygtEnvironmentDescription": "Check GitLab, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start."
+        "dfhisEnvironmentTitle": "DFHIS Setup",
+        "dfhisEnvironmentDescription": "Check GitLab, Yunxiao MCP, HIS MCP, local HIS paths, and the DFHIS workflow pack before team workflows start."
       },
       "useAppMenuPaste": {
         "pasteTooLarge": "Paste is too large."
@@ -1047,7 +1047,8 @@
         "32f8bef818": "No log output.",
         "4168eb2c51": "Resolve",
         "commentTooLarge": "Comment is too large to submit safely.",
-        "filesUnavailable": "Couldn't load changed files."
+        "filesUnavailable": "Couldn't load changed files.",
+        "openFilesDialog": "Open file viewer"
       },
       "JiraIssueWorkspace": {
         "b0b92666c9": "Comment",
@@ -1275,7 +1276,17 @@
         "noRunTargets": "No run targets are ready for this project.",
         "perWorkspaceEnvHint": "Provision an on-demand environment from a recipe",
         "branchName": "Branch name",
-        "branchNamePlaceholder": "feature/my-branch"
+        "branchNamePlaceholder": "feature/my-branch",
+        "connectTimedOut": "Connection timed out. It may still be connecting in the background.",
+        "connectingHost": "Connecting…",
+        "connectHost": "Connect",
+        "addHost": "Add host",
+        "addHostHint": "Register another machine or Orca server",
+        "addSshHost": "Add SSH host",
+        "addSshHostHint": "Use an existing machine over SSH",
+        "addRemoteOrcaServer": "Add Remote Orca Server",
+        "addRemoteOrcaServerHint": "Pair another Orca runtime",
+        "hostConnectionFailed": "Connection failed"
       },
       "NewWorkspaceComposerModal": {
         "createWorktree": "Create worktree",
@@ -1840,7 +1851,68 @@
         "c5769a85fd": "Code workspace",
         "7dd5845268": "Used for code changes after creation",
         "219357cf23": "GitLab issue owner",
-        "e65804f357": "Create and link a Yunxiao requirement"
+        "e65804f357": "Create and link a Yunxiao requirement",
+        "viewGitLabMRFiles": "View files",
+        "yunxiaoSource": "Yunxiao",
+        "yunxiaoArchiveStarted": "Yunxiao archive started.",
+        "yunxiaoRequirements": "Requirements",
+        "yunxiaoTasks": "Tasks",
+        "yunxiaoBugs": "Bugs",
+        "yunxiaoAssignedToMe": "Assigned to me",
+        "yunxiaoParticipating": "Participating",
+        "yunxiaoSprint": "Sprint",
+        "yunxiaoAllSprints": "All sprints",
+        "yunxiaoAllStatuses": "All statuses",
+        "yunxiaoSelectedStatuses": "{{value0}} statuses",
+        "yunxiaoWorkItemsView": "Work items",
+        "yunxiaoTodoPoolView": "Todo pool",
+        "yunxiaoAllPoolStatuses": "All pool states",
+        "yunxiaoSelectedPoolStatuses": "{{value0}} states",
+        "yunxiaoTodoPoolQueued": "Queued",
+        "yunxiaoTodoPoolArchived": "Archived",
+        "yunxiaoTodoPoolRunning": "Running",
+        "yunxiaoTodoPoolDispatched": "Dispatched",
+        "yunxiaoTodoPoolWorkspaceCreated": "Workspace",
+        "yunxiaoTodoPoolFailed": "Failed",
+        "yunxiaoTodoPoolDone": "Done",
+        "yunxiaoTodoPoolDismissed": "Dismissed",
+        "yunxiaoTodoPoolAdded": "Added to todo pool.",
+        "yunxiaoConfigureAutomation": "Configure",
+        "yunxiaoRunNextAutomation": "Run next",
+        "yunxiaoTodoPoolAutomationName": "Yunxiao todo pool",
+        "yunxiaoTodoPoolAutomationNoTarget": "Choose a workspace before configuring the Yunxiao todo pool automation.",
+        "yunxiaoTodoPoolAutomationConfigured": "Yunxiao todo pool automation configured. Use Run next to start the next item.",
+        "yunxiaoTodoPoolAutomationRunStarted": "Yunxiao todo pool automation run started.",
+        "yunxiaoAddSelected": "Add selected",
+        "yunxiaoSelectPage": "Select page",
+        "yunxiaoSearch": "Search Yunxiao",
+        "b7b01ed849": "Loading…",
+        "yunxiaoShownCount": "{{value0}} shown",
+        "e8b1e0a2c1": "Refresh",
+        "yunxiaoCustomer": "Customer",
+        "yunxiaoEmptyTitle": "No Yunxiao work items",
+        "yunxiaoEmptyDescription": "Adjust filters or refresh the Yunxiao source.",
+        "yunxiaoTodoPoolEmptyTitle": "No todo pool items",
+        "yunxiaoTodoPoolEmptyDescription": "Add Yunxiao work items from the list.",
+        "yunxiaoParticipants": "Participants",
+        "yunxiaoArchive": "Archive requirement",
+        "yunxiaoAddToTodoPool": "Add to todo pool",
+        "yunxiaoOpen": "Open in Yunxiao",
+        "f6a4d3f9bc": "More actions",
+        "yunxiaoMarkQueued": "Mark queued",
+        "yunxiaoMarkDone": "Mark done",
+        "yunxiaoMarkDismissed": "Mark dismissed",
+        "yunxiaoMarkArchived": "Mark archived",
+        "yunxiaoMarkRunning": "Mark running",
+        "yunxiaoMarkDispatched": "Mark dispatched",
+        "yunxiaoMarkFailed": "Mark failed",
+        "yunxiaoMarkWorkspaceCreated": "Mark workspace",
+        "yunxiaoRemoveFromTodoPool": "Remove from pool",
+        "yunxiaoMoreAvailable": "Showing first {{value0}} items",
+        "yunxiaoLoadedCount": "{{value0}} loaded",
+        "yunxiaoSelectWorkItem": "Select {{value0}}",
+        "yunxiaoStartWorkspaceFrom": "Start workspace from {{value0}}",
+        "yunxiaoPageSummary": "Page {{value0}}"
       },
       "Terminal": {
         "73768427cf": "Close",
@@ -4137,7 +4209,8 @@
           "196c1b5362": "Open GitLab tasks",
           "0ccba862b8": "Open GitHub tasks",
           "fee535205b": "Tasks",
-          "d599269755": "Hide from sidebar"
+          "d599269755": "Hide from sidebar",
+          "yunxiaoTasks": "Open Yunxiao tasks"
         },
         "SidebarRepositoryFilterSection": {
           "d3a9c4cea1": "Clear",
@@ -4597,7 +4670,14 @@
           "worktree": {
             "flow": {
               "c460fecc4a": "Failed to sleep some workspaces",
-              "8bc3fc0671": "Failed to sleep workspace"
+              "8bc3fc0671": "Failed to sleep workspace",
+              "legacy": {
+                "unverified": "The older host runtime could not confirm terminal shutdown. The workspace was kept open; update the host and try again."
+              },
+              "host": {
+                "unverified": "The host could not confirm terminal shutdown. The workspace was kept open; check the connection and try again."
+              },
+              "retry": "The workspace was kept open. Try again; if the problem continues, check the host connection."
             }
           }
         },
@@ -4865,7 +4945,8 @@
           "sshImportSynced": "Synced {{value0}} host{{value1}}.",
           "sshImportFailed": "Failed to import SSH config.",
           "importing": "Importing...",
-          "importSshConfig": "Import ~/.ssh/config"
+          "importSshConfig": "Import ~/.ssh/config",
+          "advanced": "Advanced"
         },
         "ForgetSshWorkspaceDialog": {
           "reconnectFailed": "Reconnection failed",
@@ -6635,8 +6716,8 @@
           "devDescription": "Dev-only tools for exercising UI states.",
           "linearTitle": "Linear",
           "linearDescription": "Give agents the skill to read and update your linked Linear tickets.",
-          "ygtEnvironmentTitle": "YGT Setup",
-          "ygtEnvironmentDescription": "Check GitLab access, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start."
+          "dfhisEnvironmentTitle": "DFHIS Setup",
+          "dfhisEnvironmentDescription": "Check GitLab access, Yunxiao MCP, HIS MCP, local HIS paths, and the DFHIS workflow pack before team workflows start."
         },
         "SettingsFormControls": {
           "42a4d15a30": "No matching fonts.",
@@ -6875,7 +6956,9 @@
           "dd67a1b6e1": "Show GitLab in the Tasks source picker and sidebar shortcuts.",
           "7c5d7fdc20": "GitLab",
           "1db47236cd": "Show GitHub in the Tasks source picker and sidebar shortcuts.",
-          "e14063e727": "GitHub"
+          "e14063e727": "GitHub",
+          "yunxiao": "Yunxiao",
+          "yunxiaoDescription": "Show Yunxiao requirements in the Tasks source picker and sidebar shortcuts."
         },
         "TerminalAppearanceSection": {
           "a14a427ae4": "Thickness of the pane divider line.",
@@ -9344,22 +9427,23 @@
           "description": "Font used by file editors and diff views. Leave empty to follow the terminal font.",
           "placeholder": "Same as terminal font"
         },
-        "YgtEnvironmentPane": {
+        "DfHisEnvironmentPane": {
           "statusReady": "Ready",
           "statusNeedsLogin": "Needs login",
           "statusMissing": "Missing",
           "autoFixable": "Auto-fixable",
           "copyCommand": "Copy command",
-          "checkFailed": "YGT environment check failed.",
-          "installFailed": "YGT environment repair failed.",
+          "checkFailed": "DFHIS setup check failed.",
+          "installFailed": "DFHIS setup repair failed.",
           "commandCopied": "Command copied",
           "summary": "{{value0}} of {{value1}} prerequisites ready",
-          "description": "Run a local readiness check before teammates use GitLab, Yunxiao, HIS, and YGT workflows in Orca.",
+          "description": "Run a local readiness check before teammates use GitLab, Yunxiao, HIS, local code, and DFHIS requirement workflows in Orca.",
           "checkAll": "Check all",
           "installRepair": "Install / repair",
           "loading": "Checking prerequisites...",
-          "searchTitle": "YGT setup",
-          "searchDescription": "Check GitLab access, Yunxiao MCP, HIS MCP, and the YGT skill.",
+          "searchTitle": "DFHIS setup",
+          "searchDescription": "Check GitLab access, Yunxiao MCP, HIS MCP, local HIS paths, and the DFHIS workflow pack.",
+          "searchKeywordDfHis": "dfhis",
           "searchKeywordYgt": "ygt",
           "searchKeywordGitLab": "gitlab",
           "searchKeywordGlab": "glab",
@@ -9375,11 +9459,15 @@
           "yunxiaoMcpUrl": "Yunxiao MCP URL",
           "hisToken": "HIS MCP token",
           "hisMcpUrl": "HIS MCP URL",
-          "configStorageNote": "Tokens are saved only on this machine under Orca user data and are not shown after saving.",
+          "hisCodeRoot": "Default code root",
+          "archiveWorkspacePath": "Yunxiao archive workspace",
+          "configStorageNote": "Tokens and Yunxiao fallback paths are saved only on this machine under Orca user data.",
           "gitlabHostPlaceholder": "gitlab.df-mic.com",
           "gitlabTokenPlaceholder": "glpat-...",
           "yunxiaoTokenPlaceholder": "YUNXIAO_ACCESS_TOKEN",
-          "hisTokenPlaceholder": "HIS_MCP_TOKEN"
+          "hisTokenPlaceholder": "HIS_MCP_TOKEN",
+          "hisCodeRootPlaceholder": "~/workspace/<project>/code",
+          "archiveWorkspacePathPlaceholder": "~/workspace/yunxiao"
         }
       },
       "right": {
@@ -13554,6 +13642,20 @@
         "AiVaultSessionDropLayer": {
           "prepareFailed": "Could not prepare this session for resume."
         }
+      },
+      "GitLabMRFilesDialog": {
+        "renamed": "renamed",
+        "notFound": "MR not found.",
+        "description": "Review changed files for this GitLab merge request.",
+        "refresh": "Refresh",
+        "exitFullScreen": "Exit full screen",
+        "fullScreen": "Full screen",
+        "openGitLab": "Open in GitLab",
+        "filesUnavailable": "Couldn't load changed files.",
+        "noFiles": "No changed files.",
+        "from": "from",
+        "diffUnavailable": "Diff content unavailable.",
+        "filesCount": "{{value0}} files"
       }
     },
     "i18n": {

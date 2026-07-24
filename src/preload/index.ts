@@ -67,7 +67,12 @@ import type {
   YunxiaoArchiveRequirementArgs,
   YunxiaoArchiveRequirementResult,
   YunxiaoCreateRequirementArgs,
-  YunxiaoRequirementResult
+  YunxiaoListWorkItemsArgs,
+  YunxiaoListWorkItemsResult,
+  YunxiaoRequirementResult,
+  YunxiaoTodoPoolAddArgs,
+  YunxiaoTodoPoolItem,
+  YunxiaoTodoPoolUpdateArgs
 } from '../shared/types'
 import type { PtyModelRestoreNeededEvent } from '../shared/pty-model-restore-marker'
 import type {
@@ -90,11 +95,11 @@ import type {
 import type { SkillDiscoveryResult, SkillDiscoveryTarget } from '../shared/skills'
 import type { SkillFreshnessInventory } from '../shared/skill-freshness'
 import type {
-  YgtEnvironmentConfigInput,
-  YgtEnvironmentConfigSnapshot,
-  YgtEnvironmentCheckResult,
-  YgtEnvironmentInstallResult
-} from '../shared/ygt-environment-types'
+  DfHisEnvironmentConfigInput,
+  DfHisEnvironmentConfigSnapshot,
+  DfHisEnvironmentCheckResult,
+  DfHisEnvironmentInstallResult
+} from '../shared/dfhis-environment-types'
 import type {
   RuntimeBrowserDriverState,
   RuntimeMobileSessionTabMove,
@@ -1785,12 +1790,21 @@ const api = {
   },
 
   yunxiao: {
+    listWorkItems: (args: YunxiaoListWorkItemsArgs): Promise<YunxiaoListWorkItemsResult> =>
+      ipcRenderer.invoke('yunxiao:listWorkItems', args),
     createRequirement: (args: YunxiaoCreateRequirementArgs): Promise<YunxiaoRequirementResult> =>
       ipcRenderer.invoke('yunxiao:createRequirement', args),
     archiveRequirement: (
       args: YunxiaoArchiveRequirementArgs
     ): Promise<YunxiaoArchiveRequirementResult> =>
-      ipcRenderer.invoke('yunxiao:archiveRequirement', args)
+      ipcRenderer.invoke('yunxiao:archiveRequirement', args),
+    listTodoPool: (): Promise<YunxiaoTodoPoolItem[]> => ipcRenderer.invoke('yunxiao:listTodoPool'),
+    addTodoPoolItems: (args: YunxiaoTodoPoolAddArgs): Promise<YunxiaoTodoPoolItem[]> =>
+      ipcRenderer.invoke('yunxiao:addTodoPoolItems', args),
+    updateTodoPoolItem: (args: YunxiaoTodoPoolUpdateArgs): Promise<YunxiaoTodoPoolItem | null> =>
+      ipcRenderer.invoke('yunxiao:updateTodoPoolItem', args),
+    removeTodoPoolItem: (id: string): Promise<boolean> =>
+      ipcRenderer.invoke('yunxiao:removeTodoPoolItem', id)
   },
 
   starNag: {
@@ -2242,12 +2256,12 @@ const api = {
       ipcRenderer.invoke('skills:freshnessInventory')
   },
 
-  ygtEnvironment: {
-    getConfig: (): Promise<YgtEnvironmentConfigSnapshot> =>
-      ipcRenderer.invoke('ygtEnvironment:getConfig'),
-    check: (): Promise<YgtEnvironmentCheckResult> => ipcRenderer.invoke('ygtEnvironment:check'),
-    install: (config?: YgtEnvironmentConfigInput): Promise<YgtEnvironmentInstallResult> =>
-      ipcRenderer.invoke('ygtEnvironment:install', config)
+  dfhisEnvironment: {
+    getConfig: (): Promise<DfHisEnvironmentConfigSnapshot> =>
+      ipcRenderer.invoke('dfhisEnvironment:getConfig'),
+    check: (): Promise<DfHisEnvironmentCheckResult> => ipcRenderer.invoke('dfhisEnvironment:check'),
+    install: (config?: DfHisEnvironmentConfigInput): Promise<DfHisEnvironmentInstallResult> =>
+      ipcRenderer.invoke('dfhisEnvironment:install', config)
   },
 
   pet: {

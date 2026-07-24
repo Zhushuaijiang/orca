@@ -24,6 +24,10 @@ const skillFreshnessResources = {
   from: 'resources/skills',
   to: 'skills'
 }
+const dfhisSkillResources = {
+  from: 'resources/dfhis',
+  to: 'dfhis'
+}
 // Why: SSH relay deploy resolves bundles from process.resourcesPath in packaged
 // apps. Keeping relay assets as extraResources makes them real directories
 // instead of paths hidden inside app.asar.
@@ -35,7 +39,7 @@ const relayExtraResource = {
 // from package directories where pnpm's symlink farm is absent. Copy the exact
 // runtime dependency closure to Resources/node_modules so bare require() calls
 // do not fall through to a developer checkout's node_modules.
-const commonExtraResources = [relayExtraResource, skillFreshnessResources]
+const commonExtraResources = [relayExtraResource, skillFreshnessResources, dfhisSkillResources]
 const macSpeechNativeResource = {
   from: 'node_modules/sherpa-onnx-darwin-${arch}',
   to: 'node_modules/sherpa-onnx-darwin-${arch}'
@@ -85,7 +89,8 @@ module.exports = {
     // Why: feature-wall media is copied via extraResources so runtime can read
     // it from process.resourcesPath; exclude the source copy from app.asar.
     '!resources/onboarding/feature-wall/**',
-    '!resources/skills/**'
+    '!resources/skills/**',
+    '!resources/dfhis/**'
   ],
   // Why: the CLI entry-point lives in out/cli/ but imports shared modules
   // from out/shared/ and local hook mutators from out/main/. These paths must be
@@ -253,6 +258,7 @@ module.exports = {
     // credentials. Hardened runtime + notarization stay enabled only on the
     // explicit release path so production artifacts remain strict while dev
     // artifacts do not fail with broken ad-hoc launch behavior.
+    identity: isMacRelease ? undefined : '-',
     hardenedRuntime: isMacRelease,
     notarize: isMacRelease,
     extraResources: [

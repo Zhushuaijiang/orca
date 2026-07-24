@@ -12,7 +12,7 @@ export type SettingsNavInstallStatus =
 
 export type SettingsNavTarget =
   | 'general'
-  | 'ygt-environment'
+  | 'dfhis-environment'
   | 'integrations'
   | 'accounts'
   | 'browser'

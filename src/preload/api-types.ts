@@ -134,7 +134,12 @@ import type {
   YunxiaoArchiveRequirementArgs,
   YunxiaoArchiveRequirementResult,
   YunxiaoCreateRequirementArgs,
+  YunxiaoListWorkItemsArgs,
+  YunxiaoListWorkItemsResult,
   YunxiaoRequirementResult,
+  YunxiaoTodoPoolAddArgs,
+  YunxiaoTodoPoolItem,
+  YunxiaoTodoPoolUpdateArgs,
   GitLabTodo,
   GitLabViewer,
   GitLabWorkItem,
@@ -348,11 +353,11 @@ import type {
 import type { SkillDiscoveryResult, SkillDiscoveryTarget } from '../shared/skills'
 import type { SkillFreshnessInventory } from '../shared/skill-freshness'
 import type {
-  YgtEnvironmentConfigInput,
-  YgtEnvironmentConfigSnapshot,
-  YgtEnvironmentCheckResult,
-  YgtEnvironmentInstallResult
-} from '../shared/ygt-environment-types'
+  DfHisEnvironmentConfigInput,
+  DfHisEnvironmentConfigSnapshot,
+  DfHisEnvironmentCheckResult,
+  DfHisEnvironmentInstallResult
+} from '../shared/dfhis-environment-types'
 import type {
   CrashReportBreadcrumbData,
   CrashReportCopyDiagnosticsArgs,
@@ -2112,10 +2117,15 @@ export type PreloadApi = {
     }) => Promise<JiraProjectStatusOrder>
   }
   yunxiao: {
+    listWorkItems: (args: YunxiaoListWorkItemsArgs) => Promise<YunxiaoListWorkItemsResult>
     createRequirement: (args: YunxiaoCreateRequirementArgs) => Promise<YunxiaoRequirementResult>
     archiveRequirement: (
       args: YunxiaoArchiveRequirementArgs
     ) => Promise<YunxiaoArchiveRequirementResult>
+    listTodoPool: () => Promise<YunxiaoTodoPoolItem[]>
+    addTodoPoolItems: (args: YunxiaoTodoPoolAddArgs) => Promise<YunxiaoTodoPoolItem[]>
+    updateTodoPoolItem: (args: YunxiaoTodoPoolUpdateArgs) => Promise<YunxiaoTodoPoolItem | null>
+    removeTodoPoolItem: (id: string) => Promise<boolean>
   }
   starNag: {
     onShow: (
@@ -2314,10 +2324,10 @@ export type PreloadApi = {
     discover: (target?: SkillDiscoveryTarget) => Promise<SkillDiscoveryResult>
     freshnessInventory: () => Promise<SkillFreshnessInventory>
   }
-  ygtEnvironment: {
-    getConfig: () => Promise<YgtEnvironmentConfigSnapshot>
-    check: () => Promise<YgtEnvironmentCheckResult>
-    install: (config?: YgtEnvironmentConfigInput) => Promise<YgtEnvironmentInstallResult>
+  dfhisEnvironment: {
+    getConfig: () => Promise<DfHisEnvironmentConfigSnapshot>
+    check: () => Promise<DfHisEnvironmentCheckResult>
+    install: (config?: DfHisEnvironmentConfigInput) => Promise<DfHisEnvironmentInstallResult>
   }
   pet: {
     import: () => Promise<CustomPet | null>

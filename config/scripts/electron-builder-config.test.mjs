@@ -31,6 +31,7 @@ describe('electron-builder config', () => {
         '!skill-guides{,/**/*}',
         '!skill-stubs{,/**/*}',
         '!resources/skills/**',
+        '!resources/dfhis/**',
         '!tests{,/**/*}',
         '!pr-evidence{,/**/*}',
         '!Casks{,/**/*}',
@@ -45,6 +46,10 @@ describe('electron-builder config', () => {
       expect(electronBuilderConfig[platform].extraResources).toContainEqual({
         from: 'resources/skills',
         to: 'skills'
+      })
+      expect(electronBuilderConfig[platform].extraResources).toContainEqual({
+        from: 'resources/dfhis',
+        to: 'dfhis'
       })
     }
     expect(electronBuilderConfig.mac.extraResources).toEqual(

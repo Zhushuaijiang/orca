@@ -117,6 +117,11 @@ import {
 } from '../../shared/terminal-startup-cwd'
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { splitWorktreeIdForFilesystem } from '../../shared/worktree-id'
+import { isFolderRepo } from '../../shared/repo-kind'
+import {
+  buildYunxiaoTerminalEnv,
+  getYunxiaoRequirementDirectory
+} from '../dfhis-environment/terminal-env'
 import type { AgentSessionOwnerBinding } from '../../shared/agent-session-host-authority'
 import {
   agentSessionOwnerBindingsEqual,
@@ -2854,6 +2859,69 @@ export function registerPtyHandlers(
     assertFolderWorkspacePathUsable(status)
   }
 
+  const getFolderWorkspaceForPtyWorktreeId = (worktreeId: string | undefined) => {
+    const workspaceScope = typeof worktreeId === 'string' ? parseWorkspaceKey(worktreeId) : null
+    if (!store || workspaceScope?.type !== 'folder') {
+      return null
+    }
+    return store.getFolderWorkspace(workspaceScope.folderWorkspaceId) ?? null
+  }
+
+  const getYunxiaoFolderRepoWorkspaceForPtyWorktreeId = (worktreeId: string | undefined) => {
+    if (
+      typeof worktreeId !== 'string' ||
+      !store ||
+      typeof store.getRepo !== 'function' ||
+      typeof store.getWorktreeMeta !== 'function'
+    ) {
+      return null
+    }
+    const parsed = splitWorktreeIdForFilesystem(worktreeId)
+    if (!parsed) {
+      return null
+    }
+    const repo = store.getRepo(parsed.repoId)
+    if (!repo || !isFolderRepo(repo) || parsed.worktreePath !== repo.path) {
+      return null
+    }
+    const meta = store.getWorktreeMeta(worktreeId)
+    const identifier = meta?.displayName.match(/\bDFHIS-\d+\b/i)?.[0]?.toUpperCase()
+    if (!meta || !identifier) {
+      return null
+    }
+    return {
+      projectGroupId: repo.id,
+      folderPath: repo.path,
+      linkedTask: {
+        provider: 'yunxiao' as const,
+        type: 'issue' as const,
+        number: 0,
+        title: meta.displayName,
+        url: `https://devops.aliyun.com/projex/req/${identifier}`,
+        yunxiaoIdentifier: identifier
+      }
+    }
+  }
+
+  const resolveFolderWorkspacePtyRoot = (
+    workspace: NonNullable<ReturnType<typeof getFolderWorkspaceForPtyWorktreeId>>
+  ): string => {
+    const requirementDirectory = getYunxiaoRequirementDirectory(
+      workspace.folderPath,
+      workspace.linkedTask?.provider === 'yunxiao' ? workspace.linkedTask.yunxiaoIdentifier : null
+    )
+    if (!requirementDirectory || requirementDirectory === workspace.folderPath) {
+      return workspace.folderPath
+    }
+    try {
+      return statSync(requirementDirectory).isDirectory()
+        ? requirementDirectory
+        : workspace.folderPath
+    } catch {
+      return workspace.folderPath
+    }
+  }
+
   const resolvePtySpawnStartupCwd = (
     worktreeId: string | undefined,
     cwd: string | undefined,
@@ -2863,9 +2931,52 @@ export function registerPtyHandlers(
       workspaceId: worktreeId,
       requestedCwd: cwd,
       missingDirFallback,
-      resolveFolderWorkspacePath: (folderWorkspaceId) =>
-        store?.getFolderWorkspace(folderWorkspaceId)?.folderPath
+      resolveFolderWorkspacePath: (folderWorkspaceId) => {
+        const workspace = store?.getFolderWorkspace(folderWorkspaceId)
+        return workspace ? resolveFolderWorkspacePtyRoot(workspace) : undefined
+      }
     })
+
+  const buildFolderWorkspacePtyEnv = (
+    worktreeId: string | undefined,
+    workspaceRoot: string | undefined,
+    baseEnv: Record<string, string> | undefined
+  ): Record<string, string> | undefined => {
+    const workspace = getFolderWorkspaceForPtyWorktreeId(worktreeId)
+    if (!workspace) {
+      const folderRepoWorkspace = getYunxiaoFolderRepoWorkspaceForPtyWorktreeId(worktreeId)
+      if (!folderRepoWorkspace) {
+        return baseEnv
+      }
+      const effectiveWorkspaceRoot = workspaceRoot ?? folderRepoWorkspace.folderPath
+      return buildYunxiaoTerminalEnv(
+        folderRepoWorkspace,
+        {
+          ...baseEnv,
+          ORCA_WORKSPACE_ID: worktreeId ?? '',
+          ORCA_PROJECT_GROUP_ID: folderRepoWorkspace.projectGroupId,
+          ORCA_WORKSPACE_ROOT: effectiveWorkspaceRoot
+        },
+        { workspaceRoot: effectiveWorkspaceRoot }
+      )
+    }
+    const linkedRepo = workspace.linkedTask?.repoId
+      ? store?.getRepos().find((repo) => repo.id === workspace.linkedTask?.repoId)
+      : null
+    return buildYunxiaoTerminalEnv(
+      workspace,
+      {
+        ...baseEnv,
+        ORCA_WORKSPACE_ID: worktreeId ?? '',
+        ORCA_PROJECT_GROUP_ID: workspace.projectGroupId,
+        ORCA_WORKSPACE_ROOT: workspaceRoot ?? resolveFolderWorkspacePtyRoot(workspace)
+      },
+      {
+        codeWorkspaceRoot: linkedRepo?.path,
+        workspaceRoot: workspaceRoot ?? resolveFolderWorkspacePtyRoot(workspace)
+      }
+    )
+  }
 
   const localStartupCwdDirectoryExists = (path: string): boolean => {
     // Why: Win32 statSync on \\wsl.localhost 9P shares can falsely report ENOENT; defer to the provider's WSL-aware validation.
@@ -3008,6 +3119,7 @@ export function registerPtyHandlers(
       let env: Record<string, string> | undefined = claudeAuth
         ? { ...sshScopedEnv, ...claudeAuth.envPatch }
         : sshScopedEnv
+      env = buildFolderWorkspacePtyEnv(args.worktreeId, cwd, env)
       const requestedAgentTeamsPath = env?.ORCA_AGENT_TEAMS_TEAM_ID ? env.PATH : undefined
       if (args.preAllocatedHandle) {
         env = { ...env, ORCA_TERMINAL_HANDLE: args.preAllocatedHandle }
@@ -4036,7 +4148,8 @@ export function registerPtyHandlers(
       const baseEnvWithAuth = claudeAuth
         ? { ...sshSourceEnv, ...claudeAuth.envPatch }
         : sshSourceEnv
-      const spawnPaneKey = baseEnvWithAuth?.ORCA_PANE_KEY
+      const baseEnvWithWorkspace = buildFolderWorkspacePtyEnv(args.worktreeId, cwd, baseEnvWithAuth)
+      const spawnPaneKey = baseEnvWithWorkspace?.ORCA_PANE_KEY
       const parsedSpawnPaneKey = parseValidPaneKey(spawnPaneKey)
       const verifiedPaneKey =
         parsedSpawnPaneKey &&
@@ -4066,7 +4179,7 @@ export function registerPtyHandlers(
           ? makePaneKey(args.tabId, args.leafId)
           : null
       const stablePaneKey = verifiedPaneKey ?? migrationUnsupportedPaneKey
-      let baseEnv = baseEnvWithAuth ? { ...baseEnvWithAuth } : undefined
+      let baseEnv = baseEnvWithWorkspace ? { ...baseEnvWithWorkspace } : undefined
       const shouldRefreshAgentTeamsEnv =
         !args.connectionId &&
         runtime !== undefined &&

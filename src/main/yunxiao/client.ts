@@ -24,7 +24,6 @@ import {
 } from './work-item-result-extraction'
 
 const DEFAULT_EXPERT = '云效需求归档专家'
-
 function buildCreateRequirementMessage(args: YunxiaoCreateRequirementArgs): string {
   const parts = [
     '请在云效创建一条需求。',
@@ -60,7 +59,7 @@ function parseCsv(value: string | undefined): string[] | undefined {
   return items?.length ? items : undefined
 }
 
-async function callOfficialYunxiaoTool(
+export async function callOfficialYunxiaoTool(
   toolName: string,
   toolArgs: Record<string, unknown>,
   timeoutMs: number

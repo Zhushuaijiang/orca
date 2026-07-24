@@ -96,6 +96,11 @@ import { resolveWorktreeCreateBase } from '../worktree-create-base'
 import { resolveWorktreeAddBaseRef } from '../../shared/worktree-base-ref'
 import { OrchestrationDb } from './orchestration/db'
 import { formatMessagesForInjection } from './orchestration/formatter'
+import { readDfHisEnvironmentConfigSync } from '../dfhis-environment/config'
+import {
+  buildYunxiaoTerminalEnv,
+  getYunxiaoRequirementDirectory
+} from '../dfhis-environment/terminal-env'
 import type {
   Automation,
   AutomationCreateInput,
@@ -14144,25 +14149,41 @@ export class OrcaRuntimeService {
     }
     const projectGroups = this.store.getProjectGroups?.() ?? []
     const group = projectGroups.find((entry) => entry.id === input.projectGroupId)
-    const folderPath =
+    const explicitFolderPath =
       typeof input.folderPath === 'string' && input.folderPath.trim().length > 0
-        ? input.folderPath
-        : group?.parentPath
+        ? input.folderPath.trim()
+        : null
+    const connectionId = input.connectionId ?? group?.connectionId ?? null
+    let folderPath = explicitFolderPath ?? group?.parentPath
     if (!group || !folderPath) {
       throw new Error('folder_workspace_project_group_not_found')
+    }
+    if (!explicitFolderPath && input.linkedTask?.provider === 'yunxiao') {
+      const config = readDfHisEnvironmentConfigSync()
+      const archiveRoot = config.archiveWorkspacePath || group.parentPath
+      const requirementDirectory = getYunxiaoRequirementDirectory(
+        archiveRoot,
+        input.linkedTask.yunxiaoIdentifier
+      )
+      if (requirementDirectory) {
+        folderPath = requirementDirectory
+        if (!connectionId) {
+          await mkdir(folderPath, { recursive: true })
+        }
+      }
     }
     const status = await getFolderWorkspacePathStatusForPath(
       {
         folderPath,
         projectGroupId: group.id,
-        connectionId: input.connectionId ?? group.connectionId ?? null,
+        connectionId,
         projectGroups,
         repos: this.store.getRepos()
       },
       { getSshFilesystemProvider }
     )
     assertFolderWorkspacePathUsable(status)
-    const workspace = this.store.createFolderWorkspace(input)
+    const workspace = this.store.createFolderWorkspace({ ...input, folderPath, connectionId })
     this.notifyReposChanged()
     return workspace
   }
@@ -22951,10 +22972,26 @@ export class OrcaRuntimeService {
       { getSshFilesystemProvider }
     )
     assertFolderWorkspacePathUsable(status)
+    const connectionId = this.resolveFolderWorkspaceConnectionId(workspace)
+    let launchPath = workspace.folderPath
+    const requirementDirectory = getYunxiaoRequirementDirectory(
+      workspace.folderPath,
+      workspace.linkedTask?.provider === 'yunxiao' ? workspace.linkedTask.yunxiaoIdentifier : null
+    )
+    if (!connectionId && requirementDirectory && requirementDirectory !== workspace.folderPath) {
+      try {
+        const requirementDirectoryStats = await stat(requirementDirectory)
+        if (requirementDirectoryStats.isDirectory()) {
+          launchPath = requirementDirectory
+        }
+      } catch {
+        launchPath = workspace.folderPath
+      }
+    }
     return {
       id: folderWorkspaceKey(workspace.id),
-      path: workspace.folderPath,
-      connectionId: this.resolveFolderWorkspaceConnectionId(workspace),
+      path: launchPath,
+      connectionId,
       repo: null,
       folderWorkspace: workspace
     }
@@ -23042,12 +23079,22 @@ export class OrcaRuntimeService {
     if (!scope.folderWorkspace) {
       return env
     }
-    return {
-      ...env,
-      ORCA_WORKSPACE_ID: scope.id,
-      ORCA_PROJECT_GROUP_ID: scope.folderWorkspace.projectGroupId,
-      ORCA_WORKSPACE_ROOT: scope.folderWorkspace.folderPath
-    }
+    const linkedRepo = scope.folderWorkspace.linkedTask?.repoId
+      ? this.store?.getRepos().find((repo) => repo.id === scope.folderWorkspace?.linkedTask?.repoId)
+      : null
+    return buildYunxiaoTerminalEnv(
+      scope.folderWorkspace,
+      {
+        ...env,
+        ORCA_WORKSPACE_ID: scope.id,
+        ORCA_PROJECT_GROUP_ID: scope.folderWorkspace.projectGroupId,
+        ORCA_WORKSPACE_ROOT: scope.path
+      },
+      {
+        codeWorkspaceRoot: linkedRepo?.path,
+        workspaceRoot: scope.path
+      }
+    )
   }
 
   private getValidatedExplicitWorktreeIdSelector(selector: string | undefined): string | null {

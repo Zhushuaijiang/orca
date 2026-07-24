@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- Why: stateful registration helper + shared mocked IPC/node-pty harness keep spawn-env assertions in one focused file. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { userInfo } from 'node:os'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir, userInfo } from 'node:os'
 import { delimiter, join, posix } from 'node:path'
 import {
   TERMINAL_INPUT_CHUNK_MAX_BYTES,
@@ -37,6 +38,7 @@ const {
   accessSyncMock,
   mkdirSyncMock,
   readFileSyncMock,
+  renameSyncMock,
   writeFileSyncMock,
   chmodSyncMock,
   getPathMock,
@@ -69,6 +71,7 @@ const {
   accessSyncMock: vi.fn(),
   mkdirSyncMock: vi.fn(),
   readFileSyncMock: vi.fn(),
+  renameSyncMock: vi.fn(),
   writeFileSyncMock: vi.fn(),
   chmodSyncMock: vi.fn(),
   getPathMock: vi.fn(),
@@ -119,6 +122,7 @@ vi.mock('fs', () => ({
   accessSync: accessSyncMock,
   mkdirSync: mkdirSyncMock,
   readFileSync: readFileSyncMock,
+  renameSync: renameSyncMock,
   writeFileSync: writeFileSyncMock,
   chmodSync: chmodSyncMock,
   constants: {
@@ -326,6 +330,7 @@ describe('registerPtyHandlers', () => {
     accessSyncMock.mockReset()
     mkdirSyncMock.mockReset()
     readFileSyncMock.mockReset()
+    renameSyncMock.mockReset()
     writeFileSyncMock.mockReset()
     chmodSyncMock.mockReset()
     getPathMock.mockReset()
@@ -1514,7 +1519,8 @@ describe('registerPtyHandlers', () => {
     command?: string,
     launchAgent?: TuiAgent,
     cwd?: string,
-    worktreeId?: string
+    worktreeId?: string,
+    store?: Parameters<typeof registerPtyHandlers>[5]
   ): Promise<Record<string, string>> {
     const savedEnv: Record<string, string | undefined> = {}
     if (processEnvOverrides) {
@@ -1535,7 +1541,9 @@ describe('registerPtyHandlers', () => {
         mainWindow as never,
         undefined,
         getSelectedCodexHomePath,
-        getSettings as never
+        getSettings as never,
+        undefined,
+        store
       )
       await handlers.get('pty:spawn')!(null, {
         cols: 80,
@@ -1644,6 +1652,149 @@ describe('registerPtyHandlers', () => {
       expect(env.TERM).toBe('xterm-256color')
       expect(env.COLORTERM).toBe('truecolor')
       expect(env.TERM_PROGRAM).toBe('Orca')
+    })
+
+    it('injects Yunxiao code workspace env for renderer-created folder workspace terminals', async () => {
+      const archiveWorkspacePath = await mkdtemp(join(tmpdir(), 'orca-pty-yunxiao-'))
+      const requirementDirectory = join(archiveWorkspacePath, 'DFHIS-31704')
+      await mkdir(requirementDirectory)
+      readFileSyncMock.mockImplementation((pathValue: string) =>
+        pathValue.endsWith('dfhis-environment.json')
+          ? JSON.stringify({
+              hisCodeRoot: '/workspace/default-code',
+              archiveWorkspacePath,
+              hisMcpToken: 'his-token',
+              hisMcpUrl: 'http://192.168.1.10:9020/mcp'
+            })
+          : ''
+      )
+      const folderWorkspace = {
+        id: 'folder-1',
+        projectGroupId: 'group-1',
+        name: 'DFHIS-31704',
+        folderPath: archiveWorkspacePath,
+        linkedTask: {
+          provider: 'yunxiao',
+          type: 'issue',
+          number: 0,
+          title: 'DFHIS-31704',
+          url: 'https://devops.aliyun.com/projex/req/DFHIS-31704',
+          yunxiaoIdentifier: 'DFHIS-31704'
+        },
+        comment: '',
+        isArchived: false,
+        isUnread: false,
+        isPinned: false,
+        sortOrder: 0,
+        lastActivityAt: 1,
+        createdAt: 1,
+        updatedAt: 1
+      }
+      const store = {
+        getProjectGroups: () => [
+          {
+            id: 'group-1',
+            name: 'yunxiao',
+            parentPath: archiveWorkspacePath,
+            parentGroupId: null,
+            createdFrom: 'folder-scan',
+            tabOrder: 0,
+            isCollapsed: false,
+            color: null,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ],
+        getRepos: () => [],
+        getFolderWorkspaces: () => [folderWorkspace],
+        getFolderWorkspace: (id: string) => (id === 'folder-1' ? folderWorkspace : undefined)
+      }
+
+      try {
+        const env = await spawnAndGetEnv(
+          {},
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'folder:folder-1',
+          store as never
+        )
+
+        expect(env.YUNXIAO_WORK_ITEM_ID).toBe('DFHIS-31704')
+        expect(env.YUNXIAO_CODE_WORKSPACE_ROOT).toBe('/workspace/default-code')
+        expect(env.YUNXIAO_REQUIREMENT_DIR).toBe(requirementDirectory)
+        expect(env.HIS_MCP_TOKEN).toBe('his-token')
+      } finally {
+        await rm(archiveWorkspacePath, { recursive: true, force: true })
+      }
+    })
+
+    it('injects Yunxiao env for folder repo workspace instance terminals', async () => {
+      const archiveWorkspacePath = await mkdtemp(join(tmpdir(), 'orca-pty-yunxiao-folder-repo-'))
+      const requirementDirectory = join(archiveWorkspacePath, 'DFHIS-31704')
+      await mkdir(requirementDirectory)
+      readFileSyncMock.mockImplementation((pathValue: string) =>
+        pathValue.endsWith('dfhis-environment.json')
+          ? JSON.stringify({
+              hisCodeRoot: '/workspace/default-code',
+              archiveWorkspacePath,
+              hisMcpToken: 'his-token',
+              hisMcpUrl: 'http://192.168.1.10:9020/mcp'
+            })
+          : ''
+      )
+      const repo = {
+        id: 'repo-folder',
+        path: archiveWorkspacePath,
+        displayName: 'yunxiao',
+        kind: 'folder'
+      }
+      const worktreeId = `${repo.id}::${archiveWorkspacePath}::workspace:123e4567-e89b-12d3-a456-426614174000`
+      const meta = {
+        displayName: 'DFHIS-31704 【新疆佳音医院】折扣套餐，医嘱名称变更后，同步变更',
+        comment: '',
+        linkedIssue: null,
+        linkedPR: null,
+        linkedLinearIssue: null,
+        isArchived: false,
+        isUnread: false,
+        isPinned: false,
+        sortOrder: 0,
+        lastActivityAt: 1
+      }
+      const store = {
+        getRepo: (id: string) => (id === repo.id ? repo : undefined),
+        getRepos: () => [repo],
+        getWorktreeMeta: (id: string) => (id === worktreeId ? meta : undefined),
+        getFolderWorkspaces: () => [],
+        getFolderWorkspace: () => undefined
+      }
+
+      try {
+        const env = await spawnAndGetEnv(
+          {},
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          archiveWorkspacePath,
+          worktreeId,
+          store as never
+        )
+
+        expect(env.YUNXIAO_WORK_ITEM_ID).toBe('DFHIS-31704')
+        expect(env.YUNXIAO_CODE_WORKSPACE_ROOT).toBe('/workspace/default-code')
+        expect(env.YUNXIAO_REQUIREMENT_DIR).toBe(requirementDirectory)
+        expect(env.HIS_MCP_TOKEN).toBe('his-token')
+        expect(env.ORCA_WORKSPACE_ID).toBe(worktreeId)
+        expect(env.ORCA_WORKSPACE_ROOT).toBe(archiveWorkspacePath)
+      } finally {
+        await rm(archiveWorkspacePath, { recursive: true, force: true })
+      }
     })
 
     it('keeps indexed Git prompt guards in a local agent terminal env', async () => {

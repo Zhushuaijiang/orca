@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildLinearWorkspaceSource,
+  buildYunxiaoWorkspaceSource,
   buildWorkspaceSourceSelection,
   getWorkspaceSourceName,
   getWorkspaceSourceProvider,
@@ -30,6 +31,30 @@ describe('workspace source policy', () => {
       seedName: 'eng-42-ship-mobile-parity',
       displayName: 'ENG-42 Ship mobile parity'
     })
+  })
+
+  it('builds one Yunxiao identity for workspace launch flows', () => {
+    const yunxiao = buildYunxiaoWorkspaceSource({
+      identifier: 'DFHIS-31650',
+      title: 'DFHIS-31650 精神病上报接口对接',
+      url: 'https://devops.aliyun.com/projex/project/example/workitem#identifier=DFHIS-31650',
+      repoId: 'repo-selected-code'
+    })
+    expect(yunxiao).toMatchObject({
+      provider: 'yunxiao',
+      number: 0,
+      yunxiaoIdentifier: 'DFHIS-31650',
+      repoId: 'repo-selected-code'
+    })
+    expect(getWorkspaceSourceName(yunxiao)).toEqual({
+      seedName: 'dfhis-31650',
+      displayName: 'DFHIS-31650 精神病上报接口对接'
+    })
+    expect(buildWorkspaceSourceSelection({ linkedWorkItem: yunxiao })).toMatchObject({
+      kind: 'yunxiao',
+      label: 'DFHIS-31650 精神病上报接口对接'
+    })
+    expect(shouldPreserveWorkspaceSourceOnRepoChange(yunxiao)).toBe(true)
   })
 
   it('preserves global work-item sources across repo changes', () => {

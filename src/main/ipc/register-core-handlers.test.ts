@@ -51,7 +51,7 @@ const {
   registerLinearHandlersMock,
   registerJiraHandlersMock,
   registerYunxiaoHandlersMock,
-  registerYgtEnvironmentHandlersMock,
+  registerDfHisEnvironmentHandlersMock,
   registerGitLabHandlersMock,
   registerHostedReviewHandlersMock,
   registerExportHandlersMock,
@@ -117,7 +117,7 @@ const {
   registerLinearHandlersMock: vi.fn(),
   registerJiraHandlersMock: vi.fn(),
   registerYunxiaoHandlersMock: vi.fn(),
-  registerYgtEnvironmentHandlersMock: vi.fn(),
+  registerDfHisEnvironmentHandlersMock: vi.fn(),
   registerGitLabHandlersMock: vi.fn(),
   registerHostedReviewHandlersMock: vi.fn(),
   registerExportHandlersMock: vi.fn(),
@@ -368,8 +368,8 @@ vi.mock('./yunxiao', () => ({
   registerYunxiaoHandlers: registerYunxiaoHandlersMock
 }))
 
-vi.mock('./ygt-environment', () => ({
-  registerYgtEnvironmentHandlers: registerYgtEnvironmentHandlersMock
+vi.mock('./dfhis-environment', () => ({
+  registerDfHisEnvironmentHandlers: registerDfHisEnvironmentHandlersMock
 }))
 
 vi.mock('./gitlab', () => ({
@@ -439,7 +439,7 @@ describe('registerCoreHandlers', () => {
     registerLinearHandlersMock.mockReset()
     registerJiraHandlersMock.mockReset()
     registerYunxiaoHandlersMock.mockReset()
-    registerYgtEnvironmentHandlersMock.mockReset()
+    registerDfHisEnvironmentHandlersMock.mockReset()
     registerGitLabHandlersMock.mockReset()
     registerHostedReviewHandlersMock.mockReset()
     registerExportHandlersMock.mockReset()
@@ -512,8 +512,8 @@ describe('registerCoreHandlers', () => {
     expect(registerGitHubHandlersMock).toHaveBeenCalledWith(store, stats)
     expect(registerLinearHandlersMock).toHaveBeenCalled()
     expect(registerJiraHandlersMock).toHaveBeenCalled()
-    expect(registerYunxiaoHandlersMock).toHaveBeenCalled()
-    expect(registerYgtEnvironmentHandlersMock).toHaveBeenCalled()
+    expect(registerYunxiaoHandlersMock).toHaveBeenCalledWith(store)
+    expect(registerDfHisEnvironmentHandlersMock).toHaveBeenCalled()
     expect(registerGitLabHandlersMock).toHaveBeenCalledWith(store)
     expect(registerHostedReviewHandlersMock).toHaveBeenCalledWith(store, stats)
     expect(registerFeedbackHandlersMock).toHaveBeenCalled()

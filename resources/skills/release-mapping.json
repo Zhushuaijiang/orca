@@ -2,13 +2,6 @@
   "schemaVersion": 1,
   "releases": [
     {
-      "appVersion": "0.0.1",
-      "skills": {
-        "orca-cli": 6,
-        "orchestration": 1
-      }
-    },
-    {
       "appVersion": "1.0.81",
       "skills": {
         "orca-cli": 1
@@ -54,15 +47,14 @@
       }
     },
     {
-      "appVersion": "1.3.35-rc.0",
+      "appVersion": "0.0.1",
       "skills": {
-        "mobile-fit-debug": 1,
         "orca-cli": 6,
         "orchestration": 1
       }
     },
     {
-      "appVersion": "1.3.38",
+      "appVersion": "1.3.35-rc.0",
       "skills": {
         "mobile-fit-debug": 1,
         "orca-cli": 6,
@@ -72,6 +64,14 @@
     {
       "appVersion": "1.3.38-rc.3",
       "skills": {
+        "orca-cli": 6,
+        "orchestration": 1
+      }
+    },
+    {
+      "appVersion": "1.3.38",
+      "skills": {
+        "mobile-fit-debug": 1,
         "orca-cli": 6,
         "orchestration": 1
       }
@@ -106,19 +106,19 @@
       }
     },
     {
-      "appVersion": "1.4.2",
-      "skills": {
-        "computer-use": 1,
-        "orca-cli": 10,
-        "orchestration": 5
-      }
-    },
-    {
       "appVersion": "1.4.2-rc.10",
       "skills": {
         "computer-use": 1,
         "orca-cli": 9,
         "orchestration": 4
+      }
+    },
+    {
+      "appVersion": "1.4.2",
+      "skills": {
+        "computer-use": 1,
+        "orca-cli": 10,
+        "orchestration": 5
       }
     },
     {
@@ -227,19 +227,19 @@
       }
     },
     {
-      "appVersion": "1.4.65",
+      "appVersion": "1.4.65-rc.3",
       "skills": {
         "computer-use": 3,
+        "linear-tickets": 1,
         "orca-cli": 20,
         "orca-emulator": 1,
         "orchestration": 12
       }
     },
     {
-      "appVersion": "1.4.65-rc.3",
+      "appVersion": "1.4.65",
       "skills": {
         "computer-use": 3,
-        "linear-tickets": 1,
         "orca-cli": 20,
         "orca-emulator": 1,
         "orchestration": 12
@@ -394,19 +394,6 @@
       }
     },
     {
-      "appVersion": "1.4.124",
-      "skills": {
-        "computer-use": 3,
-        "linear-tickets": 4,
-        "orca-cli": 29,
-        "orca-emulator": 2,
-        "orca-emulator-android": 1,
-        "orca-linear": 2,
-        "orca-per-workspace-env": 2,
-        "orchestration": 20
-      }
-    },
-    {
       "appVersion": "1.4.124-rc.6",
       "skills": {
         "computer-use": 3,
@@ -430,6 +417,19 @@
         "orca-linear": 1,
         "orca-per-workspace-env": 2,
         "orchestration": 19
+      }
+    },
+    {
+      "appVersion": "1.4.124",
+      "skills": {
+        "computer-use": 3,
+        "linear-tickets": 4,
+        "orca-cli": 29,
+        "orca-emulator": 2,
+        "orca-emulator-android": 1,
+        "orca-linear": 2,
+        "orca-per-workspace-env": 2,
+        "orchestration": 20
       }
     },
     {
@@ -511,19 +511,6 @@
       }
     },
     {
-      "appVersion": "1.4.148",
-      "skills": {
-        "computer-use": 5,
-        "linear-tickets": 4,
-        "orca-cli": 34,
-        "orca-emulator": 4,
-        "orca-emulator-android": 2,
-        "orca-linear": 2,
-        "orca-per-workspace-env": 2,
-        "orchestration": 25
-      }
-    },
-    {
       "appVersion": "1.4.148-rc.1",
       "skills": {
         "computer-use": 5,
@@ -537,11 +524,11 @@
       }
     },
     {
-      "appVersion": "1.4.148-rc.4",
+      "appVersion": "1.4.148",
       "skills": {
         "computer-use": 5,
         "linear-tickets": 4,
-        "orca-cli": 33,
+        "orca-cli": 34,
         "orca-emulator": 4,
         "orca-emulator-android": 2,
         "orca-linear": 2,
@@ -590,6 +577,19 @@
     },
     {
       "appVersion": "1.4.150-rc.0",
+      "skills": {
+        "computer-use": 5,
+        "linear-tickets": 7,
+        "orca-cli": 35,
+        "orca-emulator": 4,
+        "orca-emulator-android": 2,
+        "orca-linear": 5,
+        "orca-per-workspace-env": 2,
+        "orchestration": 25
+      }
+    },
+    {
+      "appVersion": "1.4.151-rc.5",
       "skills": {
         "computer-use": 5,
         "linear-tickets": 7,

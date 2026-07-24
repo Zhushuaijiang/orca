@@ -121,7 +121,7 @@ import {
   removeSettingsProjectFromAllHosts,
   resolveSettingsTargetRepoId
 } from './settings-project-list'
-import { YgtEnvironmentPane } from './YgtEnvironmentPane'
+import { DfHisEnvironmentPane } from './DfHisEnvironmentPane'
 
 const DevToolsPane = import.meta.env.DEV
   ? lazy(() => import('./DevToolsPane').then((module) => ({ default: module.DevToolsPane })))
@@ -1309,18 +1309,18 @@ function Settings(): React.JSX.Element {
 
                 {showDesktopOnlySettings ? (
                   <SettingsSection
-                    id="ygt-environment"
+                    id="dfhis-environment"
                     title={translate(
-                      'auto.components.settings.Settings.ygtEnvironmentTitle',
-                      'YGT Setup'
+                      'auto.components.settings.Settings.dfhisEnvironmentTitle',
+                      'DFHIS Setup'
                     )}
                     description={translate(
-                      'auto.components.settings.Settings.ygtEnvironmentDescription',
-                      'Check GitLab access, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start.'
+                      'auto.components.settings.Settings.dfhisEnvironmentDescription',
+                      'Check GitLab access, Yunxiao MCP, HIS MCP, local HIS paths, and the DFHIS workflow pack before team workflows start.'
                     )}
-                    searchEntries={getSectionSearchEntries('ygt-environment')}
+                    searchEntries={getSectionSearchEntries('dfhis-environment')}
                   >
-                    {isSectionMounted('ygt-environment') ? <YgtEnvironmentPane /> : null}
+                    {isSectionMounted('dfhis-environment') ? <DfHisEnvironmentPane /> : null}
                   </SettingsSection>
                 ) : null}
 

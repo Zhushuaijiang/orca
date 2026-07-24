@@ -223,6 +223,20 @@ describe('getWorkspaceIntentName', () => {
       displayName: 'PROJ-7 Fix Flaky Import',
       seedName: 'proj-7-fix-flaky-import'
     })
+    expect(
+      getWorkspaceIntentName({
+        workItem: {
+          type: 'issue',
+          provider: 'yunxiao',
+          number: 0,
+          title: 'DFHIS-31650 精神病上报接口对接',
+          yunxiaoIdentifier: 'DFHIS-31650'
+        }
+      })
+    ).toEqual({
+      displayName: 'DFHIS-31650 精神病上报接口对接',
+      seedName: 'dfhis-31650'
+    })
   })
 
   it('summarizes unlinked task text into a shared display and seed', () => {

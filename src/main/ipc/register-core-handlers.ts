@@ -17,7 +17,7 @@ import { registerHostedReviewHandlers } from './hosted-review'
 import { registerLinearHandlers } from './linear'
 import { registerJiraHandlers } from './jira'
 import { registerYunxiaoHandlers } from './yunxiao'
-import { registerYgtEnvironmentHandlers } from './ygt-environment'
+import { registerDfHisEnvironmentHandlers } from './dfhis-environment'
 import { registerFeedbackHandlers } from './feedback'
 import { registerCrashReportingHandlers } from './crash-reporting'
 import { registerExportHandlers } from './export'
@@ -149,8 +149,8 @@ export function registerCoreHandlers(
   registerHostedReviewHandlers(store, stats)
   registerLinearHandlers()
   registerJiraHandlers()
-  registerYunxiaoHandlers()
-  registerYgtEnvironmentHandlers()
+  registerYunxiaoHandlers(store)
+  registerDfHisEnvironmentHandlers()
   registerFeedbackHandlers()
   if (crashReports) {
     registerCrashReportingHandlers(crashReports)

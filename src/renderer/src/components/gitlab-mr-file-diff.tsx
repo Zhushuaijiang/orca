@@ -111,7 +111,6 @@ function diffRowClassName(kind: DiffLineKind): string {
     case 'metadata':
       return 'text-muted-foreground'
     case 'context':
-    default:
       return 'hover:bg-muted/25'
   }
 }
@@ -122,7 +121,9 @@ function markerClassName(kind: DiffLineKind): string {
       return 'text-[var(--git-decoration-added)]'
     case 'delete':
       return 'text-[var(--git-decoration-deleted)]'
-    default:
+    case 'context':
+    case 'hunk':
+    case 'metadata':
       return 'text-muted-foreground'
   }
 }

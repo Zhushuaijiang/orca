@@ -23,6 +23,7 @@ import type {
   TerminalPaneLayoutNode,
   TerminalTab,
   WorktreeLineage,
+  YunxiaoWorkItem,
   WorkspaceLineage,
   WorkspaceSessionState
 } from '../shared/types'
@@ -224,6 +225,24 @@ const makeTerminalTab = (overrides: Partial<TerminalTab> = {}): TerminalTab => (
   ...overrides
 })
 
+const makeYunxiaoWorkItem = (overrides: Partial<YunxiaoWorkItem> = {}): YunxiaoWorkItem => ({
+  id: 'yunxiao-item-1',
+  serialNumber: 'DFHIS-31704',
+  title: '折扣套餐，医嘱名称变更后，同步变更',
+  category: 'Req',
+  typeName: '产品类需求',
+  statusId: 'status-wait-dev',
+  statusName: '待开发',
+  customer: '新疆佳音医院',
+  priority: '中',
+  assignee: { id: 'user-1', name: '笪帅江' },
+  participants: [],
+  sprint: { id: 'sprint-1', name: '20260730迭代' },
+  updatedAt: '2026-07-23T00:00:00.000Z',
+  url: 'https://devops.aliyun.com/projex/req/DFHIS-31704',
+  ...overrides
+})
+
 const makeWorktreeLineage = (overrides: Partial<WorktreeLineage> = {}): WorktreeLineage => ({
   worktreeId: 'r1::/path/child',
   worktreeInstanceId: 'child-instance',
@@ -334,6 +353,96 @@ describe('Store', () => {
     const store = await createStore()
     expect(store.getRepos()).toEqual([])
   }, 15_000)
+
+  it('persists Yunxiao todo pool items without duplicating existing work items', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem()
+
+    expect(store.getYunxiaoTodoPool()).toEqual([])
+    const addedPool = store.addYunxiaoTodoPoolItems([item])
+    expect(addedPool).toHaveLength(1)
+    expect(addedPool[0]).toMatchObject({
+      id: item.id,
+      serialNumber: item.serialNumber,
+      poolStatus: 'queued',
+      attempts: 0,
+      claimedAt: null,
+      claimedByAutomationId: null,
+      claimedByRunId: null,
+      lastError: null,
+      notes: ''
+    })
+
+    const updated = store.updateYunxiaoTodoPoolItem(item.id, {
+      poolStatus: 'done',
+      notes: 'handled'
+    })
+    expect(updated).toMatchObject({ poolStatus: 'done', notes: 'handled' })
+    store.addYunxiaoTodoPoolItems([makeYunxiaoWorkItem({ title: 'refreshed title' })])
+    expect(store.getYunxiaoTodoPool()).toHaveLength(1)
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      title: 'refreshed title',
+      poolStatus: 'done',
+      notes: 'handled'
+    })
+
+    store.flush()
+    const reloaded = await createStore()
+    expect(reloaded.getYunxiaoTodoPool()).toHaveLength(1)
+    expect(reloaded.removeYunxiaoTodoPoolItem(item.id)).toBe(true)
+    expect(reloaded.getYunxiaoTodoPool()).toEqual([])
+  })
+
+  it('claims and finishes Yunxiao todo pool items for automation runs', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+
+    const claimed = store.claimYunxiaoTodoPoolItems({
+      automationId: 'automation-1',
+      runId: 'run-1',
+      statuses: ['queued'],
+      limit: 1
+    })
+
+    expect(claimed).toHaveLength(1)
+    expect(claimed[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'running',
+      attempts: 1,
+      claimedByAutomationId: 'automation-1',
+      claimedByRunId: 'run-1',
+      lastError: null
+    })
+    expect(
+      store.claimYunxiaoTodoPoolItems({
+        automationId: 'automation-2',
+        runId: 'run-2',
+        statuses: ['queued'],
+        limit: 1
+      })
+    ).toEqual([])
+
+    const failed = store.finishYunxiaoTodoPoolClaim({
+      runId: 'run-1',
+      poolStatus: 'failed',
+      error: 'archive failed'
+    })
+
+    expect(failed[0]).toMatchObject({
+      poolStatus: 'failed',
+      lastError: 'archive failed'
+    })
+
+    const queued = store.updateYunxiaoTodoPoolItem(item.id, { poolStatus: 'queued' })
+    expect(queued).toMatchObject({
+      poolStatus: 'queued',
+      claimedAt: null,
+      claimedByAutomationId: null,
+      claimedByRunId: null,
+      lastError: null
+    })
+  })
 
   it('does not restore a terminal tab after its durable close flush returns', async () => {
     const store = await createStore()
@@ -625,7 +734,7 @@ describe('Store', () => {
     expect(settings.rightSidebarOpenByDefault).toBe(true)
     expect(settings.showTasksButton).toBe(true)
     expect(settings.showAutomationsButton).toBe(true)
-    expect(settings.visibleTaskProviders).toEqual(['github', 'gitlab', 'linear', 'jira'])
+    expect(settings.visibleTaskProviders).toEqual(['github', 'gitlab', 'linear', 'jira', 'yunxiao'])
     expect(settings.openInApplications).toEqual([
       { id: 'vscode', label: 'VS Code', command: 'code' }
     ])
@@ -2293,7 +2402,13 @@ describe('Store', () => {
     expect(store.getSettings().showTasksButton).toBe(true)
     expect(store.getSettings().showAutomationsButton).toBe(true)
     expect(store.getSettings().combinedDiffFileTreeVisibleByDefault).toBe(false)
-    expect(store.getSettings().visibleTaskProviders).toEqual(['github', 'gitlab', 'linear', 'jira'])
+    expect(store.getSettings().visibleTaskProviders).toEqual([
+      'github',
+      'gitlab',
+      'linear',
+      'jira',
+      'yunxiao'
+    ])
     expect(store.getSettings().experimentalActivity).toBe(false)
     expect(store.getSettings().experimentalActivityDefaultedOffForAllUsers).toBe(true)
     expect(store.getSettings().experimentalTerminalAttention).toBe(false)
@@ -2660,17 +2775,18 @@ describe('Store', () => {
     })
 
     const store = await createStore()
-    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira'])
+    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira', 'yunxiao'])
   })
 
-  it('preserves a deliberate Jira provider opt-out after migration', async () => {
+  it('preserves a deliberate provider opt-out after migrations', async () => {
     writeDataFile({
       schemaVersion: 1,
       repos: [],
       worktreeMeta: {},
       settings: {
         visibleTaskProviders: ['gitlab'],
-        visibleTaskProvidersDefaultedForJira: true
+        visibleTaskProvidersDefaultedForJira: true,
+        visibleTaskProvidersDefaultedForYunxiao: true
       },
       ui: {},
       githubCache: { pr: {}, issue: {} },
@@ -2724,7 +2840,12 @@ describe('Store', () => {
 
     const store = await createStore()
     expect(store.getSettings().defaultTaskSource).toBe('github')
-    expect(store.getSettings().visibleTaskProviders).toEqual(['github', 'linear', 'jira'])
+    expect(store.getSettings().visibleTaskProviders).toEqual([
+      'github',
+      'linear',
+      'jira',
+      'yunxiao'
+    ])
   })
 
   it('normalizes invalid task provider defaults on load', async () => {
@@ -2740,7 +2861,7 @@ describe('Store', () => {
 
     const store = await createStore()
     expect(store.getSettings().defaultTaskSource).toBe('gitlab')
-    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira'])
+    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira', 'yunxiao'])
   })
 
   it('normalizes persisted open-in applications on load', async () => {

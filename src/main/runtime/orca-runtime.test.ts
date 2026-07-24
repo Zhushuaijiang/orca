@@ -11113,6 +11113,50 @@ describe('OrcaRuntimeService', () => {
     expect(spawnedEnv.ORCA_WORKTREE_ID).toBe(TEST_FOLDER_WORKSPACE_KEY)
   })
 
+  it('starts existing Yunxiao folder workspaces from the requirement directory when present', async () => {
+    const archiveWorkspacePath = await mkdtemp(join(tmpdir(), 'orca-runtime-yunxiao-archive-'))
+    const requirementDirectory = join(archiveWorkspacePath, 'DFHIS-31721')
+    await mkdir(requirementDirectory)
+    const spawn = vi.fn().mockResolvedValue({ id: 'pty-yunxiao-folder' })
+    const folderWorkspace = makeFolderWorkspace({
+      folderPath: archiveWorkspacePath,
+      name: 'DFHIS-31721',
+      linkedTask: {
+        provider: 'yunxiao',
+        type: 'issue',
+        number: 0,
+        title: 'DFHIS-31721',
+        url: 'https://devops.aliyun.com/projex/req/DFHIS-31721',
+        yunxiaoIdentifier: 'DFHIS-31721'
+      }
+    })
+    const projectGroup = makeFolderProjectGroup({ parentPath: archiveWorkspacePath })
+    const runtime = new OrcaRuntimeService(
+      createFolderWorkspaceRuntimeStore(folderWorkspace, projectGroup) as never
+    )
+    runtime.setPtyController({
+      spawn,
+      write: () => true,
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+
+    try {
+      await expect(runtime.createTerminal(TEST_FOLDER_WORKSPACE_KEY)).resolves.toMatchObject({
+        worktreeId: TEST_FOLDER_WORKSPACE_KEY
+      })
+
+      const spawnCall = spawn.mock.calls[0]?.[0] as
+        | { cwd?: string; env?: Record<string, string> }
+        | undefined
+      expect(spawnCall?.cwd).toBe(requirementDirectory)
+      expect(spawnCall?.env?.ORCA_WORKSPACE_ROOT).toBe(requirementDirectory)
+      expect(spawnCall?.env?.YUNXIAO_REQUIREMENT_DIR).toBe(requirementDirectory)
+    } finally {
+      await rm(archiveWorkspacePath, { recursive: true, force: true })
+    }
+  })
+
   it.each([
     { label: 'bare floating terminal sentinel', selector: FLOATING_TERMINAL_WORKTREE_ID },
     {
@@ -11178,6 +11222,61 @@ describe('OrcaRuntimeService', () => {
       'folder_workspace_path_missing'
     )
     expect(spawn).not.toHaveBeenCalled()
+  })
+
+  it('creates Yunxiao folder workspaces inside the requirement archive directory', async () => {
+    const userDataDirectory = await mkdtemp(join(tmpdir(), 'orca-runtime-yunxiao-config-'))
+    const previousUserDataPath = process.env.ORCA_USER_DATA_PATH
+    const archiveWorkspacePath = join(userDataDirectory, 'yunxiao')
+    await mkdir(archiveWorkspacePath, { recursive: true })
+    await writeFile(
+      join(userDataDirectory, 'dfhis-environment.json'),
+      JSON.stringify({ archiveWorkspacePath })
+    )
+    process.env.ORCA_USER_DATA_PATH = userDataDirectory
+    try {
+      const projectGroup = makeFolderProjectGroup({ parentPath: archiveWorkspacePath })
+      const createFolderWorkspace = vi.fn(
+        (input: Parameters<OrcaRuntimeService['createFolderWorkspace']>[0]) =>
+          makeFolderWorkspace({
+            ...input,
+            folderPath: input.folderPath ?? archiveWorkspacePath,
+            connectionId: input.connectionId ?? null
+          })
+      )
+      const runtime = new OrcaRuntimeService({
+        ...store,
+        getProjectGroups: () => [projectGroup],
+        getRepos: () => [],
+        createFolderWorkspace
+      } as never)
+
+      const workspace = await runtime.createFolderWorkspace({
+        projectGroupId: projectGroup.id,
+        name: 'DFHIS-31721',
+        linkedTask: {
+          provider: 'yunxiao',
+          type: 'issue',
+          number: 0,
+          title: 'DFHIS-31721',
+          url: 'https://devops.aliyun.com/projex/req/DFHIS-31721',
+          yunxiaoIdentifier: 'DFHIS-31721'
+        }
+      })
+
+      const expectedPath = join(archiveWorkspacePath, 'DFHIS-31721')
+      expect(workspace.folderPath).toBe(expectedPath)
+      expect(createFolderWorkspace).toHaveBeenCalledWith(
+        expect.objectContaining({ folderPath: expectedPath, connectionId: null })
+      )
+    } finally {
+      if (previousUserDataPath === undefined) {
+        delete process.env.ORCA_USER_DATA_PATH
+      } else {
+        process.env.ORCA_USER_DATA_PATH = previousUserDataPath
+      }
+      await rm(userDataDirectory, { recursive: true, force: true })
+    }
   })
 
   it('rejects folder workspace folderPath updates when the new path is missing', async () => {

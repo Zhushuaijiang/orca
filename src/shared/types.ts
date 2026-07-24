@@ -43,6 +43,7 @@ import type {
 import type { UsagePercentageDisplay } from './usage-percentage-display'
 import type { StatusBarUsageMode } from './status-bar-usage-mode'
 import type { PersistedNativeChatSessionOptions } from './native-chat-session-options'
+import type { YunxiaoTodoPoolItem } from './yunxiao-types'
 
 // Re-exported for backward compat with renderer call sites that import
 // `WorkspaceCreateTelemetrySource` from '../../../shared/types'.
@@ -339,13 +340,14 @@ export type FolderWorkspace = {
 }
 
 export type FolderWorkspaceLinkedTask = {
-  provider: 'github' | 'gitlab' | 'linear' | 'jira'
+  provider: 'github' | 'gitlab' | 'linear' | 'jira' | 'yunxiao'
   type: 'issue' | 'pr' | 'mr'
   number: number
   title: string
   url: string
   linearIdentifier?: string
   jiraIdentifier?: string
+  yunxiaoIdentifier?: string
   repoId?: string
 }
 
@@ -1960,8 +1962,20 @@ export type {
   YunxiaoArchiveRequirementArgs,
   YunxiaoArchiveRequirementResult,
   YunxiaoCreateRequirementArgs,
+  YunxiaoListWorkItemsArgs,
+  YunxiaoListWorkItemsResult,
   YunxiaoRequirementPriority,
-  YunxiaoRequirementResult
+  YunxiaoRequirementResult,
+  YunxiaoTodoPoolAddArgs,
+  YunxiaoTodoPoolItem,
+  YunxiaoTodoPoolStatus,
+  YunxiaoTodoPoolUpdateArgs,
+  YunxiaoWorkItem,
+  YunxiaoWorkItemCategory,
+  YunxiaoWorkItemFacet,
+  YunxiaoWorkItemFilters,
+  YunxiaoWorkItemPerson,
+  YunxiaoWorkItemSprint
 } from './yunxiao-types'
 
 /**
@@ -2838,6 +2852,8 @@ export type GlobalSettings = {
   visibleTaskProviders: TaskProvider[]
   /** Why: one-shot guard to make Jira visible for existing profiles once, without re-adding after a later opt-out. */
   visibleTaskProvidersDefaultedForJira: boolean
+  /** Why: one-shot guard to make Yunxiao visible for existing profiles once, without re-adding after a later opt-out. */
+  visibleTaskProvidersDefaultedForYunxiao: boolean
   /** Persisted repo selection (cross-repo tasks view). null = sticky-all (includes future-added repos);
    *  string[] = frozen curated subset (ineligible ids dropped on load; empty after drop is treated as null). */
   defaultRepoSelection: string[] | null
@@ -3448,6 +3464,7 @@ export type PersistedState = {
   projectHostSetups: ProjectHostSetup[]
   projectGroups: ProjectGroup[]
   folderWorkspaces: FolderWorkspace[]
+  yunxiaoTodoPool: YunxiaoTodoPoolItem[]
   /** Sparse-checkout presets keyed by repoId. */
   sparsePresetsByRepo: Record<string, SparsePreset[]>
   /** Per paired device last tab selection by worktree; keeps mobile navigation across host restarts. */

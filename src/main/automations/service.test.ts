@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Repo } from '../../shared/types'
+import type { YunxiaoWorkItem } from '../../shared/yunxiao-types'
 import { toRuntimeExecutionHostId } from '../../shared/execution-host'
 import { AutomationService } from './service'
 
@@ -32,6 +33,24 @@ const makeRepo = (overrides: Partial<Repo> = {}): Repo => ({
   displayName: 'test',
   badgeColor: '#fff',
   addedAt: 1,
+  ...overrides
+})
+
+const makeYunxiaoWorkItem = (overrides: Partial<YunxiaoWorkItem> = {}): YunxiaoWorkItem => ({
+  id: 'item-1',
+  serialNumber: 'DFHIS-31704',
+  title: '折扣套餐，医嘱名称变更后，同步变更',
+  category: 'Req',
+  typeName: '产品类需求',
+  statusId: 'todo',
+  statusName: '待开发',
+  customer: '新疆佳音医院',
+  priority: '中',
+  assignee: { id: 'u1', name: '竺帅江' },
+  participants: [],
+  sprint: { id: 's1', name: '20260730迭代' },
+  updatedAt: null,
+  url: 'https://devops.aliyun.com/workitem/DFHIS-31704',
   ...overrides
 })
 
@@ -119,6 +138,86 @@ describe('AutomationService', () => {
         run: expect.objectContaining({ id: run.id, status: 'dispatching' })
       })
     )
+  })
+
+  it('claims a Yunxiao todo pool item before dispatching the automation', async () => {
+    vi.setSystemTime(new Date('2026-05-13T08:00:00Z'))
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    store.addYunxiaoTodoPoolItems([makeYunxiaoWorkItem()])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const send = vi.fn()
+    const service = new AutomationService(store, { tickMs: 60_000 })
+    service.setWebContents({
+      isDestroyed: () => false,
+      send
+    } as never)
+    service.setRendererReady()
+
+    const run = await service.runNow(automation.id)
+
+    expect(run.status).toBe('dispatching')
+    expect(run.yunxiaoTodoPoolClaim?.itemIds).toEqual(['item-1'])
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: 'item-1',
+      poolStatus: 'running',
+      attempts: 1,
+      claimedByAutomationId: automation.id,
+      claimedByRunId: run.id
+    })
+    const [, payload] = send.mock.calls[0]
+    expect(payload.automation.prompt).toContain('DFHIS-31704')
+    expect(payload.automation.prompt).toContain('dfhis-environment.json')
+
+    await service.markDispatchResult({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1'
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]?.poolStatus).toBe('workspace-created')
+  })
+
+  it('skips a Yunxiao todo pool automation when no matching items are queued', async () => {
+    vi.setSystemTime(new Date('2026-05-13T08:00:00Z'))
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const send = vi.fn()
+    const service = new AutomationService(store, { tickMs: 60_000 })
+    service.setWebContents({
+      isDestroyed: () => false,
+      send
+    } as never)
+    service.setRendererReady()
+
+    const run = await service.runNow(automation.id)
+
+    expect(run.status).toBe('skipped_precheck')
+    expect(run.error).toBe('No matching Yunxiao todo pool items are queued.')
+    expect(send).not.toHaveBeenCalled()
   })
 
   it('skips dispatch when the selected project host setup is gone', async () => {

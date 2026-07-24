@@ -82,7 +82,7 @@ import {
 import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
 import { useLinearProviderConnected } from '@/hooks/useLinearProviderConnected'
 import { translate } from '@/i18n/i18n'
-import { getYgtEnvironmentPaneSearchEntries } from '@/components/settings/ygt-environment-search'
+import { getDfHisEnvironmentPaneSearchEntries } from '@/components/settings/dfhis-environment-search'
 
 export { isWebClientLocation } from '@/lib/web-client-location'
 
@@ -275,17 +275,17 @@ export function buildSettingsNavigationMetadata({
     ...(showDesktopOnlySettings
       ? [
           {
-            id: 'ygt-environment',
+            id: 'dfhis-environment',
             title: translate(
-              'auto.hooks.useSettingsNavigationMetadata.ygtEnvironmentTitle',
-              'YGT Setup'
+              'auto.hooks.useSettingsNavigationMetadata.dfhisEnvironmentTitle',
+              'DFHIS Setup'
             ),
             description: translate(
-              'auto.hooks.useSettingsNavigationMetadata.ygtEnvironmentDescription',
-              'Check GitLab, Yunxiao MCP, HIS MCP, and the YGT skill before team workflows start.'
+              'auto.hooks.useSettingsNavigationMetadata.dfhisEnvironmentDescription',
+              'Check GitLab, Yunxiao MCP, HIS MCP, local HIS paths, and the DFHIS workflow pack before team workflows start.'
             ),
             icon: ShieldCheck,
-            searchEntries: getYgtEnvironmentPaneSearchEntries(),
+            searchEntries: getDfHisEnvironmentPaneSearchEntries(),
             group: 'setup'
           }
         ]

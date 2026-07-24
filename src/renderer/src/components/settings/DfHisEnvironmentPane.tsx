@@ -10,35 +10,50 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
-  YgtEnvironmentConfigSnapshot,
-  YgtEnvironmentCheckResult,
-  YgtEnvironmentPrerequisiteResult,
-  YgtEnvironmentPrerequisiteStatus
-} from '../../../../shared/ygt-environment-types'
+  DfHisEnvironmentConfigSnapshot,
+  DfHisEnvironmentCheckResult,
+  DfHisEnvironmentPrerequisiteResult,
+  DfHisEnvironmentPrerequisiteStatus
+} from '../../../../shared/dfhis-environment-types'
 import { Button } from '../ui/button'
 import { SettingsBadge } from './SettingsFormControls'
 import {
-  createEmptyYgtEnvironmentConfigForm,
-  YgtEnvironmentConfigForm,
-  type YgtEnvironmentConfigFormState
-} from './YgtEnvironmentConfigForm'
+  createEmptyDfHisEnvironmentConfigForm,
+  DfHisEnvironmentConfigForm,
+  type DfHisEnvironmentConfigFormState
+} from './DfHisEnvironmentConfigForm'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 
 type LoadState = 'idle' | 'checking' | 'installing'
+type DfHisEnvironmentApi = typeof window.api.dfhisEnvironment
+const DFHIS_PREREQUISITE_COUNT = 12
 
-function getStatusLabel(status: YgtEnvironmentPrerequisiteStatus): string {
+function getDfHisEnvironmentApi(): DfHisEnvironmentApi {
+  const api = (window.api as { dfhisEnvironment?: DfHisEnvironmentApi }).dfhisEnvironment
+  if (!api) {
+    throw new Error(
+      'DFHIS setup bridge is unavailable. Restart Orca to load the updated preload API.'
+    )
+  }
+  return api
+}
+
+function getStatusLabel(status: DfHisEnvironmentPrerequisiteStatus): string {
   if (status === 'ok') {
-    return translate('auto.components.settings.YgtEnvironmentPane.statusReady', 'Ready')
+    return translate('auto.components.settings.DfHisEnvironmentPane.statusReady', 'Ready')
   }
   if (status === 'invalid') {
-    return translate('auto.components.settings.YgtEnvironmentPane.statusNeedsLogin', 'Needs login')
+    return translate(
+      'auto.components.settings.DfHisEnvironmentPane.statusNeedsLogin',
+      'Needs login'
+    )
   }
-  return translate('auto.components.settings.YgtEnvironmentPane.statusMissing', 'Missing')
+  return translate('auto.components.settings.DfHisEnvironmentPane.statusMissing', 'Missing')
 }
 
 function getStatusTone(
-  status: YgtEnvironmentPrerequisiteStatus
+  status: DfHisEnvironmentPrerequisiteStatus
 ): ComponentProps<typeof SettingsBadge>['tone'] {
   return status === 'ok' ? 'accent' : status === 'invalid' ? 'neutral' : 'muted'
 }
@@ -47,7 +62,7 @@ function StatusIcon({
   status,
   loading
 }: {
-  status: YgtEnvironmentPrerequisiteStatus
+  status: DfHisEnvironmentPrerequisiteStatus
   loading: boolean
 }): JSX.Element {
   if (loading) {
@@ -67,7 +82,7 @@ function PrerequisiteRow({
   loading,
   onCopy
 }: {
-  prerequisite: YgtEnvironmentPrerequisiteResult
+  prerequisite: DfHisEnvironmentPrerequisiteResult
   loading: boolean
   onCopy: (command: string) => void
 }): JSX.Element {
@@ -84,7 +99,10 @@ function PrerequisiteRow({
           </SettingsBadge>
           {prerequisite.fixable ? (
             <SettingsBadge tone="muted">
-              {translate('auto.components.settings.YgtEnvironmentPane.autoFixable', 'Auto-fixable')}
+              {translate(
+                'auto.components.settings.DfHisEnvironmentPane.autoFixable',
+                'Auto-fixable'
+              )}
             </SettingsBadge>
           ) : null}
         </div>
@@ -105,7 +123,7 @@ function PrerequisiteRow({
               size="icon-xs"
               onClick={() => onCopy(prerequisite.command ?? '')}
               aria-label={translate(
-                'auto.components.settings.YgtEnvironmentPane.copyCommand',
+                'auto.components.settings.DfHisEnvironmentPane.copyCommand',
                 'Copy command'
               )}
             >
@@ -118,11 +136,11 @@ function PrerequisiteRow({
   )
 }
 
-export function YgtEnvironmentPane(): JSX.Element {
-  const [checkResult, setCheckResult] = useState<YgtEnvironmentCheckResult | null>(null)
-  const [configSnapshot, setConfigSnapshot] = useState<YgtEnvironmentConfigSnapshot | null>(null)
-  const [configForm, setConfigForm] = useState<YgtEnvironmentConfigFormState>(() =>
-    createEmptyYgtEnvironmentConfigForm()
+export function DfHisEnvironmentPane(): JSX.Element {
+  const [checkResult, setCheckResult] = useState<DfHisEnvironmentCheckResult | null>(null)
+  const [configSnapshot, setConfigSnapshot] = useState<DfHisEnvironmentConfigSnapshot | null>(null)
+  const [configForm, setConfigForm] = useState<DfHisEnvironmentConfigFormState>(() =>
+    createEmptyDfHisEnvironmentConfigForm()
   )
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [messages, setMessages] = useState<string[]>([])
@@ -132,21 +150,26 @@ export function YgtEnvironmentPane(): JSX.Element {
       checkResult?.prerequisites.filter((prerequisite) => prerequisite.status === 'ok').length ?? 0,
     [checkResult]
   )
-  const totalCount = checkResult?.prerequisites.length ?? 4
+  const totalCount = checkResult?.prerequisites.length ?? DFHIS_PREREQUISITE_COUNT
   const isBusy = loadState !== 'idle'
 
-  const hydrateConfigForm = useCallback((snapshot: YgtEnvironmentConfigSnapshot) => {
+  const hydrateConfigForm = useCallback((snapshot: DfHisEnvironmentConfigSnapshot) => {
     setConfigSnapshot(snapshot)
     setConfigForm((current) => ({
       ...current,
       gitlabHost: current.gitlabHost || snapshot.gitlabHost,
+      gitlabAccessToken: current.gitlabAccessToken || snapshot.gitlabAccessToken,
       yunxiaoMcpUrl: current.yunxiaoMcpUrl || snapshot.yunxiaoMcpUrl,
-      hisMcpUrl: current.hisMcpUrl || snapshot.hisMcpUrl
+      yunxiaoAccessToken: current.yunxiaoAccessToken || snapshot.yunxiaoAccessToken,
+      hisMcpUrl: current.hisMcpUrl || snapshot.hisMcpUrl,
+      hisMcpToken: current.hisMcpToken || snapshot.hisMcpToken,
+      hisCodeRoot: current.hisCodeRoot || snapshot.hisCodeRoot,
+      archiveWorkspacePath: current.archiveWorkspacePath || snapshot.archiveWorkspacePath
     }))
   }, [])
 
   const updateConfigField = useCallback(
-    (field: keyof YgtEnvironmentConfigFormState, value: string) => {
+    (field: keyof DfHisEnvironmentConfigFormState, value: string) => {
       setConfigForm((current) => ({ ...current, [field]: value }))
     },
     []
@@ -155,7 +178,7 @@ export function YgtEnvironmentPane(): JSX.Element {
   const check = useCallback(async () => {
     setLoadState('checking')
     try {
-      const result = await window.api.ygtEnvironment.check()
+      const result = await getDfHisEnvironmentApi().check()
       setCheckResult(result)
       hydrateConfigForm(result.config)
     } catch (error) {
@@ -163,8 +186,8 @@ export function YgtEnvironmentPane(): JSX.Element {
         error instanceof Error
           ? error.message
           : translate(
-              'auto.components.settings.YgtEnvironmentPane.checkFailed',
-              'YGT environment check failed.'
+              'auto.components.settings.DfHisEnvironmentPane.checkFailed',
+              'DFHIS setup check failed.'
             )
       )
     } finally {
@@ -175,23 +198,17 @@ export function YgtEnvironmentPane(): JSX.Element {
   const install = useCallback(async () => {
     setLoadState('installing')
     try {
-      const result = await window.api.ygtEnvironment.install(configForm)
+      const result = await getDfHisEnvironmentApi().install(configForm)
       setMessages(result.messages)
       setCheckResult(result.check)
       hydrateConfigForm(result.check.config)
-      setConfigForm((current) => ({
-        ...current,
-        gitlabAccessToken: '',
-        yunxiaoAccessToken: '',
-        hisMcpToken: ''
-      }))
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : translate(
-              'auto.components.settings.YgtEnvironmentPane.installFailed',
-              'YGT environment repair failed.'
+              'auto.components.settings.DfHisEnvironmentPane.installFailed',
+              'DFHIS setup repair failed.'
             )
       )
     } finally {
@@ -202,7 +219,7 @@ export function YgtEnvironmentPane(): JSX.Element {
   const copyCommand = useCallback(async (command: string) => {
     await navigator.clipboard.writeText(command)
     toast.success(
-      translate('auto.components.settings.YgtEnvironmentPane.commandCopied', 'Command copied')
+      translate('auto.components.settings.DfHisEnvironmentPane.commandCopied', 'Command copied')
     )
   }, [])
 
@@ -216,34 +233,34 @@ export function YgtEnvironmentPane(): JSX.Element {
         <div className="min-w-0 space-y-1">
           <p className="text-sm font-medium text-foreground">
             {translate(
-              'auto.components.settings.YgtEnvironmentPane.summary',
+              'auto.components.settings.DfHisEnvironmentPane.summary',
               '{{value0}} of {{value1}} prerequisites ready',
               { value0: readyCount, value1: totalCount }
             )}
           </p>
           <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
             {translate(
-              'auto.components.settings.YgtEnvironmentPane.description',
-              'Run a local readiness check before teammates use GitLab, Yunxiao, HIS, and YGT workflows in Orca.'
+              'auto.components.settings.DfHisEnvironmentPane.description',
+              'Run a local readiness check before teammates use GitLab, Yunxiao, HIS, local code, and DFHIS workflow packs in Orca.'
             )}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={check} disabled={isBusy}>
             {loadState === 'checking' ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-            {translate('auto.components.settings.YgtEnvironmentPane.checkAll', 'Check all')}
+            {translate('auto.components.settings.DfHisEnvironmentPane.checkAll', 'Check all')}
           </Button>
           <Button type="button" size="sm" onClick={install} disabled={isBusy}>
             {loadState === 'installing' ? <Loader2 className="animate-spin" /> : <Wrench />}
             {translate(
-              'auto.components.settings.YgtEnvironmentPane.installRepair',
+              'auto.components.settings.DfHisEnvironmentPane.installRepair',
               'Save & install'
             )}
           </Button>
         </div>
       </div>
 
-      <YgtEnvironmentConfigForm
+      <DfHisEnvironmentConfigForm
         value={configForm}
         snapshot={configSnapshot}
         disabled={isBusy}
@@ -269,7 +286,7 @@ export function YgtEnvironmentPane(): JSX.Element {
           <div className="flex items-center gap-2 text-sm">
             <Loader2 className="size-4 animate-spin" />
             {translate(
-              'auto.components.settings.YgtEnvironmentPane.loading',
+              'auto.components.settings.DfHisEnvironmentPane.loading',
               'Checking prerequisites...'
             )}
           </div>

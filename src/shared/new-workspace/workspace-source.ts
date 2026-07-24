@@ -30,6 +30,11 @@ export type LinearWorkspaceSource = WorkspaceSourceLinkedItem & {
   type: 'issue'
 }
 
+export type YunxiaoWorkspaceSource = WorkspaceSourceLinkedItem & {
+  provider: 'yunxiao'
+  type: 'issue'
+}
+
 export type WorkspaceSourceItemLike = Omit<WorkspaceSourceLinkedItem, 'provider'> & {
   provider?: WorkspaceSourceProvider
 }
@@ -42,6 +47,7 @@ export type WorkspaceSourceSelectionKind =
   | 'branch'
   | 'linear'
   | 'jira'
+  | 'yunxiao'
 
 export type WorkspaceSourceSelection = {
   kind: WorkspaceSourceSelectionKind
@@ -80,6 +86,9 @@ export function getWorkspaceSourceProvider(item: WorkspaceSourceItemLike): Works
   }
   if (item.jiraIdentifier || isJiraIssueUrl(item.url)) {
     return 'jira'
+  }
+  if (item.yunxiaoIdentifier) {
+    return 'yunxiao'
   }
   if (item.type === 'mr' || isGitLabIssueUrl(item.url)) {
     return 'gitlab'
@@ -137,6 +146,24 @@ export function buildLinearWorkspaceSource(
   }
 }
 
+export function buildYunxiaoWorkspaceSource(item: {
+  identifier: string | null | undefined
+  title: string
+  url: string
+  repoId?: string
+}): YunxiaoWorkspaceSource {
+  const identifier = item.identifier?.trim()
+  return {
+    provider: 'yunxiao',
+    type: 'issue',
+    number: 0,
+    title: item.title,
+    url: item.url,
+    ...(identifier ? { yunxiaoIdentifier: identifier } : {}),
+    ...(item.repoId ? { repoId: item.repoId } : {})
+  }
+}
+
 export function shouldApplyWorkspaceSourceAutoName(args: {
   currentName: string
   lastAutoName: string
@@ -178,13 +205,15 @@ export function buildWorkspaceSourceSelection(args: {
       ? 'linear'
       : provider === 'jira'
         ? 'jira'
-        : provider === 'gitlab'
-          ? linkedWorkItem.type === 'mr'
-            ? 'gitlab-mr'
-            : 'gitlab-issue'
-          : linkedWorkItem.type === 'pr'
-            ? 'github-pr'
-            : 'github-issue'
+        : provider === 'yunxiao'
+          ? 'yunxiao'
+          : provider === 'gitlab'
+            ? linkedWorkItem.type === 'mr'
+              ? 'gitlab-mr'
+              : 'gitlab-issue'
+            : linkedWorkItem.type === 'pr'
+              ? 'github-pr'
+              : 'github-issue'
   return {
     kind,
     label:
@@ -202,5 +231,5 @@ export function shouldPreserveWorkspaceSourceOnRepoChange(
     return false
   }
   const provider = getWorkspaceSourceProvider(item)
-  return provider === 'linear' || provider === 'jira'
+  return provider === 'linear' || provider === 'jira' || provider === 'yunxiao'
 }

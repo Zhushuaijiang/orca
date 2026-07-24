@@ -161,6 +161,7 @@ import {
 } from '@/components/linear-project-view-surfaces'
 import JiraIssueWorkspace from '@/components/JiraIssueWorkspace'
 import { TaskPageJiraIssueList } from '@/components/task-page-jira-issue-list'
+import { TaskPageYunxiaoWorkItemList } from '@/components/task-page-yunxiao-work-item-list'
 import {
   getSingleJiraProjectScope,
   getTaskPageJiraStatusOrderScopeKey,
@@ -303,10 +304,12 @@ import type {
   LinearWorkflowState,
   Repo,
   TaskProvider,
-  TaskViewPresetId
+  TaskViewPresetId,
+  YunxiaoWorkItem
 } from '../../../shared/types'
 import type { PreflightStatus } from '../../../preload/api-types'
 import type { GitLabProjectRef } from '../../../shared/gitlab-types'
+import { buildYunxiaoWorkspaceSource } from '../../../shared/new-workspace/workspace-source'
 import {
   LINEAR_ISSUE_LIST_MAX,
   clampLinearIssueListLimit
@@ -496,6 +499,53 @@ function getJiraIssueWorkspaceSeed(issue: JiraIssue): string {
       jiraIdentifier: issue.key
     })?.seedName ?? getLinkedWorkItemSuggestedName(issue)
   )
+}
+
+function getYunxiaoWorkItemUrl(item: YunxiaoWorkItem): string {
+  const identifier = item.serialNumber ?? item.id
+  return item.url ?? `yunxiao://work-item/${encodeURIComponent(identifier)}`
+}
+
+function getYunxiaoWorkItemWorkspaceSeed(item: YunxiaoWorkItem): string {
+  const title = item.serialNumber ? `${item.serialNumber} ${item.title}` : item.title
+  return (
+    getLinkedWorkItemWorkspaceName({
+      type: 'issue',
+      provider: 'yunxiao',
+      number: 0,
+      title,
+      yunxiaoIdentifier: item.serialNumber ?? item.id
+    })?.seedName ?? getLinkedWorkItemSuggestedName({ title })
+  )
+}
+
+function buildYunxiaoLinkedContext(item: YunxiaoWorkItem, repo: Repo | null | undefined): string {
+  const url = getYunxiaoWorkItemUrl(item)
+  const rows = [
+    ['ID', item.serialNumber ?? item.id],
+    ['Title', item.title],
+    ['Type', item.typeName ?? item.category],
+    ['Status', item.statusName],
+    ['Customer', item.customer],
+    ['Priority', item.priority],
+    ['Assignee', item.assignee?.name],
+    [
+      'Participants',
+      item.participants
+        .map((participant) => participant.name)
+        .filter(Boolean)
+        .join(', ')
+    ],
+    ['Sprint', item.sprint?.name],
+    ['Updated', item.updatedAt],
+    ['Orca selected code workspace', repo?.displayName],
+    ['Orca selected code workspace path', repo?.path],
+    ['URL', url]
+  ]
+  return rows
+    .filter((row): row is [string, string] => Boolean(row[1]?.trim()))
+    .map(([label, value]) => `${label}: ${value}`)
+    .join('\n')
 }
 
 function getTaskPageRepoSourceContext(
@@ -3616,11 +3666,24 @@ export default function TaskPage(): React.JSX.Element {
       selectedJiraSiteId
     ]
   )
+  const yunxiaoTaskSourceContext = useMemo(
+    () =>
+      normalizeTaskSourceContext({
+        provider: 'yunxiao',
+        projectId: fallbackTaskSourceProjectId,
+        hostId: accountBackedTaskSourceHostId,
+        providerIdentity: {
+          provider: 'yunxiao'
+        },
+        accountLabel: 'Yunxiao'
+      }),
+    [accountBackedTaskSourceHostId, fallbackTaskSourceProjectId]
+  )
   const jiraTaskSourceScopeKey = jiraTaskSourceContext
     ? getTaskSourceCacheScope(jiraTaskSourceContext)
     : providerRuntimeContextKey
   const accountBackedTaskSourceHostAvailability = useMemo<TaskSourceHostAvailability[]>(() => {
-    if (taskSource !== 'linear' && taskSource !== 'jira') {
+    if (taskSource !== 'linear' && taskSource !== 'jira' && taskSource !== 'yunxiao') {
       return []
     }
     const host = hostRegistryById.get(accountBackedTaskSourceHostId)
@@ -3716,7 +3779,7 @@ export default function TaskPage(): React.JSX.Element {
       providerLabel,
       repoContexts: taskSourceRepoContexts,
       hostAvailability:
-        taskSource === 'linear' || taskSource === 'jira'
+        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'yunxiao'
           ? accountBackedTaskSourceHostAvailability
           : taskSourceHostAvailability,
       accountHostId: accountBackedTaskSourceHostId,
@@ -3744,11 +3807,11 @@ export default function TaskPage(): React.JSX.Element {
     return getTaskSourceAvailabilityNotice({
       providerLabel,
       sourceCount:
-        taskSource === 'linear' || taskSource === 'jira'
+        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'yunxiao'
           ? 1
           : Math.max(1, taskSourceRepoContexts.length),
       hostAvailability:
-        taskSource === 'linear' || taskSource === 'jira'
+        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'yunxiao'
           ? accountBackedTaskSourceHostAvailability
           : taskSourceHostAvailability,
       hostLabelById
@@ -8283,6 +8346,42 @@ export default function TaskPage(): React.JSX.Element {
     [openComposerForJiraItem]
   )
 
+  const openComposerForYunxiaoItem = useCallback(
+    (item: YunxiaoWorkItem): void => {
+      const selectedCodeRepo = selectedRepos[0] ?? eligibleRepos[0]
+      const repoId = selectedCodeRepo?.id
+      const linkedWorkItem: LinkedWorkItemSummary = {
+        ...buildYunxiaoWorkspaceSource({
+          identifier: item.serialNumber ?? item.id,
+          title: item.serialNumber ? `${item.serialNumber} ${item.title}` : item.title,
+          url: getYunxiaoWorkItemUrl(item),
+          repoId
+        }),
+        linkedContext: {
+          provider: 'yunxiao',
+          version: 1,
+          renderedText: buildYunxiaoLinkedContext(item, selectedCodeRepo)
+        }
+      }
+      openModal('new-workspace-composer', {
+        linkedWorkItem,
+        taskSourceContext: yunxiaoTaskSourceContext,
+        prefilledName: getYunxiaoWorkItemWorkspaceSeed(item),
+        initialRepoId: repoId,
+        telemetrySource: 'sidebar'
+      })
+    },
+    [eligibleRepos, openModal, selectedRepos, yunxiaoTaskSourceContext]
+  )
+
+  const handleUseYunxiaoItem = useCallback(
+    (item: YunxiaoWorkItem): void => {
+      useAppStore.getState().recordFeatureInteraction('yunxiao-tasks')
+      openComposerForYunxiaoItem(item)
+    },
+    [openComposerForYunxiaoItem]
+  )
+
   const taskPageListChromeHidden = shouldHideTaskPageListChrome({
     taskSource,
     hasGitHubDetail: Boolean(dialogWorkItem),
@@ -10009,6 +10108,8 @@ export default function TaskPage(): React.JSX.Element {
                 </div>
               ) : null}
             </div>
+          ) : taskSource === 'yunxiao' ? (
+            <TaskPageYunxiaoWorkItemList onStartWorkspace={handleUseYunxiaoItem} />
           ) : taskSource === 'gitlab' && gitlabView === 'todos' ? (
             <div className="flex min-h-0 max-h-full flex-col rounded-md border border-t-0 border-border/50 bg-muted/50 overflow-hidden rounded-t-none shadow-sm">
               <div className="flex-none grid grid-cols-[110px_minmax(0,3fr)_minmax(120px,1.2fr)_110px_50px] gap-3 border-b border-border/50 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">

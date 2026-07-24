@@ -11,14 +11,12 @@ import {
 import type { ClaudeUsageStore } from '../claude-usage/store'
 import type { CodexUsageStore } from '../codex-usage/store'
 import { runAutomationPrecheck } from './precheck-runner'
-import { resolveAutomationRunTarget, type AutomationRunTargetResult } from './run-target-resolution'
+import { resolveAutomationRunTarget } from './run-target-resolution'
 import { collectAutomationRunUsage } from './run-usage-collection'
 import type { HeadlessAutomationDispatcher } from './headless-dispatch'
 import { clearAutomationDispatchTokens, createAutomationDispatchToken } from './dispatch-tokens'
-import {
-  didAutomationPrecheckPass,
-  formatAutomationPrecheckFailure
-} from '../../shared/automation-precheck'
+import { finishYunxiaoTodoPoolClaim, prepareYunxiaoTodoPoolRun } from './yunxiao-todo-pool-dispatch'
+import { requestHeadlessAutomationDispatch } from './headless-automation-dispatch-request'
 
 const DEFAULT_TICK_MS = 60 * 1000
 
@@ -133,7 +131,7 @@ export class AutomationService {
   }
 
   async markDispatchResult(result: AutomationDispatchResult): Promise<AutomationRun> {
-    const run = this.store.updateAutomationRun(result)
+    const run = this.updateAutomationRun(result)
     clearAutomationDispatchTokens(run.automationId, run.id)
     if (!isFinalAutomationRunStatus(run.status)) {
       return run
@@ -156,7 +154,7 @@ export class AutomationService {
     if (!this.store.listAutomationRuns(run.automationId).some((entry) => entry.id === run.id)) {
       return run
     }
-    return this.store.updateAutomationRun({
+    return this.updateAutomationRun({
       runId: run.id,
       status: run.status,
       workspaceId: run.workspaceId,
@@ -193,7 +191,7 @@ export class AutomationService {
     const run = this.store.createAutomationRun(automation, scheduledFor)
     const graceMs = automation.missedRunGraceMinutes * 60 * 1000
     if (now - scheduledFor > graceMs) {
-      this.store.updateAutomationRun({
+      this.updateAutomationRun({
         runId: run.id,
         status: 'skipped_missed',
         workspaceId: automation.workspaceId,
@@ -211,106 +209,64 @@ export class AutomationService {
     automation: Automation,
     run: AutomationRun
   ): Promise<AutomationRun> {
-    const target = resolveAutomationRunTarget(this.store, automation, {
+    const prepared = prepareYunxiaoTodoPoolRun({ store: this.store, automation, run })
+    if (!prepared.ok) {
+      return prepared.run
+    }
+    const preparedAutomation = prepared.automation
+    const preparedRun = prepared.run
+    const target = resolveAutomationRunTarget(this.store, preparedAutomation, {
       allowRemoteHostScheduling: this.allowRemoteHostScheduling
     })
     if (!target.ok) {
-      return this.store.updateAutomationRun({
-        runId: run.id,
+      return this.updateAutomationRun({
+        runId: preparedRun.id,
         status: 'skipped_unavailable',
-        workspaceId: automation.workspaceId,
+        workspaceId: preparedAutomation.workspaceId,
         error: target.error
       })
     }
     const webContents = this.webContents
     if (!webContents || webContents.isDestroyed() || !this.rendererReady) {
       if (this.headlessDispatcher) {
-        return await this.requestHeadlessDispatch(automation, run, target)
+        return await requestHeadlessAutomationDispatch({
+          automation: preparedAutomation,
+          run: preparedRun,
+          target,
+          headlessDispatcher: this.headlessDispatcher,
+          runPrecheck: () => this.runPrecheck(preparedAutomation.id, preparedRun.id),
+          updateAutomationRun: (result) => this.updateAutomationRun(result),
+          markDispatchResult: (result) => this.markDispatchResult(result)
+        })
       }
-      return this.store.updateAutomationRun({
-        runId: run.id,
+      return this.updateAutomationRun({
+        runId: preparedRun.id,
         status: 'skipped_unavailable',
-        workspaceId: automation.workspaceId,
+        workspaceId: preparedAutomation.workspaceId,
         error: 'No Orca window was available to launch the automation.'
       })
     }
-    const updated = this.store.updateAutomationRun({
-      runId: run.id,
+    const updated = this.updateAutomationRun({
+      runId: preparedRun.id,
       status: 'dispatching',
-      workspaceId: automation.workspaceId,
+      workspaceId: preparedAutomation.workspaceId,
       error: null
     })
     const payload: AutomationDispatchRequest = {
-      automation,
+      automation: preparedAutomation,
       run: updated,
-      dispatchToken: createAutomationDispatchToken(automation.id, updated.id)
+      dispatchToken: createAutomationDispatchToken(preparedAutomation.id, updated.id)
     }
     webContents.send('automations:dispatchRequested', payload)
     return updated
   }
 
-  private async requestHeadlessDispatch(
-    automation: Automation,
-    run: AutomationRun,
-    target: Extract<AutomationRunTargetResult, { ok: true }>
-  ): Promise<AutomationRun> {
-    const precheckResult =
-      run.trigger === 'scheduled' && automation.precheck
-        ? await this.runPrecheck(automation.id, run.id)
-        : null
-    if (precheckResult && !didAutomationPrecheckPass(precheckResult)) {
-      return this.store.updateAutomationRun({
-        runId: run.id,
-        status: 'skipped_precheck',
-        workspaceId: automation.workspaceId,
-        precheckResult,
-        error: formatAutomationPrecheckFailure(precheckResult)
-      })
+  private updateAutomationRun(result: AutomationDispatchResult): AutomationRun {
+    const run = this.store.updateAutomationRun(result)
+    if (!isFinalAutomationRunStatus(run.status) || !run.yunxiaoTodoPoolClaim) {
+      return run
     }
-    try {
-      const launch = await this.headlessDispatcher!({ automation, run, target })
-      const launchRunTarget = {
-        workspaceId: launch.workspaceId,
-        workspaceDisplayName: launch.workspaceDisplayName ?? null,
-        terminalSessionId: launch.terminalSessionId,
-        terminalPaneKey: launch.terminalPaneKey ?? null,
-        terminalPtyId: launch.terminalPtyId ?? null
-      }
-      const updated = this.store.updateAutomationRun({
-        runId: run.id,
-        status: 'dispatched',
-        ...launchRunTarget,
-        error: null
-      })
-      if (launch.completion) {
-        void launch.completion
-          .then((completion) =>
-            this.markDispatchResult({
-              runId: run.id,
-              status: completion.status,
-              ...launchRunTarget,
-              precheckResult,
-              outputSnapshot: completion.outputSnapshot ?? null,
-              error: completion.error ?? null
-            })
-          )
-          .catch((error) =>
-            this.markDispatchResult({
-              runId: run.id,
-              status: 'dispatch_failed',
-              ...launchRunTarget,
-              error: error instanceof Error ? error.message : String(error)
-            })
-          )
-      }
-      return updated
-    } catch (error) {
-      return this.store.updateAutomationRun({
-        runId: run.id,
-        status: 'dispatch_failed',
-        workspaceId: automation.workspaceId,
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
+    finishYunxiaoTodoPoolClaim(this.store, run)
+    return run
   }
 }

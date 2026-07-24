@@ -147,7 +147,15 @@ export function GitLabMRFilesDialog({
                 <span className="uppercase">{item?.state ?? ''}</span>
                 {files.length > 0 ? (
                   <>
-                    <span>{files.length} files</span>
+                    <span>
+                      {translate(
+                        'auto.components.GitLabMRFilesDialog.filesCount',
+                        '{{value0}} files',
+                        {
+                          value0: files.length
+                        }
+                      )}
+                    </span>
                     <span className="text-[var(--git-decoration-added)]">+{totalAdditions}</span>
                     <span className="text-[var(--git-decoration-deleted)]">-{totalDeletions}</span>
                   </>

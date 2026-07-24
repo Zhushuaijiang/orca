@@ -1,12 +1,12 @@
 import type { McpConnection } from './mcp-http-transport'
-import { readYgtEnvironmentConfigSync } from '../ygt-environment/config'
+import { readDfHisEnvironmentConfigSync } from '../dfhis-environment/config'
 
 const DEFAULT_HIS_MCP_URL = 'http://192.168.1.10:9020/mcp'
 const DEFAULT_YUNXIAO_MCP_URL =
   'https://openapi-rdc.aliyuncs.com/ai/mcp?toolsets=organization-management,project-management'
 
 export function getHisMcpConnection(): McpConnection {
-  const config = readYgtEnvironmentConfigSync()
+  const config = readDfHisEnvironmentConfigSync()
   const url = (process.env.HIS_MCP_URL || config.hisMcpUrl || DEFAULT_HIS_MCP_URL).trim()
   const bearerToken = (process.env.HIS_MCP_TOKEN || config.hisMcpToken || '').trim() || null
   let hasQueryToken = false
@@ -26,7 +26,7 @@ function appendToolsetQuery(url: URL): string {
 }
 
 function getOfficialYunxiaoMcpUrl(): string {
-  const savedConfig = readYgtEnvironmentConfigSync()
+  const savedConfig = readDfHisEnvironmentConfigSync()
   const explicitUrl = process.env.YUNXIAO_MCP_URL?.trim()
   if (explicitUrl) {
     return explicitUrl
@@ -44,7 +44,7 @@ function getOfficialYunxiaoMcpUrl(): string {
 }
 
 export function getOfficialYunxiaoConnection(): McpConnection | null {
-  const savedConfig = readYgtEnvironmentConfigSync()
+  const savedConfig = readDfHisEnvironmentConfigSync()
   const bearerToken =
     (process.env.YUNXIAO_ACCESS_TOKEN || savedConfig.yunxiaoAccessToken).trim() || null
   return bearerToken ? { url: getOfficialYunxiaoMcpUrl(), bearerToken, hasQueryToken: false } : null

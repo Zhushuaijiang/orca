@@ -1,5 +1,6 @@
 import type { SetupDecision, TuiAgent } from './types'
 import type { TaskSourceContext, WorkspaceRunContext } from './task-source-context'
+import type { YunxiaoTodoPoolStatus } from './yunxiao-types'
 
 export type AutomationWorkspaceMode = 'existing' | 'new_per_run'
 export type AutomationExecutionTargetType = 'local' | 'ssh'
@@ -73,6 +74,17 @@ export type AutomationPrecheck = {
   timeoutSeconds: number
 }
 
+export type AutomationYunxiaoTodoPoolSource = {
+  kind: 'yunxiao-todo-pool'
+  statuses: YunxiaoTodoPoolStatus[]
+  batchSize: number
+}
+
+export type AutomationYunxiaoTodoPoolClaim = {
+  itemIds: string[]
+  claimedAt: number
+}
+
 export type AutomationPrecheckResult = {
   command: string
   exitCode: number | null
@@ -92,6 +104,7 @@ export type Automation = {
   name: string
   prompt: string
   precheck: AutomationPrecheck | null
+  yunxiaoTodoPool?: AutomationYunxiaoTodoPoolSource | null
   agentId: TuiAgent
   /** Why: runContext carries the logical project + host setup identity for
    *  multi-host projects; projectId remains only as the legacy repo-id storage
@@ -147,6 +160,7 @@ export type AutomationRun = {
   terminalPtyId: string | null
   outputSnapshot: AutomationRunOutputSnapshot | null
   precheckResult: AutomationPrecheckResult | null
+  yunxiaoTodoPoolClaim?: AutomationYunxiaoTodoPoolClaim | null
   usage: AutomationRunUsage | null
   error: string | null
   startedAt: number | null
@@ -161,6 +175,7 @@ export type AutomationCreateInput = {
   name: string
   prompt: string
   precheck?: AutomationPrecheck | null
+  yunxiaoTodoPool?: AutomationYunxiaoTodoPoolSource | null
   agentId: TuiAgent
   runContext?: WorkspaceRunContext | null
   sourceContext?: TaskSourceContext | null
@@ -185,6 +200,7 @@ export type AutomationUpdateInput = Partial<
     | 'name'
     | 'prompt'
     | 'precheck'
+    | 'yunxiaoTodoPool'
     | 'agentId'
     | 'runContext'
     | 'sourceContext'
@@ -218,6 +234,7 @@ export type AutomationDispatchResult = {
   terminalPtyId?: string | null
   outputSnapshot?: AutomationRunOutputSnapshot | null
   precheckResult?: AutomationPrecheckResult | null
+  yunxiaoTodoPoolClaim?: AutomationYunxiaoTodoPoolClaim | null
   usage?: AutomationRunUsage | null
   error?: string | null
 }

@@ -1,4 +1,4 @@
-import { Check, Github, Gitlab } from 'lucide-react'
+import { Check, Cloud, Github, Gitlab } from 'lucide-react'
 import type { GlobalSettings, TaskProvider } from '../../../../shared/types'
 import {
   TASK_PROVIDERS,
@@ -75,6 +75,19 @@ const TASK_PROVIDER_OPTIONS: readonly {
       )
     },
     Icon: ({ className }) => <JiraIcon className={className} />
+  },
+  {
+    id: 'yunxiao',
+    get label() {
+      return translate('auto.components.settings.TasksPane.yunxiao', 'Yunxiao')
+    },
+    get description() {
+      return translate(
+        'auto.components.settings.TasksPane.yunxiaoDescription',
+        'Show Yunxiao requirements in the Tasks source picker and sidebar shortcuts.'
+      )
+    },
+    Icon: ({ className }) => <Cloud className={className} />
   }
 ]
 
@@ -122,6 +135,9 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
             'gitlab',
             'linear',
             'jira',
+            'yunxiao',
+            'dfhis',
+            'aliyun',
             'atlassian',
             'display',
             'hide'

@@ -24,7 +24,9 @@ import type {
   AutomationRun,
   AutomationSchedulerOwner,
   AutomationRunTrigger,
-  AutomationUpdateInput
+  AutomationUpdateInput,
+  AutomationYunxiaoTodoPoolClaim,
+  AutomationYunxiaoTodoPoolSource
 } from '../shared/automations-types'
 import {
   latestAutomationOccurrenceAtOrBefore,
@@ -77,6 +79,12 @@ import {
   buildWorkspaceRunContext
 } from '../shared/task-source-context'
 import type { MigrationUnsupportedPtyEntry } from '../shared/agent-status-types'
+import type {
+  YunxiaoTodoPoolItem,
+  YunxiaoTodoPoolStatus,
+  YunxiaoWorkItem,
+  YunxiaoWorkItemCategory
+} from '../shared/yunxiao-types'
 import { MOBILE_PAIRING_USERDATA_FILES } from './runtime/mobile-pairing-files'
 import { normalizePersistedMobileClientTabSelections } from './runtime/client-session-tab-selection-persistence'
 import { sanitizeWorkspaceSessionTerminalRetirements } from './runtime/mobile-session-terminal-persistence-retirement'
@@ -961,6 +969,7 @@ function normalizeAutomationSessionReuse(automation: Automation): Automation {
   return {
     ...automation,
     precheck: normalizeAutomationPrecheck(automation.precheck),
+    yunxiaoTodoPool: normalizeAutomationYunxiaoTodoPoolSource(automation.yunxiaoTodoPool),
     setupDecision,
     reuseSession: automation.workspaceMode === 'existing' && automation.reuseSession === true
   }
@@ -2534,6 +2543,199 @@ function backfillFolderScopeConnectionIds(state: PersistedState): {
   }
 }
 
+function normalizeYunxiaoTodoPoolStatus(value: unknown): YunxiaoTodoPoolStatus {
+  return value === 'archived' ||
+    value === 'running' ||
+    value === 'dispatched' ||
+    value === 'workspace-created' ||
+    value === 'failed' ||
+    value === 'done' ||
+    value === 'dismissed'
+    ? value
+    : 'queued'
+}
+
+function normalizeYunxiaoTodoPoolClaimTime(value: unknown): number | null {
+  return Number.isFinite(value) && Number(value) > 0 ? Number(value) : null
+}
+
+function normalizeYunxiaoTodoPoolAttempts(value: unknown): number {
+  return Number.isFinite(value) && Number(value) > 0 ? Math.floor(Number(value)) : 0
+}
+
+function normalizeOptionalNonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function normalizeYunxiaoTodoPoolPerson(
+  value: unknown
+): YunxiaoTodoPoolItem['assignee'] | NonNullable<YunxiaoTodoPoolItem['assignee']> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<NonNullable<YunxiaoTodoPoolItem['assignee']>>
+  if (typeof candidate.name !== 'string' || !candidate.name.trim()) {
+    return null
+  }
+  return {
+    id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : null,
+    name: candidate.name.trim()
+  }
+}
+
+function normalizeYunxiaoTodoPoolPeople(value: unknown): YunxiaoTodoPoolItem['participants'] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value
+    .map((entry) => normalizeYunxiaoTodoPoolPerson(entry))
+    .filter((entry): entry is NonNullable<YunxiaoTodoPoolItem['assignee']> => entry !== null)
+}
+
+function normalizeYunxiaoTodoPoolSprint(value: unknown): YunxiaoTodoPoolItem['sprint'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<NonNullable<YunxiaoTodoPoolItem['sprint']>>
+  const id = typeof candidate.id === 'string' ? candidate.id.trim() : ''
+  const name = typeof candidate.name === 'string' ? candidate.name.trim() : ''
+  return id || name ? { id: id || name, name: name || id } : null
+}
+
+function normalizeYunxiaoTodoPoolItem(value: unknown): YunxiaoTodoPoolItem | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoTodoPoolItem>
+  if (typeof candidate.id !== 'string' || !candidate.id.trim()) {
+    return null
+  }
+  if (typeof candidate.title !== 'string' || !candidate.title.trim()) {
+    return null
+  }
+  const now = Date.now()
+  return {
+    id: candidate.id.trim(),
+    serialNumber:
+      typeof candidate.serialNumber === 'string' && candidate.serialNumber.trim()
+        ? candidate.serialNumber.trim()
+        : null,
+    title: candidate.title.trim(),
+    category: (typeof candidate.category === 'string' && candidate.category.trim()
+      ? candidate.category.trim()
+      : 'Req') as YunxiaoWorkItemCategory | string,
+    typeName:
+      typeof candidate.typeName === 'string' && candidate.typeName.trim()
+        ? candidate.typeName.trim()
+        : null,
+    statusId:
+      typeof candidate.statusId === 'string' && candidate.statusId.trim()
+        ? candidate.statusId.trim()
+        : null,
+    statusName:
+      typeof candidate.statusName === 'string' && candidate.statusName.trim()
+        ? candidate.statusName.trim()
+        : null,
+    customer:
+      typeof candidate.customer === 'string' && candidate.customer.trim()
+        ? candidate.customer.trim()
+        : null,
+    priority:
+      typeof candidate.priority === 'string' && candidate.priority.trim()
+        ? candidate.priority.trim()
+        : null,
+    assignee: normalizeYunxiaoTodoPoolPerson(candidate.assignee),
+    participants: normalizeYunxiaoTodoPoolPeople(candidate.participants),
+    sprint: normalizeYunxiaoTodoPoolSprint(candidate.sprint),
+    updatedAt:
+      typeof candidate.updatedAt === 'string' && candidate.updatedAt.trim()
+        ? candidate.updatedAt.trim()
+        : null,
+    url: typeof candidate.url === 'string' && candidate.url.trim() ? candidate.url.trim() : null,
+    poolStatus: normalizeYunxiaoTodoPoolStatus(candidate.poolStatus),
+    addedAt: Number.isFinite(candidate.addedAt) ? Number(candidate.addedAt) : now,
+    poolUpdatedAt: Number.isFinite(candidate.poolUpdatedAt) ? Number(candidate.poolUpdatedAt) : now,
+    lastSyncedAt: Number.isFinite(candidate.lastSyncedAt) ? Number(candidate.lastSyncedAt) : null,
+    attempts: normalizeYunxiaoTodoPoolAttempts(candidate.attempts),
+    claimedAt: normalizeYunxiaoTodoPoolClaimTime(candidate.claimedAt),
+    claimedByAutomationId: normalizeOptionalNonEmptyString(candidate.claimedByAutomationId),
+    claimedByRunId: normalizeOptionalNonEmptyString(candidate.claimedByRunId),
+    lastError: normalizeOptionalNonEmptyString(candidate.lastError),
+    notes: typeof candidate.notes === 'string' ? candidate.notes : ''
+  }
+}
+
+function normalizeAutomationYunxiaoTodoPoolSource(
+  value: unknown
+): AutomationYunxiaoTodoPoolSource | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<AutomationYunxiaoTodoPoolSource>
+  if (candidate.kind !== 'yunxiao-todo-pool') {
+    return null
+  }
+  const statuses = Array.isArray(candidate.statuses)
+    ? candidate.statuses.map((status) => normalizeYunxiaoTodoPoolStatus(status))
+    : []
+  const uniqueStatuses = [...new Set(statuses)]
+  const batchSize =
+    Number.isFinite(candidate.batchSize) && Number(candidate.batchSize) > 0
+      ? Math.min(Math.floor(Number(candidate.batchSize)), 10)
+      : 1
+  return {
+    kind: 'yunxiao-todo-pool',
+    statuses: uniqueStatuses.length > 0 ? uniqueStatuses : ['queued'],
+    batchSize
+  }
+}
+
+function normalizeAutomationYunxiaoTodoPoolClaim(
+  value: unknown
+): AutomationYunxiaoTodoPoolClaim | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<AutomationYunxiaoTodoPoolClaim>
+  const itemIds = Array.isArray(candidate.itemIds)
+    ? [
+        ...new Set(
+          candidate.itemIds
+            .map((id) => normalizeOptionalNonEmptyString(id))
+            .filter((id): id is string => id !== null)
+        )
+      ]
+    : []
+  if (itemIds.length === 0) {
+    return null
+  }
+  return {
+    itemIds,
+    claimedAt: normalizeYunxiaoTodoPoolClaimTime(candidate.claimedAt) ?? Date.now()
+  }
+}
+
+function normalizeYunxiaoTodoPool(value: unknown): YunxiaoTodoPoolItem[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  const itemsByIdentity = new Map<string, YunxiaoTodoPoolItem>()
+  for (const entry of value) {
+    const item = normalizeYunxiaoTodoPoolItem(entry)
+    if (!item) {
+      continue
+    }
+    itemsByIdentity.set(getYunxiaoTodoPoolIdentity(item), item)
+  }
+  return [...itemsByIdentity.values()].sort(
+    (left, right) => right.addedAt - left.addedAt || left.title.localeCompare(right.title)
+  )
+}
+
+function getYunxiaoTodoPoolIdentity(item: Pick<YunxiaoWorkItem, 'id' | 'serialNumber'>): string {
+  return item.serialNumber?.trim() || item.id
+}
+
 function deleteRemovedTerminalScrollbackSnapshots(
   prior: WorkspaceSessionState | undefined,
   next: WorkspaceSessionState,
@@ -2928,11 +3130,18 @@ export class Store {
         })
         const visibleTaskProvidersDefaultedForJira =
           parsed.settings?.visibleTaskProvidersDefaultedForJira === true
-        const migratedVisibleTaskProviders = visibleTaskProvidersDefaultedForJira
+        const jiraMigratedVisibleTaskProviders = visibleTaskProvidersDefaultedForJira
           ? rawTaskProviderSettings.visibleTaskProviders
           : rawTaskProviderSettings.visibleTaskProviders.includes('jira')
             ? rawTaskProviderSettings.visibleTaskProviders
             : [...rawTaskProviderSettings.visibleTaskProviders, 'jira' as const]
+        const visibleTaskProvidersDefaultedForYunxiao =
+          parsed.settings?.visibleTaskProvidersDefaultedForYunxiao === true
+        const migratedVisibleTaskProviders = visibleTaskProvidersDefaultedForYunxiao
+          ? jiraMigratedVisibleTaskProviders
+          : jiraMigratedVisibleTaskProviders.includes('yunxiao')
+            ? jiraMigratedVisibleTaskProviders
+            : [...jiraMigratedVisibleTaskProviders, 'yunxiao' as const]
         const taskProviderSettings = normalizeTaskProviderSettings({
           visibleTaskProviders: migratedVisibleTaskProviders,
           defaultTaskSource: rawTaskProviderSettings.defaultTaskSource
@@ -2953,7 +3162,7 @@ export class Store {
         if (migratePrimarySelectionPlatformDefault || stampPrimarySelectionTerminalDefaults) {
           this.loadNeedsSave = true
         }
-        if (!visibleTaskProvidersDefaultedForJira) {
+        if (!visibleTaskProvidersDefaultedForJira || !visibleTaskProvidersDefaultedForYunxiao) {
           this.loadNeedsSave = true
         }
         const claudeAgentTeamsDefaultDisabledMigrated =
@@ -3035,6 +3244,7 @@ export class Store {
             parsed.folderWorkspaces,
             normalizedProjectGroups
           ),
+          yunxiaoTodoPool: normalizeYunxiaoTodoPool(parsed.yunxiaoTodoPool),
           worktreeLineageById: parsed.worktreeLineageById ?? {},
           mobileClientTabSelectionsByDeviceId: normalizePersistedMobileClientTabSelections(
             parsed.mobileClientTabSelectionsByDeviceId
@@ -3105,6 +3315,7 @@ export class Store {
             defaultTaskSource: taskProviderSettings.defaultTaskSource,
             visibleTaskProviders: taskProviderSettings.visibleTaskProviders,
             visibleTaskProvidersDefaultedForJira: true,
+            visibleTaskProvidersDefaultedForYunxiao: true,
             terminalShortcutPolicy: normalizeTerminalShortcutPolicy(
               parsed.settings?.terminalShortcutPolicy
             ),
@@ -4084,6 +4295,179 @@ export class Store {
     return true
   }
 
+  getYunxiaoTodoPool(): YunxiaoTodoPoolItem[] {
+    this.state.yunxiaoTodoPool = normalizeYunxiaoTodoPool(this.state.yunxiaoTodoPool)
+    return [...this.state.yunxiaoTodoPool]
+  }
+
+  addYunxiaoTodoPoolItems(items: readonly YunxiaoWorkItem[]): YunxiaoTodoPoolItem[] {
+    const now = Date.now()
+    const poolByIdentity = new Map(
+      this.getYunxiaoTodoPool().map((item) => [getYunxiaoTodoPoolIdentity(item), item])
+    )
+    const changedItems: YunxiaoTodoPoolItem[] = []
+    for (const item of items) {
+      const normalizedItem = normalizeYunxiaoTodoPoolItem({
+        ...item,
+        poolStatus: 'queued',
+        addedAt: now,
+        poolUpdatedAt: now,
+        lastSyncedAt: now,
+        attempts: 0,
+        claimedAt: null,
+        claimedByAutomationId: null,
+        claimedByRunId: null,
+        lastError: null,
+        notes: ''
+      })
+      if (!normalizedItem) {
+        continue
+      }
+      const identity = getYunxiaoTodoPoolIdentity(normalizedItem)
+      const existing = poolByIdentity.get(identity)
+      const next: YunxiaoTodoPoolItem = existing
+        ? {
+            ...normalizedItem,
+            poolStatus: existing.poolStatus,
+            addedAt: existing.addedAt,
+            poolUpdatedAt: now,
+            notes: existing.notes,
+            attempts: existing.attempts,
+            claimedAt: existing.claimedAt,
+            claimedByAutomationId: existing.claimedByAutomationId,
+            claimedByRunId: existing.claimedByRunId,
+            lastError: existing.lastError,
+            lastSyncedAt: now
+          }
+        : normalizedItem
+      poolByIdentity.set(identity, next)
+      changedItems.push(next)
+    }
+    if (changedItems.length === 0) {
+      return this.getYunxiaoTodoPool()
+    }
+    this.state.yunxiaoTodoPool = [...poolByIdentity.values()].sort(
+      (left, right) => right.addedAt - left.addedAt || left.title.localeCompare(right.title)
+    )
+    this.scheduleSave()
+    return this.getYunxiaoTodoPool()
+  }
+
+  updateYunxiaoTodoPoolItem(
+    id: string,
+    updates: Partial<Pick<YunxiaoTodoPoolItem, 'poolStatus' | 'notes' | 'lastError'>>
+  ): YunxiaoTodoPoolItem | null {
+    const item = this.getYunxiaoTodoPool().find((entry) => entry.id === id)
+    if (!item) {
+      return null
+    }
+    if (updates.poolStatus !== undefined) {
+      item.poolStatus = normalizeYunxiaoTodoPoolStatus(updates.poolStatus)
+      if (item.poolStatus === 'queued') {
+        item.claimedAt = null
+        item.claimedByAutomationId = null
+        item.claimedByRunId = null
+        item.lastError = null
+      }
+    }
+    if (updates.notes !== undefined) {
+      item.notes = updates.notes
+    }
+    if (updates.lastError !== undefined) {
+      item.lastError = normalizeOptionalNonEmptyString(updates.lastError)
+    }
+    item.poolUpdatedAt = Date.now()
+    this.state.yunxiaoTodoPool = this.state.yunxiaoTodoPool.map((entry) =>
+      entry.id === id ? item : entry
+    )
+    this.scheduleSave()
+    return item
+  }
+
+  claimYunxiaoTodoPoolItems(args: {
+    automationId: string
+    runId: string
+    statuses: readonly YunxiaoTodoPoolStatus[]
+    limit: number
+  }): YunxiaoTodoPoolItem[] {
+    const statuses = new Set(args.statuses.map((status) => normalizeYunxiaoTodoPoolStatus(status)))
+    const limit = Number.isFinite(args.limit)
+      ? Math.max(1, Math.min(Math.floor(args.limit), 10))
+      : 1
+    const now = Date.now()
+    const claimedIds = new Set(
+      this.getYunxiaoTodoPool()
+        .filter((item) => statuses.has(item.poolStatus))
+        .sort(
+          (left, right) => left.addedAt - right.addedAt || left.title.localeCompare(right.title)
+        )
+        .slice(0, limit)
+        .map((item) => item.id)
+    )
+    if (claimedIds.size === 0) {
+      return []
+    }
+    const claimed: YunxiaoTodoPoolItem[] = []
+    this.state.yunxiaoTodoPool = this.state.yunxiaoTodoPool.map((item) => {
+      if (!claimedIds.has(item.id)) {
+        return item
+      }
+      const next: YunxiaoTodoPoolItem = {
+        ...item,
+        poolStatus: 'running',
+        attempts: item.attempts + 1,
+        claimedAt: now,
+        claimedByAutomationId: args.automationId,
+        claimedByRunId: args.runId,
+        lastError: null,
+        poolUpdatedAt: now
+      }
+      claimed.push(next)
+      return next
+    })
+    this.scheduleSave()
+    return claimed
+  }
+
+  finishYunxiaoTodoPoolClaim(args: {
+    runId: string
+    poolStatus: Extract<YunxiaoTodoPoolStatus, 'workspace-created' | 'failed'>
+    error?: string | null
+  }): YunxiaoTodoPoolItem[] {
+    const now = Date.now()
+    const updatedItems: YunxiaoTodoPoolItem[] = []
+    this.state.yunxiaoTodoPool = this.getYunxiaoTodoPool().map((item) => {
+      if (item.claimedByRunId !== args.runId) {
+        return item
+      }
+      const next: YunxiaoTodoPoolItem = {
+        ...item,
+        poolStatus: args.poolStatus,
+        poolUpdatedAt: now,
+        lastError:
+          args.poolStatus === 'failed'
+            ? (normalizeOptionalNonEmptyString(args.error) ?? 'Automation run failed.')
+            : null
+      }
+      updatedItems.push(next)
+      return next
+    })
+    if (updatedItems.length > 0) {
+      this.scheduleSave()
+    }
+    return updatedItems
+  }
+
+  removeYunxiaoTodoPoolItem(id: string): boolean {
+    const before = this.state.yunxiaoTodoPool?.length ?? 0
+    this.state.yunxiaoTodoPool = (this.state.yunxiaoTodoPool ?? []).filter((item) => item.id !== id)
+    if (this.state.yunxiaoTodoPool.length === before) {
+      return false
+    }
+    this.scheduleSave()
+    return true
+  }
+
   moveProjectToGroup(repoId: string, groupId: string | null, order?: number): Repo | null {
     const repo = this.state.repos.find((entry) => entry.id === repoId)
     if (!repo) {
@@ -4576,6 +4960,7 @@ export class Store {
       name: input.name.trim() || 'Untitled automation',
       prompt: input.prompt,
       precheck: normalizeAutomationPrecheck(input.precheck),
+      yunxiaoTodoPool: normalizeAutomationYunxiaoTodoPoolSource(input.yunxiaoTodoPool),
       agentId: input.agentId,
       runContext: input.runContext ?? contexts.runContext,
       sourceContext: input.sourceContext ?? contexts.sourceContext,
@@ -4630,6 +5015,9 @@ export class Store {
       precheck: Object.hasOwn(updates, 'precheck')
         ? normalizeAutomationPrecheck(updates.precheck)
         : normalizeAutomationPrecheck(current.precheck),
+      yunxiaoTodoPool: Object.hasOwn(updates, 'yunxiaoTodoPool')
+        ? normalizeAutomationYunxiaoTodoPoolSource(updates.yunxiaoTodoPool)
+        : normalizeAutomationYunxiaoTodoPoolSource(current.yunxiaoTodoPool),
       projectId: repoId,
       runContext: Object.hasOwn(updates, 'runContext')
         ? (updates.runContext ?? null)
@@ -4722,6 +5110,7 @@ export class Store {
       terminalPtyId: null,
       outputSnapshot: null,
       precheckResult: null,
+      yunxiaoTodoPoolClaim: null,
       usage: null,
       error: null,
       startedAt: null,
@@ -4770,6 +5159,9 @@ export class Store {
       precheckResult: Object.hasOwn(result, 'precheckResult')
         ? normalizeAutomationPrecheckResult(result.precheckResult)
         : normalizeAutomationPrecheckResult(current.precheckResult),
+      yunxiaoTodoPoolClaim: Object.hasOwn(result, 'yunxiaoTodoPoolClaim')
+        ? normalizeAutomationYunxiaoTodoPoolClaim(result.yunxiaoTodoPoolClaim)
+        : normalizeAutomationYunxiaoTodoPoolClaim(current.yunxiaoTodoPoolClaim),
       usage: Object.hasOwn(result, 'usage') ? (result.usage ?? null) : (current.usage ?? null),
       error: result.error ?? null,
       startedAt: current.startedAt ?? now,
@@ -4781,6 +5173,24 @@ export class Store {
       automation.lastRunAt = now
       automation.updatedAt = now
     }
+    this.flush()
+    return updated
+  }
+
+  setAutomationRunYunxiaoTodoPoolClaim(
+    runId: string,
+    claim: AutomationYunxiaoTodoPoolClaim
+  ): AutomationRun {
+    const index = (this.state.automationRuns ?? []).findIndex((entry) => entry.id === runId)
+    if (index === -1) {
+      throw new Error('Automation run not found.')
+    }
+    const current = this.state.automationRuns[index]
+    const updated: AutomationRun = {
+      ...current,
+      yunxiaoTodoPoolClaim: normalizeAutomationYunxiaoTodoPoolClaim(claim)
+    }
+    this.state.automationRuns[index] = updated
     this.flush()
     return updated
   }
@@ -5219,6 +5629,7 @@ export class Store {
       sanitizedUpdates.visibleTaskProviders = taskProviderSettings.visibleTaskProviders
       if ('visibleTaskProviders' in updates) {
         sanitizedUpdates.visibleTaskProvidersDefaultedForJira = true
+        sanitizedUpdates.visibleTaskProvidersDefaultedForYunxiao = true
       }
     }
     if ('autoRenameBranchFromWork' in updates || 'autoRenameBranchFromWorkDefaultedOn' in updates) {

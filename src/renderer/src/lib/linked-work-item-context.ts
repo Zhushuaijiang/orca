@@ -170,10 +170,12 @@ export function getLinkedWorkItemPromptContext(
       ? { linkedUrls: [], linkedContextBlocks: [linearBlock] }
       : { linkedUrls: [], linkedContextBlocks: [] }
   }
+  const linkedContextBlock = buildContainedLinkedContextBlock(linkedWorkItem?.linkedContext)
   const linkedUrl = linkedWorkItem?.url?.trim()
-  return linkedUrl
-    ? { linkedUrls: [linkedUrl], linkedContextBlocks: [] }
-    : { linkedUrls: [], linkedContextBlocks: [] }
+  return {
+    linkedUrls: linkedUrl ? [linkedUrl] : [],
+    linkedContextBlocks: linkedContextBlock ? [linkedContextBlock] : []
+  }
 }
 
 export function getLaunchableWorkItemDraftContent(args: {
