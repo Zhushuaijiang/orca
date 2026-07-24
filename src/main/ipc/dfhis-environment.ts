@@ -24,6 +24,7 @@ import {
 import {
   checkGitPrerequisite,
   checkPythonPrerequisite,
+  ensureDfHisCliPrerequisitesInstalled,
   getGlabInstallCommand,
   runDfHisCommand,
   runDfHisCommandWithInput
@@ -105,7 +106,7 @@ async function checkGitLabPrerequisite(): Promise<DfHisEnvironmentPrerequisiteRe
       summary: 'glab is not installed',
       detail: 'Install GitLab CLI, then authenticate with the team GitLab host.',
       command: `${getGlabInstallCommand()} && glab auth login --hostname ${config.gitlabHost}`,
-      fixable: false
+      fixable: true
     }
   }
 
@@ -199,6 +200,7 @@ export async function installDfHisEnvironment(
     : readDfHisEnvironmentConfigSync()
   const messages = [
     configInput ? 'Saved DFHIS setup configuration.' : 'Using saved DFHIS setup configuration.',
+    ...(await ensureDfHisCliPrerequisitesInstalled()),
     await installGitLabAccess(config),
     ...(await ensureDfHisWorkflowPackInstalled()),
     await ensureArchiveWorkspace(config)
