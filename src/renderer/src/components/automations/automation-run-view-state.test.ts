@@ -76,7 +76,7 @@ describe('automation run view state', () => {
     })
   })
 
-  it('keeps View run for exact terminal identity even before the live target is resolved', () => {
+  it('falls back to the workspace when the run terminal cannot be resolved', () => {
     expect(
       getAutomationRunViewState({
         run: makeRun(),
@@ -84,8 +84,8 @@ describe('automation run view state', () => {
         terminalTargetExists: false
       })
     ).toMatchObject({
-      availability: 'terminal',
-      actionLabel: 'View run',
+      availability: 'workspace',
+      actionLabel: 'Resume workspace',
       statusLabel: 'Run terminal is unavailable.',
       canOpen: true
     })

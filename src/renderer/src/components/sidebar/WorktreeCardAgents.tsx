@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import { parsePaneKey } from '../../../../shared/stable-pane-id'
 import { dismissStaleAgentRowByKey } from '../terminal-pane/stale-agent-row'
+import { requestBackgroundTerminalWorktreeMount } from '../terminal/background-terminal-worktree-mount'
 import { useFocusedAgentPaneKey } from './focused-agent-row-highlight'
 import {
   CompactAgentExpansion,
@@ -164,6 +165,19 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
         dismissStaleAgentRowByKey(paneKey)
         return
       }
+      const stateBeforeReveal = useAppStore.getState()
+      const tabsBeforeReveal = stateBeforeReveal.tabsByWorktree[worktreeId] ?? []
+      if (!tabsBeforeReveal.some((t) => t.id === tabId)) {
+        const liveEntry = stateBeforeReveal.agentStatusByPaneKey[paneKey]
+        if (liveEntry?.worktreeId === worktreeId) {
+          // Why: worktree-attributed worker rows can arrive before their tab model; mounting first avoids revealing a fallback shell for the wrong session.
+          requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds: [tabId] })
+          return
+        }
+        dismissStaleAgentRowByKey(paneKey)
+        return
+      }
+      requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds: [tabId] })
       // Why: design-doc rule — every user-initiated worktree switch must route through activateAndRevealWorktree (cross-repo activation + nav history).
       activateAndRevealWorktree(worktreeId)
       const tabs = useAppStore.getState().tabsByWorktree[worktreeId] ?? []

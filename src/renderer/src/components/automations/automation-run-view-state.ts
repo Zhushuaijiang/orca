@@ -57,20 +57,11 @@ export function getAutomationRunViewState({
     }
   }
 
-  if (run.workspaceId && workspaceExists && hasTerminalIdentity) {
-    return {
-      availability: 'terminal',
-      actionLabel: 'View run',
-      statusLabel: 'Run terminal is unavailable.',
-      canOpen: true
-    }
-  }
-
   if (run.workspaceId && workspaceExists) {
     return {
       availability: 'workspace',
       actionLabel: 'Resume workspace',
-      statusLabel: 'Workspace is available.',
+      statusLabel: hasTerminalIdentity ? 'Run terminal is unavailable.' : 'Workspace is available.',
       canOpen: true
     }
   }
