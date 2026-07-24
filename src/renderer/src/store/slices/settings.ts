@@ -28,7 +28,7 @@ export type SettingsSlice = SettingsSearchState & {
   settings: GlobalSettings | null
   fetchSettings: () => Promise<void>
   updateSettings: (updates: Partial<GlobalSettings>) => Promise<void>
-  switchRuntimeEnvironment: (environmentId: string | null) => Promise<boolean>
+  setActiveRuntimeEnvironmentPreference: (environmentId: string | null) => Promise<boolean>
 }
 
 type LegacyTerminalScrollbackSettingsUpdate = Partial<GlobalSettings> & {
@@ -145,7 +145,7 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
     }
   },
 
-  switchRuntimeEnvironment: async (environmentId) => {
+  setActiveRuntimeEnvironmentPreference: async (environmentId) => {
     const nextId = normalizeRuntimeEnvironmentId(environmentId)
     const previousId = normalizeRuntimeEnvironmentId(get().settings?.activeRuntimeEnvironmentId)
     if (previousId === nextId) {
@@ -154,8 +154,8 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
     try {
       clearRuntimeCompatibilityCache(nextId)
       await verifyRuntimeEnvironmentReachable(nextId)
-      const nextSettings = await window.api.settings.set({
-        activeRuntimeEnvironmentId: nextId
+      const nextSettings = await window.api.settings.setActiveRuntimeEnvironmentPreference({
+        environmentId: nextId
       })
       bumpProviderRuntimeSessionGeneration()
       set((s) => ({
