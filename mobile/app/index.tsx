@@ -17,6 +17,7 @@ import { ClaudeIcon, OpenAIIcon } from '../src/components/AgentIcons'
 import {
   type AccountsSnapshot,
   type ProviderKey,
+  decodeAccountsSnapshot,
   getActiveProviderRateLimits,
   getUsageBarState,
   hasActiveProviderUsage,
@@ -27,10 +28,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { loadHosts } from '../src/transport/host-store'
 import { removeHostAndCloseClient } from '../src/transport/host-removal-lifecycle'
 import { pickResumeWorktree } from '../src/worktree/resume-worktree'
-import {
-  LAST_VISITED_WORKTREE_STORAGE_KEY,
-  readLastVisitedWorktreeRecord
-} from '../src/worktree/last-visited-worktree-repo'
 import type { RpcClient } from '../src/transport/rpc-client'
 import { sendSingleFlightRequest } from '../src/transport/request-single-flight'
 import {
@@ -235,7 +232,7 @@ function fetchAccountsSnapshot(
         return
       }
       if (response.ok) {
-        const snapshot = response.result as AccountsSnapshot
+        const snapshot = decodeAccountsSnapshot(response.result)
         setSnapshots((prev) => ({ ...prev, [hostId]: snapshot }))
       }
     })
@@ -398,14 +395,13 @@ export default function HomeScreen() {
           router.replace(mobileOnboardingDestination(onboardingSteps))
         }
       })
-      void AsyncStorage.getItem(LAST_VISITED_WORKTREE_STORAGE_KEY).then((raw) => {
+      void AsyncStorage.getItem('orca:last-visited-worktree').then((raw) => {
         if (stale || !raw) {
           return
         }
-        const record = readLastVisitedWorktreeRecord(raw)
-        if (record) {
-          setLastVisited(record)
-        }
+        try {
+          setLastVisited(JSON.parse(raw))
+        } catch {}
       })
       for (const entry of allClientsRef.current) {
         if (entry.client.getState() === 'connected') {
@@ -508,9 +504,15 @@ export default function HomeScreen() {
               if (!payload || typeof payload !== 'object') {
                 return
               }
-              const evt = payload as { type?: string; snapshot?: AccountsSnapshot }
-              if ((evt.type === 'ready' || evt.type === 'snapshot') && evt.snapshot) {
-                setAccountsByHost((prev) => ({ ...prev, [entry.hostId]: evt.snapshot! }))
+              const evt = payload as { type?: string; snapshot?: unknown }
+              if (evt.type === 'ready' || evt.type === 'snapshot') {
+                try {
+                  const snapshot = decodeAccountsSnapshot(evt.snapshot)
+                  setAccountsByHost((prev) => ({ ...prev, [entry.hostId]: snapshot }))
+                } catch {
+                  // Keep the last proven snapshot; malformed remote data must
+                  // not enter render state or crash the home host cards.
+                }
               }
             })
           }

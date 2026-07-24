@@ -316,7 +316,6 @@ export function EditorContent({
       onContentChange={activeFile.readOnly === true ? noopEditorContentChange : handleContentChange}
       onSave={activeFile.readOnly === true ? noopEditorSave : isMarkdown ? md.mdSave : handleSave}
       worktreeId={activeFile.worktreeId}
-      runtimeEnvironmentId={activeFile.runtimeEnvironmentId}
       markdownAnnotationsEnabled={markdownAnnotationsEnabled && isMarkdown}
       conflictDecorationsEnabled={activeFile.conflict?.conflictStatus === 'unresolved'}
       revealLine={
@@ -390,6 +389,7 @@ export function EditorContent({
                 content={editorContent}
                 filePath={activeFile.filePath}
                 worktreeId={activeFile.worktreeId}
+                externalSshTargetId={activeFile.externalSshTargetId}
                 runtimeEnvironmentId={activeFile.runtimeEnvironmentId}
                 scrollCacheKey={`${editorViewStateKey}:rich`}
                 onContentChange={onContentChangeWithFm}

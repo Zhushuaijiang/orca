@@ -9,21 +9,11 @@ overrides:
   monaco-editor>dompurify: 3.4.12
 
 patchedDependencies:
-  '@xterm/addon-ligatures@0.11.0-beta.287':
-    hash: 47405b9994b5acf1b4e90b49250358c1ca03649854d59560e7732b72fe336920
-    path: config/patches/@xterm__addon-ligatures@0.11.0-beta.287.patch
-  '@xterm/addon-serialize@0.15.0-beta.287':
-    hash: 81575700d58b62f9262d302aa4ae43b445a6273d579cd75dd6729c8883011ab9
-    path: config/patches/@xterm__addon-serialize@0.15.0-beta.287.patch
-  '@xterm/addon-webgl@0.20.0-beta.286':
-    hash: 6da7d7770b6427246f2a0d057d97da418040e498068b41d0c2d3c6b20bf49258
-    path: config/patches/@xterm__addon-webgl@0.20.0-beta.286.patch
-  '@xterm/xterm@6.1.0-beta.287':
-    hash: 9c1de9931d86864923ff53bc9d64474a86478085ac81ea4e432648c7e23d702c
-    path: config/patches/@xterm__xterm@6.1.0-beta.287.patch
-  node-pty@1.1.0:
-    hash: 8fc49f17011b6611a5b8c00e83a6f12e14e75aada2b0ef26dc5393f8376d20e8
-    path: config/patches/node-pty@1.1.0.patch
+  '@xterm/addon-ligatures@0.11.0-beta.287': 47405b9994b5acf1b4e90b49250358c1ca03649854d59560e7732b72fe336920
+  '@xterm/addon-serialize@0.15.0-beta.287': 81575700d58b62f9262d302aa4ae43b445a6273d579cd75dd6729c8883011ab9
+  '@xterm/addon-webgl@0.20.0-beta.286': 6da7d7770b6427246f2a0d057d97da418040e498068b41d0c2d3c6b20bf49258
+  '@xterm/xterm@6.1.0-beta.287': 9c1de9931d86864923ff53bc9d64474a86478085ac81ea4e432648c7e23d702c
+  node-pty@1.1.0: 8fc49f17011b6611a5b8c00e83a6f12e14e75aada2b0ef26dc5393f8376d20e8
 
 importers:
 
@@ -135,6 +125,12 @@ importers:
       '@testing-library/user-event':
         specifier: ^14.6.1
         version: 14.6.1(@testing-library/dom@10.4.1)
+      '@tiptap/core':
+        specifier: 3.22.5
+        version: 3.22.5(@tiptap/pm@3.22.5)
+      '@tiptap/extension-code':
+        specifier: 3.22.5
+        version: 3.22.5(@tiptap/core@3.22.5(@tiptap/pm@3.22.5))
       '@tiptap/extension-code-block-lowlight':
         specifier: ^3.22.5
         version: 3.22.5(@tiptap/core@3.22.5(@tiptap/pm@3.22.5))(@tiptap/extension-code-block@3.22.5(@tiptap/core@3.22.5(@tiptap/pm@3.22.5))(@tiptap/pm@3.22.5))(@tiptap/pm@3.22.5)(highlight.js@11.11.1)(lowlight@3.3.0)
@@ -252,6 +248,9 @@ importers:
       emoji-picker-react:
         specifier: ^4.19.1
         version: 4.19.1(react@19.2.7)
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       happy-dom:
         specifier: ^20.9.0
         version: 20.9.0
@@ -348,6 +347,9 @@ importers:
       remark-parse:
         specifier: ^11.0.0
         version: 11.0.0
+      rollup:
+        specifier: 4.60.3
+        version: 4.60.3
       shadcn:
         specifier: ^4.13.1
         version: 4.13.1(typescript@7.0.2)
@@ -4362,7 +4364,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    deprecated: Glob versions prior to v9 are no longer supported
 
   global-agent@3.0.0:
     resolution: {integrity: sha512-PT6XReJ+D07JvGoxQMkT6qji/jVNfX/h364XHZOWeRzy64sSFr+xJ5OX7LI3b4MPQzdL4H8Y8M0xzPpsVMwA8Q==}

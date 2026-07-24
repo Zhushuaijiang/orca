@@ -3,6 +3,7 @@ import type { Repo } from '../../../shared/types'
 import {
   expandSelectedTaskSourceRepos,
   getDefaultTaskRepoSelection,
+  getTaskEligibleRepos,
   getTaskProjectPickerGroups,
   getTaskProjectPickerRepos,
   getTaskWorkspaceRepoForSourceRepo,
@@ -19,6 +20,51 @@ function repo(overrides: Partial<Repo> & Pick<Repo, 'id'>): Repo {
     ...overrides
   }
 }
+
+describe('getTaskEligibleRepos', () => {
+  it('keeps only Git repos with a resolvable remote identity', () => {
+    const eligible = getTaskEligibleRepos([
+      repo({ id: 'github-upstream', upstream: { owner: 'stablyai', repo: 'orca' } }),
+      repo({
+        id: 'github-icon',
+        repoIcon: {
+          type: 'image',
+          src: 'https://github.com/stablyai.png?size=64',
+          source: 'github',
+          label: 'stablyai/orca'
+        }
+      }),
+      repo({
+        id: 'gitlab-remote',
+        gitRemoteIdentity: {
+          canonicalKey: 'gitlab.example.com/team/orca',
+          remoteName: 'origin',
+          remoteUrl: 'git@gitlab.example.com:team/orca.git'
+        }
+      }),
+      repo({ id: 'local-only' }),
+      repo({
+        id: 'incomplete-remote',
+        gitRemoteIdentity: {
+          canonicalKey: 'gitlab.example.com/team/incomplete',
+          remoteName: '',
+          remoteUrl: 'git@gitlab.example.com:team/incomplete.git'
+        }
+      }),
+      repo({
+        id: 'folder-with-remote',
+        kind: 'folder',
+        upstream: { owner: 'stablyai', repo: 'docs' }
+      })
+    ])
+
+    expect(eligible.map((candidate) => candidate.id)).toEqual([
+      'github-upstream',
+      'github-icon',
+      'gitlab-remote'
+    ])
+  })
+})
 
 describe('getDefaultTaskRepoSelection', () => {
   it('selects one source per logical GitHub project', () => {

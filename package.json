@@ -1,6 +1,6 @@
 {
   "name": "orca",
-  "version": "1.4.151-rc.11",
+  "version": "1.4.156-rc.1",
   "description": "Next-gen IDE for parallel agentic development",
   "homepage": "https://github.com/stablyai/orca",
   "author": "stablyai",
@@ -52,7 +52,6 @@
     "smoke:computer": "node config/scripts/computer-use-smoke.mjs",
     "verify:computer-native": "node config/scripts/verify-computer-native.mjs",
     "verify:cli-bin": "node config/scripts/verify-cli-bin.mjs",
-    "verify:cli-runtime": "node config/scripts/verify-cli-bin.mjs --run-help",
     "verify:localization-catalog": "node config/scripts/verify-localization-catalog.mjs",
     "sync:localization-catalog": "node config/scripts/verify-localization-catalog.mjs --fix",
     "bootstrap:locale-catalog": "node config/scripts/bootstrap-locale-catalog.mjs",
@@ -66,9 +65,9 @@
     "build:cli": "tsc -p config/tsconfig.cli.json --outDir out --composite false --incremental false && node config/scripts/verify-cli-bin.mjs --fix-executable --fix-package-json && node config/scripts/install-dev-cli.mjs",
     "build:electron-vite": "node config/scripts/run-electron-vite-build.mjs",
     "build:web": "node config/scripts/run-vite-web-build.mjs && node config/scripts/verify-web-build.mjs",
-    "build:desktop": "pnpm run typecheck && pnpm run build:relay && pnpm run build:cli && pnpm run build:electron-vite && pnpm run verify:cli-runtime && pnpm run build:web",
+    "build:desktop": "pnpm run typecheck && pnpm run build:relay && pnpm run build:cli && pnpm run build:electron-vite && pnpm run build:web",
     "build": "pnpm run build:desktop && pnpm run build:native",
-    "build:release": "pnpm run build:relay && pnpm run build:native && pnpm run verify:computer-native && pnpm run build:cli && pnpm run build:electron-vite && pnpm run verify:cli-runtime && pnpm run build:web",
+    "build:release": "pnpm run build:relay && pnpm run build:native && pnpm run verify:computer-native && pnpm run build:cli && pnpm run build:electron-vite && pnpm run build:web",
     "postinstall": "node config/scripts/rebuild-native-deps.mjs",
     "rebuild:electron": "node config/scripts/rebuild-native-deps.mjs",
     "rebuild:node": "pnpm rebuild node-pty",
@@ -146,6 +145,8 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@tiptap/core": "3.22.5",
+    "@tiptap/extension-code": "3.22.5",
     "@tiptap/extension-code-block-lowlight": "^3.22.5",
     "@tiptap/extension-details": "^3.22.5",
     "@tiptap/extension-image": "^3.22.5",
@@ -185,6 +186,7 @@
     "electron-builder-squirrel-windows": "^26.15.3",
     "electron-vite": "^5.0.0",
     "emoji-picker-react": "^4.19.1",
+    "esbuild": "0.28.1",
     "happy-dom": "^20.9.0",
     "html-to-image": "^1.11.13",
     "husky": "^9.1.7",
@@ -217,6 +219,7 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
+    "rollup": "4.60.3",
     "shadcn": "^4.13.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
@@ -252,40 +255,7 @@
   "engines": {
     "node": "24"
   },
-  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a",
-  "pnpm": {
-    "overrides": {
-      "@modelcontextprotocol/sdk>@hono/node-server": "2.0.10",
-      "monaco-editor>dompurify": "3.4.12"
-    },
-    "supportedArchitectures": {
-      "os": [
-        "current",
-        "darwin",
-        "linux",
-        "win32"
-      ],
-      "cpu": [
-        "current",
-        "x64",
-        "arm64"
-      ]
-    },
-    "onlyBuiltDependencies": [
-      "@parcel/watcher",
-      "cpu-features",
-      "esbuild",
-      "node-pty",
-      "sherpa-onnx"
-    ],
-    "patchedDependencies": {
-      "node-pty@1.1.0": "config/patches/node-pty@1.1.0.patch",
-      "@xterm/addon-ligatures@0.11.0-beta.287": "config/patches/@xterm__addon-ligatures@0.11.0-beta.287.patch",
-      "@xterm/addon-webgl@0.20.0-beta.286": "config/patches/@xterm__addon-webgl@0.20.0-beta.286.patch",
-      "@xterm/addon-serialize@0.15.0-beta.287": "config/patches/@xterm__addon-serialize@0.15.0-beta.287.patch",
-      "@xterm/xterm@6.1.0-beta.287": "config/patches/@xterm__xterm@6.1.0-beta.287.patch"
-    }
-  },
+  "packageManager": "pnpm@11.9.0",
   "reactDoctor": {
     "rules": {
       "react-doctor/js-combine-iterations": "off"

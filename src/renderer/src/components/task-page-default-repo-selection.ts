@@ -1,5 +1,9 @@
 import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
-import { getProjectIdentityKey } from '../../../shared/project-host-setup-projection'
+import {
+  getProjectIdentityKey,
+  hasProjectRemoteIdentity
+} from '../../../shared/project-host-setup-projection'
+import { isGitRepoKind } from '../../../shared/repo-kind'
 import type { Repo } from '../../../shared/types'
 
 export type TaskProjectPickerGroup = {
@@ -79,6 +83,10 @@ export function getTaskWorkspaceRepoForSourceRepo(
     )
     .sort(compareAncestorSpecificity)
   return ancestors[0] ?? source
+}
+
+export function getTaskEligibleRepos(repos: readonly Repo[]): Repo[] {
+  return repos.filter((repo) => isGitRepoKind(repo) && hasProjectRemoteIdentity(repo))
 }
 
 export function getDefaultTaskRepoSelection(repos: readonly Repo[]): Set<string> {

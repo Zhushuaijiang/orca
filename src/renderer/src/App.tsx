@@ -145,7 +145,7 @@ import {
   timeRendererStartupStep,
   timeRendererStartupSyncStep
 } from './startup/startup-diagnostics'
-import { reconnectSshTargetsForRendererStartup } from './startup/ssh-startup-reconnect'
+import { reconnectSshTargetForRendererStartup } from './startup/ssh-startup-reconnect'
 import { shouldRenderPetOverlay } from './components/pet/pet-overlay-visibility'
 import { applyDocumentTheme } from './lib/document-theme'
 import { getSystemPrefersDark } from './lib/terminal-theme'
@@ -984,18 +984,26 @@ function App(): React.JSX.Element {
               }
 
               // Why: treat timed-out eager targets as deferred so their PTYs reattach on tab focus (ssh.connect keeps running in main and likely finishes by then).
-              const timedOutTargets = await timeRendererStartupStep(
+              const timedOutTargets: string[] = []
+              await timeRendererStartupStep(
                 'ssh-reconnect',
                 () =>
-                  reconnectSshTargetsForRendererStartup({
-                    targetIds: eagerTargets.map((target) => target.targetId),
-                    timeoutMs: SSH_RECONNECT_TIMEOUT_MS,
-                    connect: (id) => window.api.ssh.connect({ targetId: id }),
-                    publishState: actions.setSshConnectionState,
-                    onFailure: (id, error) => {
-                      console.warn(`SSH auto-reconnect failed for ${id}:`, error)
-                    }
-                  }),
+                  Promise.all(
+                    eagerTargets.map(async ({ targetId }) => {
+                      const result = await reconnectSshTargetForRendererStartup({
+                        targetId,
+                        timeoutMs: SSH_RECONNECT_TIMEOUT_MS,
+                        connect: (id) => window.api.ssh.connect({ targetId: id }),
+                        publishState: actions.setSshConnectionState,
+                        onFailure: (id, error) => {
+                          console.warn(`SSH auto-reconnect failed for ${id}:`, error)
+                        }
+                      })
+                      if (result.timedOut) {
+                        timedOutTargets.push(targetId)
+                      }
+                    })
+                  ),
                 {
                   eagerTargets: eagerTargets.length,
                   deferredTargets: deferredTargets.length
@@ -1417,6 +1425,24 @@ function App(): React.JSX.Element {
     document.addEventListener('visibilitychange', handler)
     return () => document.removeEventListener('visibilitychange', handler)
   }, [actions])
+
+  // Why (STA-2383): macOS throttles the backgrounded window; on occlusion-uncover only `focus`
+  // fires (invalidate-only), so the app-shell's dvh height stays stale and the bottom status bar
+  // is clipped off-screen until a manual resize. Relay the genuine hidden→visible reveal so main
+  // runs the same full repaint (size jiggle) that show/restore/resume get, recomputing the layout.
+  useEffect(() => {
+    if (!isMac || isPairedWebClientWindow()) {
+      return
+    }
+    const handler = (): void => {
+      if (document.visibilityState !== 'visible') {
+        return
+      }
+      window.api?.ui?.notifyWindowRevealed?.()
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [])
 
   const hasTabBar = tabCount >= 2
   const showTitlebarExpandButton = workspaceChromeActive && !hasTabBar && effectiveActiveTabExpanded

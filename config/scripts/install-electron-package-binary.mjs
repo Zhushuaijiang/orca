@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  realpathSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -17,7 +18,7 @@ import { platform as osPlatform, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 const projectDir = resolve(import.meta.dirname, '../..')
-const electronPackageDir = resolve(projectDir, 'node_modules/electron')
+const electronPackageDir = realpathSync(resolve(projectDir, 'node_modules/electron'))
 const electronRequire = createRequire(resolve(electronPackageDir, 'package.json'))
 const { version: electronVersion } = electronRequire('./package.json')
 const { downloadArtifact } = electronRequire('@electron/get')
