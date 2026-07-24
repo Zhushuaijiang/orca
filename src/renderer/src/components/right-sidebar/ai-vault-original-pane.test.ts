@@ -34,10 +34,10 @@ const baseSession: AiVaultSession = {
   subagent: null
 }
 
-function makeTab(id = 'tab-1', worktreeId = 'wt-1') {
+function makeTab(id = 'tab-1', worktreeId = 'wt-1', ptyId: string | null = null) {
   return {
     id,
-    ptyId: null,
+    ptyId,
     worktreeId,
     title: 'Agent',
     customTitle: null,
@@ -53,6 +53,15 @@ function makeLayout(leafId = LEAF_ID) {
     activeLeafId: leafId,
     expandedLeafId: null,
     ptyIdsByLeafId: { [leafId]: 'pty-1' }
+  }
+}
+
+function makeLayoutWithoutPty(leafId = LEAF_ID) {
+  return {
+    root: { type: 'leaf' as const, leafId },
+    activeLeafId: leafId,
+    expandedLeafId: null,
+    ptyIdsByLeafId: {}
   }
 }
 
@@ -173,6 +182,35 @@ describe('findOriginalAiVaultSessionPane', () => {
     )
 
     expect(target).toBeNull()
+  })
+
+  it('does not return a target when the restored leaf has no PTY identity', () => {
+    const entry = makeEntry()
+
+    const target = findOriginalAiVaultSessionPane(
+      makeState({
+        agentStatusByPaneKey: { [entry.paneKey]: entry },
+        terminalLayoutsByTabId: { 'tab-1': makeLayoutWithoutPty() }
+      }),
+      baseSession
+    )
+
+    expect(target).toBeNull()
+  })
+
+  it('accepts older single-pane tabs that keep PTY identity on the tab', () => {
+    const entry = makeEntry()
+
+    const target = findOriginalAiVaultSessionPane(
+      makeState({
+        agentStatusByPaneKey: { [entry.paneKey]: entry },
+        tabsByWorktree: { 'wt-1': [makeTab('tab-1', 'wt-1', 'pty-tab')] },
+        terminalLayoutsByTabId: { 'tab-1': makeLayoutWithoutPty() }
+      }),
+      baseSession
+    )
+
+    expect(target?.paneKey).toBe(entry.paneKey)
   })
 
   it('finds a retained completed pane when the tab and layout still exist', () => {

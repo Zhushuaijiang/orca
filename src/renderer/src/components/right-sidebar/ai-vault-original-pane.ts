@@ -3,7 +3,11 @@ import { resolveRuntimePaneTitleLeafId } from '@/lib/runtime-pane-title-leaf-id'
 import type { AgentStatusState } from '../../../../shared/agent-status-types'
 import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import { parseLegacyNumericPaneKey, parsePaneKey } from '../../../../shared/stable-pane-id'
-import type { TerminalLayoutSnapshot, TerminalPaneLayoutNode } from '../../../../shared/types'
+import type {
+  TerminalLayoutSnapshot,
+  TerminalPaneLayoutNode,
+  TerminalTab
+} from '../../../../shared/types'
 
 export type AiVaultOriginalPaneTarget = {
   paneKey: string
@@ -111,24 +115,37 @@ function layoutHasLeaf(node: TerminalPaneLayoutNode | null | undefined, leafId: 
   return layoutHasLeaf(node.first, leafId) || layoutHasLeaf(node.second, leafId)
 }
 
-function hasAvailableLeaf(layout: TerminalLayoutSnapshot | undefined, leafId: string): boolean {
-  return layoutHasLeaf(layout?.root, leafId) || Boolean(layout?.ptyIdsByLeafId?.[leafId])
+function hasAvailableLeaf(
+  layout: TerminalLayoutSnapshot | undefined,
+  tab: Pick<TerminalTab, 'ptyId'> | undefined,
+  leafId: string
+): boolean {
+  if (!layoutHasLeaf(layout?.root, leafId)) {
+    return false
+  }
+  const layoutPtyId = layout?.ptyIdsByLeafId?.[leafId]
+  if (typeof layoutPtyId === 'string' && layoutPtyId.length > 0) {
+    return true
+  }
+  // Why: older single-pane tabs carried PTY identity only on the tab record.
+  return Boolean(tab?.ptyId)
 }
 
-function getTabOwnerWorktreeId(
+function getTabOwner(
   state: OriginalPaneState,
   tabId: string,
   worktreeIdHint?: string
-): string | null {
-  if (
-    worktreeIdHint &&
-    (state.tabsByWorktree[worktreeIdHint] ?? []).some((tab) => tab.id === tabId)
-  ) {
-    return worktreeIdHint
+): { worktreeId: string; tab: TerminalTab } | null {
+  const hintedTab = worktreeIdHint
+    ? state.tabsByWorktree[worktreeIdHint]?.find((tab) => tab.id === tabId)
+    : undefined
+  if (worktreeIdHint && hintedTab) {
+    return { worktreeId: worktreeIdHint, tab: hintedTab }
   }
   for (const [worktreeId, tabs] of Object.entries(state.tabsByWorktree)) {
-    if (tabs.some((tab) => tab.id === tabId)) {
-      return worktreeId
+    const tab = tabs.find((entry) => entry.id === tabId)
+    if (tab) {
+      return { worktreeId, tab }
     }
   }
   return null
@@ -146,30 +163,30 @@ export function resolveOriginalPaneTarget(args: {
     if (tabIdHint && tabIdHint !== stable.tabId) {
       return null
     }
-    const worktreeId = getTabOwnerWorktreeId(state, stable.tabId, worktreeIdHint)
+    const owner = getTabOwner(state, stable.tabId, worktreeIdHint)
     if (
-      !worktreeId ||
-      !hasAvailableLeaf(state.terminalLayoutsByTabId[stable.tabId], stable.leafId)
+      !owner ||
+      !hasAvailableLeaf(state.terminalLayoutsByTabId[stable.tabId], owner.tab, stable.leafId)
     ) {
       return null
     }
-    return { paneKey, worktreeId, tabId: stable.tabId, leafId: stable.leafId }
+    return { paneKey, worktreeId: owner.worktreeId, tabId: stable.tabId, leafId: stable.leafId }
   }
 
   const legacy = parseLegacyNumericPaneKey(paneKey)
   if (!legacy || (tabIdHint && tabIdHint !== legacy.tabId)) {
     return null
   }
-  const worktreeId = getTabOwnerWorktreeId(state, legacy.tabId, worktreeIdHint)
-  if (!worktreeId) {
+  const owner = getTabOwner(state, legacy.tabId, worktreeIdHint)
+  if (!owner) {
     return null
   }
   const layout = state.terminalLayoutsByTabId[legacy.tabId]
   const leafId = resolveRuntimePaneTitleLeafId(layout, legacy.numericPaneId)
-  if (!leafId || !hasAvailableLeaf(layout, leafId)) {
+  if (!leafId || !hasAvailableLeaf(layout, owner.tab, leafId)) {
     return null
   }
-  return { paneKey, worktreeId, tabId: legacy.tabId, leafId }
+  return { paneKey, worktreeId: owner.worktreeId, tabId: legacy.tabId, leafId }
 }
 
 /**
