@@ -4,6 +4,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, rename } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { pageHtml } from './orca-release-publisher-page.mjs'
+import {
+  commitAndPushReleaseVersion,
+  prepareNextReleaseVersion,
+  versionGreaterThan
+} from './orca-release-versioning.mjs'
 import { homedir, platform, tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
@@ -277,6 +282,10 @@ async function getStatus(repoRootInput, options = {}) {
   if (!newestReady(windows)) {
     warnings.push('当前版本没有可发布的 Windows installer。')
   }
+  const latest = await remoteLatest({ ...options, repoRoot })
+  if (latest?.version && !versionGreaterThan(version, latest.version)) {
+    warnings.push(`当前版本 ${version} 不高于服务器 latest ${latest.version}，发布前应先自动升版。`)
+  }
   return {
     repoRoot,
     version,
@@ -288,7 +297,7 @@ async function getStatus(repoRootInput, options = {}) {
     windowsCandidates: windows,
     selectedMacAppPath: newestReady(macCandidates)?.path,
     selectedWindowsExePath: newestReady(windows)?.path,
-    remoteLatest: await remoteLatest({ ...options, repoRoot }),
+    remoteLatest: latest,
     warnings
   }
 }
@@ -325,6 +334,24 @@ function buildMacApp(repoRoot) {
   logs.push(`$ ${electronBuilder.command} ${electronBuilder.args.join(' ')}`)
   logs.push(run(electronBuilder.command, electronBuilder.args, repoRoot))
   return logs.join('\n')
+}
+
+async function prepareRelease(args, { commitAndPush = false, force = false } = {}) {
+  const repoRoot = resolveRepoRoot(args.repoRoot)
+  const latest = await remoteLatest({
+    repoRoot,
+    sshPassword: args.sshPassword
+  })
+  const result = await prepareNextReleaseVersion(repoRoot, latest?.version, { force })
+  const output = [result.output]
+  if (result.changed && commitAndPush) {
+    output.push(commitAndPushReleaseVersion(repoRoot, result.nextVersion))
+  }
+  return {
+    ...result,
+    output: output.join('\n'),
+    status: await getStatus(repoRoot, { sshPassword: args.sshPassword })
+  }
 }
 
 function runPublish(args, repoRoot) {
@@ -412,6 +439,13 @@ async function moveOldLocalReleasesToTrash(repoRoot, version) {
 async function publishRelease(args) {
   const repoRoot = resolveRepoRoot(args.repoRoot)
   const version = readPackageJson(repoRoot).version ?? ''
+  const latest = await remoteLatest({
+    repoRoot,
+    sshPassword: args.sshPassword
+  })
+  if (latest?.version && !versionGreaterThan(version, latest.version)) {
+    throw new Error(`当前版本 ${version} 不高于服务器 latest ${latest.version}，请先准备下一版。`)
+  }
   const output = [runPublish(args, repoRoot)]
   if (args.cleanOldReleases) {
     output.push(runRemoteCleanup(args, repoRoot, version))
@@ -429,7 +463,9 @@ async function publishRelease(args) {
   }
 }
 
-function triggerWindowsCi(repoRoot) {
+async function triggerWindowsCi(args) {
+  const repoRoot = resolveRepoRoot(args.repoRoot)
+  const prepareOutput = await prepareRelease(args, { commitAndPush: true })
   const branch = runText('git', ['branch', '--show-current'], repoRoot)
   if (!branch) {
     throw new Error('当前不是普通分支，无法自动触发 Windows CI。')
@@ -439,7 +475,7 @@ function triggerWindowsCi(repoRoot) {
     ['workflow', 'run', 'win-update-survival-e2e.yml', '--ref', branch],
     repoRoot
   )
-  return { branch, output }
+  return { branch, output: `${prepareOutput.output}\n${output}` }
 }
 
 async function handleApi(req, res, pathname) {
@@ -458,14 +494,17 @@ async function handleApi(req, res, pathname) {
     if (req.method === 'POST' && pathname === '/api/build-macos') {
       const body = await readBody(req)
       const repoRoot = resolveRepoRoot(body.repoRoot)
-      const output = buildMacApp(repoRoot)
+      const prepared = await prepareRelease(body)
+      const output = `${prepared.output}\n${buildMacApp(repoRoot)}`
       jsonResponse(res, 200, { output, status: await getStatus(repoRoot) })
       return
     }
+    if (req.method === 'POST' && pathname === '/api/prepare-release') {
+      jsonResponse(res, 200, await prepareRelease(await readBody(req), { force: true }))
+      return
+    }
     if (req.method === 'POST' && pathname === '/api/trigger-windows-ci') {
-      const body = await readBody(req)
-      const repoRoot = resolveRepoRoot(body.repoRoot)
-      jsonResponse(res, 200, triggerWindowsCi(repoRoot))
+      jsonResponse(res, 200, await triggerWindowsCi(await readBody(req)))
       return
     }
     if (req.method === 'POST' && pathname === '/api/publish') {

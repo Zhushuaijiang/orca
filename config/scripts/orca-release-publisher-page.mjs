@@ -33,7 +33,7 @@ export function pageHtml() {
 <body>
 <main>
   <h1>Orca Release Publisher</h1>
-  <p>独立的本地构建、打包、发布工具。不属于 Orca app 设置页。</p>
+  <p>独立的本地升版、构建、打包、发布工具。不属于 Orca app 设置页。</p>
 
   <section class="grid">
     <label>Repo root <input id="repoRoot" /></label>
@@ -44,6 +44,7 @@ export function pageHtml() {
   <section>
     <div class="row">
       <button id="refresh">刷新状态</button>
+      <button id="prepare">准备下一版</button>
       <button id="buildMac">构建 macOS app</button>
       <button id="triggerWin">触发 Windows CI</button>
       <button id="publish" class="primary">发布到服务器</button>
@@ -75,7 +76,7 @@ export function pageHtml() {
 <script>
 let status = null
 const el = (id) => document.getElementById(id)
-const setBusy = (text) => { el('busy').textContent = text; for (const id of ['refresh','buildMac','triggerWin','publish']) el(id).disabled = Boolean(text) }
+const setBusy = (text) => { el('busy').textContent = text; for (const id of ['refresh','prepare','buildMac','triggerWin','publish']) el(id).disabled = Boolean(text) }
 const post = async (url, body) => {
   const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   const json = await response.json()
@@ -107,8 +108,20 @@ async function refresh() {
   }
 }
 el('refresh').onclick = refresh
+el('prepare').onclick = async () => {
+  setBusy('准备下一版...')
+  try {
+    const result = await post('/api/prepare-release', {
+      repoRoot: el('repoRoot').value,
+      sshPassword: el('sshPassword').value
+    })
+    status = result.status
+    el('output').textContent = result.output
+    await refresh()
+  } catch (error) { el('output').textContent = error.message } finally { setBusy('') }
+}
 el('buildMac').onclick = async () => {
-  setBusy('构建 macOS 中...')
+  setBusy('自动升版并构建 macOS 中...')
   try {
     const result = await post('/api/build-macos', { repoRoot: el('repoRoot').value })
     status = result.status
@@ -117,9 +130,12 @@ el('buildMac').onclick = async () => {
   } catch (error) { el('output').textContent = error.message } finally { setBusy('') }
 }
 el('triggerWin').onclick = async () => {
-  setBusy('触发 Windows CI...')
+  setBusy('自动升版、提交推送并触发 Windows CI...')
   try {
-    const result = await post('/api/trigger-windows-ci', { repoRoot: el('repoRoot').value })
+    const result = await post('/api/trigger-windows-ci', {
+      repoRoot: el('repoRoot').value,
+      sshPassword: el('sshPassword').value
+    })
     el('output').textContent = 'Triggered Windows CI on ' + result.branch + '\\n' + result.output
   } catch (error) { el('output').textContent = error.message } finally { setBusy('') }
 }
