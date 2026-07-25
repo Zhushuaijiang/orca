@@ -18,6 +18,8 @@ type MockAgentOptions = {
   prompt: string
   worktreeId: string
   startedAt?: number
+  rowSource?: DashboardAgentRowData['rowSource']
+  providerSession?: { key: 'session_id'; id: string }
 }
 
 function mockAgent({
@@ -26,19 +28,22 @@ function mockAgent({
   agentType,
   prompt,
   worktreeId,
-  startedAt = 1000
+  startedAt = 1000,
+  rowSource = 'live',
+  providerSession
 }: MockAgentOptions): DashboardAgentRowData {
   return {
     paneKey,
     tab: { id: tabId },
     agentType,
-    rowSource: 'live',
+    rowSource,
     state: 'working',
     startedAt,
     entry: {
       prompt,
       state: 'working',
       paneKey,
+      ...(providerSession ? { providerSession } : {}),
       updatedAt: startedAt,
       stateStartedAt: startedAt,
       stateHistory: [],
@@ -51,6 +56,7 @@ let mockAgents: DashboardAgentRowData[] = []
 let mockAgentActivityDisplayMode: 'compact' | 'full' | undefined
 let mockTabsByWorktree: Record<string, { id: string }[]> = {}
 let mockAgentStatusByPaneKey: Record<string, { worktreeId?: string }> = {}
+let mockRetainedAgentsByPaneKey: Record<string, unknown> = {}
 let mockActiveTabId: string | null = null
 let mockActiveTabType: string = 'editor'
 const mockSetActiveTab = vi.fn((tabId: string) => {
@@ -74,6 +80,7 @@ function buildMockStoreState(): Record<string, unknown> {
     acknowledgeAgents: vi.fn(),
     agentSendPopoverTargetMode: null,
     agentStatusByPaneKey: mockAgentStatusByPaneKey,
+    retainedAgentsByPaneKey: mockRetainedAgentsByPaneKey,
     agentStatusEpoch: 0,
     activeTabId: mockActiveTabId,
     activeTabType: mockActiveTabType,
@@ -104,6 +111,10 @@ const staleAgentRowMocks = vi.hoisted(() => ({
   dismissStaleAgentRowByKey: vi.fn()
 }))
 
+const sleepingLaunchMocks = vi.hoisted(() => ({
+  launchSleepingAgentSession: vi.fn()
+}))
+
 vi.mock('@/store', () => ({
   useAppStore: Object.assign(
     (selector: (state: unknown) => unknown) => selector(buildMockStoreState()),
@@ -128,6 +139,10 @@ vi.mock('../terminal/background-terminal-worktree-mount', () => ({
 
 vi.mock('../terminal-pane/stale-agent-row', () => ({
   dismissStaleAgentRowByKey: staleAgentRowMocks.dismissStaleAgentRowByKey
+}))
+
+vi.mock('@/lib/sleeping-agent-session-launch', () => ({
+  launchSleepingAgentSession: sleepingLaunchMocks.launchSleepingAgentSession
 }))
 
 vi.mock('./useWorktreeAgentRows', () => ({
@@ -165,9 +180,122 @@ describe('WorktreeCardAgents activation', () => {
     mockAgentActivityDisplayMode = undefined
     mockTabsByWorktree = {}
     mockAgentStatusByPaneKey = {}
+    mockRetainedAgentsByPaneKey = {}
     mockActiveTabId = null
     mockActiveTabType = 'editor'
     capturedRowActivations = []
+  })
+
+  it('resumes a retained completed row when its original tab has been removed', async () => {
+    mockAgentActivityDisplayMode = 'full'
+    const tabId = 'retained-tab'
+    const paneKey = makePaneKey(tabId, LEAF_A)
+    const providerSession = { key: 'session_id' as const, id: 'codex-session-1' }
+    mockAgents = [
+      mockAgent({
+        paneKey,
+        tabId,
+        agentType: 'codex',
+        prompt: 'Resume retained Codex session',
+        worktreeId: 'wt-1',
+        rowSource: 'retained',
+        providerSession
+      })
+    ]
+    mockRetainedAgentsByPaneKey = {
+      [paneKey]: {
+        entry: {
+          paneKey,
+          prompt: 'Resume retained Codex session',
+          state: 'done',
+          updatedAt: 3000,
+          stateStartedAt: 1000,
+          stateHistory: [],
+          worktreeId: 'wt-1',
+          providerSession,
+          lastAssistantMessage: 'done'
+        },
+        worktreeId: 'wt-1',
+        tab: { id: tabId, worktreeId: 'wt-1' },
+        agentType: 'codex',
+        startedAt: 1000
+      }
+    }
+    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
+
+    renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
+    expect(capturedRowActivations).toHaveLength(1)
+    capturedRowActivations[0].onActivate(tabId, paneKey)
+
+    expect(activationMocks.activateAndRevealWorktree).toHaveBeenCalledWith('wt-1')
+    expect(sleepingLaunchMocks.launchSleepingAgentSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paneKey,
+        tabId,
+        worktreeId: 'wt-1',
+        agent: 'codex',
+        providerSession,
+        prompt: 'Resume retained Codex session',
+        state: 'done',
+        lastAssistantMessage: 'done'
+      })
+    )
+    expect(activationMocks.activateTabAndFocusPane).not.toHaveBeenCalled()
+    expect(staleAgentRowMocks.dismissStaleAgentRowByKey).not.toHaveBeenCalled()
+  })
+
+  it('focuses the original tab for a retained row when it still exists', async () => {
+    mockAgentActivityDisplayMode = 'full'
+    const tabId = 'retained-live-tab'
+    const paneKey = makePaneKey(tabId, LEAF_A)
+    const providerSession = { key: 'session_id' as const, id: 'codex-session-2' }
+    mockAgents = [
+      mockAgent({
+        paneKey,
+        tabId,
+        agentType: 'codex',
+        prompt: 'Open retained live tab',
+        worktreeId: 'wt-1',
+        rowSource: 'retained',
+        providerSession
+      })
+    ]
+    mockTabsByWorktree = { 'wt-1': [{ id: tabId }] }
+    mockRetainedAgentsByPaneKey = {
+      [paneKey]: {
+        entry: {
+          paneKey,
+          prompt: 'Open retained live tab',
+          state: 'done',
+          updatedAt: 3000,
+          stateStartedAt: 1000,
+          stateHistory: [],
+          worktreeId: 'wt-1',
+          providerSession
+        },
+        worktreeId: 'wt-1',
+        tab: { id: tabId, worktreeId: 'wt-1' },
+        agentType: 'codex',
+        startedAt: 1000
+      }
+    }
+    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
+
+    renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
+    expect(capturedRowActivations).toHaveLength(1)
+    capturedRowActivations[0].onActivate(tabId, paneKey)
+
+    expect(backgroundMountMocks.requestBackgroundTerminalWorktreeMount).toHaveBeenCalledWith({
+      worktreeId: 'wt-1',
+      tabIds: [tabId]
+    })
+    expect(activationMocks.activateAndRevealWorktree).toHaveBeenCalledWith('wt-1')
+    expect(activationMocks.activateTabAndFocusPane).toHaveBeenCalledWith(tabId, LEAF_A, {
+      ackPaneKeyOnSuccess: paneKey,
+      flashFocusedPane: true,
+      scrollToBottomIfOutputSinceLastView: true
+    })
+    expect(sleepingLaunchMocks.launchSleepingAgentSession).not.toHaveBeenCalled()
   })
 
   it('requests a background mount when an automation worker row has not hydrated its tab', async () => {
