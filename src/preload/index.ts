@@ -102,6 +102,11 @@ import type {
   DfHisEnvironmentInstallResult
 } from '../shared/dfhis-environment-types'
 import type {
+  OrcaReleasePublisherPublishArgs,
+  OrcaReleasePublisherPublishResult,
+  OrcaReleasePublisherStatus
+} from '../shared/orca-release-publisher-types'
+import type {
   RuntimeBrowserDriverState,
   RuntimeMobileSessionTabMove,
   RuntimeStatus,
@@ -2283,7 +2288,13 @@ const api = {
       ipcRenderer.invoke('dfhisEnvironment:getConfig'),
     check: (): Promise<DfHisEnvironmentCheckResult> => ipcRenderer.invoke('dfhisEnvironment:check'),
     install: (config?: DfHisEnvironmentConfigInput): Promise<DfHisEnvironmentInstallResult> =>
-      ipcRenderer.invoke('dfhisEnvironment:install', config)
+      ipcRenderer.invoke('dfhisEnvironment:install', config),
+    releaseStatus: (repoRoot?: string): Promise<OrcaReleasePublisherStatus> =>
+      ipcRenderer.invoke('dfhisEnvironment:releaseStatus', repoRoot),
+    publishRelease: (
+      args: OrcaReleasePublisherPublishArgs
+    ): Promise<OrcaReleasePublisherPublishResult> =>
+      ipcRenderer.invoke('dfhisEnvironment:publishRelease', args)
   },
 
   pet: {
