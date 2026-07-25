@@ -198,6 +198,39 @@ export async function submitPromptToAgentPty(args: {
   })
 }
 
+export async function submitPromptToAgentPtyWhenReady(args: {
+  tabId: string
+  ptyId: string
+  content: string
+  agent: TuiAgent
+  timeoutMs?: number
+}): Promise<boolean> {
+  const { tabId, ptyId, content, agent, timeoutMs } = args
+  const agentConfig = TUI_AGENT_CONFIG[agent]
+  const settings = getSettingsForAgentTabRuntimeOwner(tabId)
+  const budget = timeoutMs ?? READINESS_TIMEOUT_MS
+  const readySignal = agentConfig.draftPasteReadySignal ?? 'render-quiet-after-bracketed-paste'
+  const ready = await waitForAgentDraftInputReady(ptyId, budget, readySignal, settings)
+  if (!ready) {
+    const fallbackReady = await waitForExpectedAgentOnPty(
+      ptyId,
+      agentConfig.expectedProcess,
+      1000,
+      settings
+    )
+    if (!fallbackReady) {
+      return false
+    }
+  }
+
+  return await sendBracketedPasteToAgent({
+    settings,
+    ptyId,
+    content,
+    submit: true
+  })
+}
+
 export async function sendBracketedPasteToRunningAgent(args: {
   ptyId: string
   content: string

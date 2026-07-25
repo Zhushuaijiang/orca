@@ -3,7 +3,7 @@
  * completion bookkeeping, and focus restoration. */
 import { useEffect } from 'react'
 import { launchAgentBackgroundSession } from '@/lib/launch-agent-background-session'
-import { submitPromptToAgentPty } from '@/lib/agent-paste-draft'
+import { submitPromptToAgentPtyWhenReady } from '@/lib/agent-paste-draft'
 import { findReusableAutomationSession } from '@/lib/automation-session-reuse'
 import { observeExistingAutomationSession } from '@/lib/automation-session-observer'
 import { launchWorktreeBackgroundTerminals } from '@/lib/launch-worktree-background-terminals'
@@ -413,10 +413,11 @@ export function useAutomationDispatchEvents(): void {
               if (releaseTab) {
                 releaseReuseDispatchTab = releaseTab
                 try {
-                  const submitted = await submitPromptToAgentPty({
+                  const submitted = await submitPromptToAgentPtyWhenReady({
                     tabId: reusableSession.tabId,
                     ptyId: reusableSession.ptyId,
-                    content: automation.prompt
+                    content: automation.prompt,
+                    agent: automation.agentId
                   })
                   if (!submitted) {
                     cleanupRunObservers()

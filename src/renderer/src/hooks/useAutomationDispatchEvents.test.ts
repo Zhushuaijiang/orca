@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockLaunchAgentBackgroundSession = vi.fn()
 const mockLaunchWorktreeBackgroundTerminals = vi.fn()
-const mockSubmitPromptToAgentTab = vi.fn()
+const mockSubmitPromptToAgentPtyWhenReady = vi.fn()
 const mockFindReusableAutomationSession = vi.fn()
 const mockObserveExistingAutomationSession = vi.fn()
 const mockCreateWorktree = vi.fn()
@@ -103,7 +103,7 @@ vi.mock('@/lib/launch-worktree-background-terminals', () => ({
 }))
 
 vi.mock('@/lib/agent-paste-draft', () => ({
-  submitPromptToAgentTab: mockSubmitPromptToAgentTab
+  submitPromptToAgentPtyWhenReady: mockSubmitPromptToAgentPtyWhenReady
 }))
 
 vi.mock('@/lib/automation-session-reuse', () => ({
@@ -151,6 +151,7 @@ describe('useAutomationDispatchEvents setup launch', () => {
     state.allWorktrees.mockReturnValue([])
     mockCreateWorktree.mockResolvedValue({ worktree: createdWorktree, setup: setupLaunch })
     mockLaunchWorktreeBackgroundTerminals.mockResolvedValue(undefined)
+    mockSubmitPromptToAgentPtyWhenReady.mockResolvedValue(true)
     mockLaunchAgentBackgroundSession.mockResolvedValue({
       tabId: 'agent-tab',
       paneKey: 'agent-tab:7c6fb4e5-3bf1-4ff4-8259-03f7ae81c40d',
@@ -517,5 +518,31 @@ describe('useAutomationDispatchEvents setup launch', () => {
 
     expect(mockReleaseTerminalOwnership).toHaveBeenCalledOnce()
     expect(mockFinalizeTerminalOwnership).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a fresh agent when a reusable session is no longer ready', async () => {
+    const reusableSession = {
+      tabId: 'stale-agent-tab',
+      paneKey: 'stale-agent-tab:7c6fb4e5-3bf1-4ff4-8259-03f7ae81c40d',
+      ptyId: 'stale-agent-pty'
+    }
+    mockFindReusableAutomationSession.mockReturnValue(reusableSession)
+    mockSubmitPromptToAgentPtyWhenReady.mockResolvedValue(false)
+
+    await registerAndDispatch(makeAutomation({ reuseSession: true }))
+
+    expect(mockSubmitPromptToAgentPtyWhenReady).toHaveBeenCalledWith({
+      tabId: reusableSession.tabId,
+      ptyId: reusableSession.ptyId,
+      content: 'run this',
+      agent: 'claude'
+    })
+    expect(mockObserveExistingAutomationSession).not.toHaveBeenCalled()
+    expect(mockLaunchAgentBackgroundSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        worktreeId: 'wt-created',
+        prompt: 'run this'
+      })
+    )
   })
 })

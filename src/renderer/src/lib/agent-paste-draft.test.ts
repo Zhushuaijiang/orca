@@ -10,7 +10,8 @@ import {
   pasteDraftWhenAgentReady,
   sendAgentDraftPasteContent,
   sendBracketedPasteToRunningAgent,
-  submitPromptToAgentPty
+  submitPromptToAgentPty,
+  submitPromptToAgentPtyWhenReady
 } from './agent-paste-draft'
 
 const testState = vi.hoisted(() => ({
@@ -356,6 +357,52 @@ describe('pasteDraftWhenAgentReady', () => {
     await vi.advanceTimersByTimeAsync(1)
     await expect(promise).resolves.toBe(true)
     expect(testState.sendRuntimePtyInputVerified).toHaveBeenNthCalledWith(2, {}, 'pty-1', '\r')
+  })
+
+  it('submits to a reusable native-prefill agent PTY after readiness', async () => {
+    const promise = submitPromptToAgentPtyWhenReady({
+      tabId: 'tab-1',
+      ptyId: 'pty-1',
+      content: ISSUE_URL,
+      agent: 'claude'
+    })
+    await flushMicrotasks()
+
+    testState.ptyObserver?.(DECSET_BRACKETED_PASTE)
+    await vi.advanceTimersByTimeAsync(1500)
+    await flushMicrotasks()
+
+    expect(testState.sendRuntimePtyInputVerified).toHaveBeenCalledWith(
+      {},
+      'pty-1',
+      PASTED_ISSUE_URL
+    )
+    await vi.advanceTimersByTimeAsync(50)
+
+    await expect(promise).resolves.toBe(true)
+    expect(testState.sendRuntimePtyInputVerified).toHaveBeenNthCalledWith(2, {}, 'pty-1', '\r')
+  })
+
+  it('does not submit to a reusable PTY that has fallen back to shell', async () => {
+    testState.inspectRuntimeTerminalProcess.mockResolvedValue({
+      foregroundProcess: 'zsh',
+      hasChildProcesses: false
+    })
+    const promise = submitPromptToAgentPtyWhenReady({
+      tabId: 'tab-1',
+      ptyId: 'pty-1',
+      content: ISSUE_URL,
+      agent: 'codex',
+      timeoutMs: 1
+    })
+    await flushMicrotasks()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await flushMicrotasks(5)
+    await vi.advanceTimersByTimeAsync(1000)
+
+    await expect(promise).resolves.toBe(false)
+    expect(testState.sendRuntimePtyInputVerified).not.toHaveBeenCalled()
   })
 
   it('does not submit when the verified paste write fails', async () => {

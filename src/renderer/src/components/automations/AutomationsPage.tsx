@@ -1967,6 +1967,7 @@ export default function AutomationsPage(): React.JSX.Element {
 
   const openAutomationRunPage = (run: AutomationRun): void => {
     setSelectedAutomationRunPageId(run.id)
+    openRunWorkspace(run)
   }
 
   const requestExternalAction = (
