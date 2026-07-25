@@ -1,62 +1,87 @@
 #!/usr/bin/env node
-import { chmod, mkdir, writeFile } from 'node:fs/promises'
+import { cp, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { platform } from 'node:os'
 import path from 'node:path'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
+import { spawnSync } from 'node:child_process'
 
+const require = createRequire(import.meta.url)
 const repoRoot = path.resolve(import.meta.dirname, '..', '..')
 const appPath = path.join(repoRoot, 'dist', 'tools', 'Orca Release Publisher.app')
 const contentsPath = path.join(appPath, 'Contents')
 const macosPath = path.join(contentsPath, 'MacOS')
-const launcherPath = path.join(macosPath, 'Orca Release Publisher')
-const electronBinary = path.join(repoRoot, 'node_modules', '.bin', 'electron')
+const resourcesPath = path.join(contentsPath, 'Resources')
+const bundledAppPath = path.join(resourcesPath, 'app')
+const electronPackageRoot = path.dirname(require.resolve('electron/package.json'))
+const electronAppPath = path.join(electronPackageRoot, 'dist', 'Electron.app')
+const publisherScriptPath = path.join(repoRoot, 'config', 'scripts', 'orca-release-publisher.mjs')
 
 if (platform() !== 'darwin') {
   throw new Error('The double-clickable .app launcher can only be created on macOS.')
 }
 
-if (!existsSync(electronBinary)) {
-  throw new Error('Electron binary not found. Run pnpm install before creating the app launcher.')
+if (!existsSync(electronAppPath)) {
+  throw new Error('Electron.app not found. Run pnpm install before creating the app launcher.')
 }
 
-const plist = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleExecutable</key>
-  <string>Orca Release Publisher</string>
-  <key>CFBundleIdentifier</key>
-  <string>com.stablyai.orca.release-publisher</string>
-  <key>CFBundleName</key>
-  <string>Orca Release Publisher</string>
-  <key>CFBundleDisplayName</key>
-  <string>Orca Release Publisher</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleShortVersionString</key>
-  <string>1.0.0</string>
-  <key>CFBundleVersion</key>
-  <string>1</string>
-  <key>LSMinimumSystemVersion</key>
-  <string>12.0</string>
-  <key>NSHighResolutionCapable</key>
-  <true/>
-</dict>
-</plist>
+function setPlistValue(key, type, value) {
+  const result = spawnSync(
+    '/usr/libexec/PlistBuddy',
+    ['-c', `Set :${key} ${value}`, path.join(contentsPath, 'Info.plist')],
+    { encoding: 'utf8' }
+  )
+  if (result.status === 0) {
+    return
+  }
+  const addResult = spawnSync(
+    '/usr/libexec/PlistBuddy',
+    ['-c', `Add :${key} ${type} ${value}`, path.join(contentsPath, 'Info.plist')],
+    { encoding: 'utf8' }
+  )
+  if (addResult.status !== 0) {
+    throw new Error(addResult.stderr || addResult.stdout || `Failed to write Info.plist key ${key}`)
+  }
+}
+
+const launcherPackage = {
+  name: 'orca-release-publisher',
+  productName: 'Orca Release Publisher',
+  version: '1.0.0',
+  type: 'module',
+  main: 'main.mjs'
+}
+
+const launcherMain = `import process from 'node:process'
+
+process.env.ORCA_RELEASE_PUBLISHER_ELECTRON = '1'
+process.env.ORCA_RELEASE_REPO_ROOT = ${JSON.stringify(repoRoot)}
+process.chdir(${JSON.stringify(repoRoot)})
+
+await import(${JSON.stringify(pathToFileURL(publisherScriptPath).href)})
 `
 
-const launcher = `#!/bin/sh
-export ORCA_RELEASE_PUBLISHER_ELECTRON=1
-export ORCA_RELEASE_REPO_ROOT=${JSON.stringify(repoRoot)}
-cd ${JSON.stringify(repoRoot)} || exit 1
-exec ${JSON.stringify(electronBinary)} ${JSON.stringify(
-  path.join(repoRoot, 'config', 'scripts', 'orca-release-publisher.mjs')
-)}
-`
+await rm(appPath, { force: true, recursive: true })
+await mkdir(path.dirname(appPath), { recursive: true })
+await cp(electronAppPath, appPath, {
+  preserveTimestamps: true,
+  recursive: true,
+  verbatimSymlinks: true
+})
+await rename(path.join(macosPath, 'Electron'), path.join(macosPath, 'Orca Release Publisher'))
+await mkdir(bundledAppPath, { recursive: true })
+await writeFile(
+  path.join(bundledAppPath, 'package.json'),
+  `${JSON.stringify(launcherPackage, null, 2)}\n`
+)
+await writeFile(path.join(bundledAppPath, 'main.mjs'), launcherMain)
 
-await mkdir(macosPath, { recursive: true })
-await writeFile(path.join(contentsPath, 'Info.plist'), plist)
-await writeFile(launcherPath, launcher)
-await chmod(launcherPath, 0o755)
+setPlistValue('CFBundleIdentifier', 'string', 'com.stablyai.orca.release-publisher')
+setPlistValue('CFBundleExecutable', 'string', '"Orca Release Publisher"')
+setPlistValue('CFBundleName', 'string', '"Orca Release Publisher"')
+setPlistValue('CFBundleDisplayName', 'string', '"Orca Release Publisher"')
+setPlistValue('CFBundleShortVersionString', 'string', '1.0.0')
+setPlistValue('CFBundleVersion', 'string', '1')
 
 console.log(appPath)
