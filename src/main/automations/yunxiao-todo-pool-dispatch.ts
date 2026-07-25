@@ -91,7 +91,8 @@ ${targets}
 
 Required workflow:
 - Use the yunxiao-requirement-archiver skill for every claimed work item.
-- Archive the requirement through HIS MCP, download the complete archive locally, and create or update PRD_AND_CODE_ANALYSIS.md in the requirement directory.
+- Archive the requirement with the skill's direct Yunxiao MCP workflow first. Use HIS MCP only as a legacy fallback when direct Yunxiao archive is unavailable and HIS MCP credentials are configured.
+- Create or update PRD_AND_CODE_ANALYSIS.md in the requirement directory from the local archive evidence before code changes.
 - Resolve the code root from YUNXIAO_CODE_WORKSPACE_ROOT first. If it is absent, use YUNXIAO_DEFAULT_CODE_ROOT, then ORCA_USER_DATA_PATH/dfhis-environment.json field hisCodeRoot.
 - Do not edit the selected/default code root directly. Create or reuse the requirement worktree under {requirement_dir}/code/<repo> before code changes, and run the skill guard before every edit.
 - If the requirement cannot be archived, analyzed, or prepared for implementation, stop and report the blocker clearly.`

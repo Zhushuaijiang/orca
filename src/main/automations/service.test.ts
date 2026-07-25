@@ -178,6 +178,8 @@ describe('AutomationService', () => {
     })
     const [, payload] = send.mock.calls[0]
     expect(payload.automation.prompt).toContain('DFHIS-31704')
+    expect(payload.automation.prompt).toContain('direct Yunxiao MCP workflow first')
+    expect(payload.automation.prompt).not.toContain('Archive the requirement through HIS MCP')
     expect(payload.automation.prompt).toContain('dfhis-environment.json')
 
     await service.markDispatchResult({
