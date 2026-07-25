@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs'
 import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 
 const DEFAULT_REMOTE = 'root@192.168.1.10'
 const DEFAULT_REMOTE_DIR =
@@ -128,7 +129,9 @@ function verifyMacAppVersion(macApp, version) {
   ])
   const bundleVersion = runText('/usr/libexec/PlistBuddy', ['-c', 'Print :CFBundleVersion', plist])
   if (shortVersion !== version || bundleVersion !== version) {
-    throw new Error(`macOS app version mismatch: ${shortVersion}/${bundleVersion}, expected ${version}`)
+    throw new Error(
+      `macOS app version mismatch: ${shortVersion}/${bundleVersion}, expected ${version}`
+    )
   }
 }
 
@@ -137,7 +140,12 @@ function verifyMacEntitlements(macApp) {
     return
   }
   run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', macApp])
-  const entitlements = runText('codesign', ['-d', '--entitlements', '-', path.join(macApp, 'Contents/MacOS/Orca')])
+  const entitlements = runText('codesign', [
+    '-d',
+    '--entitlements',
+    '-',
+    path.join(macApp, 'Contents/MacOS/Orca')
+  ])
   for (const key of [
     'com.apple.security.cs.allow-jit',
     'com.apple.security.cs.allow-unsigned-executable-memory',
@@ -186,13 +194,28 @@ async function main() {
   verifyMacEntitlements(macApp)
 
   const stageDir = path.join('dist', 'orca-desktop-release', version)
+  let windowsSource = windowsExe
+  let temporaryWindowsSource = null
+  const resolvedStageDir = path.resolve(stageDir)
+  const resolvedWindowsExe = path.resolve(windowsExe)
+  if (resolvedWindowsExe.startsWith(`${resolvedStageDir}${path.sep}`)) {
+    temporaryWindowsSource = path.join(
+      tmpdir(),
+      `orca-windows-setup-source-${version}-${process.pid}-${Date.now()}.exe`
+    )
+    await copyFile(windowsExe, temporaryWindowsSource)
+    windowsSource = temporaryWindowsSource
+  }
   await rm(stageDir, { recursive: true, force: true })
   await mkdir(stageDir, { recursive: true })
 
   const macZip = path.join(stageDir, 'orca-macos-arm64.zip')
   const windowsOut = path.join(stageDir, 'orca-windows-setup.exe')
   run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', macApp, macZip])
-  await copyFile(windowsExe, windowsOut)
+  await copyFile(windowsSource, windowsOut)
+  if (temporaryWindowsSource) {
+    await rm(temporaryWindowsSource, { force: true })
+  }
 
   const publishedAt = new Date().toISOString()
   const release = {
