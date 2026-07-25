@@ -22,7 +22,6 @@ import {
   DfHisEnvironmentConfigForm,
   type DfHisEnvironmentConfigFormState
 } from './DfHisEnvironmentConfigForm'
-import { OrcaReleasePublisherPanel } from './OrcaReleasePublisherPanel'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 
@@ -284,8 +283,6 @@ export function DfHisEnvironmentPane(): JSX.Element {
         disabled={isBusy}
         onChange={updateConfigField}
       />
-
-      <OrcaReleasePublisherPanel />
 
       <div
         className={cn(

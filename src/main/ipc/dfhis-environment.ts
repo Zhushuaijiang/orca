@@ -5,11 +5,6 @@ import type {
   DfHisEnvironmentInstallResult,
   DfHisEnvironmentPrerequisiteResult
 } from '../../shared/dfhis-environment-types'
-import type {
-  OrcaReleasePublisherPublishArgs,
-  OrcaReleasePublisherPublishResult,
-  OrcaReleasePublisherStatus
-} from '../../shared/orca-release-publisher-types'
 import { getHisMcpConnection, getOfficialYunxiaoConnection } from '../yunxiao/mcp-connections'
 import {
   readDfHisEnvironmentConfigSync,
@@ -38,7 +33,6 @@ import {
   checkHisMcpToolsPrerequisite,
   checkYunxiaoMcpToolsPrerequisite
 } from '../dfhis-environment/mcp-tool-prerequisites'
-import { getOrcaReleasePublisherStatus, publishOrcaDesktopRelease } from '../orca-release-publisher'
 
 export {
   checkArchiveWorkspacePrerequisite,
@@ -236,19 +230,5 @@ export function registerDfHisEnvironmentHandlers(): void {
     ): Promise<DfHisEnvironmentInstallResult> => {
       return installDfHisEnvironment(configInput)
     }
-  )
-
-  ipcMain.handle(
-    'dfhisEnvironment:releaseStatus',
-    async (_event, repoRoot?: string): Promise<OrcaReleasePublisherStatus> =>
-      getOrcaReleasePublisherStatus(repoRoot)
-  )
-
-  ipcMain.handle(
-    'dfhisEnvironment:publishRelease',
-    async (
-      _event,
-      args: OrcaReleasePublisherPublishArgs
-    ): Promise<OrcaReleasePublisherPublishResult> => publishOrcaDesktopRelease(args)
   )
 }

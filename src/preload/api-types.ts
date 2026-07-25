@@ -360,11 +360,6 @@ import type {
   DfHisEnvironmentInstallResult
 } from '../shared/dfhis-environment-types'
 import type {
-  OrcaReleasePublisherPublishArgs,
-  OrcaReleasePublisherPublishResult,
-  OrcaReleasePublisherStatus
-} from '../shared/orca-release-publisher-types'
-import type {
   CrashReportBreadcrumbData,
   CrashReportCopyDiagnosticsArgs,
   CrashReportRecord,
@@ -2347,10 +2342,6 @@ export type PreloadApi = {
     getConfig: () => Promise<DfHisEnvironmentConfigSnapshot>
     check: () => Promise<DfHisEnvironmentCheckResult>
     install: (config?: DfHisEnvironmentConfigInput) => Promise<DfHisEnvironmentInstallResult>
-    releaseStatus: (repoRoot?: string) => Promise<OrcaReleasePublisherStatus>
-    publishRelease: (
-      args: OrcaReleasePublisherPublishArgs
-    ) => Promise<OrcaReleasePublisherPublishResult>
   }
   pet: {
     import: () => Promise<CustomPet | null>
