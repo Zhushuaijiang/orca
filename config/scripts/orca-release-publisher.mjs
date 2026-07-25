@@ -284,7 +284,11 @@ async function getStatus(repoRootInput, options = {}) {
   }
   const latest = await remoteLatest({ ...options, repoRoot })
   if (latest?.version && !versionGreaterThan(version, latest.version)) {
-    warnings.push(`当前版本 ${version} 不高于服务器 latest ${latest.version}，发布前应先自动升版。`)
+    warnings.push(
+      version === latest.version
+        ? `当前版本 ${version} 已经是服务器 latest；再次发布前应先准备下一版。`
+        : `当前版本 ${version} 低于服务器 latest ${latest.version}，发布前应先自动升版。`
+    )
   }
   return {
     repoRoot,
