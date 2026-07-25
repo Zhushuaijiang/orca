@@ -163,25 +163,73 @@ function windowsCandidates(repoRoot, version) {
   return candidates.map(windowsArtifact)
 }
 
-async function remoteLatest() {
+function parseRemoteLatestJson(json) {
+  return {
+    version: json.version,
+    publishedAt: json.published_at,
+    macSha256: json.downloads?.macos?.sha256,
+    windowsSha256: json.downloads?.windows?.sha256
+  }
+}
+
+function remoteLatestViaSsh({
+  repoRoot,
+  remote = DEFAULT_REMOTE,
+  remoteDir = DEFAULT_REMOTE_DIR,
+  sshPassword
+}) {
+  if (!sshPassword && !process.env.ORCA_RELEASE_SSH_PASSWORD) {
+    return undefined
+  }
+  const password = sshPassword || process.env.ORCA_RELEASE_SSH_PASSWORD
+  const commandArgs = [
+    '-p',
+    password,
+    'ssh',
+    '-o',
+    'StrictHostKeyChecking=no',
+    '-o',
+    'UserKnownHostsFile=/dev/null',
+    '-o',
+    'PreferredAuthentications=password',
+    '-o',
+    'PubkeyAuthentication=no',
+    remote,
+    `cat ${JSON.stringify(`${remoteDir}/latest.json`)}`
+  ]
   try {
-    const response = await fetch(`${DOWNLOAD_BASE_URL}/latest.json`, { cache: 'no-store' })
-    if (!response.ok) {
+    const result = spawnSync('sshpass', commandArgs, {
+      cwd: repoRoot,
+      env: process.env,
+      encoding: 'utf8',
+      maxBuffer: 8 * 1024 * 1024
+    })
+    if (result.status !== 0) {
       return undefined
     }
-    const json = await response.json()
-    return {
-      version: json.version,
-      publishedAt: json.published_at,
-      macSha256: json.downloads?.macos?.sha256,
-      windowsSha256: json.downloads?.windows?.sha256
-    }
+    return parseRemoteLatestJson(JSON.parse(result.stdout))
   } catch {
     return undefined
   }
 }
 
-async function getStatus(repoRootInput) {
+async function remoteLatest(options) {
+  const sshLatest = remoteLatestViaSsh(options)
+  if (sshLatest) {
+    return sshLatest
+  }
+  try {
+    const response = await fetch(`${DOWNLOAD_BASE_URL}/latest.json`, { cache: 'no-store' })
+    if (!response.ok) {
+      return undefined
+    }
+    return parseRemoteLatestJson(await response.json())
+  } catch {
+    return undefined
+  }
+}
+
+async function getStatus(repoRootInput, options = {}) {
   const repoRoot = resolveRepoRoot(repoRootInput)
   const version = readPackageJson(repoRoot).version ?? ''
   const branch = runText('git', ['branch', '--show-current'], repoRoot)
@@ -213,7 +261,7 @@ async function getStatus(repoRootInput) {
     windowsCandidates: windows,
     selectedMacAppPath: newestReady(macCandidates)?.path,
     selectedWindowsExePath: newestReady(windows)?.path,
-    remoteLatest: await remoteLatest(),
+    remoteLatest: await remoteLatest({ ...options, repoRoot }),
     warnings
   }
 }
@@ -371,7 +419,13 @@ async function handleApi(req, res, pathname) {
   try {
     if (req.method === 'GET' && pathname === '/api/status') {
       const url = new URL(req.url ?? '/', `http://${HOST}:${PORT}`)
-      jsonResponse(res, 200, await getStatus(url.searchParams.get('repoRoot') || undefined))
+      jsonResponse(
+        res,
+        200,
+        await getStatus(url.searchParams.get('repoRoot') || undefined, {
+          sshPassword: url.searchParams.get('sshPassword') || undefined
+        })
+      )
       return
     }
     if (req.method === 'POST' && pathname === '/api/build-macos') {
@@ -487,7 +541,8 @@ async function refresh() {
   setBusy('刷新中...')
   try {
     const repo = encodeURIComponent(el('repoRoot').value)
-    status = await (await fetch('/api/status?repoRoot=' + repo)).json()
+    const password = encodeURIComponent(el('sshPassword').value)
+    status = await (await fetch('/api/status?repoRoot=' + repo + '&sshPassword=' + password)).json()
     if (status.error) throw new Error(status.error)
     el('repoRoot').value = status.repoRoot
     el('summary').innerHTML =
