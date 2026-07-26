@@ -78,6 +78,7 @@ import {
   AGENT_PROMPT_SUBMIT_DELAY_MS,
   buildAgentPromptPasteBytes
 } from '../../shared/agent-prompt-injection'
+import { applyYunxiaoRequirementPromptGate } from '../../shared/yunxiao-requirement-prompt-gate'
 import { gitExecFileAsync, gitSpawn, nonInteractiveGitEnv } from '../git/runner'
 import { runWithGitReadCacheInvalidation } from '../git/status'
 import {
@@ -13684,7 +13685,8 @@ export class OrcaRuntimeService {
       suffixFailureError?: string
     } = {}
   ): Promise<RuntimeTerminalSend> {
-    const payload = buildAgentPromptPasteBytes(prompt)
+    const gatedPrompt = applyYunxiaoRequirementPromptGate(prompt)
+    const payload = buildAgentPromptPasteBytes(gatedPrompt)
     const bytesWritten = Buffer.byteLength(`${payload}${AGENT_PROMPT_SUBMIT}`, 'utf8')
     const pty = this.getLivePtyForHandle(handle)
     if (pty) {
@@ -17752,7 +17754,7 @@ export class OrcaRuntimeService {
     if (!this.store) {
       return null
     }
-    const content = draft.trim()
+    const content = applyYunxiaoRequirementPromptGate(draft.trim())
     if (!content) {
       return null
     }
@@ -17868,7 +17870,7 @@ export class OrcaRuntimeService {
     })
     const startupPlan = buildAgentStartupPlan({
       agent,
-      prompt: prompt ?? '',
+      prompt: applyYunxiaoRequirementPromptGate(prompt ?? ''),
       cmdOverrides: settings.agentCmdOverrides ?? {},
       agentArgs: resolveTuiAgentLaunchArgs(agent, settings.agentDefaultArgs),
       agentEnv: resolveTuiAgentLaunchEnv(agent, settings.agentDefaultEnv),
@@ -21546,10 +21548,13 @@ export class OrcaRuntimeService {
       }
       const startup =
         request.promptDelivery === 'draft'
-          ? buildAgentDraftLaunchPlan({ ...startupArgs, draft: request.prompt ?? '' })
+          ? buildAgentDraftLaunchPlan({
+              ...startupArgs,
+              draft: applyYunxiaoRequirementPromptGate(request.prompt ?? '')
+            })
           : buildAgentStartupPlan({
               ...startupArgs,
-              prompt: request.prompt ?? '',
+              prompt: applyYunxiaoRequirementPromptGate(request.prompt ?? ''),
               allowEmptyPromptLaunch: true
             })
       if (!startup) {
@@ -22481,7 +22486,7 @@ export class OrcaRuntimeService {
     })
     const startupPlan = buildAgentStartupPlan({
       agent: opts.agent,
-      prompt: opts.agentPrompt ?? '',
+      prompt: applyYunxiaoRequirementPromptGate(opts.agentPrompt ?? ''),
       cmdOverrides: settings.agentCmdOverrides ?? {},
       agentArgs: resolveTuiAgentLaunchArgs(opts.agent, settings.agentDefaultArgs),
       agentEnv: resolveTuiAgentLaunchEnv(opts.agent, settings.agentDefaultEnv),

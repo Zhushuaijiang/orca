@@ -173,6 +173,26 @@ describe('agent-session create operation ledger', () => {
     expect(createTerminal).toHaveBeenCalledOnce()
   })
 
+  it('gates manually pasted Yunxiao requirement prompts before agent launch', async () => {
+    const runtime = createRuntime()
+    const createTerminal = vi.spyOn(runtime, 'createTerminal').mockResolvedValue(terminal())
+    const id = operationId()
+
+    await expect(
+      runtime.createAgentSession(
+        request(id, {
+          prompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下'
+        }),
+        { clientId: 'device-a' }
+      )
+    ).resolves.toMatchObject({ disposition: 'created' })
+
+    const command = createTerminal.mock.calls[0]?.[1]?.command ?? ''
+    expect(command).toContain('Orca Yunxiao requirement workflow gate')
+    expect(command).toContain('Original user request:')
+    expect(command).toContain('DFHIS-31732')
+  })
+
   it('joins concurrent retries and conflicts on a changed fingerprint', async () => {
     const runtime = createRuntime()
     let finish!: (result: ReturnType<typeof terminal>) => void
