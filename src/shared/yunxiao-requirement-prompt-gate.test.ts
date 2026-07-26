@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyYunxiaoRequirementPromptGate,
+  applyYunxiaoRequirementPromptGateToTerminalInput,
   containsYunxiaoRequirementReference,
   shouldApplyYunxiaoRequirementPromptGate
 } from './yunxiao-requirement-prompt-gate'
@@ -40,5 +41,28 @@ describe('Yunxiao requirement prompt gate', () => {
       'You are working inside Orca, a multi-agent IDE. You are a dispatched worker.\nDFHIS-31732'
 
     expect(applyYunxiaoRequirementPromptGate(prompt)).toBe(prompt)
+  })
+
+  it('gates bare terminal input as bracketed paste and preserves submit', () => {
+    const gated = applyYunxiaoRequirementPromptGateToTerminalInput('DFHIS-31732\r')
+
+    expect(gated.startsWith('\u001b[200~')).toBe(true)
+    expect(gated).toContain('Orca Yunxiao requirement workflow gate')
+    expect(gated).toContain('Original user request:\rDFHIS-31732')
+    expect(gated.endsWith('\u001b[201~\r')).toBe(true)
+  })
+
+  it('gates bracketed terminal paste without leaking framing into the prompt', () => {
+    const gated = applyYunxiaoRequirementPromptGateToTerminalInput(
+      '\u001b[200~https://devops.aliyun.com/projex/req/DFHIS-31732\u001b[201~'
+    )
+
+    expect(gated.startsWith('\u001b[200~')).toBe(true)
+    expect(gated).toContain('Orca Yunxiao requirement workflow gate')
+    expect(gated).toContain(
+      'Original user request:\rhttps://devops.aliyun.com/projex/req/DFHIS-31732'
+    )
+    expect(gated.split('\u001b[200~')).toHaveLength(2)
+    expect(gated.split('\u001b[201~')).toHaveLength(2)
   })
 })

@@ -18,6 +18,7 @@ import type { GlobalSettings, TuiAgent } from '../../shared/types'
 import { toSshExecutionHostId } from '../../shared/execution-host'
 import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import {
+  applyYunxiaoRequirementPromptGateToTerminalInput,
   containsYunxiaoRequirementReference,
   createManualYunxiaoRequirementGate
 } from '../../shared/yunxiao-requirement-prompt-gate'
@@ -136,6 +137,14 @@ function getYunxiaoRequirementSpawnText(
 ): string {
   const values = env ? Object.values(env).filter(Boolean) : []
   return [command ?? '', ...values].filter(Boolean).join('\n')
+}
+
+function resolvePtyLaunchAgent(launchAgent?: TuiAgent, command?: string): TuiAgent | null {
+  if (isTuiAgent(launchAgent)) {
+    return launchAgent
+  }
+  const commandToken = getFirstCommandToken(command ?? '')
+  return isTuiAgent(commandToken) ? commandToken : null
 }
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { splitWorktreeIdForFilesystem } from '../../shared/worktree-id'
@@ -285,6 +294,7 @@ type PaneSpawnReservationResult = {
 } & Partial<PtySpawnResult>
 // Why: mobile materialization and a newly-focused pane can race to spawn the same leaf; key by paneKey so the loser adopts the winner's PTY.
 const paneSpawnReservationsByPaneKey = new Map<string, PaneSpawnReservation>()
+const ptyLaunchAgents = new Map<string, TuiAgent>()
 // Why: one main process can route the same remote provider namespace through
 // multiple SSH relays; coordinate claims above every provider boundary too.
 const agentSessionOwners = new ClaimedAgentPtyOwnerRegistry()
@@ -1317,6 +1327,7 @@ export function clearProviderPtyState(
   markClaudePtyExited(id)
   ptySizes.delete(id)
   ptyIncarnationById.delete(id)
+  ptyLaunchAgents.delete(id)
   lastInputAtByPty.delete(id)
   interactiveOutputCharsByPty.delete(id)
   const activeChanged = activeRendererPtys.delete(id)
@@ -4835,6 +4846,12 @@ export function registerPtyHandlers(
           reattach: result.isReattach ?? false
         })
         ptyOwnership.set(result.id, args.connectionId ?? null)
+        const launchAgent = resolvePtyLaunchAgent(args.launchAgent, args.command)
+        if (launchAgent) {
+          ptyLaunchAgents.set(result.id, launchAgent)
+        } else {
+          ptyLaunchAgents.delete(result.id)
+        }
         if (result.incarnationId) {
           ptyIncarnationById.set(result.id, result.incarnationId)
         }
@@ -5221,9 +5238,19 @@ export function registerPtyHandlers(
     }
   }
 
+  const applyYunxiaoRequirementGateForPtyWrite = (args: PtyWritePayload): PtyWritePayload => {
+    if (!ptyLaunchAgents.has(args.id)) {
+      return args
+    }
+    const data = applyYunxiaoRequirementPromptGateToTerminalInput(args.data)
+    return data === args.data ? args : { ...args, data }
+  }
+
   const writePtyInput = (args: PtyWritePayload): boolean | Promise<boolean> => {
     if (containsYunxiaoRequirementReference(args.data)) {
-      return withDfHisWorkflowPackRefreshForInput(args.data, () => writePtyInputAfterRefresh(args))
+      return withDfHisWorkflowPackRefreshForInput(args.data, () =>
+        writePtyInputAfterRefresh(applyYunxiaoRequirementGateForPtyWrite(args))
+      )
     }
     return writePtyInputAfterRefresh(args)
   }
@@ -5256,7 +5283,7 @@ export function registerPtyHandlers(
   const writePtyInputAccepted = (args: PtyWritePayload): boolean | Promise<boolean> => {
     if (containsYunxiaoRequirementReference(args.data)) {
       return withDfHisWorkflowPackRefreshForInput(args.data, () =>
-        writePtyInputAcceptedAfterRefresh(args)
+        writePtyInputAcceptedAfterRefresh(applyYunxiaoRequirementGateForPtyWrite(args))
       )
     }
     return writePtyInputAcceptedAfterRefresh(args)

@@ -13653,6 +13653,55 @@ describe('registerPtyHandlers', () => {
     expect(order).toEqual(['ensure-pack', 'write'])
   })
 
+  it('gates local Yunxiao pty writes for Orca-launched agent PTYs', async () => {
+    setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
+    const mockProc = createMockProc()
+    spawnMock.mockReturnValue(mockProc.proc)
+    registerPtyHandlers(mainWindow as never)
+    const result = (await handlers.get('pty:spawn')!(null, {
+      cols: 80,
+      rows: 24,
+      launchAgent: 'codex'
+    })) as { id: string }
+
+    await expect(
+      handlers.get('pty:writeAccepted')!(mainWindowIpcEvent, {
+        id: result.id,
+        data: 'https://devops.aliyun.com/projex/req/DFHIS-31732\r'
+      })
+    ).resolves.toBe(true)
+
+    const data = mockProc.proc.write.mock.calls[0]?.[0] as string
+    expect(data.startsWith('\u001b[200~')).toBe(true)
+    expect(data).toContain('Orca Yunxiao requirement workflow gate')
+    expect(data).toContain(
+      'Original user request:\rhttps://devops.aliyun.com/projex/req/DFHIS-31732'
+    )
+    expect(data.endsWith('\u001b[201~\r')).toBe(true)
+  })
+
+  it('does not gate local Yunxiao pty writes for plain shell PTYs', async () => {
+    setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
+    const mockProc = createMockProc()
+    spawnMock.mockReturnValue(mockProc.proc)
+    registerPtyHandlers(mainWindow as never)
+    const result = (await handlers.get('pty:spawn')!(null, {
+      cols: 80,
+      rows: 24
+    })) as { id: string }
+
+    await expect(
+      handlers.get('pty:writeAccepted')!(mainWindowIpcEvent, {
+        id: result.id,
+        data: 'https://devops.aliyun.com/projex/req/DFHIS-31732\r'
+      })
+    ).resolves.toBe(true)
+
+    expect(mockProc.proc.write).toHaveBeenCalledWith(
+      'https://devops.aliyun.com/projex/req/DFHIS-31732\r'
+    )
+  })
+
   it('rejects malformed and cross-window pty write IPC before provider writes', async () => {
     const mockProc = createMockProc()
     spawnMock.mockReturnValue(mockProc.proc)

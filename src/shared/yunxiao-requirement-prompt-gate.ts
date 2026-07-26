@@ -4,6 +4,9 @@ const DFHIS_WORK_ITEM_RE = /\bDFHIS-\d+\b/i
 const YUNXIAO_WORK_ITEM_URL_RE = /https?:\/\/devops\.aliyun\.com\/projex\/\S+/i
 const YUNXIAO_GATE_MARKER = 'Orca Yunxiao requirement workflow gate'
 const SOURCE_PROMPT_PREVIEW_LIMIT = 2048
+const TERMINAL_SUBMIT = '\r'
+const BRACKETED_PASTE_START = '\u001b[200~'
+const BRACKETED_PASTE_END = '\u001b[201~'
 
 export type ManualYunxiaoRequirementGate = {
   identifier: string
@@ -62,6 +65,38 @@ Required workflow:
 
 Original user request:
 ${prompt}`
+}
+
+function sanitizeTerminalPasteText(text: string): string {
+  return text.split('\u001b').join('\u241b')
+}
+
+function wrapTerminalBracketedPasteText(text: string): string {
+  return `${BRACKETED_PASTE_START}${sanitizeTerminalPasteText(text.replace(/\r?\n/g, TERMINAL_SUBMIT))}${BRACKETED_PASTE_END}`
+}
+
+function splitTerminalSubmitSuffix(input: string): { body: string; suffix: string } {
+  return input.endsWith(TERMINAL_SUBMIT)
+    ? { body: input.slice(0, -TERMINAL_SUBMIT.length), suffix: TERMINAL_SUBMIT }
+    : { body: input, suffix: '' }
+}
+
+export function applyYunxiaoRequirementPromptGateToTerminalInput(input: string): string {
+  const { body, suffix } = splitTerminalSubmitSuffix(input)
+  if (body.startsWith(BRACKETED_PASTE_START)) {
+    const endIndex = body.lastIndexOf(BRACKETED_PASTE_END)
+    if (endIndex !== -1) {
+      const pasted = body.slice(BRACKETED_PASTE_START.length, endIndex)
+      const tail = body.slice(endIndex + BRACKETED_PASTE_END.length)
+      if (tail.length === 0 && shouldApplyYunxiaoRequirementPromptGate(pasted)) {
+        return `${wrapTerminalBracketedPasteText(applyYunxiaoRequirementPromptGate(pasted))}${suffix}`
+      }
+    }
+  }
+  if (!shouldApplyYunxiaoRequirementPromptGate(body)) {
+    return input
+  }
+  return `${wrapTerminalBracketedPasteText(applyYunxiaoRequirementPromptGate(body))}${suffix}`
 }
 
 export function createManualYunxiaoRequirementGate(
