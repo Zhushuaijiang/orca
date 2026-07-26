@@ -29,7 +29,7 @@ describe('Yunxiao terminal paste gate', () => {
     })
 
     expect(gated).toContain('Orca Yunxiao requirement workflow gate')
-    expect(gated).toContain('Original user request:')
+    expect(gated).toContain('原始用户请求：')
     expect(gated).toContain('DFHIS-31732')
   })
 

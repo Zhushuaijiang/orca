@@ -178,7 +178,8 @@ describe('AutomationService', () => {
     })
     const [, payload] = send.mock.calls[0]
     expect(payload.automation.prompt).toContain('DFHIS-31704')
-    expect(payload.automation.prompt).toContain('direct Yunxiao MCP workflow first')
+    expect(payload.automation.prompt).toContain('direct Yunxiao MCP 流程归档需求')
+    expect(payload.automation.prompt).toContain('所有用户可见进展')
     expect(payload.automation.prompt).toContain('Requirement Contract')
     expect(payload.automation.prompt).toContain('needs_clarification')
     expect(payload.automation.prompt).toContain('Contract status: needs_clarification')

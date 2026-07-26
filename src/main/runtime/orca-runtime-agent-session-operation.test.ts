@@ -198,7 +198,7 @@ describe('agent-session create operation ledger', () => {
 
     const command = createTerminal.mock.calls[0]?.[1]?.command ?? ''
     expect(command).toContain('Orca Yunxiao requirement workflow gate')
-    expect(command).toContain('Original user request:')
+    expect(command).toContain('原始用户请求：')
     expect(command).toContain('DFHIS-31732')
   })
 

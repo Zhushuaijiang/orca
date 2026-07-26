@@ -69,14 +69,14 @@ function buildYunxiaoTodoPoolPrompt(
     .map((item, index) => {
       const target = item.serialNumber ?? item.url ?? item.id
       const metadata = [
-        `title: ${item.title}`,
-        item.typeName ? `type: ${item.typeName}` : null,
-        item.statusName ? `status: ${item.statusName}` : null,
-        item.customer ? `customer: ${item.customer}` : null,
-        item.priority ? `priority: ${item.priority}` : null,
-        item.assignee?.name ? `assignee: ${item.assignee.name}` : null,
-        item.sprint?.name ? `sprint: ${item.sprint.name}` : null,
-        item.url ? `url: ${item.url}` : null
+        `标题: ${item.title}`,
+        item.typeName ? `类型: ${item.typeName}` : null,
+        item.statusName ? `状态: ${item.statusName}` : null,
+        item.customer ? `客户: ${item.customer}` : null,
+        item.priority ? `优先级: ${item.priority}` : null,
+        item.assignee?.name ? `负责人: ${item.assignee.name}` : null,
+        item.sprint?.name ? `迭代: ${item.sprint.name}` : null,
+        item.url ? `链接: ${item.url}` : null
       ]
         .filter(Boolean)
         .join('\n  ')
@@ -84,24 +84,29 @@ function buildYunxiaoTodoPoolPrompt(
     })
     .join('\n\n')
 
-  return `${basePrompt.trim() || 'Process the next Yunxiao todo pool requirement.'}
+  return `${basePrompt.trim() || '处理下一条云效 todo pool 需求。'}
 
 Yunxiao todo pool claim:
 ${targets}
 
-Required workflow:
-- Use the yunxiao-requirement-archiver skill for every claimed work item.
-- Archive the requirement with the skill's direct Yunxiao MCP workflow first. Use HIS MCP only as a legacy fallback when direct Yunxiao archive is unavailable and HIS MCP credentials are configured.
-- Create or update PRD_AND_CODE_ANALYSIS.md in the requirement directory from the local archive evidence before code changes.
-- Put a concise Requirement Contract at the top of PRD_AND_CODE_ANALYSIS.md with status, owner, next action, intent, blocking questions, and decision ledger.
-- Classify the contract as needs_clarification, ready_to_build, missing_repo, blocked, or ready_to_verify before implementation, and keep the todo pool requirementContract snapshot aligned with that contract whenever a tool is available.
-- Apply the Orca Superpowers-style gate: clarify before code, keep the first-view contract compact, record alternatives/design confirmation for focused/mandatory risk, write the implementation plan before edits, then verify with fresh command/screenshot/build/test/artifact evidence before claiming completion.
-- If the contract is needs_clarification, ask exactly 1-3 blocking decision questions with concrete options before any code edits. Use the native AskUserQuestion/request_user_input flow when available; otherwise ask directly in chat and wait. If the run is unattended and no interactive answer path exists, record the questions in PRD_AND_CODE_ANALYSIS.md, mark the pool item as needs-clarification when a tool is available, include the exact final-output line "Contract status: needs_clarification", and stop before code changes.
-- Only edit code after the contract is ready_to_build and the decisions that affect implementation are recorded.
-- When native automation result reporting is available, return structured yunxiaoRequirementOutcomes as a per-item array with itemId, poolStatus, requirementContract, and evidence; put riskProfile, reviewChecks, and methodologyGate inside requirementContract instead of top-level outcome fields.
-- Resolve the code root from YUNXIAO_CODE_WORKSPACE_ROOT first. If it is absent, use YUNXIAO_DEFAULT_CODE_ROOT, then ORCA_USER_DATA_PATH/dfhis-environment.json field hisCodeRoot.
-- Do not edit the selected/default code root directly. Create or reuse the requirement worktree under {requirement_dir}/code/<repo> before code changes, and run the skill guard before every edit.
-- Default low-risk work to one builder plus local verification. Escalate to focused review for unresolved decisions, UI/workflow, API/database, requirement conflict, weak verification, or explicit user review requests. Escalate to mandatory independent PRD/architecture/implementation/verifier multi-agent review for multi-repo, permission/release, API/database plus weak verification, or UI/workflow plus requirement conflict cases. Use Orca orchestration or available agent-dispatch tools when available; if independent dispatch is unavailable, state that blocker explicitly and do not mark the requirement safe/complete. Preserve each reviewer verdict in reviewChecks and decide by evidence, not majority.
-- Completion is blocked while any required reviewer role is missing, blocking questions are unresolved, the implementation plan is missing, or fresh verification evidence is absent.
-- If the requirement cannot be archived, analyzed, clarified, or prepared for implementation, stop and report the blocker clearly.`
+语言要求：
+- 所有用户可见进展、问题、PRD/合同正文、评审提示、评审结论、最终摘要必须使用中文。
+- 只有机器读取的字段名、角色 id、固定状态值可以保留英文，例如 yunxiaoRequirementOutcomes、requirementContract、riskProfile、reviewChecks、methodologyGate、evidence、prd_gate、architecture、implementation、verifier。
+- 人类可读结论不要写 Verdict: pass/block；改写为“结论：通过/阻断/通过但存在非阻断限制”，并用中文说明依据。
+
+必须执行的流程：
+- 每个领取的工作项都必须使用 yunxiao-requirement-archiver skill。
+- 优先使用该 skill 的 direct Yunxiao MCP 流程归档需求；只有 direct Yunxiao archive 不可用且 HIS MCP credentials 已配置时，才使用 HIS MCP 作为旧版兜底。
+- 代码变更前，必须基于本地归档证据，在需求目录创建或更新 PRD_AND_CODE_ANALYSIS.md。
+- 必须在 PRD_AND_CODE_ANALYSIS.md 顶部放置精简的 Requirement Contract，包含 status、owner、next_action、intent、blocking_questions、decision ledger。
+- 实现前必须把合同分类为 needs_clarification、ready_to_build、missing_repo、blocked 或 ready_to_verify；工具可用时，同步更新 todo pool 的 requirementContract 快照。
+- 应用 Orca Superpowers 风格 gate：先澄清再编码；首屏合同保持紧凑；focused/mandatory 风险必须记录备选方案/设计确认；编辑前写实现计划；声明完成前必须用新的命令/截图/build/test/artifact 证据验证。
+- 如果合同是 needs_clarification，代码编辑前必须提出 1-3 个带具体选项的阻断决策问题。可用时使用原生 AskUserQuestion/request_user_input；否则直接在对话中提问并等待。如果无人值守且没有交互回答路径，把问题记录到 PRD_AND_CODE_ANALYSIS.md，工具可用时把 pool item 标为 needs-clarification，最终输出精确行 “Contract status: needs_clarification”，然后停止，不要改代码。
+- 只有当合同为 ready_to_build 且影响实现的决策已记录后，才能编辑代码。
+- 原生自动化结果上报可用时，返回结构化 yunxiaoRequirementOutcomes，每个 item 包含 itemId、poolStatus、requirementContract、evidence；riskProfile、reviewChecks、methodologyGate 放在 requirementContract 内，不要放到顶层 outcome 字段。
+- 代码根目录优先从 YUNXIAO_CODE_WORKSPACE_ROOT 解析；如果不存在，再使用 YUNXIAO_DEFAULT_CODE_ROOT，最后使用 ORCA_USER_DATA_PATH/dfhis-environment.json 的 hisCodeRoot。
+- 不要直接编辑已选择/默认代码根目录。代码变更前，在 {requirement_dir}/code/<repo> 下创建或复用需求 worktree，并在每次编辑前运行 skill guard。
+- 默认低风险需求使用一个 builder 加本地验证。存在未解决决策、UI/流程、API/数据库、需求冲突、验证薄弱或用户明确要求 review 时，升级为 focused review。多仓库、权限/发布、API/数据库加验证薄弱、UI/流程加需求冲突时，升级为强制独立 PRD/architecture/implementation/verifier 多 agent 评审。可用时使用 Orca orchestration 或 agent-dispatch 工具；如果无法独立派发，必须明确说明阻断原因，且不能标记需求安全或完成。必须把每个 reviewer 结论保存在 reviewChecks，并按证据判断，不按多数票判断。
+- 任一必需 reviewer 角色缺失、阻断问题未解决、实现计划缺失、或缺少新鲜验证证据时，完成状态必须阻断。
+- 如果需求无法归档、分析、澄清或准备实现，停止并用中文清楚报告阻断原因。`
 }

@@ -20,10 +20,11 @@ describe('Yunxiao requirement prompt gate', () => {
     const gated = applyYunxiaoRequirementPromptGate(prompt)
 
     expect(gated).toContain('Orca Yunxiao requirement workflow gate')
-    expect(gated).toContain('first user-visible progress message')
-    expect(gated).toContain('Required workflow:')
+    expect(gated).toContain('所有用户可见进展')
+    expect(gated).toContain('必须执行的流程：')
+    expect(gated).toContain('结论：通过/阻断/通过但存在非阻断限制')
     expect(gated).toContain('reviewChecks')
-    expect(gated).toContain(`Original user request:\n${prompt}`)
+    expect(gated).toContain(`原始用户请求：\n${prompt}`)
   })
 
   it('does not wrap already gated or todo-pool prompts again', () => {
@@ -48,7 +49,7 @@ describe('Yunxiao requirement prompt gate', () => {
 
     expect(gated.startsWith('\u001b[200~')).toBe(true)
     expect(gated).toContain('Orca Yunxiao requirement workflow gate')
-    expect(gated).toContain('Original user request:\rDFHIS-31732')
+    expect(gated).toContain('原始用户请求：\rDFHIS-31732')
     expect(gated.endsWith('\u001b[201~\r')).toBe(true)
   })
 
@@ -59,9 +60,7 @@ describe('Yunxiao requirement prompt gate', () => {
 
     expect(gated.startsWith('\u001b[200~')).toBe(true)
     expect(gated).toContain('Orca Yunxiao requirement workflow gate')
-    expect(gated).toContain(
-      'Original user request:\rhttps://devops.aliyun.com/projex/req/DFHIS-31732'
-    )
+    expect(gated).toContain('原始用户请求：\rhttps://devops.aliyun.com/projex/req/DFHIS-31732')
     expect(gated.split('\u001b[200~')).toHaveLength(2)
     expect(gated.split('\u001b[201~')).toHaveLength(2)
   })

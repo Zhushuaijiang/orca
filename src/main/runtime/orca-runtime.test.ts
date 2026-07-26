@@ -9955,7 +9955,7 @@ describe('OrcaRuntimeService', () => {
     })
 
     expect(writes[0]).toContain('Orca Yunxiao requirement workflow gate')
-    expect(writes[0]).toContain('Original user request:')
+    expect(writes[0]).toContain('原始用户请求：')
     expect(writes[0]).toContain('DFHIS-31732')
     expect(writes[1]).toBe('\r')
   })
@@ -11386,8 +11386,7 @@ describe('OrcaRuntimeService', () => {
     })
 
     await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`, {
-      command:
-        "codex 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'",
+      command: "codex 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'",
       launchAgent: 'codex'
     })
 
@@ -12538,8 +12537,7 @@ describe('OrcaRuntimeService', () => {
     setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
 
     await runtime.splitTerminal(handle, {
-      command:
-        "codex 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'"
+      command: "codex 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'"
     })
 
     expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
@@ -13718,7 +13716,7 @@ describe('OrcaRuntimeService', () => {
     const { handle } = await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`)
 
     await runtime.sendTerminal(handle, {
-      text: 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'
+      text: 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'
     })
 
     expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()

@@ -48,22 +48,27 @@ export function applyYunxiaoRequirementPromptGate(prompt: string): string {
   }
   return `${YUNXIAO_GATE_MARKER}
 
-This prompt contains a Yunxiao/DFHIS requirement. Treat it as a gated requirement workflow, even when the user pasted it manually instead of taking it from the todo pool.
+当前提示包含云效/DFHIS 需求。无论用户是手动粘贴，还是从 todo pool 领取，都必须按受控需求流程处理。
 
-Required workflow:
-- Start the first user-visible progress message with this exact marker and the target DFHIS id: Orca Yunxiao requirement workflow gate.
-- Use the yunxiao-requirement-archiver skill before implementation or approval judgment.
-- Archive/read the requirement evidence and create or update PRD_AND_CODE_ANALYSIS.md with a compact Requirement Contract at the top.
-- If the contract has blocking product decisions, ask exactly 1-3 concrete choice questions and stop before code edits or completion claims.
-- Classify risk before implementation. Escalate to focused review for unclear requirements, UI/workflow changes, API/database impact, conflicting evidence, weak verification, or explicit review requests.
-- Escalate to mandatory independent multi-agent review for multiple repositories, permission/release impact, API/database plus weak verification, or UI/workflow plus requirement conflict. Required roles: prd_gate, architecture, implementation, verifier.
-- Use Orca orchestration or available agent-dispatch tools for independent reviewers when available. If independent dispatch is unavailable, state that blocker explicitly and do not mark the requirement safe/complete.
-- Preserve reviewer verdicts in reviewChecks and decide by evidence, not vote count.
-- Completion is blocked while any required reviewer role is missing, blocking questions are unresolved, the implementation plan is missing, or fresh verification evidence is absent.
-- Do not claim the requirement is done or safe until fresh verification evidence is recorded; if verification is blocked, report the exact blocker and remaining owner.
-- When a structured result channel is available, return yunxiaoRequirementOutcomes with requirementContract.riskProfile, reviewChecks, methodologyGate, and evidence.
+语言要求：
+- 所有用户可见进展、问题、PRD/合同正文、评审提示、评审结论、最终摘要必须使用中文。
+- 只有机器读取的字段名、角色 id、固定状态值可以保留英文，例如 yunxiaoRequirementOutcomes、requirementContract、riskProfile、reviewChecks、methodologyGate、evidence、prd_gate、architecture、implementation、verifier。
+- 人类可读结论不要写 Verdict: pass/block；改写为“结论：通过/阻断/通过但存在非阻断限制”，并用中文说明依据。
 
-Original user request:
+必须执行的流程：
+- 第一条用户可见进展消息必须以这个精确标记和目标 DFHIS id 开头：Orca Yunxiao requirement workflow gate。
+- 实现或判断是否可验收之前，必须先使用 yunxiao-requirement-archiver skill。
+- 必须归档/读取需求证据，并在 PRD_AND_CODE_ANALYSIS.md 顶部创建或更新精简的 Requirement Contract。
+- 如果合同存在阻断性的产品决策，提出 1-3 个具体选择题，并在代码编辑或完成声明前停止。
+- 实现前必须做风险分级。需求不清、UI/流程变更、API/数据库影响、证据冲突、验证薄弱或用户明确要求 review 时，必须升级为专项评审。
+- 多仓库、权限/发布影响、API/数据库加验证薄弱、UI/流程加需求冲突时，必须升级为强制独立多 agent 评审。必需角色：prd_gate、architecture、implementation、verifier。
+- 可用时使用 Orca orchestration 或 agent-dispatch 工具创建独立评审 agent；如果无法独立派发，必须明确说明阻断原因，且不能标记需求安全或完成。
+- 必须把 reviewer 结论保存在 reviewChecks 中，并按证据判断，不按投票数判断。
+- 任一必需 reviewer 角色缺失、阻断问题未解决、实现计划缺失、或缺少新鲜验证证据时，完成状态必须阻断。
+- 没有记录新鲜验证证据前，不得声称需求已完成或没问题；如果验证被环境阻断，必须说明精确阻断原因和剩余负责人。
+- 如果有结构化结果通道，返回 yunxiaoRequirementOutcomes，包含 requirementContract.riskProfile、reviewChecks、methodologyGate、evidence。字段名可以英文，但字段值中的解释必须中文。
+
+原始用户请求：
 ${prompt}`
 }
 

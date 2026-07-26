@@ -1014,8 +1014,7 @@ describe('registerPtyHandlers', () => {
       rows: 24,
       cwd: '/tmp/worktree',
       worktreeId: 'repo::/tmp/worktree',
-      command:
-        "codex 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'"
+      command: "codex 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'"
     })
 
     expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
@@ -1049,8 +1048,7 @@ describe('registerPtyHandlers', () => {
       worktreeId: 'repo::/tmp/worktree',
       command: 'omp',
       env: {
-        ORCA_OMP_PREFILL:
-          'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'
+        ORCA_OMP_PREFILL: 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'
       }
     })
 
@@ -13647,7 +13645,7 @@ describe('registerPtyHandlers', () => {
 
     write(mainWindowIpcEvent, {
       id: result.id,
-      data: 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'
+      data: 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'
     })
 
     expect(mockProc.proc.write).not.toHaveBeenCalled()
@@ -13676,7 +13674,7 @@ describe('registerPtyHandlers', () => {
     await expect(
       handlers.get('pty:writeAccepted')!(mainWindowIpcEvent, {
         id: result.id,
-        data: 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'
+        data: 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'
       })
     ).resolves.toBe(true)
 
@@ -13705,9 +13703,7 @@ describe('registerPtyHandlers', () => {
     const data = mockProc.proc.write.mock.calls[0]?.[0] as string
     expect(data.startsWith('\u001b[200~')).toBe(true)
     expect(data).toContain('Orca Yunxiao requirement workflow gate')
-    expect(data).toContain(
-      'Original user request:\rhttps://devops.aliyun.com/projex/req/DFHIS-31732'
-    )
+    expect(data).toContain('原始用户请求：\rhttps://devops.aliyun.com/projex/req/DFHIS-31732')
     expect(data.endsWith('\u001b[201~\r')).toBe(true)
   })
 
