@@ -11,6 +11,7 @@ import { CODEX_SHELL_READY_TIMEOUT_MS } from './session'
 import {
   CLEAN_DISCONNECT_PROTOCOL_VERSION,
   COMPLETION_PROCESS_INSPECTION_PROTOCOL_VERSION,
+  GET_FOREGROUND_PROCESS_PROTOCOL_VERSION,
   AGENT_SESSION_CLAIM_DAEMON_PROTOCOL_VERSION,
   AGENT_SESSION_CREATE_OPERATION_DAEMON_PROTOCOL_VERSION,
   GIT_CREDENTIAL_GUARD_HOST_PROTOCOL_VERSION,
@@ -38,6 +39,7 @@ import type {
   PtySpawnOptions,
   PtySpawnResult
 } from '../providers/types'
+import type { PtyProcessInspection } from '../providers/pty-process-inspection'
 import { isShellProcess } from '../../shared/agent-detection'
 import { resolveWslSessionContext } from './wsl-session-context'
 import { normalizeWslColdRestoreCwd } from './wsl-cold-restore-cwd'
@@ -818,17 +820,34 @@ export class DaemonPtyAdapter implements IPtyProvider {
     // No flow control for daemon-backed terminals
   }
 
-  async hasChildProcesses(id: string): Promise<boolean> {
-    const foregroundProcess = await this.getForegroundProcess(id)
-    // Why: daemon-backed PTYs can host long-lived agents while detached; cleanup prompts must not treat them as idle shells.
+  // Why: daemon-backed PTYs can host long-lived agents while detached; cleanup prompts must not treat them as idle shells.
+  private hasChildProcessesFromForeground(foregroundProcess: string | null): boolean {
     return foregroundProcess !== null && !isShellProcess(foregroundProcess)
   }
 
-  async inspectProcess(
-    id: string
-  ): Promise<{ foregroundProcess: string | null; hasChildProcesses: boolean }> {
+  async hasChildProcesses(id: string): Promise<boolean> {
+    if (this.protocolVersion < GET_FOREGROUND_PROCESS_PROTOCOL_VERSION) {
+      return true
+    }
+    return this.hasChildProcessesFromForeground(await this.getForegroundProcess(id))
+  }
+
+  async inspectProcess(id: string): Promise<PtyProcessInspection> {
+    if (this.protocolVersion < GET_FOREGROUND_PROCESS_PROTOCOL_VERSION) {
+      return { foregroundProcess: null, hasChildProcesses: true, unavailable: true }
+    }
     if (this.protocolVersion < COMPLETION_PROCESS_INSPECTION_PROTOCOL_VERSION) {
-      throw new Error('terminal_liveness_unavailable')
+      // Why: pre-v27 daemons survive an in-place app update; compose the inspection client-side from the
+      // one call they do support instead of throwing, or completion detection stays dead until recreate.
+      // Requests directly (not via getForegroundProcess) so a dead socket still rejects rather than
+      // reading as an idle foreground and dispatching a false completion.
+      const { foregroundProcess } = await this.client.request<{
+        foregroundProcess: string | null
+      }>('getForegroundProcess', { sessionId: id })
+      return {
+        foregroundProcess,
+        hasChildProcesses: this.hasChildProcessesFromForeground(foregroundProcess)
+      }
     }
     return this.client.request<{
       foregroundProcess: string | null
@@ -837,6 +856,9 @@ export class DaemonPtyAdapter implements IPtyProvider {
   }
 
   async getForegroundProcess(id: string): Promise<string | null> {
+    if (this.protocolVersion < GET_FOREGROUND_PROCESS_PROTOCOL_VERSION) {
+      return null
+    }
     try {
       const result = await this.client.request<{ foregroundProcess: string | null }>(
         'getForegroundProcess',
