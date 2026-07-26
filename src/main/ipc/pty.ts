@@ -41,7 +41,8 @@ import {
   redactPtyIdForDiagnostics
 } from '../../shared/pty-delivery-diagnostics'
 import { recordCrashBreadcrumb } from '../crash-reporting/crash-breadcrumb-store'
-import { isTuiAgent } from '../../shared/tui-agent-config'
+import { isShellProcess } from '../../shared/shell-process-detection'
+import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/tui-agent-config'
 import {
   normalizeAgentProviderSession,
   type AgentProviderSessionMetadata,
@@ -145,6 +146,43 @@ function resolvePtyLaunchAgent(launchAgent?: TuiAgent, command?: string): TuiAge
   }
   const commandToken = getFirstCommandToken(command ?? '')
   return isTuiAgent(commandToken) ? commandToken : null
+}
+
+function normalizeProcessCommandName(value: string): string {
+  const commandToken = getFirstCommandToken(value) || value
+  const trimmed = commandToken
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .toLowerCase()
+  const basename = trimmed.split(/[\\/]/).pop() ?? trimmed
+  return basename.replace(/\.(?:exe|cmd|bat|ps1)$/i, '')
+}
+
+const TUI_AGENT_PROCESS_NAMES = new Set(
+  Object.entries(TUI_AGENT_CONFIG).flatMap(([agent, config]) =>
+    [
+      agent,
+      config.detectCmd,
+      ...(config.detectCmdAliases ?? []),
+      config.expectedProcess,
+      getFirstCommandToken(config.launchCmd) ?? '',
+      ...Object.values(config.launchCmdByPlatform ?? {}).map(
+        (command) => getFirstCommandToken(command) ?? ''
+      )
+    ]
+      .filter(Boolean)
+      .map(normalizeProcessCommandName)
+  )
+)
+
+function isKnownTuiAgentForegroundProcess(processName: string | null | undefined): boolean {
+  if (!processName) {
+    return false
+  }
+  const normalized = normalizeProcessCommandName(processName)
+  return (
+    normalized.length > 0 && !isShellProcess(normalized) && TUI_AGENT_PROCESS_NAMES.has(normalized)
+  )
 }
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { splitWorktreeIdForFilesystem } from '../../shared/worktree-id'
@@ -5238,8 +5276,26 @@ export function registerPtyHandlers(
     }
   }
 
-  const applyYunxiaoRequirementGateForPtyWrite = (args: PtyWritePayload): PtyWritePayload => {
-    if (!ptyLaunchAgents.has(args.id)) {
+  const shouldGateYunxiaoRequirementPtyWrite = async (ptyId: string): Promise<boolean> => {
+    if (ptyLaunchAgents.has(ptyId)) {
+      return true
+    }
+    const provider = ptyOwnership.has(ptyId) ? tryGetProviderForPty(ptyId) : undefined
+    if (!provider) {
+      return false
+    }
+    try {
+      const inspection = await inspectPtyProviderProcess(provider, ptyId)
+      return isKnownTuiAgentForegroundProcess(inspection.foregroundProcess)
+    } catch {
+      return false
+    }
+  }
+
+  const applyYunxiaoRequirementGateForPtyWrite = async (
+    args: PtyWritePayload
+  ): Promise<PtyWritePayload> => {
+    if (!(await shouldGateYunxiaoRequirementPtyWrite(args.id))) {
       return args
     }
     const data = applyYunxiaoRequirementPromptGateToTerminalInput(args.data)
@@ -5248,8 +5304,8 @@ export function registerPtyHandlers(
 
   const writePtyInput = (args: PtyWritePayload): boolean | Promise<boolean> => {
     if (containsYunxiaoRequirementReference(args.data)) {
-      return withDfHisWorkflowPackRefreshForInput(args.data, () =>
-        writePtyInputAfterRefresh(applyYunxiaoRequirementGateForPtyWrite(args))
+      return withDfHisWorkflowPackRefreshForInput(args.data, async () =>
+        writePtyInputAfterRefresh(await applyYunxiaoRequirementGateForPtyWrite(args))
       )
     }
     return writePtyInputAfterRefresh(args)
@@ -5282,8 +5338,8 @@ export function registerPtyHandlers(
 
   const writePtyInputAccepted = (args: PtyWritePayload): boolean | Promise<boolean> => {
     if (containsYunxiaoRequirementReference(args.data)) {
-      return withDfHisWorkflowPackRefreshForInput(args.data, () =>
-        writePtyInputAcceptedAfterRefresh(applyYunxiaoRequirementGateForPtyWrite(args))
+      return withDfHisWorkflowPackRefreshForInput(args.data, async () =>
+        writePtyInputAcceptedAfterRefresh(await applyYunxiaoRequirementGateForPtyWrite(args))
       )
     }
     return writePtyInputAcceptedAfterRefresh(args)

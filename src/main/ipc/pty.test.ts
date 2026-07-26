@@ -541,6 +541,37 @@ describe('registerPtyHandlers', () => {
     }
   }
 
+  function installForegroundProcessWriteProvider(foregroundProcess: string | null) {
+    const write = vi.fn()
+    const spawn = vi.fn(async () => ({ id: 'foreground-pty' }))
+    setLocalPtyProvider({
+      spawn,
+      write,
+      resize: vi.fn(),
+      kill: vi.fn(),
+      shutdown: vi.fn(),
+      sendSignal: vi.fn(),
+      getCwd: vi.fn(),
+      getInitialCwd: vi.fn(),
+      clearBuffer: vi.fn(),
+      acknowledgeDataEvent: vi.fn(),
+      hasPty: vi.fn((id: string) => id === 'foreground-pty'),
+      hasChildProcesses: vi.fn(async () => foregroundProcess !== null),
+      getForegroundProcess: vi.fn(async () => foregroundProcess),
+      confirmForegroundProcess: vi.fn(),
+      serialize: vi.fn(),
+      revive: vi.fn(),
+      onData: vi.fn(() => () => {}),
+      onReplay: vi.fn(() => () => {}),
+      onExit: vi.fn(() => () => {}),
+      listProcesses: vi.fn(async () => []),
+      attach: vi.fn(),
+      getDefaultShell: vi.fn(),
+      getProfiles: vi.fn()
+    } as never)
+    return { write, spawn }
+  }
+
   function getPtyWriteListener(): (event: unknown, args: { id: string; data: string }) => void {
     const writeCall = onMock.mock.calls.find((call: unknown[]) => call[0] === 'pty:write')
     if (!writeCall) {
@@ -13680,6 +13711,28 @@ describe('registerPtyHandlers', () => {
     expect(data.endsWith('\u001b[201~\r')).toBe(true)
   })
 
+  it('gates local Yunxiao pty writes when foreground process is a TUI agent', async () => {
+    setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
+    const provider = installForegroundProcessWriteProvider('/opt/homebrew/bin/codex')
+    registerPtyHandlers(mainWindow as never)
+    const result = (await handlers.get('pty:spawn')!(null, {
+      cols: 80,
+      rows: 24
+    })) as { id: string }
+
+    await expect(
+      handlers.get('pty:writeAccepted')!(mainWindowIpcEvent, {
+        id: result.id,
+        data: 'https://devops.aliyun.com/projex/req/DFHIS-31732\r'
+      })
+    ).resolves.toBe(true)
+
+    const data = provider.write.mock.calls[0]?.[1] as string
+    expect(data.startsWith('\u001b[200~')).toBe(true)
+    expect(data).toContain('Orca Yunxiao requirement workflow gate')
+    expect(data.endsWith('\u001b[201~\r')).toBe(true)
+  })
+
   it('does not gate local Yunxiao pty writes for plain shell PTYs', async () => {
     setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
     const mockProc = createMockProc()
@@ -13698,6 +13751,28 @@ describe('registerPtyHandlers', () => {
     ).resolves.toBe(true)
 
     expect(mockProc.proc.write).toHaveBeenCalledWith(
+      'https://devops.aliyun.com/projex/req/DFHIS-31732\r'
+    )
+  })
+
+  it('does not gate local Yunxiao pty writes when foreground process is a shell', async () => {
+    setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
+    const provider = installForegroundProcessWriteProvider('/bin/zsh')
+    registerPtyHandlers(mainWindow as never)
+    const result = (await handlers.get('pty:spawn')!(null, {
+      cols: 80,
+      rows: 24
+    })) as { id: string }
+
+    await expect(
+      handlers.get('pty:writeAccepted')!(mainWindowIpcEvent, {
+        id: result.id,
+        data: 'https://devops.aliyun.com/projex/req/DFHIS-31732\r'
+      })
+    ).resolves.toBe(true)
+
+    expect(provider.write).toHaveBeenCalledWith(
+      result.id,
       'https://devops.aliyun.com/projex/req/DFHIS-31732\r'
     )
   })
