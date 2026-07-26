@@ -12499,6 +12499,92 @@ describe('OrcaRuntimeService', () => {
     }
   })
 
+  it('refreshes the DFHIS workflow pack before pty-backed Yunxiao split commands', async () => {
+    const order: string[] = []
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+      order.push('ensure-pack')
+    })
+    let spawnCount = 0
+    const spawn = vi.fn().mockImplementation(async () => {
+      spawnCount += 1
+      order.push('spawn')
+      return { id: spawnCount === 1 ? 'pty-source' : 'pty-split' }
+    })
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      spawn,
+      write: () => true,
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+    runtime.setNotifier({
+      worktreesChanged: vi.fn(),
+      reposChanged: vi.fn(),
+      activateWorktree: vi.fn(),
+      createTerminal: vi.fn(),
+      revealTerminalSession: vi.fn().mockResolvedValue({ tabId: 'tab-bg' }),
+      splitTerminal: vi.fn(),
+      renameTerminal: vi.fn(),
+      focusTerminal: vi.fn(),
+      closeTerminal: vi.fn(),
+      sleepWorktree: vi.fn(),
+      terminalFitOverrideChanged: vi.fn(),
+      terminalDriverChanged: vi.fn()
+    })
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, { tabs: [], leaves: [] })
+    const { handle } = await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`)
+    order.length = 0
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+
+    await runtime.splitTerminal(handle, {
+      command:
+        "codex 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'"
+    })
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(order).toEqual(['ensure-pack', 'spawn'])
+  })
+
+  it('rejects bare Yunxiao agent commands before pty-backed terminal splits spawn', async () => {
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => undefined)
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    const spawn = vi.fn().mockResolvedValueOnce({ id: 'pty-source' })
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      spawn,
+      write: () => true,
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+    runtime.setNotifier({
+      worktreesChanged: vi.fn(),
+      reposChanged: vi.fn(),
+      activateWorktree: vi.fn(),
+      createTerminal: vi.fn(),
+      revealTerminalSession: vi.fn().mockResolvedValue({ tabId: 'tab-bg' }),
+      splitTerminal: vi.fn(),
+      renameTerminal: vi.fn(),
+      focusTerminal: vi.fn(),
+      closeTerminal: vi.fn(),
+      sleepWorktree: vi.fn(),
+      terminalFitOverrideChanged: vi.fn(),
+      terminalDriverChanged: vi.fn()
+    })
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, { tabs: [], leaves: [] })
+    const { handle } = await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`)
+
+    await expect(
+      runtime.splitTerminal(handle, {
+        command: "codex 'DFHIS-31732'"
+      })
+    ).rejects.toThrow('yunxiao_requirement_agent_command_requires_prompt_gate')
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(spawn).toHaveBeenCalledOnce()
+  })
+
   it('splits folder workspace pty-backed terminal sessions with folder cwd and env', async () => {
     const folderPath = await mkdtemp(join(tmpdir(), 'orca-runtime-folder-split-'))
     const spawn = vi
@@ -13613,6 +13699,32 @@ describe('OrcaRuntimeService', () => {
     expect(writes).toEqual(['continue', '\r'])
   })
 
+  it('refreshes the DFHIS workflow pack before raw Yunxiao terminal writes', async () => {
+    const order: string[] = []
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+      order.push('ensure-pack')
+    })
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      spawn: vi.fn().mockResolvedValue({ id: 'pty-bg' }),
+      write: (_ptyId, _data) => {
+        order.push('write')
+        return true
+      },
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+    const { handle } = await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`)
+
+    await runtime.sendTerminal(handle, {
+      text: 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'
+    })
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(order).toEqual(['ensure-pack', 'write'])
+  })
+
   it('sends agent prompts as bracketed paste before submit', async () => {
     vi.useFakeTimers()
     try {
@@ -13645,6 +13757,38 @@ describe('OrcaRuntimeService', () => {
         bytesWritten: Buffer.byteLength(`${pasted}\r`, 'utf8')
       })
       expect(writes).toEqual([pasted, '\r'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshes the DFHIS workflow pack before existing-agent Yunxiao prompt paste', async () => {
+    vi.useFakeTimers()
+    try {
+      const order: string[] = []
+      const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+        order.push('ensure-pack')
+      })
+      setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+      const runtime = new OrcaRuntimeService(store)
+      runtime.setPtyController({
+        spawn: vi.fn().mockResolvedValue({ id: 'pty-bg' }),
+        write: (_ptyId, _data) => {
+          order.push('write')
+          return true
+        },
+        kill: () => true,
+        getForegroundProcess: async () => null
+      })
+      const { handle } = await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`)
+
+      const sendPromise = runtime.sendTerminalAgentPrompt(handle, 'DFHIS-31732')
+      await vi.runAllTimersAsync()
+      await expect(sendPromise).resolves.toMatchObject({ accepted: true })
+
+      expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+      expect(order[0]).toBe('ensure-pack')
+      expect(order).toContain('write')
     } finally {
       vi.useRealTimers()
     }
@@ -25455,8 +25599,9 @@ describe('OrcaRuntimeService', () => {
       agentPrompt: 'DFHIS-31732'
     })
 
-    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
-    expect(order).toEqual(['ensure-pack', 'spawn'])
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledTimes(2)
+    expect(order.at(-1)).toBe('spawn')
+    expect(order.slice(0, -1)).toEqual(['ensure-pack', 'ensure-pack'])
   })
 
   it('rejects startup prompts for agents that require post-ready stdin', async () => {

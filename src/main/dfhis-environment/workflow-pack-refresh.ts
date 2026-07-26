@@ -25,8 +25,10 @@ export async function ensureDfHisWorkflowPackCurrentForYunxiaoText(
     workflowPackRefresh = ensureWorkflowPackInstalled()
       .then(() => undefined)
       .catch((error: unknown) => {
-        workflowPackRefresh = null
         throw error
+      })
+      .finally(() => {
+        workflowPackRefresh = null
       })
   }
   await workflowPackRefresh

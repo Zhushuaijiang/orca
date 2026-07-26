@@ -8529,8 +8529,8 @@ export class OrcaRuntimeService {
     })
   }
 
-  private assertYunxiaoRequirementAgentCommandGated(opts: TerminalCreateOptions): void {
-    if (!isYunxiaoRequirementAgentCommand(opts.command)) {
+  private assertYunxiaoRequirementAgentCommandGated(command: string | null | undefined): void {
+    if (!isYunxiaoRequirementAgentCommand(command)) {
       return
     }
     throw new Error('yunxiao_requirement_agent_command_requires_prompt_gate')
@@ -8550,6 +8550,7 @@ export class OrcaRuntimeService {
     }
   ): Promise<typeof action> {
     const text = action.text
+    await this.ensureDfHisWorkflowPackCurrentForPrompt(text)
     if (!text || !shouldApplyYunxiaoRequirementPromptGate(text)) {
       return action
     }
@@ -13793,6 +13794,7 @@ export class OrcaRuntimeService {
       suffixFailureError?: string
     } = {}
   ): Promise<RuntimeTerminalSend> {
+    await this.ensureDfHisWorkflowPackCurrentForPrompt(prompt)
     const gatedPrompt = applyYunxiaoRequirementPromptGate(prompt)
     const payload = buildAgentPromptPasteBytes(gatedPrompt)
     const bytesWritten = Buffer.byteLength(`${payload}${AGENT_PROMPT_SUBMIT}`, 'utf8')
@@ -21806,7 +21808,7 @@ export class OrcaRuntimeService {
       const workspace = await this.resolveTerminalWorkspaceLaunchScope(worktreeSelector)
       const launchOpts = await this.resolveAgentTerminalCreateOptions(workspace, opts)
       await this.ensureDfHisWorkflowPackCurrentForPrompt(launchOpts.command)
-      this.assertYunxiaoRequirementAgentCommandGated(launchOpts)
+      this.assertYunxiaoRequirementAgentCommandGated(launchOpts.command)
       let ptySpawnCommitReported = false
       const reportPtySpawnCommitted = (): void => {
         if (ptySpawnCommitReported) {
@@ -22074,7 +22076,7 @@ export class OrcaRuntimeService {
       ? await this.resolveAgentTerminalCreateOptions(workspace, opts)
       : opts
     await this.ensureDfHisWorkflowPackCurrentForPrompt(launchOpts.command)
-    this.assertYunxiaoRequirementAgentCommandGated(launchOpts)
+    this.assertYunxiaoRequirementAgentCommandGated(launchOpts.command)
     const worktreeId = workspace?.id
     const cwd = workspace
       ? this.resolveWorkspaceTerminalStartupCwd(workspace, launchOpts.cwd)
@@ -23268,6 +23270,8 @@ export class OrcaRuntimeService {
       telemetrySource?: TerminalPaneSplitSource
     } = {}
   ): Promise<RuntimeTerminalSplit> {
+    await this.ensureDfHisWorkflowPackCurrentForPrompt(opts.command)
+    this.assertYunxiaoRequirementAgentCommandGated(opts.command)
     const livePty = this.getLivePtyForHandle(handle)
     if (livePty) {
       return await this.splitPtyBackedTerminal(livePty.pty, opts)
