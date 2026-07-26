@@ -35,6 +35,7 @@ type TaskPageYunxiaoWorkItemTableProps = {
   onSelectionChange: (nextSelectedIds: Set<string>) => void
   onArchive: (item: YunxiaoWorkItem) => void
   onAddToTodoPool: (item: YunxiaoWorkItem) => void
+  onAnswerRequirementQuestion: (item: YunxiaoTodoPoolItem) => void
   onRemoveFromTodoPool: (item: YunxiaoWorkItem) => void
   onSetTodoPoolStatus: (item: YunxiaoWorkItem, status: YunxiaoTodoPoolStatus) => void
   onStartWorkspace: (item: YunxiaoWorkItem) => void
@@ -51,6 +52,7 @@ export function TaskPageYunxiaoWorkItemTable({
   items,
   loading,
   onAddToTodoPool,
+  onAnswerRequirementQuestion,
   onArchive,
   onNextPage,
   onPreviousPage,
@@ -95,6 +97,7 @@ export function TaskPageYunxiaoWorkItemTable({
               archiveTarget={archiveTarget}
               item={item}
               onAddToTodoPool={onAddToTodoPool}
+              onAnswerRequirementQuestion={onAnswerRequirementQuestion}
               onArchive={onArchive}
               onRemoveFromTodoPool={onRemoveFromTodoPool}
               onSelectionChange={onSelectionChange}
@@ -238,10 +241,51 @@ function TodoPoolEmptyState(): JSX.Element {
   )
 }
 
+function contractOwnerLabel(
+  owner: NonNullable<YunxiaoTodoPoolItem['requirementContract']>['owner']
+): string {
+  switch (owner) {
+    case 'product':
+      return translate('auto.components.TaskPage.yunxiaoContractOwnerProduct', 'Product')
+    case 'development':
+      return translate('auto.components.TaskPage.yunxiaoContractOwnerDevelopment', 'Development')
+    case 'qa':
+      return translate('auto.components.TaskPage.yunxiaoContractOwnerQa', 'QA')
+    case 'agent':
+      return translate('auto.components.TaskPage.yunxiaoContractOwnerAgent', 'Agent')
+    case 'external':
+      return translate('auto.components.TaskPage.yunxiaoContractOwnerExternal', 'External')
+  }
+}
+
+function todoPoolContractSummary(poolItem: YunxiaoTodoPoolItem): string | null {
+  const contract = poolItem.requirementContract
+  if (!contract) {
+    return null
+  }
+  const question = contract.blockingQuestions[0]?.question
+  if (poolItem.poolStatus === 'needs-clarification' && question) {
+    return translate(
+      'auto.components.TaskPage.yunxiaoContractNeedsDecision',
+      'Needs decision: {{value0}} · Owner: {{value1}}',
+      { value0: question, value1: contractOwnerLabel(contract.owner) }
+    )
+  }
+  if (contract.nextAction) {
+    return translate(
+      'auto.components.TaskPage.yunxiaoContractNext',
+      'Next: {{value0}} · Owner: {{value1}}',
+      { value0: contract.nextAction, value1: contractOwnerLabel(contract.owner) }
+    )
+  }
+  return null
+}
+
 function YunxiaoTableRow({
   archiveTarget,
   item,
   onAddToTodoPool,
+  onAnswerRequirementQuestion,
   onArchive,
   onRemoveFromTodoPool,
   onSelectionChange,
@@ -255,6 +299,7 @@ function YunxiaoTableRow({
   archiveTarget: string | null
   item: YunxiaoWorkItem | YunxiaoTodoPoolItem
   onAddToTodoPool: (item: YunxiaoWorkItem) => void
+  onAnswerRequirementQuestion: (item: YunxiaoTodoPoolItem) => void
   onArchive: (item: YunxiaoWorkItem) => void
   onRemoveFromTodoPool: (item: YunxiaoWorkItem) => void
   onSelectionChange: (nextSelectedIds: Set<string>) => void
@@ -266,6 +311,10 @@ function YunxiaoTableRow({
   view: YunxiaoListView
 }): JSX.Element {
   const poolItem = view === 'todo-pool' ? (item as YunxiaoTodoPoolItem) : null
+  const contractSummary = poolItem ? todoPoolContractSummary(poolItem) : null
+  const canAnswerRequirementQuestion =
+    poolItem?.poolStatus === 'needs-clarification' &&
+    (poolItem.requirementContract?.blockingQuestions.length ?? 0) > 0
   return (
     <div
       className={cn(
@@ -302,6 +351,11 @@ function YunxiaoTableRow({
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
         <div className="mt-1 flex min-w-0 gap-2 text-[11px] text-muted-foreground">
+          {contractSummary ? (
+            <span className="min-w-0 flex-[2_1_220px] truncate font-medium text-foreground">
+              {contractSummary}
+            </span>
+          ) : null}
           <span className="truncate">{item.typeName ?? item.category}</span>
           {poolItem && item.statusName ? <span className="truncate">{item.statusName}</span> : null}
           {item.participants.length > 0 ? (
@@ -329,10 +383,16 @@ function YunxiaoTableRow({
         archiving={archiveTarget === item.id}
         inTodoPool={todoPoolIdentitySet.has(workItemIdentity(item))}
         onAddToTodoPool={view === 'work-items' ? onAddToTodoPool : undefined}
+        onAnswerRequirementQuestion={
+          canAnswerRequirementQuestion && poolItem
+            ? () => onAnswerRequirementQuestion(poolItem)
+            : undefined
+        }
         onArchive={onArchive}
         onRemoveFromTodoPool={view === 'todo-pool' ? onRemoveFromTodoPool : undefined}
         onSetTodoPoolStatus={view === 'todo-pool' ? onSetTodoPoolStatus : undefined}
         onStartWorkspace={view === 'todo-pool' ? onStartTodoPoolWorkspace : onStartWorkspace}
+        todoPoolStatus={poolItem?.poolStatus ?? null}
       />
     </div>
   )

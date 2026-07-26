@@ -21,6 +21,7 @@ import {
   createAutomationRunOutputSnapshotBuffer,
   selectAutomationRunOutputSnapshot
 } from '@/components/automations/automation-run-output-snapshot'
+import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../../shared/yunxiao-requirement-gate-outcome'
 import { translate } from '@/i18n/i18n'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import type { AutomationTerminalOwnership } from '@/lib/automation-terminal-ownership'
@@ -288,12 +289,15 @@ export function useAutomationDispatchEvents(): void {
             completionMarked = true
             cleanupRunObservers()
             try {
+              const outputSnapshot = getOutputSnapshot()
               await markDispatchResult({
                 runId: run.id,
                 status: 'completed',
                 workspaceId: worktree.id,
                 workspaceDisplayName: worktree.displayName,
-                outputSnapshot: getOutputSnapshot(),
+                outputSnapshot,
+                yunxiaoRequirementOutcomes:
+                  extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot),
                 precheckResult,
                 error: null
               })
@@ -329,12 +333,17 @@ export function useAutomationDispatchEvents(): void {
             completionMarked = true
             cleanupRunObservers()
             try {
+              const outputSnapshot = getOutputSnapshot()
               await markDispatchResult({
                 runId: run.id,
                 status: code === 0 ? 'completed' : 'dispatch_failed',
                 workspaceId: worktree.id,
                 workspaceDisplayName: worktree.displayName,
-                outputSnapshot: getOutputSnapshot(),
+                outputSnapshot,
+                yunxiaoRequirementOutcomes:
+                  code === 0
+                    ? extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot)
+                    : null,
                 precheckResult,
                 error: code === 0 ? null : `Automation process exited with code ${code}.`
               })

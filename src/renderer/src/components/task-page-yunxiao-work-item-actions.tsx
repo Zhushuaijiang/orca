@@ -4,6 +4,7 @@ import {
   ExternalLink,
   ListPlus,
   LoaderCircle,
+  MessageSquareText,
   MoreHorizontal
 } from 'lucide-react'
 import type { JSX } from 'react'
@@ -20,10 +21,40 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { translate } from '@/i18n/i18n'
 import type { YunxiaoTodoPoolStatus, YunxiaoWorkItem } from '../../../shared/types'
 
+function todoPoolStatusActions(status: YunxiaoTodoPoolStatus | null): YunxiaoTodoPoolStatus[] {
+  switch (status) {
+    case 'needs-clarification':
+      return ['dismissed']
+    case 'ready-to-build':
+      return ['queued', 'done', 'dismissed']
+    case 'queued':
+      return ['needs-clarification', 'ready-to-build', 'dismissed']
+    case 'failed':
+      return ['queued', 'needs-clarification', 'dismissed']
+    case 'archived':
+    case 'running':
+    case 'dispatched':
+    case 'workspace-created':
+      return ['needs-clarification', 'ready-to-build', 'done', 'dismissed']
+    case 'done':
+    case 'dismissed':
+      return ['queued']
+    case null:
+      return []
+  }
+}
+
 function todoPoolStatusActionLabel(status: YunxiaoTodoPoolStatus): string {
   switch (status) {
     case 'queued':
       return translate('auto.components.TaskPage.yunxiaoMarkQueued', 'Mark queued')
+    case 'needs-clarification':
+      return translate(
+        'auto.components.TaskPage.yunxiaoMarkNeedsClarification',
+        'Mark needs clarification'
+      )
+    case 'ready-to-build':
+      return translate('auto.components.TaskPage.yunxiaoMarkReadyToBuild', 'Mark ready to build')
     case 'done':
       return translate('auto.components.TaskPage.yunxiaoMarkDone', 'Mark done')
     case 'dismissed':
@@ -47,8 +78,10 @@ type TaskPageYunxiaoWorkItemActionsProps = {
   inTodoPool?: boolean
   onArchive: (item: YunxiaoWorkItem) => void
   onAddToTodoPool?: (item: YunxiaoWorkItem) => void
+  onAnswerRequirementQuestion?: (item: YunxiaoWorkItem) => void
   onRemoveFromTodoPool?: (item: YunxiaoWorkItem) => void
   onSetTodoPoolStatus?: (item: YunxiaoWorkItem, status: YunxiaoTodoPoolStatus) => void
+  todoPoolStatus?: YunxiaoTodoPoolStatus | null
   onStartWorkspace: (item: YunxiaoWorkItem) => void
 }
 
@@ -57,11 +90,14 @@ export function TaskPageYunxiaoWorkItemActions({
   inTodoPool = false,
   item,
   onAddToTodoPool,
+  onAnswerRequirementQuestion,
   onArchive,
   onRemoveFromTodoPool,
   onSetTodoPoolStatus,
+  todoPoolStatus = null,
   onStartWorkspace
 }: TaskPageYunxiaoWorkItemActionsProps): JSX.Element {
+  const statusActions = todoPoolStatusActions(todoPoolStatus)
   return (
     <div className="sticky right-0 z-10 flex h-full items-center justify-end gap-1 border-l border-border/50 bg-background pl-2 group-hover:bg-muted/45">
       <Tooltip>
@@ -137,10 +173,16 @@ export function TaskPageYunxiaoWorkItemActions({
             <Archive className="size-3.5" />
             {translate('auto.components.TaskPage.yunxiaoArchive', 'Archive requirement')}
           </DropdownMenuItem>
-          {onSetTodoPoolStatus ? (
+          {onAnswerRequirementQuestion ? (
+            <DropdownMenuItem onSelect={() => onAnswerRequirementQuestion(item)}>
+              <MessageSquareText className="size-3.5" />
+              {translate('auto.components.TaskPage.yunxiaoAnswerDecision', 'Answer decision')}
+            </DropdownMenuItem>
+          ) : null}
+          {onSetTodoPoolStatus && statusActions.length > 0 ? (
             <>
               <DropdownMenuSeparator />
-              {(['queued', 'done', 'dismissed'] as const).map((status) => (
+              {statusActions.map((status) => (
                 <DropdownMenuItem key={status} onSelect={() => onSetTodoPoolStatus(item, status)}>
                   {todoPoolStatusActionLabel(status)}
                 </DropdownMenuItem>

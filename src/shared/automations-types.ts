@@ -1,6 +1,6 @@
 import type { SetupDecision, TuiAgent } from './types'
 import type { TaskSourceContext, WorkspaceRunContext } from './task-source-context'
-import type { YunxiaoTodoPoolStatus } from './yunxiao-types'
+import type { YunxiaoRequirementGateOutcome, YunxiaoTodoPoolStatus } from './yunxiao-types'
 
 export type AutomationWorkspaceMode = 'existing' | 'new_per_run'
 export type AutomationExecutionTargetType = 'local' | 'ssh'
@@ -161,6 +161,8 @@ export type AutomationRun = {
   outputSnapshot: AutomationRunOutputSnapshot | null
   precheckResult: AutomationPrecheckResult | null
   yunxiaoTodoPoolClaim?: AutomationYunxiaoTodoPoolClaim | null
+  yunxiaoRequirementOutcomes?: YunxiaoRequirementGateOutcome[] | null
+  yunxiaoRequirementOutcome?: YunxiaoRequirementGateOutcome | null
   usage: AutomationRunUsage | null
   error: string | null
   startedAt: number | null
@@ -235,6 +237,8 @@ export type AutomationDispatchResult = {
   outputSnapshot?: AutomationRunOutputSnapshot | null
   precheckResult?: AutomationPrecheckResult | null
   yunxiaoTodoPoolClaim?: AutomationYunxiaoTodoPoolClaim | null
+  yunxiaoRequirementOutcomes?: YunxiaoRequirementGateOutcome[] | null
+  yunxiaoRequirementOutcome?: YunxiaoRequirementGateOutcome | null
   usage?: AutomationRunUsage | null
   error?: string | null
 }

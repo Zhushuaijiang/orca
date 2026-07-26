@@ -87,13 +87,17 @@ export function registerYunxiaoHandlers(store: Store): void {
     if (!args || typeof args.id !== 'string') {
       return null
     }
+    const updates = args.updates ?? {}
     return store.updateYunxiaoTodoPoolItem(args.id, {
-      poolStatus: args.updates?.poolStatus,
-      notes: typeof args.updates?.notes === 'string' ? args.updates.notes : undefined,
+      poolStatus: updates.poolStatus,
+      notes: typeof updates.notes === 'string' ? updates.notes : undefined,
       lastError:
-        typeof args.updates?.lastError === 'string' || args.updates?.lastError === null
-          ? args.updates.lastError
-          : undefined
+        typeof updates.lastError === 'string' || updates.lastError === null
+          ? updates.lastError
+          : undefined,
+      requirementContract: Object.hasOwn(updates, 'requirementContract')
+        ? updates.requirementContract
+        : undefined
     })
   })
 

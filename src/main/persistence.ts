@@ -82,11 +82,26 @@ import {
 import type { MigrationUnsupportedPtyEntry } from '../shared/agent-status-types'
 import {
   DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES,
+  type YunxiaoRequirementContractDecision,
+  type YunxiaoRequirementContractOwner,
+  type YunxiaoRequirementContractQuestion,
+  type YunxiaoRequirementContractQuestionOption,
+  type YunxiaoRequirementContractSnapshot,
+  type YunxiaoRequirementContractStatus,
+  type YunxiaoRequirementDesignAlternative,
+  type YunxiaoRequirementGateOutcome,
+  type YunxiaoRequirementImplementationPlanSnapshot,
+  type YunxiaoRequirementMethodologyGate,
+  type YunxiaoRequirementReviewCheck,
+  type YunxiaoRequirementReviewTier,
+  type YunxiaoRequirementRiskProfile,
+  type YunxiaoRequirementVerificationEvidence,
   type YunxiaoTodoPoolItem,
   type YunxiaoTodoPoolStatus,
   type YunxiaoWorkItem,
   type YunxiaoWorkItemCategory
 } from '../shared/yunxiao-types'
+import { getYunxiaoRequirementCompletionGate } from '../shared/yunxiao-requirement-review-policy'
 import { MOBILE_PAIRING_USERDATA_FILES } from './runtime/mobile-pairing-files'
 import { normalizePersistedMobileClientTabSelections } from './runtime/client-session-tab-selection-persistence'
 import { sanitizeWorkspaceSessionTerminalRetirements } from './runtime/mobile-session-terminal-persistence-retirement'
@@ -1092,6 +1107,21 @@ function backfillLegacyAutomationContexts(
       next.terminalPtyId = null
       changed = true
     }
+    const previousRequirementOutcomesJson = JSON.stringify(next.yunxiaoRequirementOutcomes ?? null)
+    const previousRequirementOutcomeJson = JSON.stringify(next.yunxiaoRequirementOutcome ?? null)
+    const normalizedRequirementOutcomes =
+      normalizeYunxiaoRequirementGateOutcomes(next.yunxiaoRequirementOutcomes) ??
+      normalizeYunxiaoRequirementGateOutcomes(
+        next.yunxiaoRequirementOutcome ? [next.yunxiaoRequirementOutcome] : null
+      )
+    next.yunxiaoRequirementOutcomes = normalizedRequirementOutcomes
+    next.yunxiaoRequirementOutcome = normalizedRequirementOutcomes?.[0] ?? null
+    if (
+      previousRequirementOutcomesJson !== JSON.stringify(next.yunxiaoRequirementOutcomes ?? null) ||
+      previousRequirementOutcomeJson !== JSON.stringify(next.yunxiaoRequirementOutcome ?? null)
+    ) {
+      changed = true
+    }
     return next
   })
   if (!changed) {
@@ -1115,15 +1145,19 @@ function reconcileCompletedYunxiaoTodoPoolClaims(
 } {
   const completedClaimItemIds = new Set<string>()
   const completedClaimRunIds = new Set<string>()
+  const completedClaimRunById = new Map<string, AutomationRun>()
+  const completedClaimRunByItemId = new Map<string, AutomationRun>()
   for (const run of state.automationRuns ?? []) {
     if (run.status !== 'completed' || !run.yunxiaoTodoPoolClaim) {
       continue
     }
     completedClaimRunIds.add(run.id)
+    completedClaimRunById.set(run.id, run)
     for (const itemId of run.yunxiaoTodoPoolClaim.itemIds) {
       const normalizedItemId = normalizeOptionalNonEmptyString(itemId)
       if (normalizedItemId) {
         completedClaimItemIds.add(normalizedItemId)
+        completedClaimRunByItemId.set(normalizedItemId, run)
       }
     }
   }
@@ -1146,12 +1180,19 @@ function reconcileCompletedYunxiaoTodoPoolClaims(
     ) {
       return item
     }
+    const completedRun = item.claimedByRunId
+      ? completedClaimRunById.get(item.claimedByRunId)
+      : completedClaimRunByItemId.get(item.id)
+    const completionStatus = coerceYunxiaoRequirementCompletionStatus(
+      inferYunxiaoTodoPoolCompletedStatus(completedRun),
+      item.requirementContract
+    )
     changed = true
     return {
       ...item,
-      poolStatus: 'done' as const,
+      poolStatus: completionStatus.status,
       poolUpdatedAt: now,
-      lastError: null
+      lastError: completionStatus.error
     }
   })
   return {
@@ -2651,7 +2692,9 @@ function backfillFolderScopeConnectionIds(state: PersistedState): {
 }
 
 function normalizeYunxiaoTodoPoolStatus(value: unknown): YunxiaoTodoPoolStatus {
-  return value === 'archived' ||
+  return value === 'needs-clarification' ||
+    value === 'ready-to-build' ||
+    value === 'archived' ||
     value === 'running' ||
     value === 'dispatched' ||
     value === 'workspace-created' ||
@@ -2672,6 +2715,462 @@ function normalizeYunxiaoTodoPoolAttempts(value: unknown): number {
 
 function normalizeOptionalNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function normalizeRequiredString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback
+}
+
+function normalizePositiveTimestamp(value: unknown): number | null {
+  return Number.isFinite(value) && Number(value) > 0 ? Number(value) : null
+}
+
+function normalizeYunxiaoRequirementContractStatus(
+  value: unknown
+): YunxiaoRequirementContractStatus | null {
+  return value === 'needs_clarification' ||
+    value === 'ready_to_build' ||
+    value === 'missing_repo' ||
+    value === 'blocked' ||
+    value === 'ready_to_verify'
+    ? value
+    : null
+}
+
+function normalizeYunxiaoRequirementContractOwner(value: unknown): YunxiaoRequirementContractOwner {
+  return value === 'product' ||
+    value === 'development' ||
+    value === 'qa' ||
+    value === 'agent' ||
+    value === 'external'
+    ? value
+    : 'agent'
+}
+
+function normalizeYunxiaoRequirementContractQuestionOption(
+  value: unknown
+): YunxiaoRequirementContractQuestionOption | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementContractQuestionOption>
+  const label = normalizeOptionalNonEmptyString(candidate.label)
+  if (!label) {
+    return null
+  }
+  return {
+    ...(normalizeOptionalNonEmptyString(candidate.id)
+      ? { id: normalizeOptionalNonEmptyString(candidate.id)! }
+      : {}),
+    label,
+    impact: normalizeOptionalNonEmptyString(candidate.impact),
+    ...(candidate.recommended === true ? { recommended: true } : {})
+  }
+}
+
+function normalizeYunxiaoRequirementContractQuestion(
+  value: unknown,
+  index: number
+): YunxiaoRequirementContractQuestion | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementContractQuestion>
+  const question = normalizeOptionalNonEmptyString(candidate.question)
+  if (!question) {
+    return null
+  }
+  const id = normalizeOptionalNonEmptyString(candidate.id) ?? `Q${index + 1}`
+  const options = Array.isArray(candidate.options)
+    ? candidate.options
+        .map((option) => normalizeYunxiaoRequirementContractQuestionOption(option))
+        .filter((option): option is YunxiaoRequirementContractQuestionOption => option !== null)
+    : []
+  return {
+    id,
+    question,
+    whyBlocking: normalizeOptionalNonEmptyString(candidate.whyBlocking),
+    options: options.slice(0, 5)
+  }
+}
+
+function normalizeYunxiaoRequirementContractDecision(
+  value: unknown,
+  index: number
+): YunxiaoRequirementContractDecision | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementContractDecision>
+  const summary = normalizeOptionalNonEmptyString(candidate.summary)
+  if (!summary) {
+    return null
+  }
+  return {
+    id: normalizeOptionalNonEmptyString(candidate.id) ?? `D-${String(index + 1).padStart(3, '0')}`,
+    summary,
+    source: normalizeOptionalNonEmptyString(candidate.source),
+    impact: normalizeOptionalNonEmptyString(candidate.impact),
+    decidedAt: normalizePositiveTimestamp(candidate.decidedAt),
+    answeredBy: normalizeOptionalNonEmptyString(candidate.answeredBy),
+    answerSourceType:
+      candidate.answerSourceType === 'orca_ui' ||
+      candidate.answerSourceType === 'yunxiao_comment' ||
+      candidate.answerSourceType === 'agent' ||
+      candidate.answerSourceType === 'manual'
+        ? candidate.answerSourceType
+        : null,
+    yunxiaoCommentId: normalizeOptionalNonEmptyString(candidate.yunxiaoCommentId),
+    selectedOptionId: normalizeOptionalNonEmptyString(candidate.selectedOptionId)
+  }
+}
+
+function normalizeYunxiaoRequirementReviewTier(value: unknown): YunxiaoRequirementReviewTier {
+  return value === 'focused' || value === 'mandatory' ? value : 'none'
+}
+
+function normalizeYunxiaoRequirementRiskProfile(
+  value: unknown
+): YunxiaoRequirementRiskProfile | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementRiskProfile>
+  return {
+    reviewTier: normalizeYunxiaoRequirementReviewTier(candidate.reviewTier),
+    reasons: Array.isArray(candidate.reasons)
+      ? candidate.reasons
+          .map((reason) => normalizeOptionalNonEmptyString(reason))
+          .filter((reason): reason is string => reason !== null)
+          .slice(0, 10)
+      : [],
+    uiWorkflow: candidate.uiWorkflow === true,
+    apiOrDatabase: candidate.apiOrDatabase === true,
+    permissionsOrRelease: candidate.permissionsOrRelease === true,
+    multiRepository: candidate.multiRepository === true,
+    requirementConflict: candidate.requirementConflict === true,
+    weakVerification: candidate.weakVerification === true
+  }
+}
+
+function normalizeYunxiaoRequirementReviewCheck(
+  value: unknown
+): YunxiaoRequirementReviewCheck | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementReviewCheck>
+  if (
+    candidate.role !== 'prd_gate' &&
+    candidate.role !== 'architecture' &&
+    candidate.role !== 'implementation' &&
+    candidate.role !== 'verifier'
+  ) {
+    return null
+  }
+  if (
+    candidate.verdict !== 'pass' &&
+    candidate.verdict !== 'conditional_fail' &&
+    candidate.verdict !== 'fail'
+  ) {
+    return null
+  }
+  return {
+    role: candidate.role,
+    verdict: candidate.verdict,
+    topRisks: Array.isArray(candidate.topRisks)
+      ? candidate.topRisks
+          .map((risk) => normalizeOptionalNonEmptyString(risk))
+          .filter((risk): risk is string => risk !== null)
+          .slice(0, 10)
+      : [],
+    evidence: normalizeOptionalNonEmptyString(candidate.evidence),
+    dispatchId: normalizeOptionalNonEmptyString(candidate.dispatchId),
+    reviewedAt: normalizePositiveTimestamp(candidate.reviewedAt)
+  }
+}
+
+function normalizeYunxiaoRequirementDesignAlternative(
+  value: unknown,
+  index: number
+): YunxiaoRequirementDesignAlternative | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementDesignAlternative>
+  const summary = normalizeOptionalNonEmptyString(candidate.summary)
+  if (!summary) {
+    return null
+  }
+  return {
+    id: normalizeOptionalNonEmptyString(candidate.id) ?? `A${index + 1}`,
+    summary,
+    tradeoff: normalizeOptionalNonEmptyString(candidate.tradeoff),
+    decision:
+      candidate.decision === 'selected' ||
+      candidate.decision === 'rejected' ||
+      candidate.decision === 'deferred'
+        ? candidate.decision
+        : 'deferred',
+    reason: normalizeOptionalNonEmptyString(candidate.reason)
+  }
+}
+
+function normalizeYunxiaoRequirementImplementationPlanSnapshot(
+  value: unknown
+): YunxiaoRequirementImplementationPlanSnapshot | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementImplementationPlanSnapshot>
+  return {
+    status:
+      candidate.status === 'not_required' ||
+      candidate.status === 'required' ||
+      candidate.status === 'ready' ||
+      candidate.status === 'missing'
+        ? candidate.status
+        : 'missing',
+    path: normalizeOptionalNonEmptyString(candidate.path),
+    summary: normalizeOptionalNonEmptyString(candidate.summary),
+    updatedAt: normalizePositiveTimestamp(candidate.updatedAt)
+  }
+}
+
+function normalizeYunxiaoRequirementVerificationEvidence(
+  value: unknown,
+  index: number
+): YunxiaoRequirementVerificationEvidence | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementVerificationEvidence>
+  const summary = normalizeOptionalNonEmptyString(candidate.summary)
+  if (!summary) {
+    return null
+  }
+  return {
+    id: normalizeOptionalNonEmptyString(candidate.id) ?? `VE-${String(index + 1).padStart(3, '0')}`,
+    type:
+      candidate.type === 'failing_test' ||
+      candidate.type === 'passing_test' ||
+      candidate.type === 'command' ||
+      candidate.type === 'build' ||
+      candidate.type === 'screenshot' ||
+      candidate.type === 'artifact'
+        ? candidate.type
+        : 'command',
+    command: normalizeOptionalNonEmptyString(candidate.command),
+    artifactPath: normalizeOptionalNonEmptyString(candidate.artifactPath),
+    result:
+      candidate.result === 'pass' || candidate.result === 'fail' || candidate.result === 'blocked'
+        ? candidate.result
+        : 'blocked',
+    summary,
+    collectedAt: normalizePositiveTimestamp(candidate.collectedAt)
+  }
+}
+
+function normalizeYunxiaoRequirementMethodologyGate(
+  value: unknown
+): YunxiaoRequirementMethodologyGate | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementMethodologyGate>
+  const alternatives = Array.isArray(candidate.alternatives)
+    ? candidate.alternatives
+        .map((alternative, index) =>
+          normalizeYunxiaoRequirementDesignAlternative(alternative, index)
+        )
+        .filter(
+          (alternative): alternative is YunxiaoRequirementDesignAlternative => alternative !== null
+        )
+        .slice(0, 5)
+    : []
+  const verificationEvidence = Array.isArray(candidate.verificationEvidence)
+    ? candidate.verificationEvidence
+        .map((evidence, index) => normalizeYunxiaoRequirementVerificationEvidence(evidence, index))
+        .filter((evidence): evidence is YunxiaoRequirementVerificationEvidence => evidence !== null)
+        .slice(0, 20)
+    : []
+  if (
+    candidate.designConfirmed !== true &&
+    alternatives.length === 0 &&
+    !candidate.implementationPlan &&
+    verificationEvidence.length === 0
+  ) {
+    return null
+  }
+  return {
+    designConfirmed: candidate.designConfirmed === true,
+    alternatives,
+    implementationPlan: normalizeYunxiaoRequirementImplementationPlanSnapshot(
+      candidate.implementationPlan
+    ),
+    verificationEvidence
+  }
+}
+
+function normalizeYunxiaoRequirementContract(
+  value: unknown
+): YunxiaoRequirementContractSnapshot | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementContractSnapshot>
+  const status = normalizeYunxiaoRequirementContractStatus(candidate.status)
+  if (!status) {
+    return null
+  }
+  return {
+    status,
+    owner: normalizeYunxiaoRequirementContractOwner(candidate.owner),
+    nextAction: normalizeRequiredString(candidate.nextAction),
+    intent: normalizeRequiredString(candidate.intent),
+    archiveDir: normalizeOptionalNonEmptyString(candidate.archiveDir),
+    prdPath: normalizeOptionalNonEmptyString(candidate.prdPath),
+    evidenceUpdatedAt: normalizePositiveTimestamp(candidate.evidenceUpdatedAt),
+    updatedAt: normalizePositiveTimestamp(candidate.updatedAt) ?? Date.now(),
+    blockingQuestions: Array.isArray(candidate.blockingQuestions)
+      ? candidate.blockingQuestions
+          .map((question, index) => normalizeYunxiaoRequirementContractQuestion(question, index))
+          .filter((question): question is YunxiaoRequirementContractQuestion => question !== null)
+          .slice(0, 10)
+      : [],
+    decisions: Array.isArray(candidate.decisions)
+      ? candidate.decisions
+          .map((decision, index) => normalizeYunxiaoRequirementContractDecision(decision, index))
+          .filter((decision): decision is YunxiaoRequirementContractDecision => decision !== null)
+          .slice(0, 20)
+      : [],
+    riskProfile: normalizeYunxiaoRequirementRiskProfile(candidate.riskProfile),
+    reviewChecks: Array.isArray(candidate.reviewChecks)
+      ? candidate.reviewChecks
+          .map((check) => normalizeYunxiaoRequirementReviewCheck(check))
+          .filter((check): check is YunxiaoRequirementReviewCheck => check !== null)
+          .slice(0, 10)
+      : [],
+    methodologyGate: normalizeYunxiaoRequirementMethodologyGate(candidate.methodologyGate)
+  }
+}
+
+function normalizeYunxiaoRequirementGateOutcome(
+  value: unknown
+): YunxiaoRequirementGateOutcome | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<YunxiaoRequirementGateOutcome>
+  const itemId = normalizeOptionalNonEmptyString(candidate.itemId)
+  const poolStatus =
+    candidate.poolStatus === null || candidate.poolStatus === undefined
+      ? null
+      : normalizeYunxiaoTodoPoolStatus(candidate.poolStatus)
+  const requirementContract = normalizeYunxiaoRequirementContract(candidate.requirementContract)
+  if (!itemId && !poolStatus && !requirementContract) {
+    return null
+  }
+  return {
+    itemId,
+    poolStatus,
+    requirementContract,
+    evidence: normalizeOptionalNonEmptyString(candidate.evidence),
+    updatedAt: normalizePositiveTimestamp(candidate.updatedAt) ?? Date.now()
+  }
+}
+
+function normalizeYunxiaoRequirementGateOutcomes(
+  value: unknown
+): YunxiaoRequirementGateOutcome[] | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+  const outcomes = value
+    .map((entry) => normalizeYunxiaoRequirementGateOutcome(entry))
+    .filter((entry): entry is YunxiaoRequirementGateOutcome => entry !== null)
+    .slice(0, 20)
+  return outcomes.length > 0 ? outcomes : null
+}
+
+function isYunxiaoRequirementContractClaimable(
+  contract: YunxiaoTodoPoolItem['requirementContract']
+): boolean {
+  if (!contract) {
+    return true
+  }
+  return (
+    contract.blockingQuestions.length === 0 &&
+    (contract.status === 'ready_to_build' || contract.status === 'ready_to_verify')
+  )
+}
+
+function coerceYunxiaoRequirementManualStatus(
+  status: YunxiaoTodoPoolStatus,
+  contract: YunxiaoTodoPoolItem['requirementContract']
+): { status: YunxiaoTodoPoolStatus; error: string | null } {
+  if (!contract && status === 'done') {
+    return { status: 'ready-to-build', error: 'Requirement Contract is missing.' }
+  }
+  if (!contract) {
+    return { status, error: null }
+  }
+  if (
+    (status === 'ready-to-build' || status === 'done') &&
+    (contract.status === 'needs_clarification' || contract.blockingQuestions.length > 0)
+  ) {
+    return {
+      status: 'needs-clarification',
+      error: 'Requirement Contract has unresolved blocking questions.'
+    }
+  }
+  if (status === 'done') {
+    const completionGate = getYunxiaoRequirementCompletionGate(contract)
+    if (!completionGate.ready) {
+      return {
+        status: 'ready-to-build',
+        error: completionGate.gaps.join(' ')
+      }
+    }
+  }
+  return { status, error: null }
+}
+
+function coerceYunxiaoRequirementCompletionStatus(
+  status: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>,
+  contract: YunxiaoTodoPoolItem['requirementContract']
+): {
+  status: Extract<
+    YunxiaoTodoPoolStatus,
+    'done' | 'failed' | 'needs-clarification' | 'ready-to-build'
+  >
+  error: string | null
+} {
+  if (status !== 'done') {
+    return { status, error: null }
+  }
+  const coerced = coerceYunxiaoRequirementManualStatus(status, contract)
+  return {
+    status:
+      coerced.status === 'done' ||
+      coerced.status === 'needs-clarification' ||
+      coerced.status === 'ready-to-build'
+        ? coerced.status
+        : 'ready-to-build',
+    error: coerced.error
+  }
+}
+
+function inferYunxiaoTodoPoolCompletedStatus(
+  run: Pick<AutomationRun, 'outputSnapshot'> | null | undefined
+): Extract<YunxiaoTodoPoolStatus, 'done' | 'needs-clarification'> {
+  const content = run?.outputSnapshot?.content.toLowerCase() ?? ''
+  return content.includes('needs-clarification') ||
+    content.includes('needs_clarification') ||
+    content.includes('需澄清') ||
+    content.includes('需补需求')
+    ? 'needs-clarification'
+    : 'done'
 }
 
 function normalizeYunxiaoTodoPoolPerson(
@@ -2768,7 +3267,8 @@ function normalizeYunxiaoTodoPoolItem(value: unknown): YunxiaoTodoPoolItem | nul
     claimedByAutomationId: normalizeOptionalNonEmptyString(candidate.claimedByAutomationId),
     claimedByRunId: normalizeOptionalNonEmptyString(candidate.claimedByRunId),
     lastError: normalizeOptionalNonEmptyString(candidate.lastError),
-    notes: typeof candidate.notes === 'string' ? candidate.notes : ''
+    notes: typeof candidate.notes === 'string' ? candidate.notes : '',
+    requirementContract: normalizeYunxiaoRequirementContract(candidate.requirementContract)
   }
 }
 
@@ -4443,15 +4943,79 @@ export class Store {
     return [...this.state.yunxiaoTodoPool]
   }
 
+  private applyYunxiaoRequirementGateOutcome(args: {
+    runId: string
+    itemIds?: readonly string[]
+    outcome: YunxiaoRequirementGateOutcome
+  }): YunxiaoTodoPoolItem[] {
+    const now = Date.now()
+    const normalizedItemId = normalizeOptionalNonEmptyString(args.outcome.itemId)
+    const claimedItemIds = new Set(
+      (args.itemIds ?? [])
+        .map((id) => normalizeOptionalNonEmptyString(id))
+        .filter((id): id is string => id !== null)
+    )
+    const currentPool = this.getYunxiaoTodoPool()
+    const claimMatchedItems = currentPool.filter(
+      (item) => item.claimedByRunId === args.runId || claimedItemIds.has(item.id)
+    )
+    const fallbackItemId =
+      normalizedItemId ?? (claimMatchedItems.length === 1 ? claimMatchedItems[0]!.id : null)
+    const updatedItems: YunxiaoTodoPoolItem[] = []
+    this.state.yunxiaoTodoPool = currentPool.map((item) => {
+      const matchesOutcome = fallbackItemId ? item.id === fallbackItemId : false
+      if (!matchesOutcome) {
+        return item
+      }
+      const nextContract = args.outcome.requirementContract ?? item.requirementContract
+      const nextStatus =
+        args.outcome.poolStatus ??
+        (nextContract?.status === 'needs_clarification'
+          ? 'needs-clarification'
+          : nextContract?.status === 'ready_to_build'
+            ? 'ready-to-build'
+            : item.poolStatus)
+      const coercedStatus = coerceYunxiaoRequirementManualStatus(nextStatus, nextContract)
+      const next: YunxiaoTodoPoolItem = {
+        ...item,
+        poolStatus: coercedStatus.status,
+        requirementContract: nextContract,
+        poolUpdatedAt: now,
+        lastError:
+          coercedStatus.status === 'failed'
+            ? (args.outcome.evidence ?? item.lastError)
+            : coercedStatus.error
+      }
+      if (
+        coercedStatus.status === 'queued' ||
+        coercedStatus.status === 'ready-to-build' ||
+        coercedStatus.status === 'needs-clarification'
+      ) {
+        next.claimedAt = null
+        next.claimedByAutomationId = null
+        next.claimedByRunId = null
+      }
+      updatedItems.push(next)
+      return next
+    })
+    return updatedItems
+  }
+
   private updateYunxiaoTodoPoolClaimStatus(args: {
     runId: string
     itemIds?: readonly string[]
-    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed'>
+    excludeItemIds?: readonly string[]
+    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>
     error?: string | null
   }): YunxiaoTodoPoolItem[] {
     const now = Date.now()
     const claimedItemIds = new Set(
       (args.itemIds ?? [])
+        .map((id) => normalizeOptionalNonEmptyString(id))
+        .filter((id): id is string => id !== null)
+    )
+    const excludedItemIds = new Set(
+      (args.excludeItemIds ?? [])
         .map((id) => normalizeOptionalNonEmptyString(id))
         .filter((id): id is string => id !== null)
     )
@@ -4463,20 +5027,27 @@ export class Store {
     ])
     const updatedItems: YunxiaoTodoPoolItem[] = []
     this.state.yunxiaoTodoPool = this.getYunxiaoTodoPool().map((item) => {
+      if (excludedItemIds.has(item.id)) {
+        return item
+      }
       const matchesClaim = item.claimedByRunId
         ? item.claimedByRunId === args.runId
         : claimedItemIds.has(item.id)
       if (!matchesClaim || !activeClaimStatuses.has(item.poolStatus)) {
         return item
       }
+      const completionStatus = coerceYunxiaoRequirementCompletionStatus(
+        args.poolStatus,
+        item.requirementContract
+      )
       const next: YunxiaoTodoPoolItem = {
         ...item,
-        poolStatus: args.poolStatus,
+        poolStatus: completionStatus.status,
         poolUpdatedAt: now,
         lastError:
-          args.poolStatus === 'failed'
+          completionStatus.status === 'failed'
             ? (normalizeOptionalNonEmptyString(args.error) ?? 'Automation run failed.')
-            : null
+            : completionStatus.error
       }
       updatedItems.push(next)
       return next
@@ -4502,7 +5073,8 @@ export class Store {
         claimedByAutomationId: null,
         claimedByRunId: null,
         lastError: null,
-        notes: ''
+        notes: '',
+        requirementContract: null
       })
       if (!normalizedItem) {
         continue
@@ -4521,6 +5093,7 @@ export class Store {
             claimedByAutomationId: existing.claimedByAutomationId,
             claimedByRunId: existing.claimedByRunId,
             lastError: existing.lastError,
+            requirementContract: existing.requirementContract,
             lastSyncedAt: now
           }
         : normalizedItem
@@ -4539,19 +5112,36 @@ export class Store {
 
   updateYunxiaoTodoPoolItem(
     id: string,
-    updates: Partial<Pick<YunxiaoTodoPoolItem, 'poolStatus' | 'notes' | 'lastError'>>
+    updates: Partial<
+      Pick<YunxiaoTodoPoolItem, 'poolStatus' | 'notes' | 'lastError' | 'requirementContract'>
+    >
   ): YunxiaoTodoPoolItem | null {
     const item = this.getYunxiaoTodoPool().find((entry) => entry.id === id)
     if (!item) {
       return null
     }
     if (updates.poolStatus !== undefined) {
-      item.poolStatus = normalizeYunxiaoTodoPoolStatus(updates.poolStatus)
-      if (item.poolStatus === 'queued') {
+      const nextStatus = coerceYunxiaoRequirementManualStatus(
+        normalizeYunxiaoTodoPoolStatus(updates.poolStatus),
+        updates.requirementContract !== undefined
+          ? normalizeYunxiaoRequirementContract(updates.requirementContract)
+          : item.requirementContract
+      )
+      item.poolStatus = nextStatus.status
+      if (nextStatus.error) {
+        item.lastError = nextStatus.error
+      }
+      if (
+        item.poolStatus === 'queued' ||
+        item.poolStatus === 'ready-to-build' ||
+        item.poolStatus === 'needs-clarification'
+      ) {
         item.claimedAt = null
         item.claimedByAutomationId = null
         item.claimedByRunId = null
-        item.lastError = null
+        if (!nextStatus.error) {
+          item.lastError = null
+        }
       }
     }
     if (updates.notes !== undefined) {
@@ -4559,6 +5149,17 @@ export class Store {
     }
     if (updates.lastError !== undefined) {
       item.lastError = normalizeOptionalNonEmptyString(updates.lastError)
+    }
+    if (updates.requirementContract !== undefined) {
+      item.requirementContract = normalizeYunxiaoRequirementContract(updates.requirementContract)
+      const nextStatus = coerceYunxiaoRequirementManualStatus(
+        item.poolStatus,
+        item.requirementContract
+      )
+      item.poolStatus = nextStatus.status
+      if (nextStatus.error) {
+        item.lastError = nextStatus.error
+      }
     }
     item.poolUpdatedAt = Date.now()
     this.state.yunxiaoTodoPool = this.state.yunxiaoTodoPool.map((entry) =>
@@ -4581,7 +5182,11 @@ export class Store {
     const now = Date.now()
     const claimedIds = new Set(
       this.getYunxiaoTodoPool()
-        .filter((item) => statuses.has(item.poolStatus))
+        .filter(
+          (item) =>
+            statuses.has(item.poolStatus) &&
+            isYunxiaoRequirementContractClaimable(item.requirementContract)
+        )
         .sort(
           (left, right) => left.addedAt - right.addedAt || left.title.localeCompare(right.title)
         )
@@ -4616,7 +5221,7 @@ export class Store {
   finishYunxiaoTodoPoolClaim(args: {
     runId: string
     itemIds?: readonly string[]
-    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed'>
+    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>
     error?: string | null
   }): YunxiaoTodoPoolItem[] {
     const updatedItems = this.updateYunxiaoTodoPoolClaimStatus(args)
@@ -5333,6 +5938,8 @@ export class Store {
       outputSnapshot: null,
       precheckResult: null,
       yunxiaoTodoPoolClaim: null,
+      yunxiaoRequirementOutcomes: null,
+      yunxiaoRequirementOutcome: null,
       usage: null,
       error: null,
       startedAt: null,
@@ -5358,6 +5965,16 @@ export class Store {
     const workspaceDisplayName = Object.hasOwn(result, 'workspaceDisplayName')
       ? normalizeAutomationRunWorkspaceDisplayName(result.workspaceDisplayName ?? null)
       : null
+    const nextYunxiaoRequirementOutcomes = Object.hasOwn(result, 'yunxiaoRequirementOutcomes')
+      ? normalizeYunxiaoRequirementGateOutcomes(result.yunxiaoRequirementOutcomes)
+      : Object.hasOwn(result, 'yunxiaoRequirementOutcome')
+        ? normalizeYunxiaoRequirementGateOutcomes(
+            result.yunxiaoRequirementOutcome ? [result.yunxiaoRequirementOutcome] : null
+          )
+        : (normalizeYunxiaoRequirementGateOutcomes(current.yunxiaoRequirementOutcomes) ??
+          normalizeYunxiaoRequirementGateOutcomes(
+            current.yunxiaoRequirementOutcome ? [current.yunxiaoRequirementOutcome] : null
+          ))
     const updated: AutomationRun = {
       ...current,
       status: result.status,
@@ -5384,17 +6001,29 @@ export class Store {
       yunxiaoTodoPoolClaim: Object.hasOwn(result, 'yunxiaoTodoPoolClaim')
         ? normalizeAutomationYunxiaoTodoPoolClaim(result.yunxiaoTodoPoolClaim)
         : normalizeAutomationYunxiaoTodoPoolClaim(current.yunxiaoTodoPoolClaim),
+      yunxiaoRequirementOutcomes: nextYunxiaoRequirementOutcomes,
+      yunxiaoRequirementOutcome: nextYunxiaoRequirementOutcomes?.[0] ?? null,
       usage: Object.hasOwn(result, 'usage') ? (result.usage ?? null) : (current.usage ?? null),
       error: result.error ?? null,
       startedAt: current.startedAt ?? now,
       dispatchedAt: result.status === 'dispatched' ? now : current.dispatchedAt
     }
     this.state.automationRuns[index] = updated
+    const structuredOutcomeItems =
+      updated.yunxiaoRequirementOutcomes?.flatMap((outcome) =>
+        this.applyYunxiaoRequirementGateOutcome({
+          runId: updated.id,
+          itemIds: updated.yunxiaoTodoPoolClaim?.itemIds,
+          outcome
+        })
+      ) ?? []
     if (isFinalAutomationRunStatus(updated.status) && updated.yunxiaoTodoPoolClaim) {
       this.updateYunxiaoTodoPoolClaimStatus({
         runId: updated.id,
         itemIds: updated.yunxiaoTodoPoolClaim.itemIds,
-        poolStatus: updated.status === 'completed' ? 'done' : 'failed',
+        excludeItemIds: structuredOutcomeItems.map((item) => item.id),
+        poolStatus:
+          updated.status === 'completed' ? inferYunxiaoTodoPoolCompletedStatus(updated) : 'failed',
         error: updated.error
       })
     }

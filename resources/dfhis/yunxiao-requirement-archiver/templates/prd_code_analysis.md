@@ -1,6 +1,58 @@
 # {WORK_ITEM_ID} {TITLE} PRD And Code Analysis
 
-## 1. Document Status
+## 1. Requirement Contract
+
+- Status: `needs_clarification / ready_to_build / missing_repo / blocked / ready_to_verify`
+- Owner: `product / development / qa / agent / external`
+- Next action:
+- Intent:
+- Local archive directory:
+- PRD path:
+- Evidence updated at:
+- Contract updated at:
+
+### 1.1 Blocking Questions
+
+Ask only questions whose answers change implementation, acceptance criteria, rollout, data/API behavior, or UI workflow. Prefer 1-3 options with a recommended choice. If status is `ready_to_build`, write `None` and remove placeholder question rows. If status is `needs_clarification`, include 1-3 blocking questions only.
+
+| ID | Question | Options | Why Blocking | Owner | Status |
+| --- | --- | --- | --- | --- | --- |
+| None |  |  |  |  |  |
+
+### 1.2 Decision Ledger
+
+Record every answer before continuing. If no decision has been made yet, write `None` and remove placeholder decision rows.
+
+| ID | Decision | Source | Implementation Impact | Decided At |
+| --- | --- | --- | --- | --- |
+| None |  |  |  |  |
+
+### 1.3 Contract Evidence Summary
+
+- Confirmed:
+- Inferred:
+- Not confirmed:
+
+### 1.4 Methodology Gate
+
+Use this section to keep the workflow compact but auditable. Default low-risk work to one builder plus local verification. Use focused review for unresolved decisions, UI/workflow, API/database, requirement conflict, weak verification, or explicit review requests. Use mandatory PRD/architecture/implementation/verifier review for multi-repo, permission/release, API/database plus weak verification, or UI/workflow plus requirement conflict cases.
+
+| Gate | Required? | Evidence / Link |
+| --- | --- | --- |
+| Implementation plan before edits |  |  |
+| Test-first or regression evidence |  |  |
+| Independent review checks |  |  |
+| Final verification evidence |  |  |
+
+### 1.5 Review Checks Snapshot
+
+Record independent reviewer outputs here when focused or mandatory review is required. The coordinator decides by evidence against the contract, not by vote count.
+
+| Role | Verdict | Top Risks | Evidence / Dispatch | Reviewed At |
+| --- | --- | --- | --- | --- |
+| None |  |  |  |  |
+
+## 2. Document Status
 
 - Work item: `{WORK_ITEM_ID}`
 - Yunxiao link:
@@ -10,11 +62,11 @@
 - Document generated at:
 - HIS code root:
 - Analyst:
-- Current conclusion: `可开发 / 需补仓库 / 需补需求 / 阻塞`
+- Current conclusion: `可开发 / 需补仓库 / 需补需求 / 阻塞 / 待验证`
 
-## 2. Source Evidence
+## 3. Source Evidence
 
-### 2.1 Yunxiao Metadata
+### 3.1 Yunxiao Metadata
 
 - Project:
 - Work item type:
@@ -27,11 +79,11 @@
 - Priority:
 - Parent requirements:
 
-### 2.2 Archive Files
+### 3.2 Archive Files
 
 List the downloaded files used for this document. Include `raw.json`, `requirement.md`, `context.txt`, `analysis.md`, `attachments_manifest.json`, parent requirement files, and attachment count.
 
-### 2.3 Attachment Evidence
+### 3.3 Attachment Evidence
 
 For every screenshot or attachment that affects implementation, record:
 
@@ -39,27 +91,27 @@ For every screenshot or attachment that affects implementation, record:
 | --- | --- | --- | --- | --- |
 | `attachments/...` |  |  |  |  |
 
-## 3. Requirement PRD
+## 4. Requirement PRD
 
-### 3.1 Background And Problem
+### 4.1 Background And Problem
 
 Describe the current business problem in product terms. Do not copy raw HTML or long source excerpts.
 
-### 3.2 Goals
+### 4.2 Goals
 
 - 
 
-### 3.3 Non-Goals
+### 4.3 Non-Goals
 
 - 
 
-### 3.4 Users And Scenarios
+### 4.4 Users And Scenarios
 
 | User Role | Scenario | Entry Point | Expected Result |
 | --- | --- | --- | --- |
 |  |  |  |  |
 
-### 3.5 Functional Requirements
+### 4.5 Functional Requirements
 
 Use stable requirement ids, for example `FR-001`.
 
@@ -67,17 +119,17 @@ Use stable requirement ids, for example `FR-001`.
 | --- | --- | --- | --- | --- |
 | FR-001 |  |  |  |  |
 
-### 3.6 Compatibility Rules
+### 4.6 Compatibility Rules
 
 Document feature flags/parameters and parameter-off behavior. Parameter-off mode must preserve current behavior unless the Yunxiao requirement says otherwise.
 
-### 3.7 Validation And Error Messages
+### 4.7 Validation And Error Messages
 
 | Rule | Condition | Message | Blocking? | Frontend/Backend Owner |
 | --- | --- | --- | --- | --- |
 |  |  |  |  |  |
 
-### 3.8 State Transitions
+### 4.8 State Transitions
 
 Describe business state changes before and after implementation.
 
@@ -85,15 +137,15 @@ Describe business state changes before and after implementation.
 | --- | --- | --- | --- | --- |
 |  |  |  |  |  |
 
-## 4. Current Code Analysis
+## 5. Current Code Analysis
 
-### 4.1 Repository Map
+### 5.1 Repository Map
 
 | Repository | Local Path | Branch | Remote | Role | Present Locally? |
 | --- | --- | --- | --- | --- | --- |
 |  |  |  |  |  |  |
 
-### 4.2 Existing Flow
+### 5.2 Existing Flow
 
 Explain the existing frontend-to-backend flow with concrete evidence.
 
@@ -101,19 +153,19 @@ Explain the existing frontend-to-backend flow with concrete evidence.
 | --- | --- | --- | --- |
 |  |  |  |  |
 
-### 4.3 Affected Frontend Code
+### 5.3 Affected Frontend Code
 
 | File | Lines/Function | Current Responsibility | Required Change | Risk |
 | --- | --- | --- | --- | --- |
 |  |  |  |  |  |
 
-### 4.4 Affected Backend Code
+### 5.4 Affected Backend Code
 
 | File | Lines/Class/Method | Current Responsibility | Required Change | Risk |
 | --- | --- | --- | --- | --- |
 |  |  |  |  |  |
 
-### 4.5 Database, Parameter, Dictionary, And API Impact
+### 5.5 Database, Parameter, Dictionary, And API Impact
 
 | Type | Name | Current Evidence | Required Change | Migration/Config Notes |
 | --- | --- | --- | --- | --- |
@@ -122,7 +174,7 @@ Explain the existing frontend-to-backend flow with concrete evidence.
 | Table/Column |  |  |  |  |
 | API |  |  |  |  |
 
-### 4.6 Missing Or External Repositories
+### 5.6 Missing Or External Repositories
 
 If a referenced service/API implementation is absent from the local code root, list it here with the evidence that proves it is required.
 
@@ -130,29 +182,37 @@ If a referenced service/API implementation is absent from the local code root, l
 | --- | --- | --- | --- |
 |  |  |  |  |
 
-## 5. Proposed Implementation Plan
+## 6. Proposed Implementation Plan
 
-### 5.1 Design Summary
+### 6.1 Design Summary
 
 State the chosen approach and why it matches the existing architecture.
 
-### 5.2 Frontend Changes
+### 6.1.1 Alternatives And Design Confirmation
+
+Keep this short. For focused/mandatory risk, record the main alternatives before edits and the chosen design confirmation.
+
+| Option | Why Considered | Decision | Reason |
+| --- | --- | --- | --- |
+|  |  |  |  |
+
+### 6.2 Frontend Changes
 
 | Order | File | Change | Dependency |
 | --- | --- | --- | --- |
 | 1 |  |  |  |
 
-### 5.3 Backend Changes
+### 6.3 Backend Changes
 
 | Order | File | Change | Dependency |
 | --- | --- | --- | --- |
 | 1 |  |  |  |
 
-### 5.4 Database/Configuration Changes
+### 6.4 Database/Configuration Changes
 
 Include migration SQL or config records if known. If not known, write the exact table/parameter/dictionary that must be provided and mark as `待确认`.
 
-### 5.5 API Contract
+### 6.5 API Contract
 
 For every new or changed API:
 
@@ -167,37 +227,47 @@ Error cases:
 Backward compatibility:
 ```
 
-## 6. Acceptance Criteria
+## 7. Acceptance Criteria
 
 | ID | Scenario | Given | When | Then |
 | --- | --- | --- | --- | --- |
 | AC-001 |  |  |  |  |
 
-## 7. Test Plan
+## 8. Test Plan
 
-### 7.1 Developer Verification
+### 8.1 Developer Verification
 
 - 
 
-### 7.2 QA Regression
+### 8.2 QA Regression
 
 | Area | Case | Expected Result |
 | --- | --- | --- |
 |  |  |  |
 
-### 7.3 Data Setup
+### 8.3 Data Setup
 
 - 
 
-## 8. Risks And Open Questions
+### 8.4 Verification Evidence Records
+
+Do not claim completion without fresh evidence. Prefer command, screenshot, build, test, or inspected artifact records over prose.
+
+| Type | Command / Artifact | Result | Evidence Link / Output Summary | Collected At |
+| --- | --- | --- | --- | --- |
+|  |  |  |  |  |
+
+## 9. Risks And Open Questions
 
 | ID | Risk/Open Question | Impact | Owner | Required Decision |
 | --- | --- | --- | --- | --- |
 | Q-001 |  |  |  |  |
 
-## 9. Developer Checklist
+## 10. Developer Checklist
 
 - [ ] Confirm archive quality and source evidence.
+- [ ] Confirm Requirement Contract status is `ready_to_build` before code edits.
+- [ ] Record answers to blocking questions in the decision ledger.
 - [ ] Confirm all impacted repositories exist locally or record missing repositories.
 - [ ] Apply database/parameter/dictionary changes.
 - [ ] Implement backend changes.

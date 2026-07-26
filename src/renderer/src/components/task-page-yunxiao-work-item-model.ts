@@ -13,6 +13,8 @@ export const YUNXIAO_GRID_CLASS =
   'grid-cols-[28px_110px_minmax(280px,2fr)_100px_120px_86px_92px_118px_118px]'
 export const YUNXIAO_TODO_POOL_STATUSES: YunxiaoTodoPoolStatus[] = [
   'queued',
+  'needs-clarification',
+  'ready-to-build',
   'archived',
   'running',
   'dispatched',
@@ -64,6 +66,13 @@ export function todoPoolStatusLabel(status: YunxiaoTodoPoolStatus): string {
   switch (status) {
     case 'queued':
       return translate('auto.components.TaskPage.yunxiaoTodoPoolQueued', 'Queued')
+    case 'needs-clarification':
+      return translate(
+        'auto.components.TaskPage.yunxiaoTodoPoolNeedsClarification',
+        'Needs clarification'
+      )
+    case 'ready-to-build':
+      return translate('auto.components.TaskPage.yunxiaoTodoPoolReadyToBuild', 'Ready to build')
     case 'archived':
       return translate('auto.components.TaskPage.yunxiaoTodoPoolArchived', 'Archived')
     case 'running':

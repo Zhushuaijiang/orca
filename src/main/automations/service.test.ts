@@ -179,6 +179,9 @@ describe('AutomationService', () => {
     const [, payload] = send.mock.calls[0]
     expect(payload.automation.prompt).toContain('DFHIS-31704')
     expect(payload.automation.prompt).toContain('direct Yunxiao MCP workflow first')
+    expect(payload.automation.prompt).toContain('Requirement Contract')
+    expect(payload.automation.prompt).toContain('needs_clarification')
+    expect(payload.automation.prompt).toContain('Contract status: needs_clarification')
     expect(payload.automation.prompt).not.toContain('Archive the requirement through HIS MCP')
     expect(payload.automation.prompt).toContain('dfhis-environment.json')
 
@@ -188,19 +191,28 @@ describe('AutomationService', () => {
       workspaceId: 'wt1'
     })
 
-    expect(store.getYunxiaoTodoPool()[0]?.poolStatus).toBe('done')
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      poolStatus: 'ready-to-build',
+      lastError: 'Requirement Contract is missing.'
+    })
   })
 
-  it('claims legacy workspace-created Yunxiao todo pool items for queued-only automations', async () => {
+  it('claims actionable Yunxiao pool states for queued-only automations', async () => {
     vi.setSystemTime(new Date('2026-05-13T08:00:00Z'))
     const store = await createStore()
     store.addRepo(makeRepo())
-    store.addYunxiaoTodoPoolItems([makeYunxiaoWorkItem()])
-    store.updateYunxiaoTodoPoolItem('item-1', { poolStatus: 'workspace-created' })
+    store.addYunxiaoTodoPoolItems([
+      makeYunxiaoWorkItem({ id: 'workspace-item', serialNumber: 'DFHIS-31705' }),
+      makeYunxiaoWorkItem({ id: 'ready-item', serialNumber: 'DFHIS-31706' }),
+      makeYunxiaoWorkItem({ id: 'clarify-item', serialNumber: 'DFHIS-31707' })
+    ])
+    store.updateYunxiaoTodoPoolItem('workspace-item', { poolStatus: 'workspace-created' })
+    store.updateYunxiaoTodoPoolItem('ready-item', { poolStatus: 'ready-to-build' })
+    store.updateYunxiaoTodoPoolItem('clarify-item', { poolStatus: 'needs-clarification' })
     const automation = store.createAutomation({
       name: 'Yunxiao todo pool',
       prompt: 'Pick up the next Yunxiao item.',
-      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 3 },
       agentId: 'codex',
       projectId: 'r1',
       workspaceMode: 'existing',
@@ -220,21 +232,18 @@ describe('AutomationService', () => {
     const run = await service.runNow(automation.id)
 
     expect(run.status).toBe('dispatching')
-    expect(run.yunxiaoTodoPoolClaim?.itemIds).toEqual(['item-1'])
-    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
-      id: 'item-1',
-      poolStatus: 'running',
-      attempts: 1
-    })
+    expect(run.yunxiaoTodoPoolClaim?.itemIds).toHaveLength(2)
+    expect(run.yunxiaoTodoPoolClaim?.itemIds).toEqual(
+      expect.arrayContaining(['workspace-item', 'ready-item'])
+    )
+    expect(store.getYunxiaoTodoPool()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'workspace-item', poolStatus: 'running', attempts: 1 }),
+        expect.objectContaining({ id: 'ready-item', poolStatus: 'running', attempts: 1 }),
+        expect.objectContaining({ id: 'clarify-item', poolStatus: 'needs-clarification' })
+      ])
+    )
     expect(send).toHaveBeenCalled()
-
-    await service.markDispatchResult({
-      runId: run.id,
-      status: 'completed',
-      workspaceId: 'wt1'
-    })
-
-    expect(store.getYunxiaoTodoPool()[0]?.poolStatus).toBe('done')
   })
 
   it('finishes an existing Yunxiao claim when the renderer marks the run completed', async () => {
@@ -287,8 +296,8 @@ describe('AutomationService', () => {
 
     expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
       id: 'item-1',
-      poolStatus: 'done',
-      lastError: null
+      poolStatus: 'ready-to-build',
+      lastError: 'Requirement Contract is missing.'
     })
   })
 

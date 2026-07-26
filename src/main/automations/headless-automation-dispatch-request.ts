@@ -8,6 +8,7 @@ import {
   didAutomationPrecheckPass,
   formatAutomationPrecheckFailure
 } from '../../shared/automation-precheck'
+import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../shared/yunxiao-requirement-gate-outcome'
 import type { HeadlessAutomationDispatcher } from './headless-dispatch'
 import type { AutomationRunTargetResult } from './run-target-resolution'
 
@@ -52,16 +53,21 @@ export async function requestHeadlessAutomationDispatch(args: {
     })
     if (launch.completion) {
       void launch.completion
-        .then((completion) =>
-          args.markDispatchResult({
+        .then((completion) => {
+          const outputSnapshot = completion.outputSnapshot ?? null
+          return args.markDispatchResult({
             runId: args.run.id,
             status: completion.status,
             ...launchRunTarget,
             precheckResult,
-            outputSnapshot: completion.outputSnapshot ?? null,
+            outputSnapshot,
+            yunxiaoRequirementOutcomes:
+              completion.yunxiaoRequirementOutcomes ??
+              extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot),
+            yunxiaoRequirementOutcome: completion.yunxiaoRequirementOutcome ?? null,
             error: completion.error ?? null
           })
-        )
+        })
         .catch((error) =>
           args.markDispatchResult({
             runId: args.run.id,

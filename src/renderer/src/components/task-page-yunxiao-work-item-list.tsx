@@ -3,12 +3,15 @@ import { toast } from 'sonner'
 
 import { translate } from '@/i18n/i18n'
 import type {
+  YunxiaoRequirementContractQuestionOption,
+  YunxiaoRequirementContractSnapshot,
   YunxiaoListWorkItemsResult,
   YunxiaoTodoPoolItem,
   YunxiaoTodoPoolStatus,
   YunxiaoWorkItem,
   YunxiaoWorkItemCategory
 } from '../../../shared/types'
+import { TaskPageYunxiaoRequirementDecisionDialog } from './task-page-yunxiao-requirement-decision-dialog'
 import { TaskPageYunxiaoWorkItemTable } from './task-page-yunxiao-work-item-table'
 import { TaskPageYunxiaoWorkItemToolbar } from './task-page-yunxiao-work-item-toolbar'
 import { useYunxiaoTodoPoolAutomation } from './yunxiao-todo-pool-automation'
@@ -47,6 +50,7 @@ export function TaskPageYunxiaoWorkItemList({
   const [loading, setLoading] = useState(false)
   const [todoPoolLoading, setTodoPoolLoading] = useState(false)
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null)
+  const [answerTarget, setAnswerTarget] = useState<YunxiaoTodoPoolItem | null>(null)
   const [selectedWorkItemIds, setSelectedWorkItemIds] = useState<Set<string>>(() => new Set())
   const {
     configureTodoPoolAutomation,
@@ -133,21 +137,18 @@ export function TaskPageYunxiaoWorkItemList({
     () => new Set(todoPool.map((item) => workItemIdentity(item))),
     [todoPool]
   )
-  const visibleTodoPoolItems = useMemo(
-    () => {
-      const defaultStatuses = new Set(DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES)
-      return todoPool.filter(
-        (item) =>
-          (todoPoolStatuses.length === 0
-            ? defaultStatuses.has(item.poolStatus)
-            : todoPoolStatuses.includes(item.poolStatus)) &&
-          (!appliedQuery ||
-            itemMatchesText(item, appliedQuery) ||
-            todoPoolStatusLabel(item.poolStatus).includes(appliedQuery))
-      )
-    },
-    [appliedQuery, todoPool, todoPoolStatuses]
-  )
+  const visibleTodoPoolItems = useMemo(() => {
+    const defaultStatuses = new Set(DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES)
+    return todoPool.filter(
+      (item) =>
+        (todoPoolStatuses.length === 0
+          ? defaultStatuses.has(item.poolStatus)
+          : todoPoolStatuses.includes(item.poolStatus)) &&
+        (!appliedQuery ||
+          itemMatchesText(item, appliedQuery) ||
+          todoPoolStatusLabel(item.poolStatus).includes(appliedQuery))
+    )
+  }, [appliedQuery, todoPool, todoPoolStatuses])
   const selectedWorkItems = useMemo(
     () => items.filter((item) => selectedWorkItemIds.has(item.id)),
     [items, selectedWorkItemIds]
@@ -213,6 +214,69 @@ export function TaskPageYunxiaoWorkItemList({
           current.map((entry) => (entry.id === updated.id ? updated : entry))
         )
       }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const handleRequirementDecisionAnswer = async (
+    item: YunxiaoTodoPoolItem,
+    option: YunxiaoRequirementContractQuestionOption,
+    optionIndex: number
+  ): Promise<void> => {
+    const contract = item.requirementContract
+    const question = contract?.blockingQuestions[0]
+    if (!contract || !question) {
+      setAnswerTarget(null)
+      return
+    }
+    const remainingQuestions = contract.blockingQuestions.slice(1)
+    const decisionIndex = contract.decisions.length + 1
+    const selectedOptionId = option.id ?? `${question.id}:option-${optionIndex + 1}`
+    const nextContract: YunxiaoRequirementContractSnapshot = {
+      ...contract,
+      status: remainingQuestions.length === 0 ? 'ready_to_build' : 'needs_clarification',
+      owner: remainingQuestions.length === 0 ? 'development' : contract.owner,
+      nextAction:
+        remainingQuestions.length === 0
+          ? translate(
+              'auto.components.TaskPage.yunxiaoContractRunNext',
+              'Run the Yunxiao todo pool automation.'
+            )
+          : translate('auto.components.TaskPage.yunxiaoContractAnswerNext', 'Answer {{value0}}.', {
+              value0: remainingQuestions[0].id
+            }),
+      updatedAt: Date.now(),
+      blockingQuestions: remainingQuestions,
+      decisions: [
+        ...contract.decisions,
+        {
+          id: `D-${String(decisionIndex).padStart(3, '0')}`,
+          summary: option.label,
+          source: question.id,
+          impact: option.impact,
+          decidedAt: Date.now(),
+          answeredBy: translate('auto.components.TaskPage.yunxiaoContractLocalUser', 'Local user'),
+          answerSourceType: 'orca_ui' as const,
+          yunxiaoCommentId: null,
+          selectedOptionId
+        }
+      ]
+    }
+    try {
+      const updated = await window.api.yunxiao.updateTodoPoolItem({
+        id: item.id,
+        updates: {
+          poolStatus: remainingQuestions.length === 0 ? 'ready-to-build' : 'needs-clarification',
+          requirementContract: nextContract
+        }
+      })
+      if (updated) {
+        setTodoPool((current) =>
+          current.map((entry) => (entry.id === updated.id ? updated : entry))
+        )
+      }
+      setAnswerTarget(null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error))
     }
@@ -305,6 +369,7 @@ export function TaskPageYunxiaoWorkItemList({
         items={items}
         loading={loading}
         onAddToTodoPool={(item) => void handleAddToTodoPool(item)}
+        onAnswerRequirementQuestion={(item) => setAnswerTarget(item)}
         onArchive={(item) => void handleArchive(item)}
         onNextPage={() => setPage((value) => value + 1)}
         onPreviousPage={() => setPage((value) => Math.max(1, value - 1))}
@@ -323,6 +388,17 @@ export function TaskPageYunxiaoWorkItemList({
         todoPoolItems={visibleTodoPoolItems}
         todoPoolLoading={todoPoolLoading}
         view={view}
+      />
+      <TaskPageYunxiaoRequirementDecisionDialog
+        item={answerTarget}
+        onAnswer={(item, option, optionIndex) =>
+          void handleRequirementDecisionAnswer(item, option, optionIndex)
+        }
+        onOpenChange={(open) => {
+          if (!open) {
+            setAnswerTarget(null)
+          }
+        }}
       />
     </div>
   )

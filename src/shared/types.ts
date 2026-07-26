@@ -1972,7 +1972,21 @@ export type {
   YunxiaoListWorkItemsArgs,
   YunxiaoListWorkItemsResult,
   YunxiaoRequirementPriority,
+  YunxiaoRequirementContractDecision,
+  YunxiaoRequirementContractOwner,
+  YunxiaoRequirementContractQuestion,
+  YunxiaoRequirementContractQuestionOption,
+  YunxiaoRequirementContractSnapshot,
+  YunxiaoRequirementContractStatus,
+  YunxiaoRequirementDesignAlternative,
+  YunxiaoRequirementGateOutcome,
+  YunxiaoRequirementImplementationPlanSnapshot,
+  YunxiaoRequirementMethodologyGate,
   YunxiaoRequirementResult,
+  YunxiaoRequirementReviewCheck,
+  YunxiaoRequirementReviewTier,
+  YunxiaoRequirementRiskProfile,
+  YunxiaoRequirementVerificationEvidence,
   YunxiaoTodoPoolAddArgs,
   YunxiaoTodoPoolItem,
   YunxiaoTodoPoolStatus,
@@ -1984,6 +1998,8 @@ export type {
   YunxiaoWorkItemPerson,
   YunxiaoWorkItemSprint
 } from './yunxiao-types'
+export type { YunxiaoRequirementReviewExpectation } from './yunxiao-requirement-review-policy'
+export type { YunxiaoRequirementCompletionGate } from './yunxiao-requirement-review-policy'
 
 /**
  * GitHub API rate-limit buckets surfaced in the TaskPage header so users can

@@ -371,7 +371,7 @@ function getEvenHourInterval(hours: Set<number>): number | null {
       return null
     }
   }
-  return 24 - sorted[sorted.length - 1] + sorted[0] === interval ? interval : null
+  return 24 - sorted.at(-1)! + sorted[0] === interval ? interval : null
 }
 
 function formatHourlyIntervalLabel(hours: number, minute: number): string {
@@ -419,12 +419,7 @@ function classifyParsedCronSchedule(rule: ParsedCron): AutomationCronScheduleCla
     }
   }
   const hourInterval = getEvenHourInterval(rule.hours)
-  if (
-    minute !== null &&
-    hourInterval !== null &&
-    unrestrictedCalendar &&
-    unrestrictedDayOfWeek
-  ) {
+  if (minute !== null && hourInterval !== null && unrestrictedCalendar && unrestrictedDayOfWeek) {
     return { kind: 'custom', label: formatHourlyIntervalLabel(hourInterval, minute) }
   }
   if (minute !== null && hour !== null && unrestrictedCalendar) {

@@ -25,10 +25,40 @@ Use this skill to run the Orca-local version of Bot Manager expert `云效需求
 - Code workspace rule: use Orca's explicit selected repo/workspace first. Orca normally injects that path as `YUNXIAO_CODE_WORKSPACE_ROOT`; when it is absent, resolve the DFHIS Setup default code root from Orca's local `dfhis-environment.json` (`hisCodeRoot`) before asking the user. Do not let archived requirement text such as `Code workspace:` override the Orca-provided or DFHIS Setup root, and do not hardcode or infer a product workspace name.
 - Code edit guardrail: never edit files directly inside the selected/original code workspace such as `YUNXIAO_CODE_WORKSPACE_ROOT`. For every code-fix workflow, create or reuse `{需求目录}/code/<repo>` with `scripts/prepare_local_worktree.py`, then run `scripts/guard_code_edit.py` against the exact target file paths immediately before any file-edit tool call. If the guard fails, do not edit code.
 - Required local development handoff document: `{当前对话工作目录}/{需求编号}/PRD_AND_CODE_ANALYSIS.md`.
+- Required requirement gate: create a concise Requirement Contract before any code edit. If the contract status is `needs_clarification`, ask 1-3 blocking decision questions and stop until answered.
 - Required Yunxiao MCP/OpenAPI tools for direct archive and post-push completion: `get_current_organization_info`, `get_current_user`, `get_work_item`, `list_workitem_attachments`, `get_workitem_file`, `list_work_item_comments`, `create_work_item_comment`, `get_work_item_type_field_config`, `get_work_item_workflow`, `update_work_item`
 - Optional legacy HIS MCP tools: `dfhis_agent_chat`, `download_yunxiao_archive`, `comment_yunxiao_workitem`, `git_inspect`
 
 Do not store MCP bearer tokens, SSH passwords, Yunxiao access tokens, model API keys, Jenkins passwords, or DingTalk webhook secrets in this skill. Prefer credentials already saved by DFHIS Setup. For one-off shell usage, pass `YUNXIAO_ACCESS_TOKEN` through the current process environment only.
+
+## Requirement Contract Gate
+
+Every archive/analyze/fix workflow must produce the first-view Requirement Contract before implementation:
+
+```yaml
+status: needs_clarification | ready_to_build | missing_repo | blocked | ready_to_verify
+owner: product | development | qa | agent | external
+next_action: One concrete next step.
+intent: One sentence describing the business/user outcome.
+blocking_questions:
+  - id: Q1
+    question: Decision question.
+    options:
+      - label: Recommended concrete option
+        impact: What implementation/behavior this chooses.
+    why_blocking: Why implementation would diverge without this answer.
+```
+
+Rules:
+
+- Put the contract at the top of `PRD_AND_CODE_ANALYSIS.md`; keep detailed implementation maps, acceptance criteria, risks, and evidence below it.
+- Ask only questions whose answers change implementation, acceptance criteria, rollout, data/API behavior, or UI workflow. Prefer 1-3 multiple-choice questions with a recommended option and impact.
+- Record every answer in the decision ledger before continuing.
+- If running interactively, use the native blocking question flow when available; otherwise ask directly in chat and wait. If unattended, write the questions to `PRD_AND_CODE_ANALYSIS.md`, comment/update Yunxiao when possible, mark the todo pool item as `needs-clarification` when a tool is available, include the exact final-output line `Contract status: needs_clarification`, and stop before code edits.
+- Apply the Orca Superpowers-style gate: clarify before code, keep the first-view contract compact, record alternatives/design confirmation for focused/mandatory risk, write the implementation plan before edits, then verify with fresh command/screenshot/build/test/artifact evidence before claiming completion.
+- Default low-risk work to one builder plus local verification. Escalate to focused review for unresolved decisions, UI/workflow, API/database, requirement conflict, weak verification, or explicit user review requests. Escalate to mandatory PRD/architecture/implementation/verifier review for multi-repo, permission/release, API/database plus weak verification, or UI/workflow plus requirement conflict cases. Preserve each reviewer verdict in `reviewChecks`; the coordinator decides by evidence, not vote count.
+- When native automation result reporting is available, return structured `yunxiaoRequirementOutcomes` as a per-item array with `itemId`, `poolStatus`, `requirementContract`, and evidence; put `riskProfile`, `reviewChecks`, and `methodologyGate` inside `requirementContract` so Orca can update the todo pool without parsing final text.
+- Do not claim completion without fresh evidence from tests, builds, screenshots, or inspected artifacts.
 
 ## Archive Workflow
 
@@ -37,7 +67,7 @@ Do not store MCP bearer tokens, SSH passwords, Yunxiao access tokens, model API 
 3. Run `scripts/run_direct_archive.py DFHIS-12345 --json` from this skill. It creates the local requirement directory directly from official Yunxiao MCP evidence, without HIS MCP, Bot Manager, SSH, or server-side downloads.
 4. Use the generated local archive in `{archiveWorkspacePath}/{需求编号}` or the explicit `--output-dir`. This directory must contain `raw.json`, `requirement.md`, `description.md`, `context.txt`, `analysis_input.md`, `analysis.md`, `attachments_manifest.json`, and any downloaded files under `attachments/`.
 5. Use `scripts/run_mcp_archive.py` and `scripts/download_mcp_archive.py` only as legacy fallback when direct Yunxiao MCP is unavailable but HIS MCP credentials are configured.
-6. Generate `{需求编号}/PRD_AND_CODE_ANALYSIS.md` by combining the downloaded archive, attachment manifest, parent requirements, and local code evidence from the selected project workspace. This document is required for any view/analyze/fix workflow, not only when code is changed.
+6. Generate `{需求编号}/PRD_AND_CODE_ANALYSIS.md` by combining the downloaded archive, attachment manifest, parent requirements, and local code evidence from the selected project workspace. Start it with the Requirement Contract. This document is required for any view/analyze/fix workflow, not only when code is changed.
 7. Return a concise chat summary and link to `PRD_AND_CODE_ANALYSIS.md`. Do not rely on chat-only analysis as the durable handoff.
 8. If the direct script reports another failure, include the exact error and the target DFHIS id. Do not invent archive files that were not returned.
 
@@ -170,6 +200,7 @@ PY
 
 The document must be implementation-ready:
 
+- Start with a Requirement Contract. If it is `needs_clarification`, include the blocking questions and do not present the plan as implementation-ready.
 - Include source metadata and archive status so the document is auditable.
 - Separate confirmed facts from inference. Mark any uncertain rule as `待确认`.
 - List every affected frontend/backend repository with branch, remote when available, module purpose, and concrete file paths with line references.
@@ -190,7 +221,7 @@ When the user asks to fix a DFHIS requirement:
 2. Inspect the local archive before code changes. Required evidence files are `raw.json`, `requirement.md`, `description.md`, `context.txt`, `analysis_input.md`, `analysis.md`, and `attachments_manifest.json`. If core evidence is missing, rerun direct archive; only use `download_mcp_archive.py --wait-complete --require-complete` as a HIS MCP fallback.
 3. Use the local archive facts and local code search to identify affected repositories, modules, file paths, rg keywords, and whether backend/database changes are required.
 4. Cross-check with read-only evidence. Use local `rg` against the selected Orca code workspace, including project names, routes, service endpoint paths, Feign client names, controller names, and package names because service names and repository directories can differ. Use HIS MCP `git_inspect` only as optional fallback. Do not use SSH shell access to `192.168.1.10` as a required step.
-5. Generate or update `{需求编号}/PRD_AND_CODE_ANALYSIS.md` from the required template before editing code. The document must include the final planned file/module changes and known gaps.
+5. Generate or update `{需求编号}/PRD_AND_CODE_ANALYSIS.md` from the required template before editing code. The document must include the Requirement Contract, final planned file/module changes, and known gaps. If the contract is `needs_clarification`, ask/record the blocking questions and stop before cloning or editing code.
 6. Resolve the Git remote URL for each target repository from the local selected code workspace first. Use HIS MCP only as an optional fallback for missing remote metadata. Do not copy repositories from `/opt/workspace/df-his/df-knowledge` with `rsync`, `scp`, or server filesystem access.
 7. Clone or update only the target repository on the local machine using local Git credentials. Use `scripts/prepare_local_worktree.py` to run `git clone`, `git fetch`, and `git worktree add`. Put requirement-specific code worktrees under `{需求目录}/code/{repo-name}` so requirement evidence and code stay together. Branch naming is based on Yunxiao work-item type: defects/bugs use `hotfix-DFHIS-12345`; requirements/features use `feature-DFHIS-12345`. If the type is unknown, inspect `raw.json`/`requirement.md` first instead of guessing.
 8. Before every code edit, run `scripts/guard_code_edit.py --requirement-dir {需求目录} {待编辑文件...}` and confirm it prints `ok`. This is mandatory even when the target file path looks obvious. The guard must validate that each edited path is under `{需求目录}/code/<repo>` and that the branch is `feature-DFHIS-12345` or `hotfix-DFHIS-12345`; if it fails, fix the worktree setup first and do not edit the original workspace.

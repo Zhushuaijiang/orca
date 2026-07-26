@@ -23,6 +23,7 @@ import type {
   TerminalPaneLayoutNode,
   TerminalTab,
   WorktreeLineage,
+  YunxiaoRequirementContractSnapshot,
   YunxiaoWorkItem,
   WorkspaceLineage,
   WorkspaceSessionState
@@ -370,19 +371,24 @@ describe('Store', () => {
       claimedByAutomationId: null,
       claimedByRunId: null,
       lastError: null,
-      notes: ''
+      notes: '',
+      requirementContract: null
     })
 
     const updated = store.updateYunxiaoTodoPoolItem(item.id, {
       poolStatus: 'done',
       notes: 'handled'
     })
-    expect(updated).toMatchObject({ poolStatus: 'done', notes: 'handled' })
+    expect(updated).toMatchObject({
+      poolStatus: 'ready-to-build',
+      notes: 'handled',
+      lastError: 'Requirement Contract is missing.'
+    })
     store.addYunxiaoTodoPoolItems([makeYunxiaoWorkItem({ title: 'refreshed title' })])
     expect(store.getYunxiaoTodoPool()).toHaveLength(1)
     expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
       title: 'refreshed title',
-      poolStatus: 'done',
+      poolStatus: 'ready-to-build',
       notes: 'handled'
     })
 
@@ -391,6 +397,132 @@ describe('Store', () => {
     expect(reloaded.getYunxiaoTodoPool()).toHaveLength(1)
     expect(reloaded.removeYunxiaoTodoPoolItem(item.id)).toBe(true)
     expect(reloaded.getYunxiaoTodoPool()).toEqual([])
+  })
+
+  it('preserves Yunxiao requirement contracts when work items refresh', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const contract: YunxiaoRequirementContractSnapshot = {
+      status: 'needs_clarification',
+      owner: 'product',
+      nextAction: 'Answer Q1 before code changes.',
+      intent: 'Keep package order names synchronized after product rename.',
+      archiveDir: '/archive/DFHIS-31704',
+      prdPath: '/archive/DFHIS-31704/PRD_AND_CODE_ANALYSIS.md',
+      evidenceUpdatedAt: 1_789_000_000_000,
+      updatedAt: 1_789_000_000_001,
+      blockingQuestions: [
+        {
+          id: 'Q1',
+          question: 'Should historical package orders be renamed too?',
+          whyBlocking: 'This changes the migration and compatibility behavior.',
+          options: [
+            {
+              label: 'Only rename future orders',
+              impact: 'Implementation updates sync-on-change logic only.',
+              recommended: true
+            }
+          ]
+        }
+      ],
+      decisions: [],
+      riskProfile: null,
+      reviewChecks: [],
+      methodologyGate: {
+        designConfirmed: true,
+        alternatives: [
+          {
+            id: 'A1',
+            summary: 'Update sync-on-change only.',
+            tradeoff: 'Avoids retroactive migration risk.',
+            decision: 'selected',
+            reason: 'Matches current compatibility expectations.'
+          }
+        ],
+        implementationPlan: {
+          status: 'required',
+          path: null,
+          summary: 'Plan must be completed after Q1 is answered.',
+          updatedAt: 1_789_000_000_002
+        },
+        verificationEvidence: [
+          {
+            id: 'VE-001',
+            type: 'command',
+            command: 'pnpm test',
+            artifactPath: null,
+            result: 'blocked',
+            summary: 'Blocked until Q1 is answered.',
+            collectedAt: 1_789_000_000_003
+          }
+        ]
+      }
+    }
+
+    const updated = store.updateYunxiaoTodoPoolItem(item.id, {
+      poolStatus: 'needs-clarification',
+      requirementContract: contract
+    })
+
+    expect(updated).toMatchObject({
+      poolStatus: 'needs-clarification',
+      requirementContract: contract,
+      claimedAt: null,
+      claimedByAutomationId: null,
+      claimedByRunId: null
+    })
+    store.addYunxiaoTodoPoolItems([makeYunxiaoWorkItem({ title: 'refreshed title' })])
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      title: 'refreshed title',
+      poolStatus: 'needs-clarification',
+      requirementContract: contract
+    })
+
+    store.flush()
+    const reloaded = await createStore()
+    expect(reloaded.getYunxiaoTodoPool()[0]).toMatchObject({
+      poolStatus: 'needs-clarification',
+      requirementContract: contract
+    })
+  })
+
+  it('skips Yunxiao todo pool claims when the requirement contract is not buildable', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    store.updateYunxiaoTodoPoolItem(item.id, {
+      requirementContract: {
+        status: 'needs_clarification',
+        owner: 'product',
+        nextAction: 'Answer Q1.',
+        intent: 'Clarify synchronization scope.',
+        archiveDir: null,
+        prdPath: null,
+        evidenceUpdatedAt: null,
+        updatedAt: 1,
+        blockingQuestions: [
+          {
+            id: 'Q1',
+            question: 'Should historical data change?',
+            whyBlocking: null,
+            options: []
+          }
+        ],
+        decisions: [],
+        riskProfile: null,
+        reviewChecks: []
+      }
+    })
+
+    expect(
+      store.claimYunxiaoTodoPoolItems({
+        automationId: 'automation-1',
+        runId: 'run-1',
+        statuses: ['queued'],
+        limit: 1
+      })
+    ).toEqual([])
   })
 
   it('claims and finishes Yunxiao todo pool items for automation runs', async () => {
@@ -455,8 +587,8 @@ describe('Store', () => {
     })
 
     expect(done[0]).toMatchObject({
-      poolStatus: 'done',
-      lastError: null
+      poolStatus: 'ready-to-build',
+      lastError: 'Requirement Contract is missing.'
     })
   })
 
@@ -501,17 +633,479 @@ describe('Store', () => {
 
     expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
       id: item.id,
-      poolStatus: 'done',
-      lastError: null
+      poolStatus: 'ready-to-build',
+      lastError: 'Requirement Contract is missing.'
     })
 
     const reloaded = await createStore()
 
     expect(reloaded.getYunxiaoTodoPool()[0]).toMatchObject({
       id: item.id,
-      poolStatus: 'done',
+      poolStatus: 'ready-to-build',
+      lastError: 'Requirement Contract is missing.'
+    })
+  })
+
+  it('does not finish Yunxiao todo pool claims that are waiting for clarification', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+    store.setAutomationRunYunxiaoTodoPoolClaim(run.id, {
+      itemIds: [item.id],
+      claimedAt: Date.now()
+    })
+    store.updateYunxiaoTodoPoolItem(item.id, { poolStatus: 'needs-clarification' })
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'needs-clarification',
       lastError: null
     })
+  })
+
+  it('does not reconcile stale completed claims over ready-to-build todo pool items', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+    store.setAutomationRunYunxiaoTodoPoolClaim(run.id, {
+      itemIds: [item.id],
+      claimedAt: Date.now()
+    })
+    store.updateYunxiaoTodoPoolItem(item.id, { poolStatus: 'ready-to-build' })
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'ready-to-build'
+    })
+
+    const reloaded = await createStore()
+    expect(reloaded.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'ready-to-build'
+    })
+  })
+
+  it('marks completed Yunxiao todo pool claims as needing clarification from output evidence', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+    store.setAutomationRunYunxiaoTodoPoolClaim(run.id, {
+      itemIds: [item.id],
+      claimedAt: Date.now()
+    })
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      outputSnapshot: {
+        format: 'plain_text',
+        content: 'Contract status: needs_clarification. Asked Q1 and stopped before code changes.',
+        capturedAt: 1,
+        truncated: false
+      },
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'needs-clarification',
+      lastError: null
+    })
+  })
+
+  it('applies structured Yunxiao requirement gate outcomes before text fallback', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+    const requirementContract: YunxiaoRequirementContractSnapshot = {
+      status: 'needs_clarification',
+      owner: 'product',
+      nextAction: 'Answer Q1.',
+      intent: 'Clarify sync scope.',
+      archiveDir: null,
+      prdPath: '/archive/DFHIS-31704/PRD_AND_CODE_ANALYSIS.md',
+      evidenceUpdatedAt: 1,
+      updatedAt: 2,
+      blockingQuestions: [
+        {
+          id: 'Q1',
+          question: 'Should historical data change?',
+          whyBlocking: null,
+          options: []
+        }
+      ],
+      decisions: [],
+      riskProfile: {
+        reviewTier: 'focused',
+        reasons: ['API behavior changes.'],
+        uiWorkflow: false,
+        apiOrDatabase: true,
+        permissionsOrRelease: false,
+        multiRepository: false,
+        requirementConflict: false,
+        weakVerification: false
+      },
+      reviewChecks: [
+        {
+          role: 'prd_gate',
+          verdict: 'conditional_fail',
+          topRisks: ['Q1 is unresolved.'],
+          evidence: 'PRD review',
+          dispatchId: 'review-1',
+          reviewedAt: 3
+        }
+      ]
+    }
+
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      yunxiaoRequirementOutcomes: [
+        {
+          itemId: item.id,
+          poolStatus: 'needs-clarification',
+          requirementContract,
+          evidence: 'Structured outcome',
+          updatedAt: 4
+        }
+      ],
+      outputSnapshot: {
+        format: 'plain_text',
+        content: 'No contract status line in this output.',
+        capturedAt: 5,
+        truncated: false
+      },
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'needs-clarification',
+      requirementContract
+    })
+    expect(store.listAutomationRuns(automation.id)[0]).toMatchObject({
+      yunxiaoRequirementOutcomes: [
+        {
+          poolStatus: 'needs-clarification',
+          requirementContract
+        }
+      ]
+    })
+  })
+
+  it('does not apply an ambiguous structured Yunxiao outcome to a multi-item claim', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const first = makeYunxiaoWorkItem({ id: 'yunxiao-item-1', serialNumber: 'DFHIS-31704' })
+    const second = makeYunxiaoWorkItem({ id: 'yunxiao-item-2', serialNumber: 'DFHIS-31705' })
+    store.addYunxiaoTodoPoolItems([first, second])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao items.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 2 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 2
+    })
+    store.setAutomationRunYunxiaoTodoPoolClaim(run.id, {
+      itemIds: [first.id, second.id],
+      claimedAt: Date.now()
+    })
+
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      yunxiaoRequirementOutcomes: [
+        {
+          itemId: null,
+          poolStatus: 'needs-clarification',
+          requirementContract: null,
+          evidence: 'Missing item id.',
+          updatedAt: 4
+        }
+      ],
+      outputSnapshot: {
+        format: 'plain_text',
+        content: 'No contract status line in this output.',
+        capturedAt: 5,
+        truncated: false
+      },
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: first.id,
+          poolStatus: 'ready-to-build',
+          requirementContract: null
+        }),
+        expect.objectContaining({
+          id: second.id,
+          poolStatus: 'ready-to-build',
+          requirementContract: null
+        })
+      ])
+    )
+  })
+
+  it('enforces requirement methodology gates on manual todo pool transitions', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const contract: YunxiaoRequirementContractSnapshot = {
+      status: 'needs_clarification',
+      owner: 'product',
+      nextAction: 'Answer Q1.',
+      intent: 'Clarify migration behavior.',
+      archiveDir: null,
+      prdPath: null,
+      evidenceUpdatedAt: null,
+      updatedAt: 1,
+      blockingQuestions: [
+        { id: 'Q1', question: 'Migrate historical data?', whyBlocking: null, options: [] }
+      ],
+      decisions: [],
+      riskProfile: null,
+      reviewChecks: []
+    }
+
+    const updated = store.updateYunxiaoTodoPoolItem(item.id, {
+      poolStatus: 'ready-to-build',
+      requirementContract: contract
+    })
+
+    expect(updated).toMatchObject({
+      poolStatus: 'needs-clarification',
+      lastError: 'Requirement Contract has unresolved blocking questions.'
+    })
+  })
+
+  it('blocks done transitions until required review and verification evidence exist', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const contract: YunxiaoRequirementContractSnapshot = {
+      status: 'ready_to_build',
+      owner: 'development',
+      nextAction: 'Implement release-sensitive API behavior.',
+      intent: 'Keep release behavior auditable.',
+      archiveDir: null,
+      prdPath: null,
+      evidenceUpdatedAt: null,
+      updatedAt: 1,
+      blockingQuestions: [],
+      decisions: [],
+      riskProfile: {
+        reviewTier: 'mandatory',
+        reasons: ['Release behavior changes.'],
+        uiWorkflow: false,
+        apiOrDatabase: true,
+        permissionsOrRelease: true,
+        multiRepository: false,
+        requirementConflict: false,
+        weakVerification: true
+      },
+      reviewChecks: [],
+      methodologyGate: {
+        designConfirmed: true,
+        alternatives: [],
+        implementationPlan: { status: 'missing', path: null, summary: null, updatedAt: null },
+        verificationEvidence: []
+      }
+    }
+
+    const updated = store.updateYunxiaoTodoPoolItem(item.id, {
+      poolStatus: 'done',
+      requirementContract: contract
+    })
+
+    expect(updated?.poolStatus).toBe('ready-to-build')
+    expect(updated?.lastError).toContain('Implementation plan is required before edits.')
+    expect(updated?.lastError).toContain('Required review checks are missing')
+  })
+
+  it('enforces methodology gates on structured completion outcomes', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      yunxiaoRequirementOutcomes: [
+        {
+          itemId: item.id,
+          poolStatus: 'done',
+          evidence: 'Agent claimed completion.',
+          updatedAt: 2,
+          requirementContract: {
+            status: 'ready_to_build',
+            owner: 'development',
+            nextAction: 'Verify implementation.',
+            intent: 'Keep release behavior auditable.',
+            archiveDir: null,
+            prdPath: null,
+            evidenceUpdatedAt: null,
+            updatedAt: 1,
+            blockingQuestions: [],
+            decisions: [],
+            riskProfile: {
+              reviewTier: 'mandatory',
+              reasons: ['Release behavior changes.'],
+              uiWorkflow: false,
+              apiOrDatabase: true,
+              permissionsOrRelease: true,
+              multiRepository: false,
+              requirementConflict: false,
+              weakVerification: true
+            },
+            reviewChecks: [],
+            methodologyGate: {
+              designConfirmed: true,
+              alternatives: [],
+              implementationPlan: { status: 'missing', path: null, summary: null, updatedAt: null },
+              verificationEvidence: []
+            }
+          }
+        }
+      ],
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: item.id,
+      poolStatus: 'ready-to-build'
+    })
+    expect(store.getYunxiaoTodoPool()[0]?.lastError).toContain(
+      'Implementation plan is required before edits.'
+    )
   })
 
   it('clone-reads and synchronously persists the main-owned Codex reset ledger', async () => {

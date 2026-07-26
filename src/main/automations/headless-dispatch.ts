@@ -3,6 +3,7 @@ import type {
   AutomationRun,
   AutomationRunOutputSnapshot
 } from '../../shared/automations-types'
+import type { YunxiaoRequirementGateOutcome } from '../../shared/yunxiao-types'
 import type { AutomationRunTargetResult } from './run-target-resolution'
 
 const MAX_HEADLESS_OUTPUT_SNAPSHOT_CHARS = 256 * 1024
@@ -16,6 +17,9 @@ export type HeadlessAutomationDispatchLaunch = {
   completion?: Promise<{
     status: 'completed' | 'dispatch_failed'
     outputSnapshot?: AutomationRunOutputSnapshot | null
+    yunxiaoRequirementOutcomes?: YunxiaoRequirementGateOutcome[] | null
+    /** @deprecated Use yunxiaoRequirementOutcomes for per-item batch results. */
+    yunxiaoRequirementOutcome?: YunxiaoRequirementGateOutcome | null
     error?: string | null
   }>
 }

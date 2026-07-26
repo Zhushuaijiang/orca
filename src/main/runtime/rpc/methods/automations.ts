@@ -54,6 +54,8 @@ const AutomationPrecheck = z
 
 const YunxiaoTodoPoolStatus = z.enum([
   'queued',
+  'needs-clarification',
+  'ready-to-build',
   'archived',
   'running',
   'dispatched',
