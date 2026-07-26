@@ -147,4 +147,25 @@ describe('deliverLaunchPromptToAgentTab', () => {
       expect.objectContaining({ timeoutMs: 123, onTimeout })
     )
   })
+
+  it('gates manual Yunxiao prompts before post-ready paste delivery', async () => {
+    await deliverLaunchPromptToAgentTab({
+      tabId: 'tab-1',
+      agent: 'codex',
+      content: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
+      submit: true,
+      forcePaste: true
+    })
+
+    expect(mocks.seedNativeChatLaunchPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Orca Yunxiao requirement workflow gate')
+      })
+    )
+    expect(mocks.pasteDraftWhenAgentReady).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Orca Yunxiao requirement workflow gate')
+      })
+    )
+  })
 })

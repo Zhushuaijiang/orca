@@ -107,4 +107,25 @@ describe('sendFollowupPromptWhenAgentReady — interpreter-wrapped agents', () =
     expect(delivered).toBe(true)
     expect(sendRuntimePtyInputVerified).toHaveBeenCalledWith(null, 'pty-1', 'ship it\r')
   })
+
+  it('gates manual Yunxiao prompts before stdin-after-start delivery', async () => {
+    vi.mocked(inspectRuntimeTerminalProcess).mockResolvedValue({
+      foregroundProcess: 'aider',
+      hasChildProcesses: true
+    })
+
+    const delivered = await sendFollowupPromptWhenAgentReady({
+      ptyId: 'pty-1',
+      expectedProcess: 'aider',
+      prompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
+      settings: null
+    })
+
+    expect(delivered).toBe(true)
+    expect(sendRuntimePtyInputVerified).toHaveBeenCalledWith(
+      null,
+      'pty-1',
+      expect.stringContaining('Orca Yunxiao requirement workflow gate')
+    )
+  })
 })

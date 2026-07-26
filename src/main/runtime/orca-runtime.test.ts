@@ -11072,6 +11072,24 @@ describe('OrcaRuntimeService', () => {
     )
   })
 
+  it('rejects bare Yunxiao requirement agent commands that bypass the prompt gate', async () => {
+    const spawn = vi.fn().mockResolvedValue({ id: 'pty-bg' })
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      spawn,
+      write: () => true,
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+
+    await expect(
+      runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`, {
+        command: 'codex "https://devops.aliyun.com/projex/req/DFHIS-31732 修一下"'
+      })
+    ).rejects.toThrow('yunxiao_requirement_agent_command_requires_prompt_gate')
+    expect(spawn).not.toHaveBeenCalled()
+  })
+
   it('does not register or publish a PTY incarnation that exited before spawn resolved', async () => {
     const runtime = new OrcaRuntimeService(store)
     const tabId = '11111111-1111-4111-8111-111111111111'

@@ -26,6 +26,7 @@ import {
 } from '../../../../shared/terminal-input'
 import { measureClipboardTextByteLength } from '../../../../shared/clipboard-text'
 import { isTuiAgent } from '../../../../shared/tui-agent-config'
+import { applyYunxiaoRequirementPromptGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
 import { isTerminalQueryReply } from '../../../../shared/terminal-query-reply'
 import {
   EMPTY_TERMINAL_REPLY_QUERY_SCAN_STATE,
@@ -1337,11 +1338,15 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
             }
           : undefined
       let result
+      const text =
+        params.requireAgentStatus === 'sendable' && params.text
+          ? applyYunxiaoRequirementPromptGate(params.text)
+          : params.text
       try {
         result = await runtime.sendTerminal(
           params.terminal,
           {
-            text: params.text,
+            text,
             enter: params.enter === true,
             interrupt: params.interrupt === true
           },

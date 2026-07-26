@@ -657,6 +657,42 @@ describe('terminal send RPC', () => {
     )
   })
 
+  it('gates manual Yunxiao text for guarded terminal sends', async () => {
+    const runtime = stubRuntime({
+      resolveLiveLeafForHandle: vi.fn().mockReturnValue({ ptyId: 'pty-1' }),
+      getDriver: vi.fn().mockReturnValue({ kind: 'desktop' }),
+      getTerminalAgentStatus: vi.fn().mockResolvedValue({
+        handle: 'terminal-1',
+        isRunningAgent: true,
+        status: 'working'
+      }),
+      sendTerminal: vi.fn().mockResolvedValue({
+        handle: 'terminal-1',
+        accepted: true,
+        bytesWritten: 1
+      })
+    })
+    const dispatcher = new RpcDispatcher({ runtime, methods: TERMINAL_METHODS })
+
+    const response = await dispatcher.dispatch(
+      makeRequest('terminal.send', {
+        terminal: 'terminal-1',
+        text: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
+        requireAgentStatus: 'sendable',
+        client: { id: 'desktop-1', type: 'desktop' }
+      })
+    )
+
+    expect(response.ok).toBe(true)
+    expect(runtime.sendTerminal).toHaveBeenCalledWith(
+      'terminal-1',
+      expect.objectContaining({
+        text: expect.stringContaining('Orca Yunxiao requirement workflow gate')
+      }),
+      expect.any(Object)
+    )
+  })
+
   it('writes zero bytes when a guarded callback observes a handle rebind during status', async () => {
     let boundPtyId = 'pty-1'
     let statusCalls = 0

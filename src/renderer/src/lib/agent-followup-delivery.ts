@@ -8,6 +8,7 @@ import {
 } from '../../../shared/agent-process-recognition'
 import { isShellProcess } from '../../../shared/shell-process-detection'
 import type { GlobalSettings } from '../../../shared/types'
+import { applyYunxiaoRequirementPromptGate } from '../../../shared/yunxiao-requirement-prompt-gate'
 
 type RuntimeOwnerSettings = Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined
 
@@ -17,7 +18,8 @@ export async function sendFollowupPromptWhenAgentReady(args: {
   prompt: string
   settings: RuntimeOwnerSettings
 }): Promise<boolean> {
-  const { ptyId, expectedProcess, prompt, settings } = args
+  const { ptyId, expectedProcess, settings } = args
+  const prompt = applyYunxiaoRequirementPromptGate(args.prompt)
   if (!(await waitForAgentForeground(ptyId, expectedProcess, settings))) {
     return false
   }

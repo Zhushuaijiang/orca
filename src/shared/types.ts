@@ -31,6 +31,7 @@ import type {
 import type { StartupCommandDelivery } from './codex-startup-delivery'
 import type { AgentKind, LaunchSource, RequestKind } from './telemetry-events'
 import type { SleepingAgentLaunchConfig, SleepingAgentSessionRecord } from './agent-session-resume'
+import type { ManualYunxiaoRequirementGate } from './yunxiao-requirement-prompt-gate'
 import type { ClaudeAgentTeamsMode } from './claude-agent-teams-tmux-compat'
 import type { TerminalCustomTheme } from './terminal-custom-themes'
 import type { UiLanguage } from './ui-language'
@@ -537,6 +538,7 @@ export type Worktree = {
   diffComments?: DiffComment[]
   mobileDiffReview?: MobileDiffReviewState
   automationProvenance?: AutomationWorkspaceProvenance
+  yunxiaoRequirementGate?: ManualYunxiaoRequirementGate
 } & GitWorktreeInfo
 
 export type AutomationWorkspaceProvenance = {
@@ -648,6 +650,7 @@ export type WorktreeMeta = {
   mobileDiffReview?: MobileDiffReviewState
   /** System-owned provenance for workspaces created by automation new-per-run dispatches. */
   automationProvenance?: AutomationWorkspaceProvenance
+  yunxiaoRequirementGate?: ManualYunxiaoRequirementGate
 }
 
 export type WorktreeOwnership = 'orca-managed' | 'external' | 'unknown-legacy' | 'agent-scratch'

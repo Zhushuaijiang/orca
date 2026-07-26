@@ -10,6 +10,7 @@ import { scheduleRuntimeGraphSync } from '@/runtime/sync-runtime-graph'
 import { useAppStore } from '@/store'
 import { getWorktreeMapFromState } from '@/store/selectors'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
+import { applyYunxiaoRequirementPromptGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
 import { TerminalKittyKeyboardModeTracker } from '../../../../shared/terminal-kitty-keyboard-mode-tracker'
 import { isRuntimeOwnedSshTargetId } from '../../../../shared/execution-host'
 import { createTerminalZeroDimensionsMessage } from '../../../../shared/terminal-zero-dimensions-diagnostic'
@@ -1167,7 +1168,7 @@ export function connectPanePty(
   const startupDraftAgentConfig = startupDraftAgent ? TUI_AGENT_CONFIG[startupDraftAgent] : null
   const startupDraftPrompt =
     typeof paneStartup?.draftPrompt === 'string' && paneStartup.draftPrompt.trim()
-      ? paneStartup.draftPrompt
+      ? applyYunxiaoRequirementPromptGate(paneStartup.draftPrompt)
       : null
   const startupDraftPromptNeedsPaste =
     startupDraftPrompt !== null &&

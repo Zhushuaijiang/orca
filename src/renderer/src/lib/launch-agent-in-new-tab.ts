@@ -30,6 +30,7 @@ import { translate } from '@/i18n/i18n'
 import { getConnectionIdFromState } from '@/lib/connection-context'
 import { resolveNativeChatSessionOptionDefaults } from '../../../shared/native-chat-session-option-defaults'
 import { seedNativeChatAppliedSessionOptions } from '@/components/native-chat/native-chat-session-option-cache'
+import { applyYunxiaoRequirementPromptGate } from '../../../shared/yunxiao-requirement-prompt-gate'
 
 export type LaunchAgentInNewTabArgs = {
   agent: TuiAgent
@@ -122,7 +123,8 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
     )
   }
   const trimmedPrompt = prompt?.trim() ?? ''
-  const hasPrompt = trimmedPrompt.length > 0
+  const gatedPrompt = applyYunxiaoRequirementPromptGate(trimmedPrompt)
+  const hasPrompt = gatedPrompt.trim().length > 0
   const isFollowupPath = TUI_AGENT_CONFIG[agent].promptInjectionMode === 'stdin-after-start'
   // argv/flag agents fold the prompt into the launch command; followup/generated launches deliver it via post-launch paste.
   let startupPlan: AgentStartupPlan | null = null
@@ -137,12 +139,12 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
       prompt: '',
       allowEmptyPromptLaunch: true
     })
-    pasteDraftAfterLaunch = trimmedPrompt
+    pasteDraftAfterLaunch = gatedPrompt
     submitPastedPrompt = true
   } else if (hasPrompt && promptDelivery === 'draft') {
     const draftLaunchPlan = buildAgentDraftLaunchPlan({
       ...startupPlanBase,
-      draft: trimmedPrompt
+      draft: gatedPrompt
     })
     if (draftLaunchPlan) {
       startupPlan = {
@@ -165,7 +167,7 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
         prompt: '',
         allowEmptyPromptLaunch: true
       })
-      pasteDraftAfterLaunch = trimmedPrompt
+      pasteDraftAfterLaunch = gatedPrompt
     }
   } else if (hasPrompt && isFollowupPath) {
     startupPlan = buildAgentStartupPlan({
@@ -173,11 +175,11 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
       prompt: '',
       allowEmptyPromptLaunch: true
     })
-    pasteDraftAfterLaunch = trimmedPrompt
+    pasteDraftAfterLaunch = gatedPrompt
   } else {
     startupPlan = buildAgentStartupPlan({
       ...startupPlanBase,
-      prompt: hasPrompt ? trimmedPrompt : '',
+      prompt: hasPrompt ? gatedPrompt : '',
       allowEmptyPromptLaunch: !hasPrompt
     })
   }
@@ -206,7 +208,7 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
       groupId,
       cwd: initialCwd,
       startupPlan,
-      prompt: trimmedPrompt,
+      prompt: gatedPrompt,
       promptDelivery,
       pastePromptAfterReady: pasteDraftAfterLaunch,
       submitPastedPrompt,
@@ -249,7 +251,7 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
       ? { startupCommandDelivery: startupPlan.startupCommandDelivery }
       : {}),
     ...(agent === 'command-code' && hasPrompt && promptDelivery === 'auto-submit'
-      ? { initialAgentStatus: { agent, prompt: trimmedPrompt } }
+      ? { initialAgentStatus: { agent, prompt: gatedPrompt } }
       : {}),
     telemetry: {
       agent_kind: tuiAgentToAgentKind(agent),
@@ -299,7 +301,7 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
         if (agent === 'command-code' && submitPastedPrompt) {
           // Why: Command Code has no prompt-submit hook; when Orca submits a
           // generated prompt after readiness, seed working at delivery time.
-          seedCommandCodeSubmittedPromptStatus(worktreeId, tab.id, trimmedPrompt)
+          seedCommandCodeSubmittedPromptStatus(worktreeId, tab.id, gatedPrompt)
         }
         onPromptDelivered?.()
       }

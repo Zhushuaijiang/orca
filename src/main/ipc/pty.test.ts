@@ -941,6 +941,20 @@ describe('registerPtyHandlers', () => {
     clearProviderPtyState(ptyId)
   })
 
+  it('rejects bare Yunxiao requirement agent commands at pty spawn', async () => {
+    registerPtyHandlers(mainWindow as never)
+
+    await expect(
+      handlers.get('pty:spawn')!(null, {
+        cols: 80,
+        rows: 24,
+        cwd: '/tmp/worktree',
+        worktreeId: 'repo::/tmp/worktree',
+        command: 'codex "https://devops.aliyun.com/projex/req/DFHIS-31732 修一下"'
+      })
+    ).rejects.toThrow('yunxiao_requirement_agent_command_requires_prompt_gate')
+  })
+
   it('adopts a live controller-owned local fallback when listings cannot serialize claims', async () => {
     const sessions: {
       id: string

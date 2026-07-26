@@ -20,6 +20,7 @@ import { inlineAgentDraftFitsPlatform } from './agent-draft-platform-limit'
 import type { TuiAgent } from './types'
 import type { SessionOptionValue } from './native-chat-session-options'
 import { resolveAgentLaunchCommand } from './tui-agent-launch-command'
+import { applyYunxiaoRequirementPromptGate } from './yunxiao-requirement-prompt-gate'
 
 export type AgentStartupPlan = {
   agent: TuiAgent
@@ -58,7 +59,7 @@ export function buildAgentStartupPlan(args: {
 }): AgentStartupPlan | null {
   const { agent, prompt, cmdOverrides, platform, allowEmptyPromptLaunch = false } = args
   const shell = resolveStartupShell(platform, args.shell)
-  const trimmedPrompt = prompt.trim()
+  const trimmedPrompt = applyYunxiaoRequirementPromptGate(prompt).trim()
   const config = TUI_AGENT_CONFIG[agent]
   const usesQuery = config.promptInjectionMode === 'hermes-query' && Boolean(trimmedPrompt)
   const baseCommand = resolveAgentLaunchCommand({
@@ -262,7 +263,7 @@ export function buildAgentDraftLaunchPlan(args: {
   const { agent, draft, cmdOverrides, platform } = args
   const shell = resolveStartupShell(platform, args.shell)
   const config = TUI_AGENT_CONFIG[agent]
-  const trimmed = draft.trim()
+  const trimmed = applyYunxiaoRequirementPromptGate(draft).trim()
   if (!trimmed) {
     return null
   }

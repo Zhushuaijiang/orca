@@ -5573,6 +5573,29 @@ describe('Store', () => {
     expect(updated.comment).toBe('updated')
   })
 
+  it('blocks completed status for manual Yunxiao worktrees without a passing gate', async () => {
+    const store = await createStore()
+    store.setWorktreeMeta('wt1', {
+      displayName: 'DFHIS-31732',
+      yunxiaoRequirementGate: {
+        identifier: 'DFHIS-31732',
+        source: 'manual-prompt',
+        sourcePromptPreview: 'DFHIS-31732',
+        requirementContract: null,
+        lastCompletionBlocker: null,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    })
+
+    const updated = store.setWorktreeMeta('wt1', { workspaceStatus: 'completed' })
+
+    expect(updated.workspaceStatus).toBe('in-review')
+    expect(updated.yunxiaoRequirementGate?.lastCompletionBlocker).toContain(
+      'Requirement Contract is missing.'
+    )
+  })
+
   it('creates and updates folder workspaces from folder-backed project groups', async () => {
     const store = await createStore()
     const group = store.createProjectGroup({

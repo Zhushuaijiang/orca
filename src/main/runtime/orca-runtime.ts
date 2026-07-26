@@ -78,7 +78,14 @@ import {
   AGENT_PROMPT_SUBMIT_DELAY_MS,
   buildAgentPromptPasteBytes
 } from '../../shared/agent-prompt-injection'
-import { applyYunxiaoRequirementPromptGate } from '../../shared/yunxiao-requirement-prompt-gate'
+import {
+  applyYunxiaoRequirementPromptGate,
+  containsYunxiaoRequirementReference,
+  createManualYunxiaoRequirementGate,
+  shouldApplyYunxiaoRequirementPromptGate
+} from '../../shared/yunxiao-requirement-prompt-gate'
+import { extractYunxiaoRequirementGateOutcomesFromText } from '../../shared/yunxiao-requirement-gate-outcome'
+import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-process-recognition'
 import { gitExecFileAsync, gitSpawn, nonInteractiveGitEnv } from '../git/runner'
 import { runWithGitReadCacheInvalidation } from '../git/status'
 import {
@@ -8452,6 +8459,7 @@ export class OrcaRuntimeService {
       stateStartedAt,
       updatedAt: now
     })
+    this.recordYunxiaoRequirementOutcomeFromAgentStatus(worktreeId, payload)
     // Client-visible change detection: snapshot republish is gated on this so
     // repeated same-state hook pings don't fan a rebuild out to every client.
     return (
@@ -8463,6 +8471,70 @@ export class OrcaRuntimeService {
       (previous.payload.interactivePrompt ?? null) !== (payload.interactivePrompt ?? null) ||
       (previous.payload.interrupted ?? false) !== (payload.interrupted ?? false)
     )
+  }
+
+  private markManualYunxiaoRequirementGateForWorktree(
+    worktreeId: string | undefined,
+    prompt: string | undefined
+  ): void {
+    if (!this.store || !worktreeId || !prompt || !containsYunxiaoRequirementReference(prompt)) {
+      return
+    }
+    const existing = this.store.getWorktreeMeta?.(worktreeId)?.yunxiaoRequirementGate ?? null
+    const gate = createManualYunxiaoRequirementGate(prompt, existing)
+    if (!gate) {
+      return
+    }
+    if (typeof this.store.setWorktreeMeta !== 'function') {
+      return
+    }
+    this.store.setWorktreeMeta(worktreeId, { yunxiaoRequirementGate: gate })
+  }
+
+  private recordYunxiaoRequirementOutcomeFromAgentStatus(
+    worktreeId: string | undefined,
+    payload: ParsedAgentStatusPayload
+  ): void {
+    if (!this.store || !worktreeId || payload.state !== 'done' || !payload.lastAssistantMessage) {
+      return
+    }
+    const existing = this.store.getWorktreeMeta?.(worktreeId)?.yunxiaoRequirementGate
+    if (!existing) {
+      return
+    }
+    const outcome = extractYunxiaoRequirementGateOutcomesFromText(
+      payload.lastAssistantMessage
+    )?.find(
+      (entry) =>
+        !entry.requirementContract ||
+        !entry.itemId ||
+        entry.itemId.toUpperCase() === existing.identifier
+    )
+    if (!outcome?.requirementContract) {
+      return
+    }
+    if (typeof this.store.setWorktreeMeta !== 'function') {
+      return
+    }
+    this.store.setWorktreeMeta(worktreeId, {
+      yunxiaoRequirementGate: {
+        ...existing,
+        requirementContract: outcome.requirementContract,
+        lastCompletionBlocker: null,
+        updatedAt: Date.now()
+      }
+    })
+  }
+
+  private assertYunxiaoRequirementAgentCommandGated(opts: TerminalCreateOptions): void {
+    const command = opts.command?.trim()
+    if (!command || !shouldApplyYunxiaoRequirementPromptGate(command)) {
+      return
+    }
+    if (!opts.launchAgent && !recognizeAgentProcessFromCommandLine(command)) {
+      return
+    }
+    throw new Error('yunxiao_requirement_agent_command_requires_prompt_gate')
   }
 
   private clearAgentRowSnapshotsForPty(ptyId: string): void {
@@ -13693,6 +13765,7 @@ export class OrcaRuntimeService {
       if (!pty.pty.connected) {
         throw new Error('terminal_not_writable')
       }
+      this.markManualYunxiaoRequirementGateForWorktree(pty.pty.worktreeId, prompt)
       await assertTerminalInputWithinLimitWithYield(payload)
       await this.writeTerminalAgentPrompt(pty.pty.ptyId, payload, options)
       return { handle, accepted: true, bytesWritten }
@@ -13702,6 +13775,7 @@ export class OrcaRuntimeService {
     if (!leaf.writable || !leaf.ptyId) {
       throw new Error('terminal_not_writable')
     }
+    this.markManualYunxiaoRequirementGateForWorktree(leaf.worktreeId, prompt)
     await assertTerminalInputWithinLimitWithYield(payload)
     await this.writeTerminalAgentPrompt(leaf.ptyId, payload, options)
     return { handle, accepted: true, bytesWritten }
@@ -18321,6 +18395,18 @@ export class OrcaRuntimeService {
         draftStartup?.agent ??
         (requestedAgentEnabled ? requestedAgent : undefined))
     const effectiveDraftPaste = args.startupDraftPaste ?? draftStartup?.draftPaste
+    const manualYunxiaoRequirementGate = [
+      args.startupPrompt,
+      args.startupDraft,
+      args.startupDraftPaste?.content,
+      effectiveStartup?.command,
+      args.displayName,
+      args.name,
+      args.comment
+    ].reduce<ReturnType<typeof createManualYunxiaoRequirementGate>>(
+      (gate, candidate) => gate ?? createManualYunxiaoRequirementGate(candidate ?? ''),
+      null
+    )
     if (isFolderRepo(repo)) {
       const now = Date.now()
       const settings = createSettings
@@ -18339,6 +18425,9 @@ export class OrcaRuntimeService {
           nestWorkspaces: settings.nestWorkspaces
         },
         ...(args.automationProvenance ? { automationProvenance: args.automationProvenance } : {}),
+        ...(manualYunxiaoRequirementGate
+          ? { yunxiaoRequirementGate: manualYunxiaoRequirementGate }
+          : {}),
         ...(args.linkedIssue !== undefined ? { linkedIssue: args.linkedIssue } : {}),
         ...(args.linkedPR !== undefined ? { linkedPR: args.linkedPR } : {}),
         ...(args.linkedLinearIssue !== undefined
@@ -18944,6 +19033,9 @@ export class OrcaRuntimeService {
         ? { pendingFirstAgentMessageRename: true }
         : {}),
       ...(args.automationProvenance ? { automationProvenance: args.automationProvenance } : {}),
+      ...(manualYunxiaoRequirementGate
+        ? { yunxiaoRequirementGate: manualYunxiaoRequirementGate }
+        : {}),
       ...(args.comment !== undefined ? { comment: args.comment } : {}),
       ...(args.manualOrder !== undefined ? { manualOrder: args.manualOrder } : {}),
       ...(args.workspaceStatus !== undefined ? { workspaceStatus: args.workspaceStatus } : {})
@@ -21487,6 +21579,7 @@ export class OrcaRuntimeService {
       // Why: reserve the client operation before any async preflight so concurrent retries cannot
       // both observe an empty ledger and reach the execution owner independently.
       const workspace = await this.resolveTerminalWorkspaceLaunchScope(request.worktree)
+      this.markManualYunxiaoRequirementGateForWorktree(workspace.id, request.prompt)
       if (
         !(await this.executionOwnerSupportsAgentSessionOperation(
           workspace,
@@ -21672,6 +21765,7 @@ export class OrcaRuntimeService {
       }
       const workspace = await this.resolveTerminalWorkspaceLaunchScope(worktreeSelector)
       const launchOpts = await this.resolveAgentTerminalCreateOptions(workspace, opts)
+      this.assertYunxiaoRequirementAgentCommandGated(launchOpts)
       let ptySpawnCommitReported = false
       const reportPtySpawnCommitted = (): void => {
         if (ptySpawnCommitReported) {
@@ -21938,6 +22032,7 @@ export class OrcaRuntimeService {
     const launchOpts = workspace
       ? await this.resolveAgentTerminalCreateOptions(workspace, opts)
       : opts
+    this.assertYunxiaoRequirementAgentCommandGated(launchOpts)
     const worktreeId = workspace?.id
     const cwd = workspace
       ? this.resolveWorkspaceTerminalStartupCwd(workspace, launchOpts.cwd)
@@ -22125,6 +22220,7 @@ export class OrcaRuntimeService {
     opts: { agent: TuiAgent; prompt: string; title?: string }
   ): Promise<RuntimeTerminalCreate> {
     const worktree = await this.resolveWorktreeSelector(worktreeSelector)
+    this.markManualYunxiaoRequirementGateForWorktree(worktree.id, opts.prompt)
     const repo = this.store?.getRepo(worktree.repoId)
     if (!repo) {
       throw new Error('Repository for the selected workspace is no longer available.')

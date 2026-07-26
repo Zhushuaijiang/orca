@@ -3,6 +3,7 @@ import { pasteDraftWhenAgentReady } from '@/lib/agent-paste-draft'
 import { isNativeChatSupportedAgent } from '@/lib/native-chat-supported-agent'
 import { useAppStore } from '@/store'
 import type { TuiAgent } from '../../../shared/types'
+import { applyYunxiaoRequirementPromptGate } from '../../../shared/yunxiao-requirement-prompt-gate'
 
 export function deliverLaunchPromptToAgentTab(args: {
   tabId: string
@@ -13,7 +14,8 @@ export function deliverLaunchPromptToAgentTab(args: {
   timeoutMs?: number
   onTimeout?: () => void
 }): Promise<boolean> {
-  const { tabId, agent, content, submit, forcePaste, timeoutMs, onTimeout } = args
+  const { tabId, agent, submit, forcePaste, timeoutMs, onTimeout } = args
+  const content = applyYunxiaoRequirementPromptGate(args.content)
   const shouldSeed =
     submit === true && content.trim().length > 0 && isNativeChatSupportedAgent(agent)
 

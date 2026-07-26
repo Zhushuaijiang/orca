@@ -419,6 +419,18 @@ describe('tui agent startup plans', () => {
     expect(plan?.startupCommandDelivery).toBe('shell-ready')
   })
 
+  it('gates manual Yunxiao requirement prompts before argv startup commands are built', () => {
+    const plan = buildAgentStartupPlan({
+      agent: 'codex',
+      prompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
+      cmdOverrides: {},
+      platform: 'linux'
+    })
+
+    expect(plan?.launchCommand).toContain('Orca Yunxiao requirement workflow gate')
+    expect(plan?.launchCommand).toContain('DFHIS-31732')
+  })
+
   it('keeps plain empty Codex startup on the fast delivery path', () => {
     const plan = buildAgentStartupPlan({
       agent: 'codex',
@@ -806,6 +818,18 @@ describe('tui agent startup plans', () => {
     expect(plan?.env).toEqual({ ORCA_OMP_PREFILL: 'fix the omp regression' })
     expect(plan?.expectedProcess).toBe('omp')
     expect(plan?.launchCommand).toBe('omp; unset ORCA_OMP_PREFILL')
+  })
+
+  it('gates manual Yunxiao requirement prompts before native draft plans are built', () => {
+    const plan = buildAgentDraftLaunchPlan({
+      agent: 'omp',
+      draft: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
+      cmdOverrides: {},
+      platform: 'linux'
+    })
+
+    expect(plan?.env?.ORCA_OMP_PREFILL).toContain('Orca Yunxiao requirement workflow gate')
+    expect(plan?.env?.ORCA_OMP_PREFILL).toContain('DFHIS-31732')
   })
 
   it('returns null for oversized Windows flag drafts so callers paste after ready', () => {

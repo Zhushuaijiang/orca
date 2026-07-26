@@ -3145,6 +3145,32 @@ function coerceYunxiaoRequirementManualStatus(
   return { status, error: null }
 }
 
+function coerceManualYunxiaoWorktreeCompletion(
+  existing: WorktreeMeta,
+  updates: Partial<WorktreeMeta>
+): Partial<WorktreeMeta> {
+  if (updates.workspaceStatus !== 'completed') {
+    return updates
+  }
+  const gate = updates.yunxiaoRequirementGate ?? existing.yunxiaoRequirementGate
+  if (!gate) {
+    return updates
+  }
+  const completionGate = getYunxiaoRequirementCompletionGate(gate.requirementContract)
+  if (completionGate.ready) {
+    return updates
+  }
+  return {
+    ...updates,
+    workspaceStatus: 'in-review',
+    yunxiaoRequirementGate: {
+      ...gate,
+      lastCompletionBlocker: completionGate.gaps.join(' '),
+      updatedAt: Date.now()
+    }
+  }
+}
+
 function coerceYunxiaoRequirementCompletionStatus(
   status: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>,
   contract: YunxiaoTodoPoolItem['requirementContract']
@@ -6135,7 +6161,8 @@ export class Store {
 
   setWorktreeMeta(worktreeId: string, meta: Partial<WorktreeMeta>): WorktreeMeta {
     const existing = this.state.worktreeMeta[worktreeId] || getDefaultWorktreeMeta()
-    const updated = { ...existing, ...meta }
+    const safeMeta = coerceManualYunxiaoWorktreeCompletion(existing, meta)
+    const updated = { ...existing, ...safeMeta }
     if (!updated.instanceId) {
       updated.instanceId = randomUUID()
     }

@@ -135,4 +135,19 @@ describe('launchAgentInNewTab paired web runtime', () => {
     })
     expect(mocks.createTab).not.toHaveBeenCalled()
   })
+
+  it('gates manual Yunxiao prompts in both host command and structured prompt payloads', async () => {
+    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+
+    launchAgentInNewTab({
+      agent: 'codex',
+      worktreeId: 'wt-1',
+      prompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下'
+    })
+
+    const payload = mocks.createWebRuntimeSessionTerminal.mock.calls.at(-1)?.[0]
+    expect(payload.command).toContain('Orca Yunxiao requirement workflow gate')
+    expect(payload.prompt).toContain('Orca Yunxiao requirement workflow gate')
+    expect(payload.prompt).toContain('DFHIS-31732')
+  })
 })

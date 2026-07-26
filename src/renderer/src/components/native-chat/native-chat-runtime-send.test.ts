@@ -56,6 +56,14 @@ describe('sendNativeChatMessage', () => {
     expect(handle.settleAfterMs).toBe(NATIVE_CHAT_SUBMIT_DELAY_MS)
   })
 
+  it('gates manual Yunxiao prompts before writing chat bodies', () => {
+    sendNativeChatMessage(SETTINGS, PTY, 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下')
+
+    expect(sendRuntimePtyInput.mock.calls[1]?.[2]).toContain(
+      'Orca Yunxiao requirement workflow gate'
+    )
+  })
+
   it('does not fire Enter before the proven 500ms gap (busy-agent safety)', () => {
     sendNativeChatMessage(SETTINGS, PTY, 'hi')
     // A short gap would fire Enter while a busy Codex has not yet landed the
@@ -189,6 +197,21 @@ describe('sendNativeChatMessageVerified', () => {
         (call) => call[2] === NATIVE_CHAT_CLEAR_UNSUBMITTED_INPUT
       )
     ).toBe(false)
+  })
+
+  it('gates manual Yunxiao prompts before verified chat writes', async () => {
+    void sendNativeChatMessageVerified(
+      SETTINGS,
+      PTY,
+      'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下'
+    )
+    await vi.waitFor(() => {
+      expect(sendRuntimePtyInputVerified).toHaveBeenCalled()
+    })
+
+    expect(sendRuntimePtyInputVerified.mock.calls[0]?.[2]).toContain(
+      'Orca Yunxiao requirement workflow gate'
+    )
   })
 
   it('does not send Enter when the body is rejected', async () => {

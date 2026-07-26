@@ -21,6 +21,7 @@ import {
   isRuntimeTerminalUnavailable,
   isRuntimeTimeout
 } from './active-agent-terminal-send-readiness'
+import { applyYunxiaoRequirementPromptGate } from '../../../shared/yunxiao-requirement-prompt-gate'
 
 export {
   getActiveAgentNoteTarget,
@@ -50,7 +51,7 @@ export async function sendNotesToActiveAgentSession({
   noteTarget?: ActiveTerminalNoteTarget
   timeoutMs?: number
 }): Promise<ActiveAgentNotesSendResult> {
-  const trimmedPrompt = prompt.trim()
+  const trimmedPrompt = applyYunxiaoRequirementPromptGate(prompt).trim()
   if (!trimmedPrompt) {
     return { status: 'empty' }
   }

@@ -17,6 +17,7 @@ import { sendAgentDraftPasteContent } from './agent-draft-paste-content'
 import { agentDeliversDraftViaNativePrefill } from './agent-native-draft-prefill'
 import { waitForAgentDraftInputReady } from './agent-draft-readiness'
 import { isExpectedAgentProcess } from '../../../shared/agent-process-recognition'
+import { applyYunxiaoRequirementPromptGate } from '../../../shared/yunxiao-requirement-prompt-gate'
 export {
   AGENT_DRAFT_PASTE_CHUNK_MAX_BYTES,
   AGENT_DRAFT_PASTE_DIRECT_MAX_BYTES,
@@ -244,7 +245,8 @@ async function sendBracketedPasteToAgent(args: {
   content: string
   submit: boolean
 }): Promise<boolean> {
-  const { settings = useAppStore.getState().settings, ptyId, content, submit } = args
+  const { settings = useAppStore.getState().settings, ptyId, submit } = args
+  const content = applyYunxiaoRequirementPromptGate(args.content)
   try {
     const pasted = await sendAgentDraftPasteContent(settings, ptyId, content)
     if (!pasted) {

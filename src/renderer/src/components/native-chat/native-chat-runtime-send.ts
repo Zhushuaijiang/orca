@@ -18,6 +18,7 @@ import {
   buildNativeChatPasteBytes,
   NATIVE_CHAT_SUBMIT
 } from './native-chat-send'
+import { applyYunxiaoRequirementPromptGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
 import {
   cancelNativeChatPtySends,
   enqueueNativeChatPtySend,
@@ -63,6 +64,7 @@ export function sendNativeChatMessage(
   ptyId: string,
   text: string
 ): NativeChatSendHandle {
+  const gatedText = applyYunxiaoRequirementPromptGate(text)
   return enqueueNativeChatPtySend(
     ptyId,
     NATIVE_CHAT_SUBMIT_DELAY_MS,
@@ -74,7 +76,7 @@ export function sendNativeChatMessage(
       if (isCancelled()) {
         return
       }
-      sendRuntimePtyInput(settings, ptyId, buildNativeChatPasteBytes(text))
+      sendRuntimePtyInput(settings, ptyId, buildNativeChatPasteBytes(gatedText))
       delay(NATIVE_CHAT_SUBMIT_DELAY_MS, () => {
         sendRuntimePtyInput(settings, ptyId, NATIVE_CHAT_SUBMIT)
         markSubmitted()
@@ -120,6 +122,7 @@ export async function sendNativeChatMessageVerified(
   text: string,
   signal?: AbortSignal
 ): Promise<boolean> {
+  const gatedText = applyYunxiaoRequirementPromptGate(text)
   // Why: chat sends hold a delayed Enter for 500ms. Opening the model picker in
   // that window used to let that Enter hit Claude's confirmation UI, so
   // verification timed out with "Could not verify the model change".
@@ -134,7 +137,7 @@ export async function sendNativeChatMessageVerified(
   const bodyAccepted = await sendRuntimePtyInputVerified(
     settings,
     ptyId,
-    buildNativeChatPasteBytes(text)
+    buildNativeChatPasteBytes(gatedText)
   )
   if (!bodyAccepted || signal?.aborted || !(await waitForNativeChatSubmit(signal))) {
     return false
@@ -151,7 +154,8 @@ export function sendNativeChatMessageWithImageAttachments(
   if (imagePaths.length === 0) {
     return sendNativeChatMessage(settings, ptyId, text)
   }
-  const trimmedText = text.trim()
+  const gatedText = applyYunxiaoRequirementPromptGate(text)
+  const trimmedText = gatedText.trim()
   const durationMs =
     trimmedText.length > 0
       ? NATIVE_CHAT_IMAGE_ATTACHMENT_SETTLE_MS + NATIVE_CHAT_SUBMIT_DELAY_MS
@@ -172,7 +176,7 @@ export function sendNativeChatMessageWithImageAttachments(
       }
       if (trimmedText.length > 0) {
         delay(NATIVE_CHAT_IMAGE_ATTACHMENT_SETTLE_MS, () => {
-          sendRuntimePtyInput(settings, ptyId, buildNativeChatPasteBytes(text))
+          sendRuntimePtyInput(settings, ptyId, buildNativeChatPasteBytes(gatedText))
         })
         delay(NATIVE_CHAT_IMAGE_ATTACHMENT_SETTLE_MS + NATIVE_CHAT_SUBMIT_DELAY_MS, () => {
           sendRuntimePtyInput(settings, ptyId, NATIVE_CHAT_SUBMIT)

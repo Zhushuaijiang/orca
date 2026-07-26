@@ -17,6 +17,12 @@ import type { Store } from '../persistence'
 import type { GlobalSettings, TuiAgent } from '../../shared/types'
 import { toSshExecutionHostId } from '../../shared/execution-host'
 import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
+import {
+  containsYunxiaoRequirementReference,
+  createManualYunxiaoRequirementGate,
+  shouldApplyYunxiaoRequirementPromptGate
+} from '../../shared/yunxiao-requirement-prompt-gate'
+import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-process-recognition'
 import { terminalOutputBacklogCapChars } from '../../shared/terminal-scrollback-policy'
 import type {
   PtyDeliveryWriteOff,
@@ -4289,6 +4295,25 @@ export function registerPtyHandlers(
         await startupPromise
       }
       await assertFolderWorkspacePtyPathUsable(args.worktreeId)
+      if (
+        args.command &&
+        shouldApplyYunxiaoRequirementPromptGate(args.command) &&
+        recognizeAgentProcessFromCommandLine(args.command)
+      ) {
+        throw new Error('yunxiao_requirement_agent_command_requires_prompt_gate')
+      }
+      if (
+        store &&
+        args.worktreeId &&
+        args.command &&
+        containsYunxiaoRequirementReference(args.command)
+      ) {
+        const existing = store.getWorktreeMeta(args.worktreeId)?.yunxiaoRequirementGate ?? null
+        const gate = createManualYunxiaoRequirementGate(args.command, existing)
+        if (gate) {
+          store.setWorktreeMeta(args.worktreeId, { yunxiaoRequirementGate: gate })
+        }
+      }
       // Why: honor the fallback only for fresh local spawns — reattach needs exact cwd and SSH can't probe the local filesystem.
       const allowMissingCwdFallback =
         !args.connectionId && !args.sessionId && args.cwdFallback === 'worktree'
