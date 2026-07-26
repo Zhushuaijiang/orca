@@ -43,6 +43,7 @@ import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
 import { recordTerminalUserInputForLeaf } from './terminal-input-activity'
 import { copyTerminalHandleForPane } from './terminal-handle-copy'
+import { applyYunxiaoRequirementTerminalPasteGate } from './yunxiao-terminal-paste-gate'
 
 const CLOSE_ALL_CONTEXT_MENUS_EVENT = 'orca-close-all-context-menus'
 
@@ -219,8 +220,13 @@ export function useTerminalPaneContextMenu({
     const transport = paneTransportsRef.current.get(pane.id)
     const ptyId = transport?.getPtyId() ?? null
     const shortcutPlatform = getShortcutPlatform()
+    const gatedText = applyYunxiaoRequirementTerminalPasteGate(text, {
+      tabId,
+      leafId: pane.leafId,
+      agentStatusByPaneKey: useAppStore.getState().agentStatusByPaneKey
+    })
     const plan = await planTerminalPasteWithYield({
-      text,
+      text: gatedText,
       source,
       target: {
         kind: 'terminal',
@@ -251,7 +257,7 @@ export function useTerminalPaneContextMenu({
       onPasteError(formatTerminalPasteExecutionError(execution.reason))
       return false
     }
-    if (text) {
+    if (gatedText) {
       recordTerminalUserInputForLeaf(tabId, pane.leafId)
     }
     if (options?.recoverImagePasteWebglAtlas) {

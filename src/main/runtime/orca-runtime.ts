@@ -8537,6 +8537,29 @@ export class OrcaRuntimeService {
     throw new Error('yunxiao_requirement_agent_command_requires_prompt_gate')
   }
 
+  private async applyYunxiaoRequirementGateForRawTerminalSend(
+    handle: string,
+    worktreeId: string | undefined,
+    action: {
+      text?: string
+      enter?: boolean
+      interrupt?: boolean
+    }
+  ): Promise<typeof action> {
+    const text = action.text
+    if (!text || !shouldApplyYunxiaoRequirementPromptGate(text)) {
+      return action
+    }
+    if (!(await this.isTerminalRunningAgent(handle))) {
+      return action
+    }
+    this.markManualYunxiaoRequirementGateForWorktree(worktreeId, text)
+    return {
+      ...action,
+      text: applyYunxiaoRequirementPromptGate(text)
+    }
+  }
+
   private clearAgentRowSnapshotsForPty(ptyId: string): void {
     for (const [paneKey, snapshot] of this.latestAgentStatusByPaneKey) {
       if (snapshot.ptyId === ptyId) {
@@ -13717,12 +13740,17 @@ export class OrcaRuntimeService {
       if (!pty.pty.connected) {
         throw new Error('terminal_not_writable')
       }
-      const payload = buildSendPayload(action)
+      const effectiveAction = await this.applyYunxiaoRequirementGateForRawTerminalSend(
+        handle,
+        pty.pty.worktreeId,
+        action
+      )
+      const payload = buildSendPayload(effectiveAction)
       if (payload === null) {
         throw new Error('invalid_terminal_send')
       }
-      await assertTerminalInputWithinLimitWithYield(action.text)
-      await this.writeTerminalAction(pty.pty.ptyId, action, payload, options)
+      await assertTerminalInputWithinLimitWithYield(effectiveAction.text)
+      await this.writeTerminalAction(pty.pty.ptyId, effectiveAction, payload, options)
       return {
         handle,
         accepted: true,
@@ -13734,13 +13762,18 @@ export class OrcaRuntimeService {
     if (!leaf.writable || !leaf.ptyId) {
       throw new Error('terminal_not_writable')
     }
-    const payload = buildSendPayload(action)
+    const effectiveAction = await this.applyYunxiaoRequirementGateForRawTerminalSend(
+      handle,
+      leaf.worktreeId,
+      action
+    )
+    const payload = buildSendPayload(effectiveAction)
     if (payload === null) {
       throw new Error('invalid_terminal_send')
     }
-    await assertTerminalInputWithinLimitWithYield(action.text)
+    await assertTerminalInputWithinLimitWithYield(effectiveAction.text)
 
-    await this.writeTerminalAction(leaf.ptyId, action, payload, options)
+    await this.writeTerminalAction(leaf.ptyId, effectiveAction, payload, options)
 
     return {
       handle,

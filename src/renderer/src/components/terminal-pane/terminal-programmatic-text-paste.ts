@@ -9,6 +9,8 @@ import { resolveTerminalPasteRuntime } from './terminal-paste-runtime'
 import { getTerminalPasteSshRemotePlatform } from './terminal-paste-ssh-platform'
 import { isTerminalPanePasteTargetCurrent } from './terminal-paste-target-state'
 import { writeTerminalPastePtyInput } from './terminal-pty-paste-writer'
+import { applyYunxiaoRequirementTerminalPasteGate } from './yunxiao-terminal-paste-gate'
+import { useAppStore } from '@/store'
 
 type HandleTerminalProgrammaticTextPasteArgs = {
   detail: PasteTerminalTextDetail | undefined
@@ -45,8 +47,13 @@ export function handleTerminalProgrammaticTextPaste({
   const ptyId = transport?.getPtyId() ?? null
   const platform = getShortcutPlatform()
   const connectionId = getConnectionId(worktreeId) ?? null
+  const gatedText = applyYunxiaoRequirementTerminalPasteGate(detail.text, {
+    tabId,
+    leafId: pane.leafId,
+    agentStatusByPaneKey: useAppStore.getState().agentStatusByPaneKey
+  })
   void planTerminalPasteWithYield({
-    text: detail.text,
+    text: gatedText,
     source: 'programmatic',
     target: {
       kind: 'terminal',

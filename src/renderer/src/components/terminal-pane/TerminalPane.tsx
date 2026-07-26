@@ -207,6 +207,7 @@ import {
   isTerminalPanePasteTargetCurrent
 } from './terminal-paste-target-state'
 import { writeTerminalPastePtyInput } from './terminal-pty-paste-writer'
+import { applyYunxiaoRequirementTerminalPasteGate } from './yunxiao-terminal-paste-gate'
 import {
   applyTerminalPaneAttentionToManager,
   subscribeTerminalPaneAttention
@@ -1944,8 +1945,13 @@ export default function TerminalPane({
       const ptyId = transport?.getPtyId() ?? null
       const keyboardOwnedPaste =
         source === 'keyboard' || source === 'paste-event' || source === 'app-menu'
+      const gatedText = applyYunxiaoRequirementTerminalPasteGate(text, {
+        tabId,
+        leafId: pane.leafId,
+        agentStatusByPaneKey: useAppStore.getState().agentStatusByPaneKey
+      })
       const plan = await planTerminalPasteWithYield({
-        text,
+        text: gatedText,
         source,
         target: {
           kind: 'terminal',
@@ -1985,7 +1991,7 @@ export default function TerminalPane({
         setTerminalError(formatTerminalPasteExecutionError(execution.reason))
         return
       }
-      if (text) {
+      if (gatedText) {
         recordTerminalUserInputForLeaf(tabId, pane.leafId)
       }
       if (options?.recoverImagePasteWebglAtlas) {

@@ -9912,6 +9912,93 @@ describe('OrcaRuntimeService', () => {
     expect(writes).toEqual(['continue', '\r'])
   })
 
+  it('gates raw Yunxiao terminal sends when the target is an agent', async () => {
+    const writes: string[] = []
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      write: (_ptyId, data) => {
+        writes.push(data)
+        return true
+      },
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, {
+      tabs: [
+        {
+          tabId: 'tab-1',
+          worktreeId: TEST_WORKTREE_ID,
+          title: 'Codex',
+          activeLeafId: '11111111-1111-4111-8111-111111111111',
+          layout: null
+        }
+      ],
+      leaves: [
+        {
+          tabId: 'tab-1',
+          worktreeId: TEST_WORKTREE_ID,
+          leafId: '11111111-1111-4111-8111-111111111111',
+          paneRuntimeId: 1,
+          ptyId: 'pty-1'
+        }
+      ]
+    })
+
+    const [terminal] = (await runtime.listTerminals()).terminals
+    await runtime.sendTerminal(terminal.handle, {
+      text: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
+      enter: true
+    })
+
+    expect(writes[0]).toContain('Orca Yunxiao requirement workflow gate')
+    expect(writes[0]).toContain('Original user request:')
+    expect(writes[0]).toContain('DFHIS-31732')
+    expect(writes[1]).toBe('\r')
+  })
+
+  it('does not gate raw Yunxiao terminal sends for shell terminals', async () => {
+    const writes: string[] = []
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      write: (_ptyId, data) => {
+        writes.push(data)
+        return true
+      },
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+
+    runtime.attachWindow(1)
+    runtime.syncWindowGraph(1, {
+      tabs: [
+        {
+          tabId: 'tab-1',
+          worktreeId: TEST_WORKTREE_ID,
+          title: 'zsh',
+          activeLeafId: '11111111-1111-4111-8111-111111111111',
+          layout: null
+        }
+      ],
+      leaves: [
+        {
+          tabId: 'tab-1',
+          worktreeId: TEST_WORKTREE_ID,
+          leafId: '11111111-1111-4111-8111-111111111111',
+          paneRuntimeId: 1,
+          ptyId: 'pty-1'
+        }
+      ]
+    })
+
+    const [terminal] = (await runtime.listTerminals()).terminals
+    const text = 'echo https://devops.aliyun.com/projex/req/DFHIS-31732'
+    await runtime.sendTerminal(terminal.handle, { text })
+
+    expect(writes).toEqual([text])
+  })
+
   it('reports permission from blocked terminal wait text', async () => {
     const runtime = new OrcaRuntimeService(store)
     runtime.setPtyController({
