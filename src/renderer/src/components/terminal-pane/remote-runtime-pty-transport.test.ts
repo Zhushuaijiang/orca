@@ -669,6 +669,59 @@ describe('createRemoteRuntimePtyTransport', () => {
     }
   })
 
+  it('gates Yunxiao agent prompts before structured remote session create', async () => {
+    runtimeCall.mockImplementation(async (args: { method: string }) => {
+      if (args.method === 'status.get') {
+        return {
+          ok: true,
+          result: {
+            runtimeProtocolVersion: 3,
+            minCompatibleRuntimeClientVersion: 2,
+            capabilities: ['agent-session.host-authority.v1']
+          }
+        }
+      }
+      if (args.method === 'terminal.createAgentSession') {
+        return {
+          ok: true,
+          result: {
+            disposition: 'created',
+            terminal: { handle: 'terminal-created' }
+          }
+        }
+      }
+      return { ok: true, result: {} }
+    })
+    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const transport = createRemoteRuntimePtyTransport('env-1', {
+      worktreeId: 'wt-1',
+      tabId: 'tab-1',
+      leafId: 'pane:1',
+      launchAgent: 'codex',
+      agentPrompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732-projectWorkitem#'
+    })
+
+    await transport.connect({ url: '', callbacks: {} })
+
+    expect(runtimeCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'terminal.createAgentSession',
+        params: expect.objectContaining({
+          prompt: expect.stringContaining('Orca Yunxiao requirement workflow gate')
+        })
+      })
+    )
+    expect(runtimeCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'terminal.createAgentSession',
+        params: expect.objectContaining({
+          prompt: expect.stringContaining('DFHIS-31732')
+        })
+      })
+    )
+    transport.destroy?.()
+  })
+
   it('resolves web mirrors through host session inventory, not client-side pane aliases', async () => {
     const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {

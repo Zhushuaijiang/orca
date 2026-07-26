@@ -5031,6 +5031,39 @@ describe('connectPanePty', () => {
     expect(mockStoreState.recordTerminalInput).toHaveBeenCalledWith(makePaneKey('tab-1', LEAF_1))
   })
 
+  it('gates Yunxiao startup draft prompts before creating the transport', async () => {
+    const { connectPanePty } = await import('./pty-connection')
+    const transport = createMockTransport('pty-codex')
+    transportFactoryQueue.push(transport)
+
+    mockStoreState = {
+      ...mockStoreState,
+      tabsByWorktree: { 'wt-1': [{ id: 'tab-1', ptyId: null }] },
+      repos: [{ id: 'repo1', connectionId: null }]
+    }
+
+    connectPanePty(
+      createPane(1) as never,
+      createManager(1) as never,
+      createDeps({
+        startup: {
+          command: 'codex',
+          launchAgent: 'codex',
+          launchConfig: { agentArgs: '', agentEnv: {} },
+          launchToken: 'launch-token-1',
+          draftPrompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732-projectWorkitem#'
+        }
+      }) as never
+    )
+    await flushAsyncTicks()
+
+    expect(createdTransportOptions[0]?.agentPrompt).toContain(
+      'Orca Yunxiao requirement workflow gate'
+    )
+    expect(createdTransportOptions[0]?.agentPrompt).toContain('DFHIS-31732')
+    expect(createdTransportOptions[0]?.agentPromptDelivery).toBe('draft')
+  })
+
   it('does not consume startup draft delivery before deferred connect starts', async () => {
     const { connectPanePty } = await import('./pty-connection')
     globalThis.requestAnimationFrame = vi.fn(() => 1)

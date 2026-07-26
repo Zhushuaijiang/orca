@@ -25,6 +25,7 @@ import {
   isTerminalInputTooLargeWithDeferredMeasurement,
   iterateTerminalInputChunks
 } from '../../../../shared/terminal-input'
+import { applyYunxiaoRequirementPromptGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
 import type {
   IpcPtyTransportOptions,
   PtyConnectResult,
@@ -1514,6 +1515,9 @@ export function createRemoteRuntimePtyTransport(
         const resumeProviderSessionToSend = options.resumeProviderSession ?? resumeProviderSession
         const launchTokenToSend = options.launchToken ?? launchToken
         const launchAgentToSend = options.launchAgent ?? launchAgent
+        const agentPromptToSend = agentPrompt
+          ? applyYunxiaoRequirementPromptGate(agentPrompt)
+          : agentPrompt
         const legacyCreateParams = {
           worktree: toRuntimeTerminalWorktreeSelector(worktreeId),
           clientMutationId: terminalCreateMutationId,
@@ -1585,7 +1589,7 @@ export function createRemoteRuntimePtyTransport(
                       {
                         worktree: toRuntimeTerminalWorktreeSelector(worktreeId),
                         agent: launchAgentToSend!,
-                        ...(agentPrompt ? { prompt: agentPrompt } : {}),
+                        ...(agentPromptToSend ? { prompt: agentPromptToSend } : {}),
                         ...(agentPromptDelivery ? { promptDelivery: agentPromptDelivery } : {}),
                         ...(agentArgsOverride !== undefined
                           ? { agentArgs: agentArgsOverride }

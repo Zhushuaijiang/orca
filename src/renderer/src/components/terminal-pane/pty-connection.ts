@@ -1170,6 +1170,12 @@ export function connectPanePty(
     typeof paneStartup?.draftPrompt === 'string' && paneStartup.draftPrompt.trim()
       ? applyYunxiaoRequirementPromptGate(paneStartup.draftPrompt)
       : null
+  const startupInitialAgentPrompt =
+    typeof paneStartup?.initialAgentStatus?.prompt === 'string' &&
+    paneStartup.initialAgentStatus.prompt.trim()
+      ? applyYunxiaoRequirementPromptGate(paneStartup.initialAgentStatus.prompt)
+      : null
+  const startupAgentPrompt = startupInitialAgentPrompt ?? startupDraftPrompt
   const startupDraftPromptNeedsPaste =
     startupDraftPrompt !== null &&
     !startupDraftAgentConfig?.draftPromptFlag &&
@@ -3418,12 +3424,10 @@ export function connectPanePty(
     ...(paneStartup?.resumeProviderSession
       ? { resumeProviderSession: paneStartup.resumeProviderSession }
       : {}),
-    ...((paneStartup?.initialAgentStatus?.prompt ?? paneStartup?.draftPrompt)
-      ? { agentPrompt: paneStartup?.initialAgentStatus?.prompt ?? paneStartup?.draftPrompt }
-      : {}),
-    ...(paneStartup?.initialAgentStatus?.prompt
+    ...(startupAgentPrompt ? { agentPrompt: startupAgentPrompt } : {}),
+    ...(startupInitialAgentPrompt
       ? { agentPromptDelivery: 'auto-submit' as const }
-      : paneStartup?.draftPrompt
+      : startupDraftPrompt
         ? { agentPromptDelivery: 'draft' as const }
         : {}),
     ...(paneStartup?.agentArgsOverride !== undefined
