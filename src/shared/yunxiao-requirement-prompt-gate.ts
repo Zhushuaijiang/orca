@@ -48,6 +48,7 @@ export function applyYunxiaoRequirementPromptGate(prompt: string): string {
 This prompt contains a Yunxiao/DFHIS requirement. Treat it as a gated requirement workflow, even when the user pasted it manually instead of taking it from the todo pool.
 
 Required workflow:
+- Start the first user-visible progress message with this exact marker and the target DFHIS id: Orca Yunxiao requirement workflow gate.
 - Use the yunxiao-requirement-archiver skill before implementation or approval judgment.
 - Archive/read the requirement evidence and create or update PRD_AND_CODE_ANALYSIS.md with a compact Requirement Contract at the top.
 - If the contract has blocking product decisions, ask exactly 1-3 concrete choice questions and stop before code edits or completion claims.

@@ -8,6 +8,8 @@
 - Intent:
 - Local archive directory:
 - PRD path:
+- Workflow gate marker: `Orca Yunxiao requirement workflow gate`
+- Trigger source: `manual_prompt / todo_pool / linked_work_item / followup / unknown`
 - Evidence updated at:
 - Contract updated at:
 
@@ -39,6 +41,7 @@ Use this section to keep the workflow compact but auditable. Default low-risk wo
 
 | Gate | Required? | Evidence / Link |
 | --- | --- | --- |
+| Orca Yunxiao requirement workflow gate | Yes |  |
 | Implementation plan before edits |  |  |
 | Test-first or regression evidence |  |  |
 | Independent review checks |  |  |

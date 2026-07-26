@@ -1,6 +1,6 @@
 ---
 name: yunxiao-requirement-archiver
-description: Archive Aliyun Yunxiao / DFHIS work-item requirements and drive Yunxiao-linked code workflows by using Orca's direct Yunxiao archive scripts. Use when the user asks to archive, download, capture, save, analyze, locate repositories for, or fix Yunxiao requirements, defects, DFHIS IDs, Yunxiao links, requirement descriptions, raw JSON, context, attachments, or related code changes.
+description: Archive Aliyun Yunxiao / DFHIS work-item requirements and drive Yunxiao-linked code workflows by using Orca's direct Yunxiao archive scripts. Use when the user asks to archive, download, capture, save, analyze, locate repositories for, or fix Yunxiao requirements, defects, DFHIS IDs, Yunxiao links, manually pasted Yunxiao requirement URLs, requirement descriptions, raw JSON, context, attachments, or related code changes.
 ---
 
 # Yunxiao Requirement Archiver
@@ -8,6 +8,8 @@ description: Archive Aliyun Yunxiao / DFHIS work-item requirements and drive Yun
 ## Overview
 
 Use this skill to run the Orca-local version of Bot Manager expert `云效需求归档专家` (`builtin_key=yunxiao_requirement_archiver`). Prefer `scripts/run_direct_archive.py`, which calls the official Yunxiao MCP directly with the DFHIS Setup `YUNXIAO_ACCESS_TOKEN`; use HIS MCP only as a legacy fallback.
+
+When this skill triggers from any raw `DFHIS-12345` text or `devops.aliyun.com/projex` URL, including a manually pasted prompt outside the todo pool, treat the session as an Orca Yunxiao requirement workflow. The first user-visible progress message must include the exact marker `Orca Yunxiao requirement workflow gate` and the target DFHIS id so the transcript is auditable across new sessions.
 
 ## Source Expert
 
@@ -26,6 +28,7 @@ Use this skill to run the Orca-local version of Bot Manager expert `云效需求
 - Code edit guardrail: never edit files directly inside the selected/original code workspace such as `YUNXIAO_CODE_WORKSPACE_ROOT`. For every code-fix workflow, create or reuse `{需求目录}/code/<repo>` with `scripts/prepare_local_worktree.py`, then run `scripts/guard_code_edit.py` against the exact target file paths immediately before any file-edit tool call. If the guard fails, do not edit code.
 - Required local development handoff document: `{当前对话工作目录}/{需求编号}/PRD_AND_CODE_ANALYSIS.md`.
 - Required requirement gate: create a concise Requirement Contract before any code edit. If the contract status is `needs_clarification`, ask 1-3 blocking decision questions and stop until answered.
+- Required audit marker: for manual prompts, todo-pool items, linked work items, and follow-up checks, record `Orca Yunxiao requirement workflow gate` in both the first visible progress message and the `Methodology Gate` section of `PRD_AND_CODE_ANALYSIS.md`.
 - Required Yunxiao MCP/OpenAPI tools for direct archive and post-push completion: `get_current_organization_info`, `get_current_user`, `get_work_item`, `list_workitem_attachments`, `get_workitem_file`, `list_work_item_comments`, `create_work_item_comment`, `get_work_item_type_field_config`, `get_work_item_workflow`, `update_work_item`
 - Optional legacy HIS MCP tools: `dfhis_agent_chat`, `download_yunxiao_archive`, `comment_yunxiao_workitem`, `git_inspect`
 
@@ -52,6 +55,7 @@ blocking_questions:
 Rules:
 
 - Put the contract at the top of `PRD_AND_CODE_ANALYSIS.md`; keep detailed implementation maps, acceptance criteria, risks, and evidence below it.
+- Treat manual Yunxiao links and DFHIS IDs exactly like todo-pool items. Do not downgrade the workflow because the user pasted the requirement directly into a new chat.
 - Ask only questions whose answers change implementation, acceptance criteria, rollout, data/API behavior, or UI workflow. Prefer 1-3 multiple-choice questions with a recommended option and impact.
 - Record every answer in the decision ledger before continuing.
 - If running interactively, use the native blocking question flow when available; otherwise ask directly in chat and wait. If unattended, write the questions to `PRD_AND_CODE_ANALYSIS.md`, comment/update Yunxiao when possible, mark the todo pool item as `needs-clarification` when a tool is available, include the exact final-output line `Contract status: needs_clarification`, and stop before code edits.

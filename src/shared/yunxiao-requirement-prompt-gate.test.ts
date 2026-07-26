@@ -19,6 +19,7 @@ describe('Yunxiao requirement prompt gate', () => {
     const gated = applyYunxiaoRequirementPromptGate(prompt)
 
     expect(gated).toContain('Orca Yunxiao requirement workflow gate')
+    expect(gated).toContain('first user-visible progress message')
     expect(gated).toContain('Required workflow:')
     expect(gated).toContain('reviewChecks')
     expect(gated).toContain(`Original user request:\n${prompt}`)
