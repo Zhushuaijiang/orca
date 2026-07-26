@@ -991,6 +991,42 @@ describe('registerPtyHandlers', () => {
     expect(order).toEqual(['ensure-pack', 'spawn'])
   })
 
+  it('refreshes the DFHIS workflow pack before env-carried Yunxiao pty spawns', async () => {
+    const order: string[] = []
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+      order.push('ensure-pack')
+    })
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    spawnMock.mockImplementation(() => {
+      order.push('spawn')
+      return {
+        pid: 123,
+        onData: vi.fn(),
+        onExit: vi.fn(),
+        on: vi.fn(),
+        write: vi.fn(),
+        resize: vi.fn(),
+        kill: vi.fn()
+      }
+    })
+    registerPtyHandlers(mainWindow as never)
+
+    await handlers.get('pty:spawn')!(null, {
+      cols: 80,
+      rows: 24,
+      cwd: '/tmp/worktree',
+      worktreeId: 'repo::/tmp/worktree',
+      command: 'omp',
+      env: {
+        ORCA_OMP_PREFILL:
+          'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'
+      }
+    })
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(order).toEqual(['ensure-pack', 'spawn'])
+  })
+
   it('adopts a live controller-owned local fallback when listings cannot serialize claims', async () => {
     const sessions: {
       id: string
@@ -13552,6 +13588,69 @@ describe('registerPtyHandlers', () => {
       })
     ).toBe(false)
     expect(mockProc.proc.write).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes the DFHIS workflow pack before renderer pty writes', async () => {
+    const order: string[] = []
+    let finishRefresh!: () => void
+    const ensureDfHisWorkflowPackInstalled = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push('ensure-pack')
+          finishRefresh = resolve
+        })
+    )
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    const mockProc = createMockProc()
+    mockProc.proc.write.mockImplementation(() => {
+      order.push('write')
+      return true
+    })
+    spawnMock.mockReturnValue(mockProc.proc)
+    registerPtyHandlers(mainWindow as never)
+    const result = (await handlers.get('pty:spawn')!(null, {
+      cols: 80,
+      rows: 24
+    })) as { id: string }
+    const write = getPtyWriteListener()
+
+    write(mainWindowIpcEvent, {
+      id: result.id,
+      data: 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'
+    })
+
+    expect(mockProc.proc.write).not.toHaveBeenCalled()
+    finishRefresh()
+    await vi.waitFor(() => expect(order).toEqual(['ensure-pack', 'write']))
+  })
+
+  it('refreshes the DFHIS workflow pack before acknowledged pty writes', async () => {
+    const order: string[] = []
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+      order.push('ensure-pack')
+    })
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    const mockProc = createMockProc()
+    mockProc.proc.write.mockImplementation(() => {
+      order.push('write')
+      return true
+    })
+    spawnMock.mockReturnValue(mockProc.proc)
+    registerPtyHandlers(mainWindow as never)
+    const result = (await handlers.get('pty:spawn')!(null, {
+      cols: 80,
+      rows: 24
+    })) as { id: string }
+
+    await expect(
+      handlers.get('pty:writeAccepted')!(mainWindowIpcEvent, {
+        id: result.id,
+        data: 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'
+      })
+    ).resolves.toBe(true)
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(order).toEqual(['ensure-pack', 'write'])
   })
 
   it('rejects malformed and cross-window pty write IPC before provider writes', async () => {

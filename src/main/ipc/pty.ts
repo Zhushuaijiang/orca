@@ -129,6 +129,14 @@ import {
   resolveTerminalStartupCwdForWorkspace,
   type TerminalStartupCwdMissingDirFallback
 } from '../../shared/terminal-startup-cwd'
+
+function getYunxiaoRequirementSpawnText(
+  command: string | null | undefined,
+  env: Record<string, string> | null | undefined
+): string {
+  const values = env ? Object.values(env).filter(Boolean) : []
+  return [command ?? '', ...values].filter(Boolean).join('\n')
+}
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { splitWorktreeIdForFilesystem } from '../../shared/worktree-id'
 import { isFolderRepo } from '../../shared/repo-kind'
@@ -4297,18 +4305,19 @@ export function registerPtyHandlers(
         await startupPromise
       }
       await assertFolderWorkspacePtyPathUsable(args.worktreeId)
-      await ensureDfHisWorkflowPackCurrentForYunxiaoText(args.command)
+      const yunxiaoRequirementSpawnText = getYunxiaoRequirementSpawnText(args.command, args.env)
+      await ensureDfHisWorkflowPackCurrentForYunxiaoText(yunxiaoRequirementSpawnText)
       if (isYunxiaoRequirementAgentCommand(args.command)) {
         throw new Error('yunxiao_requirement_agent_command_requires_prompt_gate')
       }
       if (
         store &&
         args.worktreeId &&
-        args.command &&
-        containsYunxiaoRequirementReference(args.command)
+        yunxiaoRequirementSpawnText &&
+        containsYunxiaoRequirementReference(yunxiaoRequirementSpawnText)
       ) {
         const existing = store.getWorktreeMeta(args.worktreeId)?.yunxiaoRequirementGate ?? null
-        const gate = createManualYunxiaoRequirementGate(args.command, existing)
+        const gate = createManualYunxiaoRequirementGate(yunxiaoRequirementSpawnText, existing)
         if (gate) {
           store.setWorktreeMeta(args.worktreeId, { yunxiaoRequirementGate: gate })
         }
@@ -5178,7 +5187,19 @@ export function registerPtyHandlers(
     !mainWindow.isDestroyed() &&
     !(typeof mainWebContents.isDestroyed === 'function' && mainWebContents.isDestroyed())
 
-  const writePtyInput = (args: PtyWritePayload): boolean | Promise<boolean> => {
+  const withDfHisWorkflowPackRefreshForInput = (
+    data: string,
+    write: () => boolean | Promise<boolean>
+  ): boolean | Promise<boolean> => {
+    if (!containsYunxiaoRequirementReference(data)) {
+      return write()
+    }
+    return ensureDfHisWorkflowPackCurrentForYunxiaoText(data)
+      .then(write)
+      .catch(() => false)
+  }
+
+  const writePtyInputAfterRefresh = (args: PtyWritePayload): boolean | Promise<boolean> => {
     // Why: mobile-presence-lock defense-in-depth — the renderer's onData guard can let one keystroke slip during the state-flip lag, so catch it server-side. See docs/mobile-presence-lock.md.
     if (runtime?.getDriver(args.id).kind === 'mobile') {
       return false
@@ -5200,7 +5221,14 @@ export function registerPtyHandlers(
     }
   }
 
-  const writePtyInputAccepted = (args: PtyWritePayload): boolean | Promise<boolean> => {
+  const writePtyInput = (args: PtyWritePayload): boolean | Promise<boolean> => {
+    if (containsYunxiaoRequirementReference(args.data)) {
+      return withDfHisWorkflowPackRefreshForInput(args.data, () => writePtyInputAfterRefresh(args))
+    }
+    return writePtyInputAfterRefresh(args)
+  }
+
+  const writePtyInputAcceptedAfterRefresh = (args: PtyWritePayload): boolean | Promise<boolean> => {
     if (runtime?.getDriver(args.id).kind === 'mobile') {
       return false
     }
@@ -5225,6 +5253,15 @@ export function registerPtyHandlers(
     }
   }
 
+  const writePtyInputAccepted = (args: PtyWritePayload): boolean | Promise<boolean> => {
+    if (containsYunxiaoRequirementReference(args.data)) {
+      return withDfHisWorkflowPackRefreshForInput(args.data, () =>
+        writePtyInputAcceptedAfterRefresh(args)
+      )
+    }
+    return writePtyInputAcceptedAfterRefresh(args)
+  }
+
   const hostViewportClaimTails = new Map<string, Promise<boolean>>()
 
   ipcMain.on('pty:write', (event, args: unknown) => {
@@ -5236,7 +5273,7 @@ export function registerPtyHandlers(
       void claimTail.then((claimed) => (claimed ? writePtyInput(args) : false))
       return
     }
-    writePtyInput(args)
+    void writePtyInput(args)
   })
   ipcMain.handle('pty:writeAccepted', (event, args: unknown): boolean | Promise<boolean> => {
     if (!isPtyWriteEventFromMainWindow(event, mainWindow.webContents) || !isPtyWritePayload(args)) {
