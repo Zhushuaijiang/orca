@@ -219,6 +219,7 @@ import {
   isCurrentPtyExit,
   restorePtyIncarnation
 } from './pty'
+import { setDfHisWorkflowPackRefreshInstallerForTests } from '../dfhis-environment/workflow-pack-refresh'
 import { _resetLocalPtyProviderStateForTest } from '../providers/local-pty-provider'
 import { resetMacosLoginShellPreflightForTests } from '../providers/macos-tcc-login-shell'
 import {
@@ -349,6 +350,7 @@ describe('registerPtyHandlers', () => {
     classifyErrorMock.mockReset()
     registerPtyMock.mockReset()
     unregisterPtyMock.mockReset()
+    setDfHisWorkflowPackRefreshInstallerForTests(null)
     setMigrationUnsupportedPtyMock.mockReset()
     clearMigrationUnsupportedPtyMock.mockReset()
     clearMigrationUnsupportedPtysForPaneKeyMock.mockReset()
@@ -942,6 +944,7 @@ describe('registerPtyHandlers', () => {
   })
 
   it('rejects bare Yunxiao requirement agent commands at pty spawn', async () => {
+    setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
     registerPtyHandlers(mainWindow as never)
 
     await expect(
@@ -953,6 +956,39 @@ describe('registerPtyHandlers', () => {
         command: 'codex "https://devops.aliyun.com/projex/req/DFHIS-31732 修一下"'
       })
     ).rejects.toThrow('yunxiao_requirement_agent_command_requires_prompt_gate')
+  })
+
+  it('refreshes the DFHIS workflow pack before gated Yunxiao pty spawns', async () => {
+    const order: string[] = []
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+      order.push('ensure-pack')
+    })
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    spawnMock.mockImplementation(() => {
+      order.push('spawn')
+      return {
+        pid: 123,
+        onData: vi.fn(),
+        onExit: vi.fn(),
+        on: vi.fn(),
+        write: vi.fn(),
+        resize: vi.fn(),
+        kill: vi.fn()
+      }
+    })
+    registerPtyHandlers(mainWindow as never)
+
+    await handlers.get('pty:spawn')!(null, {
+      cols: 80,
+      rows: 24,
+      cwd: '/tmp/worktree',
+      worktreeId: 'repo::/tmp/worktree',
+      command:
+        "codex 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'"
+    })
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(order).toEqual(['ensure-pack', 'spawn'])
   })
 
   it('adopts a live controller-owned local fallback when listings cannot serialize claims', async () => {

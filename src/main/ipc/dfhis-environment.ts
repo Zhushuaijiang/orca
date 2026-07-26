@@ -49,6 +49,15 @@ const YUNXIAO_TOKEN_COMMAND =
 const HIS_MCP_TOKEN_COMMAND =
   process.platform === 'win32' ? 'setx HIS_MCP_TOKEN ...' : 'export HIS_MCP_TOKEN=...'
 
+function refreshDfHisWorkflowPackInBackground(): void {
+  void ensureDfHisWorkflowPackInstalled().catch((error: unknown) => {
+    console.warn(
+      '[dfhis] workflow pack auto-refresh failed:',
+      error instanceof Error ? error.message : String(error)
+    )
+  })
+}
+
 export function checkYunxiaoMcpPrerequisite(): DfHisEnvironmentPrerequisiteResult {
   const connection = getOfficialYunxiaoConnection()
   if (!connection) {
@@ -137,6 +146,7 @@ async function checkGitLabPrerequisite(): Promise<DfHisEnvironmentPrerequisiteRe
 }
 
 export async function checkDfHisEnvironment(): Promise<DfHisEnvironmentCheckResult> {
+  await ensureDfHisWorkflowPackInstalled()
   const [
     git,
     python,
@@ -216,6 +226,7 @@ export async function installDfHisEnvironment(
 }
 
 export function registerDfHisEnvironmentHandlers(): void {
+  refreshDfHisWorkflowPackInBackground()
   ipcMain.handle('dfhisEnvironment:getConfig', () => snapshotDfHisEnvironmentConfig())
 
   ipcMain.handle('dfhisEnvironment:check', async (): Promise<DfHisEnvironmentCheckResult> => {

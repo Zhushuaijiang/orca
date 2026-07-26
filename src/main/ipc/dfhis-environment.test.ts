@@ -81,6 +81,15 @@ describe('dfhis-environment', () => {
         expect.objectContaining({ id: 'dfhis-workflow-pack-claude', status: 'ok' })
       ])
     )
+    await expect(ensureDfHisWorkflowPackInstalled(homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          'DFHIS workflow pack for universal agent skills is installed and current'
+        ),
+        expect.stringContaining('DFHIS workflow pack for Codex is installed and current'),
+        expect.stringContaining('DFHIS workflow pack for Claude is installed and current')
+      ])
+    )
 
     await expect(readFile(getDfHisSkillPath(homeDirectory), 'utf8')).resolves.toContain(
       'name: yunxiao-requirement-archiver'

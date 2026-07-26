@@ -257,6 +257,9 @@ async function installWorkflowPackTarget(
 ): Promise<string> {
   const targetDirectory = getTargetDirectory(target, homeDirectory)
   const current = await checkWorkflowPackTarget(target, sourceHash, sourceFiles, homeDirectory)
+  if (current.status === 'ok') {
+    return `${target.label} is installed and current at ${targetDirectory}.`
+  }
   if (current.status === 'invalid' && !current.fixable) {
     return `${target.label} has local modifications; leaving ${targetDirectory} unchanged.`
   }

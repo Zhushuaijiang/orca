@@ -19,10 +19,12 @@ import { toSshExecutionHostId } from '../../shared/execution-host'
 import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import {
   containsYunxiaoRequirementReference,
-  createManualYunxiaoRequirementGate,
-  shouldApplyYunxiaoRequirementPromptGate
+  createManualYunxiaoRequirementGate
 } from '../../shared/yunxiao-requirement-prompt-gate'
-import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-process-recognition'
+import {
+  ensureDfHisWorkflowPackCurrentForYunxiaoText,
+  isYunxiaoRequirementAgentCommand
+} from '../dfhis-environment/workflow-pack-refresh'
 import { terminalOutputBacklogCapChars } from '../../shared/terminal-scrollback-policy'
 import type {
   PtyDeliveryWriteOff,
@@ -4295,11 +4297,8 @@ export function registerPtyHandlers(
         await startupPromise
       }
       await assertFolderWorkspacePtyPathUsable(args.worktreeId)
-      if (
-        args.command &&
-        shouldApplyYunxiaoRequirementPromptGate(args.command) &&
-        recognizeAgentProcessFromCommandLine(args.command)
-      ) {
+      await ensureDfHisWorkflowPackCurrentForYunxiaoText(args.command)
+      if (isYunxiaoRequirementAgentCommand(args.command)) {
         throw new Error('yunxiao_requirement_agent_command_requires_prompt_gate')
       }
       if (

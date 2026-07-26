@@ -85,7 +85,6 @@ import {
   shouldApplyYunxiaoRequirementPromptGate
 } from '../../shared/yunxiao-requirement-prompt-gate'
 import { extractYunxiaoRequirementGateOutcomesFromText } from '../../shared/yunxiao-requirement-gate-outcome'
-import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-process-recognition'
 import { gitExecFileAsync, gitSpawn, nonInteractiveGitEnv } from '../git/runner'
 import { runWithGitReadCacheInvalidation } from '../git/status'
 import {
@@ -109,6 +108,10 @@ import {
   buildYunxiaoTerminalEnv,
   getYunxiaoRequirementDirectory
 } from '../dfhis-environment/terminal-env'
+import {
+  ensureDfHisWorkflowPackCurrentForYunxiaoText,
+  isYunxiaoRequirementAgentCommand
+} from '../dfhis-environment/workflow-pack-refresh'
 import type {
   Automation,
   AutomationCreateInput,
@@ -8527,14 +8530,14 @@ export class OrcaRuntimeService {
   }
 
   private assertYunxiaoRequirementAgentCommandGated(opts: TerminalCreateOptions): void {
-    const command = opts.command?.trim()
-    if (!command || !shouldApplyYunxiaoRequirementPromptGate(command)) {
-      return
-    }
-    if (!opts.launchAgent && !recognizeAgentProcessFromCommandLine(command)) {
+    if (!isYunxiaoRequirementAgentCommand(opts.command)) {
       return
     }
     throw new Error('yunxiao_requirement_agent_command_requires_prompt_gate')
+  }
+
+  private async ensureDfHisWorkflowPackCurrentForPrompt(prompt: string | null | undefined) {
+    await ensureDfHisWorkflowPackCurrentForYunxiaoText(prompt)
   }
 
   private async applyYunxiaoRequirementGateForRawTerminalSend(
@@ -18412,6 +18415,9 @@ export class OrcaRuntimeService {
     ) {
       throw new Error('Selected agent is disabled. Choose an enabled agent before creating.')
     }
+    await this.ensureDfHisWorkflowPackCurrentForPrompt(
+      args.startupPrompt ?? args.startupDraft ?? args.startupDraftPaste?.content
+    )
     const agentStartup =
       !args.startup && args.startupAgent
         ? this.buildStartupForAgent(repo, args.startupAgent, args.startupPrompt)
@@ -21612,6 +21618,7 @@ export class OrcaRuntimeService {
       // Why: reserve the client operation before any async preflight so concurrent retries cannot
       // both observe an empty ledger and reach the execution owner independently.
       const workspace = await this.resolveTerminalWorkspaceLaunchScope(request.worktree)
+      await this.ensureDfHisWorkflowPackCurrentForPrompt(request.prompt)
       this.markManualYunxiaoRequirementGateForWorktree(workspace.id, request.prompt)
       if (
         !(await this.executionOwnerSupportsAgentSessionOperation(
@@ -21798,6 +21805,7 @@ export class OrcaRuntimeService {
       }
       const workspace = await this.resolveTerminalWorkspaceLaunchScope(worktreeSelector)
       const launchOpts = await this.resolveAgentTerminalCreateOptions(workspace, opts)
+      await this.ensureDfHisWorkflowPackCurrentForPrompt(launchOpts.command)
       this.assertYunxiaoRequirementAgentCommandGated(launchOpts)
       let ptySpawnCommitReported = false
       const reportPtySpawnCommitted = (): void => {
@@ -22065,6 +22073,7 @@ export class OrcaRuntimeService {
     const launchOpts = workspace
       ? await this.resolveAgentTerminalCreateOptions(workspace, opts)
       : opts
+    await this.ensureDfHisWorkflowPackCurrentForPrompt(launchOpts.command)
     this.assertYunxiaoRequirementAgentCommandGated(launchOpts)
     const worktreeId = workspace?.id
     const cwd = workspace
@@ -22253,6 +22262,7 @@ export class OrcaRuntimeService {
     opts: { agent: TuiAgent; prompt: string; title?: string }
   ): Promise<RuntimeTerminalCreate> {
     const worktree = await this.resolveWorktreeSelector(worktreeSelector)
+    await this.ensureDfHisWorkflowPackCurrentForPrompt(opts.prompt)
     this.markManualYunxiaoRequirementGateForWorktree(worktree.id, opts.prompt)
     const repo = this.store?.getRepo(worktree.repoId)
     if (!repo) {
@@ -22600,6 +22610,7 @@ export class OrcaRuntimeService {
     if (!this.store) {
       throw new Error('runtime_unavailable')
     }
+    await this.ensureDfHisWorkflowPackCurrentForPrompt(opts.agentPrompt)
     const settings = this.store.getSettings()
     if (!isTuiAgentEnabled(opts.agent, settings.disabledTuiAgents)) {
       throw new Error('Selected agent is disabled. Choose an enabled agent before creating.')

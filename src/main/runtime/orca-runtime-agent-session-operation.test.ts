@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   RuntimeCreateAgentSessionRequest,
   RuntimeCreateAgentSessionResult
 } from '../../shared/agent-session-host-authority'
+import { setDfHisWorkflowPackRefreshInstallerForTests } from '../dfhis-environment/workflow-pack-refresh'
 import { OrcaRuntimeService } from './orca-runtime'
 
 function operationId(now = Date.now()): string {
@@ -67,6 +68,14 @@ function createRuntime(provider?: {
 }
 
 describe('agent-session create operation ledger', () => {
+  beforeEach(() => {
+    setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
+  })
+
+  afterEach(() => {
+    setDfHisWorkflowPackRefreshInstallerForTests(null)
+  })
+
   it('selects legacy before trust, spawn, or ledger state for an old daemon', async () => {
     const provider = {
       supportsAgentSessionClaims: vi.fn(() => false),
@@ -191,6 +200,42 @@ describe('agent-session create operation ledger', () => {
     expect(command).toContain('Orca Yunxiao requirement workflow gate')
     expect(command).toContain('Original user request:')
     expect(command).toContain('DFHIS-31732')
+  })
+
+  it('refreshes the DFHIS workflow pack before launching a Yunxiao agent session', async () => {
+    const order: string[] = []
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+      order.push('ensure-pack')
+    })
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    const runtime = createRuntime()
+    vi.spyOn(runtime, 'createTerminal').mockImplementation(async () => {
+      order.push('create-terminal')
+      return terminal()
+    })
+
+    await expect(
+      runtime.createAgentSession(
+        request(operationId(), {
+          prompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732-projectWorkitem#'
+        }),
+        { clientId: 'device-a' }
+      )
+    ).resolves.toMatchObject({ disposition: 'created' })
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(order).toEqual(['ensure-pack', 'create-terminal'])
+  })
+
+  it('does not refresh the DFHIS workflow pack for ordinary agent session prompts', async () => {
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => undefined)
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    const runtime = createRuntime()
+    vi.spyOn(runtime, 'createTerminal').mockResolvedValue(terminal())
+
+    await runtime.createAgentSession(request(operationId()), { clientId: 'device-a' })
+
+    expect(ensureDfHisWorkflowPackInstalled).not.toHaveBeenCalled()
   })
 
   it('joins concurrent retries and conflicts on a changed fingerprint', async () => {

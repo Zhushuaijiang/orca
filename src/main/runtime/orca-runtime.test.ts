@@ -67,6 +67,7 @@ import {
   resolveWorktreeScanCacheTtlMs,
   type RuntimeTerminalAgentStatusEvent
 } from './orca-runtime'
+import { setDfHisWorkflowPackRefreshInstallerForTests } from '../dfhis-environment/workflow-pack-refresh'
 import { RecentPtyOutputBuffer } from './recent-pty-output-buffer'
 import { HeadlessEmulator } from '../daemon/headless-emulator'
 import {
@@ -822,6 +823,7 @@ function resetRuntimeTestMocks(): void {
   updateGitLabMRReviewersMock.mockResolvedValue({ ok: true, reviewers: [] })
   getIssueMock.mockReset()
   getIssueMock.mockResolvedValue(null)
+  setDfHisWorkflowPackRefreshInstallerForTests(null)
 }
 
 beforeEach(resetRuntimeTestMocks)
@@ -11363,6 +11365,34 @@ describe('OrcaRuntimeService', () => {
     expect(markCodexProjectTrustedMock.mock.invocationCallOrder[0]).toBeLessThan(
       spawn.mock.invocationCallOrder[0]!
     )
+  })
+
+  it('refreshes the DFHIS workflow pack before runtime terminal agent commands', async () => {
+    const order: string[] = []
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+      order.push('ensure-pack')
+    })
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    const spawn = vi.fn().mockImplementation(async () => {
+      order.push('spawn')
+      return { id: 'pty-bg' }
+    })
+    const runtime = new OrcaRuntimeService(store)
+    runtime.setPtyController({
+      spawn,
+      write: () => true,
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+
+    await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`, {
+      command:
+        "codex 'Orca Yunxiao requirement workflow gate\n\nOriginal user request:\nDFHIS-31732'",
+      launchAgent: 'codex'
+    })
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(order).toEqual(['ensure-pack', 'spawn'])
   })
 
   it('quotes local Windows bare agent command defaults for cmd.exe terminal creates', async () => {
@@ -25391,6 +25421,42 @@ describe('OrcaRuntimeService', () => {
         cwd: TEST_WORKTREE_PATH
       })
     )
+  })
+
+  it('refreshes the DFHIS workflow pack before mobile Yunxiao agent prompts', async () => {
+    const order: string[] = []
+    const ensureDfHisWorkflowPackInstalled = vi.fn(async () => {
+      order.push('ensure-pack')
+    })
+    const spawn = vi.fn().mockImplementation(async () => {
+      order.push('spawn')
+      return { id: 'pty-agent-prompt' }
+    })
+    setDfHisWorkflowPackRefreshInstallerForTests(ensureDfHisWorkflowPackInstalled)
+    const runtime = new OrcaRuntimeService({
+      ...store,
+      getSettings: () => ({
+        ...store.getSettings(),
+        disabledTuiAgents: [],
+        agentCmdOverrides: { codex: 'codex' },
+        agentDefaultArgs: {}
+      })
+    } as never)
+    runtime.setPtyController({
+      spawn,
+      write: () => true,
+      kill: () => true,
+      getForegroundProcess: async () => null
+    })
+    runtime.syncWindowGraph(0, { tabs: [], leaves: [] })
+
+    await runtime.createMobileSessionTerminal(`id:${TEST_WORKTREE_ID}`, {
+      agent: 'codex',
+      agentPrompt: 'DFHIS-31732'
+    })
+
+    expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
+    expect(order).toEqual(['ensure-pack', 'spawn'])
   })
 
   it('rejects startup prompts for agents that require post-ready stdin', async () => {
