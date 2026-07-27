@@ -5234,7 +5234,9 @@ export class Store {
       Pick<YunxiaoTodoPoolItem, 'poolStatus' | 'notes' | 'lastError' | 'requirementContract'>
     >
   ): YunxiaoTodoPoolItem | null {
-    const item = this.getYunxiaoTodoPool().find((entry) => entry.id === id)
+    const item = this.getYunxiaoTodoPool().find((entry) =>
+      matchesYunxiaoTodoPoolIdentity(entry, id)
+    )
     if (!item) {
       return null
     }
@@ -5285,7 +5287,7 @@ export class Store {
     }
     item.poolUpdatedAt = Date.now()
     this.state.yunxiaoTodoPool = this.state.yunxiaoTodoPool.map((entry) =>
-      entry.id === id ? item : entry
+      matchesYunxiaoTodoPoolIdentity(entry, id) ? item : entry
     )
     this.scheduleSave()
     return item
@@ -5355,7 +5357,9 @@ export class Store {
 
   removeYunxiaoTodoPoolItem(id: string): boolean {
     const before = this.state.yunxiaoTodoPool?.length ?? 0
-    this.state.yunxiaoTodoPool = (this.state.yunxiaoTodoPool ?? []).filter((item) => item.id !== id)
+    this.state.yunxiaoTodoPool = (this.state.yunxiaoTodoPool ?? []).filter(
+      (item) => !matchesYunxiaoTodoPoolIdentity(item, id)
+    )
     if (this.state.yunxiaoTodoPool.length === before) {
       return false
     }

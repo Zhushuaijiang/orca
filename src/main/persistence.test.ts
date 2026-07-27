@@ -400,6 +400,27 @@ describe('Store', () => {
     expect(reloaded.getYunxiaoTodoPool()).toEqual([])
   })
 
+  it('updates and removes Yunxiao todo pool items by DFHIS serial number', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem({ id: 'internal-31773', serialNumber: 'DFHIS-31773' })
+    store.addYunxiaoTodoPoolItems([item])
+
+    const updated = store.updateYunxiaoTodoPoolItem('DFHIS-31773', { poolStatus: 'done' })
+
+    expect(updated).toMatchObject({
+      id: 'internal-31773',
+      serialNumber: 'DFHIS-31773',
+      poolStatus: 'done',
+      lastError: null
+    })
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: 'internal-31773',
+      poolStatus: 'done'
+    })
+    expect(store.removeYunxiaoTodoPoolItem('DFHIS-31773')).toBe(true)
+    expect(store.getYunxiaoTodoPool()).toEqual([])
+  })
+
   it('preserves Yunxiao requirement contracts when work items refresh', async () => {
     const store = await createStore()
     const item = makeYunxiaoWorkItem()

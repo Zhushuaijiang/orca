@@ -213,6 +213,13 @@ export function TaskPageYunxiaoWorkItemList({
         setTodoPool((current) =>
           current.map((entry) => (entry.id === updated.id ? updated : entry))
         )
+      } else {
+        toast.error(
+          translate(
+            'auto.components.TaskPage.yunxiaoTodoPoolUpdateMissing',
+            'Todo pool item was not found.'
+          )
+        )
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error))
