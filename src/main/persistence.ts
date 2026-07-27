@@ -3210,18 +3210,9 @@ function coerceYunxiaoRequirementCompletionStatus(
     }
   }
   const completionGate = getYunxiaoRequirementCompletionGate(contract)
-  const coerced = completionGate.ready
+  return completionGate.ready
     ? { status, error: null }
-    : { status: 'ready-to-build' as const, error: completionGate.gaps.join(' ') }
-  return {
-    status:
-      coerced.status === 'done' ||
-      coerced.status === 'needs-clarification' ||
-      coerced.status === 'ready-to-build'
-        ? coerced.status
-        : 'ready-to-build',
-    error: coerced.error
-  }
+    : { status: 'ready-to-build', error: completionGate.gaps.join(' ') }
 }
 
 function inferYunxiaoTodoPoolCompletedStatus(
