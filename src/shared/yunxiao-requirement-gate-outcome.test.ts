@@ -66,6 +66,41 @@ describe('extractYunxiaoRequirementGateOutcomesFromText', () => {
     ])
   })
 
+  it('extracts text-form outcomes from Codex final summaries', () => {
+    const outcomes = extractYunxiaoRequirementGateOutcomesFromText(`DFHIS-31773 已处理完成。
+
+yunxiaoRequirementOutcomes:
+- itemId: DFHIS-31773
+  poolStatus: 待测试
+  requirementContract:
+    status: ready_to_verify
+    owner: qa
+    next_action: QA 环境复核多入口页面
+    intent: 检验报告敏感项显示修复
+    blocking_questions: 无
+
+验证结果：git diff --check 四仓通过，Node 规则用例 14 组通过。`)
+
+    expect(outcomes).toEqual([
+      expect.objectContaining({
+        itemId: 'DFHIS-31773',
+        poolStatus: 'done',
+        requirementContract: expect.objectContaining({
+          status: 'ready_to_verify',
+          owner: 'qa',
+          methodologyGate: expect.objectContaining({
+            verificationEvidence: [
+              expect.objectContaining({
+                result: 'pass',
+                summary: expect.stringContaining('git diff --check')
+              })
+            ]
+          })
+        })
+      })
+    ])
+  })
+
   it('ignores natural-language status text', () => {
     expect(
       extractYunxiaoRequirementGateOutcomesFromText('Contract status: needs_clarification')
