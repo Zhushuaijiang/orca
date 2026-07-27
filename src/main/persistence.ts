@@ -102,6 +102,7 @@ import {
   type YunxiaoWorkItemCategory
 } from '../shared/yunxiao-types'
 import { getYunxiaoRequirementCompletionGate } from '../shared/yunxiao-requirement-review-policy'
+import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../shared/yunxiao-requirement-gate-outcome'
 import { MOBILE_PAIRING_USERDATA_FILES } from './runtime/mobile-pairing-files'
 import { normalizePersistedMobileClientTabSelections } from './runtime/client-session-tab-selection-persistence'
 import { sanitizeWorkspaceSessionTerminalRetirements } from './runtime/mobile-session-terminal-persistence-retirement'
@@ -1117,6 +1118,9 @@ function backfillLegacyAutomationContexts(
       normalizeYunxiaoRequirementGateOutcomes(next.yunxiaoRequirementOutcomes) ??
       normalizeYunxiaoRequirementGateOutcomes(
         next.yunxiaoRequirementOutcome ? [next.yunxiaoRequirementOutcome] : null
+      ) ??
+      normalizeYunxiaoRequirementGateOutcomes(
+        extractYunxiaoRequirementGateOutcomesFromSnapshot(next.outputSnapshot ?? null)
       )
     next.yunxiaoRequirementOutcomes = normalizedRequirementOutcomes
     next.yunxiaoRequirementOutcome = normalizedRequirementOutcomes?.[0] ?? null
@@ -1169,8 +1173,23 @@ function reconcileCompletedYunxiaoTodoPoolClaims(
     return { state, changed: false }
   }
   let changed = false
+  let yunxiaoTodoPool = [...(state.yunxiaoTodoPool ?? [])]
+  for (const run of completedClaimRunById.values()) {
+    for (const outcome of run.yunxiaoRequirementOutcomes ?? []) {
+      const result = applyYunxiaoRequirementGateOutcomeToTodoPool({
+        pool: yunxiaoTodoPool,
+        runId: run.id,
+        itemIds: run.yunxiaoTodoPoolClaim?.itemIds,
+        outcome
+      })
+      if (result.updatedItems.length > 0) {
+        changed = true
+        yunxiaoTodoPool = result.pool
+      }
+    }
+  }
   const now = Date.now()
-  const yunxiaoTodoPool = (state.yunxiaoTodoPool ?? []).map((item) => {
+  yunxiaoTodoPool = yunxiaoTodoPool.map((item) => {
     const matchesClaim = item.claimedByRunId
       ? completedClaimRunIds.has(item.claimedByRunId)
       : completedClaimItemIds.has(item.id)
@@ -2701,6 +2720,15 @@ function backfillFolderScopeConnectionIds(state: PersistedState): {
 }
 
 function normalizeYunxiaoTodoPoolStatus(value: unknown): YunxiaoTodoPoolStatus {
+  if (value === 'needs_clarification') {
+    return 'needs-clarification'
+  }
+  if (value === 'ready_to_build') {
+    return 'ready-to-build'
+  }
+  if (value === 'ready_to_verify' || value === 'ready-to-verify') {
+    return 'done'
+  }
   return value === 'needs-clarification' ||
     value === 'ready-to-build' ||
     value === 'archived' ||
@@ -3118,28 +3146,16 @@ function coerceYunxiaoRequirementManualStatus(
   status: YunxiaoTodoPoolStatus,
   contract: YunxiaoTodoPoolItem['requirementContract']
 ): { status: YunxiaoTodoPoolStatus; error: string | null } {
-  if (!contract && status === 'done') {
-    return { status: 'ready-to-build', error: 'Requirement Contract is missing.' }
-  }
   if (!contract) {
     return { status, error: null }
   }
   if (
-    (status === 'ready-to-build' || status === 'done') &&
+    status === 'ready-to-build' &&
     (contract.status === 'needs_clarification' || contract.blockingQuestions.length > 0)
   ) {
     return {
       status: 'needs-clarification',
       error: 'Requirement Contract has unresolved blocking questions.'
-    }
-  }
-  if (status === 'done') {
-    const completionGate = getYunxiaoRequirementCompletionGate(contract)
-    if (!completionGate.ready) {
-      return {
-        status: 'ready-to-build',
-        error: completionGate.gaps.join(' ')
-      }
     }
   }
   return { status, error: null }
@@ -3184,7 +3200,19 @@ function coerceYunxiaoRequirementCompletionStatus(
   if (status !== 'done') {
     return { status, error: null }
   }
-  const coerced = coerceYunxiaoRequirementManualStatus(status, contract)
+  if (!contract) {
+    return { status: 'ready-to-build', error: 'Requirement Contract is missing.' }
+  }
+  if (contract.status === 'needs_clarification' || contract.blockingQuestions.length > 0) {
+    return {
+      status: 'needs-clarification',
+      error: 'Requirement Contract has unresolved blocking questions.'
+    }
+  }
+  const completionGate = getYunxiaoRequirementCompletionGate(contract)
+  const coerced = completionGate.ready
+    ? { status, error: null }
+    : { status: 'ready-to-build' as const, error: completionGate.gaps.join(' ') }
   return {
     status:
       coerced.status === 'done' ||
@@ -3380,6 +3408,91 @@ function normalizeYunxiaoTodoPool(value: unknown): YunxiaoTodoPoolItem[] {
 
 function getYunxiaoTodoPoolIdentity(item: Pick<YunxiaoWorkItem, 'id' | 'serialNumber'>): string {
   return item.serialNumber?.trim() || item.id
+}
+
+function matchesYunxiaoTodoPoolIdentity(
+  item: Pick<YunxiaoWorkItem, 'id' | 'serialNumber'>,
+  identity: string
+): boolean {
+  return (
+    item.id === identity ||
+    item.serialNumber === identity ||
+    getYunxiaoTodoPoolIdentity(item) === identity
+  )
+}
+
+function applyYunxiaoRequirementGateOutcomeToTodoPool(args: {
+  pool: readonly YunxiaoTodoPoolItem[]
+  runId: string
+  itemIds?: readonly string[]
+  outcome: YunxiaoRequirementGateOutcome
+  includeClosedItems?: boolean
+}): { pool: YunxiaoTodoPoolItem[]; updatedItems: YunxiaoTodoPoolItem[] } {
+  const now = Date.now()
+  const normalizedItemId = normalizeOptionalNonEmptyString(args.outcome.itemId)
+  const claimedItemIds = new Set(
+    (args.itemIds ?? [])
+      .map((id) => normalizeOptionalNonEmptyString(id))
+      .filter((id): id is string => id !== null)
+  )
+  const claimMatchedItems = args.pool.filter(
+    (item) => item.claimedByRunId === args.runId || claimedItemIds.has(item.id)
+  )
+  const fallbackIdentity =
+    normalizedItemId ?? (claimMatchedItems.length === 1 ? claimMatchedItems[0]!.id : null)
+  const updatedItems: YunxiaoTodoPoolItem[] = []
+  const pool = args.pool.map((item) => {
+    const matchesOutcome = fallbackIdentity
+      ? matchesYunxiaoTodoPoolIdentity(item, fallbackIdentity)
+      : false
+    if (!matchesOutcome) {
+      return item
+    }
+    if (
+      !args.includeClosedItems &&
+      (item.poolStatus === 'done' || item.poolStatus === 'dismissed')
+    ) {
+      return item
+    }
+    const nextContract = args.outcome.requirementContract ?? item.requirementContract
+    const nextStatus =
+      args.outcome.poolStatus ??
+      (nextContract?.status === 'needs_clarification'
+        ? 'needs-clarification'
+        : nextContract?.status === 'ready_to_build'
+          ? 'ready-to-build'
+          : nextContract?.status === 'ready_to_verify'
+            ? 'done'
+            : item.poolStatus)
+    const coercedStatus =
+      nextStatus === 'done'
+        ? coerceYunxiaoRequirementCompletionStatus(nextStatus, nextContract)
+        : coerceYunxiaoRequirementManualStatus(nextStatus, nextContract)
+    const next: YunxiaoTodoPoolItem = {
+      ...item,
+      poolStatus: coercedStatus.status,
+      requirementContract: nextContract,
+      poolUpdatedAt: now,
+      lastError:
+        coercedStatus.status === 'failed'
+          ? (args.outcome.evidence ?? item.lastError)
+          : coercedStatus.error
+    }
+    if (
+      coercedStatus.status === 'queued' ||
+      coercedStatus.status === 'ready-to-build' ||
+      coercedStatus.status === 'needs-clarification' ||
+      coercedStatus.status === 'done' ||
+      coercedStatus.status === 'dismissed'
+    ) {
+      next.claimedAt = null
+      next.claimedByAutomationId = null
+      next.claimedByRunId = null
+    }
+    updatedItems.push(next)
+    return next
+  })
+  return { pool, updatedItems }
 }
 
 function deleteRemovedTerminalScrollbackSnapshots(
@@ -4995,57 +5108,15 @@ export class Store {
     itemIds?: readonly string[]
     outcome: YunxiaoRequirementGateOutcome
   }): YunxiaoTodoPoolItem[] {
-    const now = Date.now()
-    const normalizedItemId = normalizeOptionalNonEmptyString(args.outcome.itemId)
-    const claimedItemIds = new Set(
-      (args.itemIds ?? [])
-        .map((id) => normalizeOptionalNonEmptyString(id))
-        .filter((id): id is string => id !== null)
-    )
-    const currentPool = this.getYunxiaoTodoPool()
-    const claimMatchedItems = currentPool.filter(
-      (item) => item.claimedByRunId === args.runId || claimedItemIds.has(item.id)
-    )
-    const fallbackItemId =
-      normalizedItemId ?? (claimMatchedItems.length === 1 ? claimMatchedItems[0]!.id : null)
-    const updatedItems: YunxiaoTodoPoolItem[] = []
-    this.state.yunxiaoTodoPool = currentPool.map((item) => {
-      const matchesOutcome = fallbackItemId ? item.id === fallbackItemId : false
-      if (!matchesOutcome) {
-        return item
-      }
-      const nextContract = args.outcome.requirementContract ?? item.requirementContract
-      const nextStatus =
-        args.outcome.poolStatus ??
-        (nextContract?.status === 'needs_clarification'
-          ? 'needs-clarification'
-          : nextContract?.status === 'ready_to_build'
-            ? 'ready-to-build'
-            : item.poolStatus)
-      const coercedStatus = coerceYunxiaoRequirementManualStatus(nextStatus, nextContract)
-      const next: YunxiaoTodoPoolItem = {
-        ...item,
-        poolStatus: coercedStatus.status,
-        requirementContract: nextContract,
-        poolUpdatedAt: now,
-        lastError:
-          coercedStatus.status === 'failed'
-            ? (args.outcome.evidence ?? item.lastError)
-            : coercedStatus.error
-      }
-      if (
-        coercedStatus.status === 'queued' ||
-        coercedStatus.status === 'ready-to-build' ||
-        coercedStatus.status === 'needs-clarification'
-      ) {
-        next.claimedAt = null
-        next.claimedByAutomationId = null
-        next.claimedByRunId = null
-      }
-      updatedItems.push(next)
-      return next
+    const result = applyYunxiaoRequirementGateOutcomeToTodoPool({
+      pool: this.getYunxiaoTodoPool(),
+      runId: args.runId,
+      itemIds: args.itemIds,
+      outcome: args.outcome,
+      includeClosedItems: true
     })
-    return updatedItems
+    this.state.yunxiaoTodoPool = result.pool
+    return result.updatedItems
   }
 
   private updateYunxiaoTodoPoolClaimStatus(args: {
@@ -5181,7 +5252,9 @@ export class Store {
       if (
         item.poolStatus === 'queued' ||
         item.poolStatus === 'ready-to-build' ||
-        item.poolStatus === 'needs-clarification'
+        item.poolStatus === 'needs-clarification' ||
+        item.poolStatus === 'done' ||
+        item.poolStatus === 'dismissed'
       ) {
         item.claimedAt = null
         item.claimedByAutomationId = null
@@ -5206,6 +5279,8 @@ export class Store {
       item.poolStatus = nextStatus.status
       if (nextStatus.error) {
         item.lastError = nextStatus.error
+      } else if (item.poolStatus === 'done' || item.poolStatus === 'dismissed') {
+        item.lastError = null
       }
     }
     item.poolUpdatedAt = Date.now()
@@ -6012,13 +6087,26 @@ export class Store {
     const workspaceDisplayName = Object.hasOwn(result, 'workspaceDisplayName')
       ? normalizeAutomationRunWorkspaceDisplayName(result.workspaceDisplayName ?? null)
       : null
-    const nextYunxiaoRequirementOutcomes = Object.hasOwn(result, 'yunxiaoRequirementOutcomes')
+    const outputSnapshot = Object.hasOwn(result, 'outputSnapshot')
+      ? normalizeAutomationRunOutputSnapshot(result.outputSnapshot)
+      : normalizeAutomationRunOutputSnapshot(current.outputSnapshot)
+    const snapshotYunxiaoRequirementOutcomes = normalizeYunxiaoRequirementGateOutcomes(
+      extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot)
+    )
+    const resultYunxiaoRequirementOutcomes = Object.hasOwn(result, 'yunxiaoRequirementOutcomes')
       ? normalizeYunxiaoRequirementGateOutcomes(result.yunxiaoRequirementOutcomes)
+      : null
+    const resultYunxiaoRequirementOutcome = Object.hasOwn(result, 'yunxiaoRequirementOutcome')
+      ? normalizeYunxiaoRequirementGateOutcomes(
+          result.yunxiaoRequirementOutcome ? [result.yunxiaoRequirementOutcome] : null
+        )
+      : null
+    const nextYunxiaoRequirementOutcomes = Object.hasOwn(result, 'yunxiaoRequirementOutcomes')
+      ? (resultYunxiaoRequirementOutcomes ?? snapshotYunxiaoRequirementOutcomes)
       : Object.hasOwn(result, 'yunxiaoRequirementOutcome')
-        ? normalizeYunxiaoRequirementGateOutcomes(
-            result.yunxiaoRequirementOutcome ? [result.yunxiaoRequirementOutcome] : null
-          )
-        : (normalizeYunxiaoRequirementGateOutcomes(current.yunxiaoRequirementOutcomes) ??
+        ? (resultYunxiaoRequirementOutcome ?? snapshotYunxiaoRequirementOutcomes)
+        : (snapshotYunxiaoRequirementOutcomes ??
+          normalizeYunxiaoRequirementGateOutcomes(current.yunxiaoRequirementOutcomes) ??
           normalizeYunxiaoRequirementGateOutcomes(
             current.yunxiaoRequirementOutcome ? [current.yunxiaoRequirementOutcome] : null
           ))
@@ -6039,9 +6127,7 @@ export class Store {
       terminalPtyId: Object.hasOwn(result, 'terminalPtyId')
         ? normalizeAutomationRunTerminalPtyId(result.terminalPtyId)
         : normalizeAutomationRunTerminalPtyId(current.terminalPtyId),
-      outputSnapshot: Object.hasOwn(result, 'outputSnapshot')
-        ? normalizeAutomationRunOutputSnapshot(result.outputSnapshot)
-        : normalizeAutomationRunOutputSnapshot(current.outputSnapshot),
+      outputSnapshot,
       precheckResult: Object.hasOwn(result, 'precheckResult')
         ? normalizeAutomationPrecheckResult(result.precheckResult)
         : normalizeAutomationPrecheckResult(current.precheckResult),

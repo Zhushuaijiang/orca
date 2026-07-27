@@ -24,6 +24,7 @@ import type {
   TerminalTab,
   WorktreeLineage,
   YunxiaoRequirementContractSnapshot,
+  YunxiaoRequirementGateOutcome,
   YunxiaoWorkItem,
   WorkspaceLineage,
   WorkspaceSessionState
@@ -380,15 +381,15 @@ describe('Store', () => {
       notes: 'handled'
     })
     expect(updated).toMatchObject({
-      poolStatus: 'ready-to-build',
+      poolStatus: 'done',
       notes: 'handled',
-      lastError: 'Requirement Contract is missing.'
+      lastError: null
     })
     store.addYunxiaoTodoPoolItems([makeYunxiaoWorkItem({ title: 'refreshed title' })])
     expect(store.getYunxiaoTodoPool()).toHaveLength(1)
     expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
       title: 'refreshed title',
-      poolStatus: 'ready-to-build',
+      poolStatus: 'done',
       notes: 'handled'
     })
 
@@ -986,7 +987,7 @@ describe('Store', () => {
     })
   })
 
-  it('blocks done transitions until required review and verification evidence exist', async () => {
+  it('allows manual done transitions even when completion gates are incomplete', async () => {
     const store = await createStore()
     const item = makeYunxiaoWorkItem()
     store.addYunxiaoTodoPoolItems([item])
@@ -1020,14 +1021,14 @@ describe('Store', () => {
       }
     }
 
+    store.updateYunxiaoTodoPoolItem(item.id, { lastError: 'Previous blocker.' })
     const updated = store.updateYunxiaoTodoPoolItem(item.id, {
       poolStatus: 'done',
       requirementContract: contract
     })
 
-    expect(updated?.poolStatus).toBe('ready-to-build')
-    expect(updated?.lastError).toContain('Implementation plan is required before edits.')
-    expect(updated?.lastError).toContain('Required review checks are missing')
+    expect(updated?.poolStatus).toBe('done')
+    expect(updated?.lastError).toBeNull()
   })
 
   it('enforces methodology gates on structured completion outcomes', async () => {
@@ -1106,6 +1107,188 @@ describe('Store', () => {
     expect(store.getYunxiaoTodoPool()[0]?.lastError).toContain(
       'Implementation plan is required before edits.'
     )
+  })
+
+  it('applies ready-to-verify structured outcomes by DFHIS serial number', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const item = makeYunxiaoWorkItem({ id: 'internal-31687', serialNumber: 'DFHIS-31687' })
+    store.addYunxiaoTodoPoolItems([item])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+    const outcome = {
+      itemId: 'DFHIS-31687',
+      poolStatus: 'ready_to_verify',
+      evidence: 'Pushed and verified.',
+      updatedAt: 2,
+      requirementContract: {
+        status: 'ready_to_verify',
+        owner: 'qa',
+        nextAction: 'QA 验证。',
+        intent: '修复已提交并验证。',
+        archiveDir: '/archive/DFHIS-31687',
+        prdPath: '/archive/DFHIS-31687/PRD_AND_CODE_ANALYSIS.md',
+        evidenceUpdatedAt: 2,
+        updatedAt: 2,
+        blockingQuestions: [],
+        decisions: [],
+        riskProfile: null,
+        reviewChecks: [],
+        methodologyGate: {
+          designConfirmed: true,
+          alternatives: [],
+          implementationPlan: {
+            status: 'not_required',
+            path: null,
+            summary: null,
+            updatedAt: 2
+          },
+          verificationEvidence: [
+            {
+              id: 'V-001',
+              type: 'passing_test',
+              command: 'npm test',
+              artifactPath: null,
+              result: 'pass',
+              summary: 'Passed.',
+              collectedAt: 2
+            }
+          ]
+        }
+      }
+    } as unknown as YunxiaoRequirementGateOutcome
+
+    store.updateAutomationRun({
+      runId: run.id,
+      status: 'completed',
+      workspaceId: 'wt1',
+      yunxiaoRequirementOutcomes: [outcome],
+      error: null
+    })
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: 'internal-31687',
+      serialNumber: 'DFHIS-31687',
+      poolStatus: 'done',
+      lastError: null
+    })
+  })
+
+  it('backfills completed Yunxiao outcomes from persisted output snapshots', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+    const item = makeYunxiaoWorkItem({ id: 'internal-31687', serialNumber: 'DFHIS-31687' })
+    store.addYunxiaoTodoPoolItems([item])
+    const automation = store.createAutomation({
+      name: 'Yunxiao todo pool',
+      prompt: 'Pick up the next Yunxiao item.',
+      yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 },
+      agentId: 'codex',
+      projectId: 'r1',
+      workspaceMode: 'existing',
+      workspaceId: 'wt1',
+      timezone: 'UTC',
+      rrule: 'FREQ=HOURLY;BYMINUTE=15',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    const run = store.createAutomationRun(automation, Date.now(), 'manual')
+    store.claimYunxiaoTodoPoolItems({
+      automationId: automation.id,
+      runId: run.id,
+      statuses: ['queued'],
+      limit: 1
+    })
+    store.setAutomationRunYunxiaoTodoPoolClaim(run.id, {
+      itemIds: [item.id],
+      claimedAt: Date.now()
+    })
+    store.updateYunxiaoTodoPoolItem(item.id, { poolStatus: 'ready-to-build' })
+    store.flushOrThrow()
+
+    const persisted = JSON.parse(readFileSync(dataFile(), 'utf-8')) as PersistedState
+    persisted.automationRuns = persisted.automationRuns?.map((entry) =>
+      entry.id === run.id
+        ? {
+            ...entry,
+            status: 'completed',
+            outputSnapshot: {
+              format: 'plain_text',
+              content: `"yunxiaoRequirementOutcomes": [
+  {
+    "itemId": "DFHIS-31687",
+    "poolStatus": "ready_to_verify",
+    "requirementContract": {
+      "status": "ready_to_verify",
+      "owner": "qa",
+      "nextAction": "QA 验证。",
+      "intent": "修复已提交并验证。",
+      "archiveDir": "/archive/DFHIS-31687",
+      "prdPath": "/archive/DFHIS-31687/PRD_AND_CODE_ANALYSIS.md",
+      "evidenceUpdatedAt": 2,
+      "updatedAt": 2,
+      "blockingQuestions": [],
+      "decisions": [],
+      "riskProfile": null,
+      "reviewChecks": [],
+      "methodologyGate": {
+        "designConfirmed": true,
+        "alternatives": [],
+        "implementationPlan": { "status": "not_required", "path": null, "summary": null, "updatedAt": 2 },
+        "verificationEvidence": [
+          {
+            "id": "V-001",
+            "type": "passing_test",
+            "command": "npm test",
+            "artifactPath": null,
+            "result": "pass",
+            "summary": "Passed.",
+            "collectedAt": 2
+          }
+        ]
+      }
+    },
+    "evidence": "Pushed and verified.",
+    "updatedAt": 2
+  }
+]`,
+              capturedAt: 2,
+              truncated: false
+            },
+            yunxiaoRequirementOutcomes: null,
+            yunxiaoRequirementOutcome: null
+          }
+        : entry
+    )
+    writeFileSync(dataFile(), JSON.stringify(persisted), 'utf-8')
+
+    const reloaded = await createStore()
+
+    expect(reloaded.getYunxiaoTodoPool()[0]).toMatchObject({
+      id: 'internal-31687',
+      serialNumber: 'DFHIS-31687',
+      poolStatus: 'done',
+      lastError: null
+    })
+    expect(reloaded.listAutomationRuns(automation.id)[0]).toMatchObject({
+      yunxiaoRequirementOutcomes: [expect.objectContaining({ itemId: 'DFHIS-31687' })]
+    })
   })
 
   it('clone-reads and synchronously persists the main-owned Codex reset ledger', async () => {

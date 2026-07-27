@@ -2,6 +2,7 @@ import type { AutomationRunOutputSnapshot } from './automations-types'
 import type { YunxiaoRequirementGateOutcome } from './yunxiao-types'
 
 const JSON_FENCE_PATTERN = /```(?:json)?\s*([\s\S]*?)```/gi
+const OUTCOMES_KEY_PATTERN = /"yunxiaoRequirementOutcomes"\s*:/g
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -36,6 +37,63 @@ function extractOutcomesFromParsed(value: unknown): YunxiaoRequirementGateOutcom
   return null
 }
 
+function extractJsonValueAfterKey(text: string, valueStartIndex: number): string | null {
+  const opener = text[valueStartIndex]
+  const closer = opener === '[' ? ']' : opener === '{' ? '}' : null
+  if (!closer) {
+    return null
+  }
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let index = valueStartIndex; index < text.length; index += 1) {
+    const character = text[index]!
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (character === '\\') {
+        escaped = true
+      } else if (character === '"') {
+        inString = false
+      }
+      continue
+    }
+    if (character === '"') {
+      inString = true
+      continue
+    }
+    if (character === opener) {
+      depth += 1
+    } else if (character === closer) {
+      depth -= 1
+      if (depth === 0) {
+        return text.slice(valueStartIndex, index + 1)
+      }
+    }
+  }
+  return null
+}
+
+function extractEmbeddedOutcomesFromText(text: string): YunxiaoRequirementGateOutcome[] | null {
+  for (const match of text.matchAll(OUTCOMES_KEY_PATTERN)) {
+    let valueStartIndex = (match.index ?? 0) + match[0].length
+    while (/\s/.test(text[valueStartIndex] ?? '')) {
+      valueStartIndex += 1
+    }
+    const jsonValue = extractJsonValueAfterKey(text, valueStartIndex)
+    if (!jsonValue) {
+      continue
+    }
+    const outcomes = extractOutcomesFromParsed(
+      parseJsonCandidate(`{"yunxiaoRequirementOutcomes":${jsonValue}}`)
+    )
+    if (outcomes?.length) {
+      return outcomes
+    }
+  }
+  return null
+}
+
 export function extractYunxiaoRequirementGateOutcomesFromText(
   content: string | null | undefined
 ): YunxiaoRequirementGateOutcome[] | null {
@@ -56,7 +114,7 @@ export function extractYunxiaoRequirementGateOutcomesFromText(
       return outcomes
     }
   }
-  return null
+  return extractEmbeddedOutcomesFromText(text)
 }
 
 export function extractYunxiaoRequirementGateOutcomesFromSnapshot(
