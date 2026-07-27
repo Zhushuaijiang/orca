@@ -197,6 +197,8 @@ export const UiUpdate = z
       .optional(),
     hideDefaultBranchWorkspace: z.boolean().optional(),
     hideAutomationGeneratedWorkspaces: z.boolean().optional(),
+    hideCliCreatedWorkspaces: z.boolean().optional(),
+    hideDetachedHeadWorkspaces: z.boolean().optional(),
     filterRepoIds: StringArray.optional(),
     collapsedGroups: StringArray.optional(),
     uiZoomLevel: z.number().finite().optional(),
