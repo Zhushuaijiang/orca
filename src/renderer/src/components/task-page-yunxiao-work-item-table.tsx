@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import type { DragEvent, JSX } from 'react'
 
 import { Checkbox } from '@/components/ui/checkbox'
 import { translate } from '@/i18n/i18n'
@@ -9,7 +9,9 @@ import type {
   YunxiaoWorkItem
 } from '../../../shared/types'
 import { TaskPageYunxiaoWorkItemActions } from './task-page-yunxiao-work-item-actions'
+import { TodoPoolEmptyState, WorkItemsEmptyState } from './task-page-yunxiao-work-item-empty-states'
 import { TaskPageYunxiaoWorkItemFooter } from './task-page-yunxiao-work-item-footer'
+import { TaskPageYunxiaoTodoPoolOrderControl } from './task-page-yunxiao-todo-pool-order-control'
 import {
   formatYunxiaoDate,
   todoPoolStatusLabel,
@@ -37,6 +39,7 @@ type TaskPageYunxiaoWorkItemTableProps = {
   onAddToTodoPool: (item: YunxiaoWorkItem) => void
   onAnswerRequirementQuestion: (item: YunxiaoTodoPoolItem) => void
   onRemoveFromTodoPool: (item: YunxiaoWorkItem) => void
+  onSetTodoPoolOrder: (id: string, poolOrder: number) => void
   onSetTodoPoolStatus: (item: YunxiaoWorkItem, status: YunxiaoTodoPoolStatus) => void
   onStartWorkspace: (item: YunxiaoWorkItem) => void
   onStartTodoPoolWorkspace: (item: YunxiaoWorkItem) => void
@@ -58,6 +61,7 @@ export function TaskPageYunxiaoWorkItemTable({
   onPreviousPage,
   onRemoveFromTodoPool,
   onSelectionChange,
+  onSetTodoPoolOrder,
   onSetTodoPoolStatus,
   onStartTodoPoolWorkspace,
   onStartWorkspace,
@@ -101,6 +105,7 @@ export function TaskPageYunxiaoWorkItemTable({
               onArchive={onArchive}
               onRemoveFromTodoPool={onRemoveFromTodoPool}
               onSelectionChange={onSelectionChange}
+              onSetTodoPoolOrder={onSetTodoPoolOrder}
               onSetTodoPoolStatus={onSetTodoPoolStatus}
               onStartTodoPoolWorkspace={onStartTodoPoolWorkspace}
               onStartWorkspace={onStartWorkspace}
@@ -152,7 +157,9 @@ function YunxiaoTableHeader({
       )}
     >
       <span className="flex items-center justify-center">
-        {view === 'work-items' ? (
+        {view === 'todo-pool' ? (
+          translate('auto.components.TaskPage.yunxiaoPoolOrder', 'Order')
+        ) : (
           <Checkbox
             checked={
               allVisibleWorkItemsSelected || (someVisibleWorkItemsSelected && 'indeterminate')
@@ -171,7 +178,7 @@ function YunxiaoTableHeader({
             }}
             aria-label={translate('auto.components.TaskPage.yunxiaoSelectPage', 'Select page')}
           />
-        ) : null}
+        )}
       </span>
       <span>{translate('auto.components.TaskPage.eb10c32872', 'ID')}</span>
       <span>{translate('auto.components.TaskPage.16cba35bee', 'Title')}</span>
@@ -205,38 +212,6 @@ function YunxiaoTableSkeleton({ rowCount }: { rowCount: number }): JSX.Element {
           <div />
         </div>
       ))}
-    </div>
-  )
-}
-
-function WorkItemsEmptyState(): JSX.Element {
-  return (
-    <div className="px-4 py-12 text-center">
-      <p className="text-sm font-medium text-foreground">
-        {translate('auto.components.TaskPage.yunxiaoEmptyTitle', 'No Yunxiao work items')}
-      </p>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {translate(
-          'auto.components.TaskPage.yunxiaoEmptyDescription',
-          'Adjust filters or refresh the Yunxiao source.'
-        )}
-      </p>
-    </div>
-  )
-}
-
-function TodoPoolEmptyState(): JSX.Element {
-  return (
-    <div className="px-4 py-12 text-center">
-      <p className="text-sm font-medium text-foreground">
-        {translate('auto.components.TaskPage.yunxiaoTodoPoolEmptyTitle', 'No todo pool items')}
-      </p>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {translate(
-          'auto.components.TaskPage.yunxiaoTodoPoolEmptyDescription',
-          'Add Yunxiao work items from the list.'
-        )}
-      </p>
     </div>
   )
 }
@@ -289,6 +264,7 @@ function YunxiaoTableRow({
   onArchive,
   onRemoveFromTodoPool,
   onSelectionChange,
+  onSetTodoPoolOrder,
   onSetTodoPoolStatus,
   onStartTodoPoolWorkspace,
   onStartWorkspace,
@@ -303,6 +279,7 @@ function YunxiaoTableRow({
   onArchive: (item: YunxiaoWorkItem) => void
   onRemoveFromTodoPool: (item: YunxiaoWorkItem) => void
   onSelectionChange: (nextSelectedIds: Set<string>) => void
+  onSetTodoPoolOrder: (id: string, poolOrder: number) => void
   onSetTodoPoolStatus: (item: YunxiaoWorkItem, status: YunxiaoTodoPoolStatus) => void
   onStartTodoPoolWorkspace: (item: YunxiaoWorkItem) => void
   onStartWorkspace: (item: YunxiaoWorkItem) => void
@@ -315,15 +292,33 @@ function YunxiaoTableRow({
   const canAnswerRequirementQuestion =
     poolItem?.poolStatus === 'needs-clarification' &&
     (poolItem.requirementContract?.blockingQuestions.length ?? 0) > 0
+  const handleTodoPoolDrop = (event: DragEvent<HTMLDivElement>): void => {
+    if (!poolItem) {
+      return
+    }
+    event.preventDefault()
+    const draggedId = event.dataTransfer.getData('text/plain')
+    if (!draggedId || draggedId === poolItem.id) {
+      return
+    }
+    onSetTodoPoolOrder(draggedId, poolItem.poolOrder)
+  }
   return (
     <div
       className={cn(
         'group grid min-h-12 items-center gap-3 px-3 py-2 text-left transition hover:bg-muted/45',
         YUNXIAO_GRID_CLASS
       )}
+      onDragOver={poolItem ? (event) => event.preventDefault() : undefined}
+      onDrop={poolItem ? handleTodoPoolDrop : undefined}
     >
       <span className="flex items-center justify-center">
-        {view === 'work-items' ? (
+        {poolItem ? (
+          <TaskPageYunxiaoTodoPoolOrderControl
+            item={poolItem}
+            onSetTodoPoolOrder={onSetTodoPoolOrder}
+          />
+        ) : view === 'work-items' ? (
           <Checkbox
             checked={selectedWorkItemIds.has(item.id)}
             onCheckedChange={(checked) => {

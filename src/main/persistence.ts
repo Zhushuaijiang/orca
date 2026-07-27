@@ -2751,6 +2751,12 @@ function normalizeYunxiaoTodoPoolAttempts(value: unknown): number {
   return Number.isFinite(value) && Number(value) > 0 ? Math.floor(Number(value)) : 0
 }
 
+function normalizeYunxiaoTodoPoolOrder(value: unknown, fallback: number): number {
+  return Number.isFinite(value) && Number(value) > 0
+    ? Math.floor(Number(value))
+    : Math.max(1, Math.floor(fallback))
+}
+
 function normalizeOptionalNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
@@ -3263,7 +3269,10 @@ function normalizeYunxiaoTodoPoolSprint(value: unknown): YunxiaoTodoPoolItem['sp
   return id || name ? { id: id || name, name: name || id } : null
 }
 
-function normalizeYunxiaoTodoPoolItem(value: unknown): YunxiaoTodoPoolItem | null {
+function normalizeYunxiaoTodoPoolItem(
+  value: unknown,
+  fallbackPoolOrder = 1
+): YunxiaoTodoPoolItem | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null
   }
@@ -3314,6 +3323,7 @@ function normalizeYunxiaoTodoPoolItem(value: unknown): YunxiaoTodoPoolItem | nul
         : null,
     url: typeof candidate.url === 'string' && candidate.url.trim() ? candidate.url.trim() : null,
     poolStatus: normalizeYunxiaoTodoPoolStatus(candidate.poolStatus),
+    poolOrder: normalizeYunxiaoTodoPoolOrder(candidate.poolOrder, fallbackPoolOrder),
     addedAt: Number.isFinite(candidate.addedAt) ? Number(candidate.addedAt) : now,
     poolUpdatedAt: Number.isFinite(candidate.poolUpdatedAt) ? Number(candidate.poolUpdatedAt) : now,
     lastSyncedAt: Number.isFinite(candidate.lastSyncedAt) ? Number(candidate.lastSyncedAt) : null,
@@ -3386,16 +3396,44 @@ function normalizeYunxiaoTodoPool(value: unknown): YunxiaoTodoPoolItem[] {
     return []
   }
   const itemsByIdentity = new Map<string, YunxiaoTodoPoolItem>()
-  for (const entry of value) {
-    const item = normalizeYunxiaoTodoPoolItem(entry)
+  for (const [index, entry] of value.entries()) {
+    const item = normalizeYunxiaoTodoPoolItem(entry, index + 1)
     if (!item) {
       continue
     }
     itemsByIdentity.set(getYunxiaoTodoPoolIdentity(item), item)
   }
-  return [...itemsByIdentity.values()].sort(
-    (left, right) => right.addedAt - left.addedAt || left.title.localeCompare(right.title)
-  )
+  return sortYunxiaoTodoPoolItems([...itemsByIdentity.values()])
+}
+
+function sortYunxiaoTodoPoolItems(items: readonly YunxiaoTodoPoolItem[]): YunxiaoTodoPoolItem[] {
+  return [...items]
+    .sort(
+      (left, right) =>
+        left.poolOrder - right.poolOrder ||
+        left.addedAt - right.addedAt ||
+        left.title.localeCompare(right.title)
+    )
+    .map((item, index) => ({ ...item, poolOrder: index + 1 }))
+}
+
+function moveYunxiaoTodoPoolItemToOrder(
+  items: readonly YunxiaoTodoPoolItem[],
+  id: string,
+  poolOrder: number
+): YunxiaoTodoPoolItem[] {
+  const sorted = sortYunxiaoTodoPoolItems(items)
+  const currentIndex = sorted.findIndex((item) => matchesYunxiaoTodoPoolIdentity(item, id))
+  if (currentIndex === -1) {
+    return sorted
+  }
+  const [item] = sorted.splice(currentIndex, 1)
+  if (!item) {
+    return sorted
+  }
+  const nextIndex = Math.max(0, Math.min(poolOrder - 1, sorted.length))
+  sorted.splice(nextIndex, 0, item)
+  return sorted.map((entry, index) => ({ ...entry, poolOrder: index + 1 }))
 }
 
 function getYunxiaoTodoPoolIdentity(item: Pick<YunxiaoWorkItem, 'id' | 'serialNumber'>): string {
@@ -5175,14 +5213,17 @@ export class Store {
 
   addYunxiaoTodoPoolItems(items: readonly YunxiaoWorkItem[]): YunxiaoTodoPoolItem[] {
     const now = Date.now()
+    const existingPool = this.getYunxiaoTodoPool()
     const poolByIdentity = new Map(
-      this.getYunxiaoTodoPool().map((item) => [getYunxiaoTodoPoolIdentity(item), item])
+      existingPool.map((item) => [getYunxiaoTodoPoolIdentity(item), item])
     )
     const changedItems: YunxiaoTodoPoolItem[] = []
+    let nextPoolOrder = existingPool.length + 1
     for (const item of items) {
       const normalizedItem = normalizeYunxiaoTodoPoolItem({
         ...item,
         poolStatus: 'queued',
+        poolOrder: nextPoolOrder,
         addedAt: now,
         poolUpdatedAt: now,
         lastSyncedAt: now,
@@ -5203,6 +5244,7 @@ export class Store {
         ? {
             ...normalizedItem,
             poolStatus: existing.poolStatus,
+            poolOrder: existing.poolOrder,
             addedAt: existing.addedAt,
             poolUpdatedAt: now,
             notes: existing.notes,
@@ -5215,15 +5257,16 @@ export class Store {
             lastSyncedAt: now
           }
         : normalizedItem
+      if (!existing) {
+        nextPoolOrder += 1
+      }
       poolByIdentity.set(identity, next)
       changedItems.push(next)
     }
     if (changedItems.length === 0) {
       return this.getYunxiaoTodoPool()
     }
-    this.state.yunxiaoTodoPool = [...poolByIdentity.values()].sort(
-      (left, right) => right.addedAt - left.addedAt || left.title.localeCompare(right.title)
-    )
+    this.state.yunxiaoTodoPool = sortYunxiaoTodoPoolItems([...poolByIdentity.values()])
     this.scheduleSave()
     return this.getYunxiaoTodoPool()
   }
@@ -5231,7 +5274,10 @@ export class Store {
   updateYunxiaoTodoPoolItem(
     id: string,
     updates: Partial<
-      Pick<YunxiaoTodoPoolItem, 'poolStatus' | 'notes' | 'lastError' | 'requirementContract'>
+      Pick<
+        YunxiaoTodoPoolItem,
+        'poolStatus' | 'poolOrder' | 'notes' | 'lastError' | 'requirementContract'
+      >
     >
   ): YunxiaoTodoPoolItem | null {
     const item = this.getYunxiaoTodoPool().find((entry) =>
@@ -5269,6 +5315,9 @@ export class Store {
     if (updates.notes !== undefined) {
       item.notes = updates.notes
     }
+    if (updates.poolOrder !== undefined) {
+      item.poolOrder = normalizeYunxiaoTodoPoolOrder(updates.poolOrder, item.poolOrder)
+    }
     if (updates.lastError !== undefined) {
       item.lastError = normalizeOptionalNonEmptyString(updates.lastError)
     }
@@ -5286,11 +5335,18 @@ export class Store {
       }
     }
     item.poolUpdatedAt = Date.now()
-    this.state.yunxiaoTodoPool = this.state.yunxiaoTodoPool.map((entry) =>
+    const nextPool = this.state.yunxiaoTodoPool.map((entry) =>
       matchesYunxiaoTodoPoolIdentity(entry, id) ? item : entry
     )
+    this.state.yunxiaoTodoPool =
+      updates.poolOrder === undefined
+        ? nextPool
+        : moveYunxiaoTodoPoolItemToOrder(nextPool, item.id, item.poolOrder)
     this.scheduleSave()
-    return item
+    return (
+      this.state.yunxiaoTodoPool.find((entry) => matchesYunxiaoTodoPoolIdentity(entry, item.id)) ??
+      item
+    )
   }
 
   claimYunxiaoTodoPoolItems(args: {
@@ -5312,7 +5368,10 @@ export class Store {
             isYunxiaoRequirementContractClaimable(item.requirementContract)
         )
         .sort(
-          (left, right) => left.addedAt - right.addedAt || left.title.localeCompare(right.title)
+          (left, right) =>
+            left.poolOrder - right.poolOrder ||
+            left.addedAt - right.addedAt ||
+            left.title.localeCompare(right.title)
         )
         .slice(0, limit)
         .map((item) => item.id)
@@ -5357,8 +5416,8 @@ export class Store {
 
   removeYunxiaoTodoPoolItem(id: string): boolean {
     const before = this.state.yunxiaoTodoPool?.length ?? 0
-    this.state.yunxiaoTodoPool = (this.state.yunxiaoTodoPool ?? []).filter(
-      (item) => !matchesYunxiaoTodoPoolIdentity(item, id)
+    this.state.yunxiaoTodoPool = sortYunxiaoTodoPoolItems(
+      (this.state.yunxiaoTodoPool ?? []).filter((item) => !matchesYunxiaoTodoPoolIdentity(item, id))
     )
     if (this.state.yunxiaoTodoPool.length === before) {
       return false

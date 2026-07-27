@@ -90,6 +90,7 @@ export function registerYunxiaoHandlers(store: Store): void {
     const updates = args.updates ?? {}
     return store.updateYunxiaoTodoPoolItem(args.id, {
       poolStatus: updates.poolStatus,
+      poolOrder: Number.isFinite(updates.poolOrder) ? updates.poolOrder : undefined,
       notes: typeof updates.notes === 'string' ? updates.notes : undefined,
       lastError:
         typeof updates.lastError === 'string' || updates.lastError === null

@@ -367,6 +367,7 @@ describe('Store', () => {
       id: item.id,
       serialNumber: item.serialNumber,
       poolStatus: 'queued',
+      poolOrder: 1,
       attempts: 0,
       claimedAt: null,
       claimedByAutomationId: null,
@@ -390,6 +391,7 @@ describe('Store', () => {
     expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
       title: 'refreshed title',
       poolStatus: 'done',
+      poolOrder: 1,
       notes: 'handled'
     })
 
@@ -398,6 +400,43 @@ describe('Store', () => {
     expect(reloaded.getYunxiaoTodoPool()).toHaveLength(1)
     expect(reloaded.removeYunxiaoTodoPoolItem(item.id)).toBe(true)
     expect(reloaded.getYunxiaoTodoPool()).toEqual([])
+  })
+
+  it('orders Yunxiao todo pool items from top to bottom and claims in that order', async () => {
+    const store = await createStore()
+    const first = makeYunxiaoWorkItem({ id: 'item-1', serialNumber: 'DFHIS-31771' })
+    const second = makeYunxiaoWorkItem({ id: 'item-2', serialNumber: 'DFHIS-31772' })
+    const third = makeYunxiaoWorkItem({ id: 'item-3', serialNumber: 'DFHIS-31773' })
+
+    store.addYunxiaoTodoPoolItems([first, second, third])
+
+    expect(store.getYunxiaoTodoPool().map((item) => item.serialNumber)).toEqual([
+      'DFHIS-31771',
+      'DFHIS-31772',
+      'DFHIS-31773'
+    ])
+
+    const moved = store.updateYunxiaoTodoPoolItem('DFHIS-31773', { poolOrder: 1 })
+
+    expect(moved).toMatchObject({ serialNumber: 'DFHIS-31773', poolOrder: 1 })
+    expect(
+      store
+        .getYunxiaoTodoPool()
+        .map((item) => ({ itemOrder: item.poolOrder, serialNumber: item.serialNumber }))
+    ).toEqual([
+      { itemOrder: 1, serialNumber: 'DFHIS-31773' },
+      { itemOrder: 2, serialNumber: 'DFHIS-31771' },
+      { itemOrder: 3, serialNumber: 'DFHIS-31772' }
+    ])
+
+    const claimed = store.claimYunxiaoTodoPoolItems({
+      automationId: 'automation-1',
+      runId: 'run-1',
+      statuses: ['queued'],
+      limit: 2
+    })
+
+    expect(claimed.map((item) => item.serialNumber)).toEqual(['DFHIS-31773', 'DFHIS-31771'])
   })
 
   it('updates and removes Yunxiao todo pool items by DFHIS serial number', async () => {

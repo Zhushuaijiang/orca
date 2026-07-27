@@ -182,6 +182,7 @@ export type YunxiaoRequirementGateOutcome = {
 
 export type YunxiaoTodoPoolItem = YunxiaoWorkItem & {
   poolStatus: YunxiaoTodoPoolStatus
+  poolOrder: number
   addedAt: number
   poolUpdatedAt: number
   lastSyncedAt: number | null
@@ -201,7 +202,10 @@ export type YunxiaoTodoPoolAddArgs = {
 export type YunxiaoTodoPoolUpdateArgs = {
   id: string
   updates: Partial<
-    Pick<YunxiaoTodoPoolItem, 'poolStatus' | 'notes' | 'lastError' | 'requirementContract'>
+    Pick<
+      YunxiaoTodoPoolItem,
+      'poolStatus' | 'poolOrder' | 'notes' | 'lastError' | 'requirementContract'
+    >
   >
 }
 

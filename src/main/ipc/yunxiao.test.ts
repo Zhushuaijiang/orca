@@ -70,9 +70,38 @@ describe('registerYunxiaoHandlers', () => {
     expect(result).toMatchObject({ id: 'item-1', requirementContract })
     expect(updateYunxiaoTodoPoolItem).toHaveBeenCalledWith('item-1', {
       poolStatus: undefined,
+      poolOrder: undefined,
       notes: undefined,
       lastError: undefined,
       requirementContract
+    })
+  })
+
+  it('forwards todo pool order updates to the store', async () => {
+    const updateYunxiaoTodoPoolItem = vi.fn((id, updates) => ({
+      id,
+      ...updates
+    }))
+    registerYunxiaoHandlers({
+      addYunxiaoTodoPoolItems: vi.fn(),
+      getYunxiaoTodoPool: vi.fn(),
+      removeYunxiaoTodoPoolItem: vi.fn(),
+      updateYunxiaoTodoPoolItem
+    } as unknown as Store)
+    const handler = handlers.get('yunxiao:updateTodoPoolItem')
+
+    const result = await handler?.(null, {
+      id: 'DFHIS-31773',
+      updates: { poolOrder: 1 }
+    })
+
+    expect(result).toMatchObject({ id: 'DFHIS-31773', poolOrder: 1 })
+    expect(updateYunxiaoTodoPoolItem).toHaveBeenCalledWith('DFHIS-31773', {
+      poolStatus: undefined,
+      poolOrder: 1,
+      notes: undefined,
+      lastError: undefined,
+      requirementContract: undefined
     })
   })
 })

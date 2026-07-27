@@ -3,8 +3,6 @@ import { toast } from 'sonner'
 
 import { translate } from '@/i18n/i18n'
 import type {
-  YunxiaoRequirementContractQuestionOption,
-  YunxiaoRequirementContractSnapshot,
   YunxiaoListWorkItemsResult,
   YunxiaoTodoPoolItem,
   YunxiaoTodoPoolStatus,
@@ -14,6 +12,8 @@ import type {
 import { TaskPageYunxiaoRequirementDecisionDialog } from './task-page-yunxiao-requirement-decision-dialog'
 import { TaskPageYunxiaoWorkItemTable } from './task-page-yunxiao-work-item-table'
 import { TaskPageYunxiaoWorkItemToolbar } from './task-page-yunxiao-work-item-toolbar'
+import { useYunxiaoRequirementDecisionAnswer } from './use-yunxiao-requirement-decision-answer'
+import { useYunxiaoTodoPoolOrder } from './use-yunxiao-todo-pool-order'
 import { useYunxiaoTodoPoolAutomation } from './yunxiao-todo-pool-automation'
 import {
   DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES,
@@ -52,6 +52,11 @@ export function TaskPageYunxiaoWorkItemList({
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null)
   const [answerTarget, setAnswerTarget] = useState<YunxiaoTodoPoolItem | null>(null)
   const [selectedWorkItemIds, setSelectedWorkItemIds] = useState<Set<string>>(() => new Set())
+  const handleRequirementDecisionAnswer = useYunxiaoRequirementDecisionAnswer({
+    setAnswerTarget,
+    setTodoPool
+  })
+  const handleTodoPoolOrderChange = useYunxiaoTodoPoolOrder(setTodoPool)
   const {
     configureTodoPoolAutomation,
     configuringTodoPoolAutomation,
@@ -193,7 +198,7 @@ export function TaskPageYunxiaoWorkItemList({
     try {
       const removed = await window.api.yunxiao.removeTodoPoolItem(item.id)
       if (removed) {
-        setTodoPool((current) => current.filter((entry) => entry.id !== item.id))
+        setTodoPool(await window.api.yunxiao.listTodoPool())
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error))
@@ -221,69 +226,6 @@ export function TaskPageYunxiaoWorkItemList({
           )
         )
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  const handleRequirementDecisionAnswer = async (
-    item: YunxiaoTodoPoolItem,
-    option: YunxiaoRequirementContractQuestionOption,
-    optionIndex: number
-  ): Promise<void> => {
-    const contract = item.requirementContract
-    const question = contract?.blockingQuestions[0]
-    if (!contract || !question) {
-      setAnswerTarget(null)
-      return
-    }
-    const remainingQuestions = contract.blockingQuestions.slice(1)
-    const decisionIndex = contract.decisions.length + 1
-    const selectedOptionId = option.id ?? `${question.id}:option-${optionIndex + 1}`
-    const nextContract: YunxiaoRequirementContractSnapshot = {
-      ...contract,
-      status: remainingQuestions.length === 0 ? 'ready_to_build' : 'needs_clarification',
-      owner: remainingQuestions.length === 0 ? 'development' : contract.owner,
-      nextAction:
-        remainingQuestions.length === 0
-          ? translate(
-              'auto.components.TaskPage.yunxiaoContractRunNext',
-              'Run the Yunxiao todo pool automation.'
-            )
-          : translate('auto.components.TaskPage.yunxiaoContractAnswerNext', 'Answer {{value0}}.', {
-              value0: remainingQuestions[0].id
-            }),
-      updatedAt: Date.now(),
-      blockingQuestions: remainingQuestions,
-      decisions: [
-        ...contract.decisions,
-        {
-          id: `D-${String(decisionIndex).padStart(3, '0')}`,
-          summary: option.label,
-          source: question.id,
-          impact: option.impact,
-          decidedAt: Date.now(),
-          answeredBy: translate('auto.components.TaskPage.yunxiaoContractLocalUser', 'Local user'),
-          answerSourceType: 'orca_ui' as const,
-          yunxiaoCommentId: null,
-          selectedOptionId
-        }
-      ]
-    }
-    try {
-      const updated = await window.api.yunxiao.updateTodoPoolItem({
-        id: item.id,
-        updates: {
-          poolStatus: remainingQuestions.length === 0 ? 'ready-to-build' : 'needs-clarification',
-          requirementContract: nextContract
-        }
-      })
-      if (updated) {
-        setTodoPool((current) =>
-          current.map((entry) => (entry.id === updated.id ? updated : entry))
-        )
-      }
-      setAnswerTarget(null)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : String(error))
     }
@@ -382,6 +324,7 @@ export function TaskPageYunxiaoWorkItemList({
         onPreviousPage={() => setPage((value) => Math.max(1, value - 1))}
         onRemoveFromTodoPool={(item) => void handleRemoveFromTodoPool(item)}
         onSelectionChange={setSelectedWorkItemIds}
+        onSetTodoPoolOrder={(id, poolOrder) => void handleTodoPoolOrderChange(id, poolOrder)}
         onSetTodoPoolStatus={(item, status) => void handleTodoPoolStatusChange(item, status)}
         onStartTodoPoolWorkspace={(item) => {
           onStartWorkspace(item)
