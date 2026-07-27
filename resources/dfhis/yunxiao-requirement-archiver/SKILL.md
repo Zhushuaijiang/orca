@@ -232,7 +232,7 @@ When the user asks to fix a DFHIS requirement:
 8. Before every code edit, run `scripts/guard_code_edit.py --requirement-dir {需求目录} {待编辑文件...}` and confirm it prints `ok`. This is mandatory even when the target file path looks obvious. The guard must validate that each edited path is under `{需求目录}/code/<repo>` and that the branch is `feature-DFHIS-12345` or `hotfix-DFHIS-12345`; if it fails, fix the worktree setup first and do not edit the original workspace.
 9. Implement the smallest code change that matches the evidence and the handoff document. Do not modify unrelated repositories or formatting.
 10. Verify locally. Prefer `lint`, `build`, or syntax checks from the repo scripts. If private dependencies block verification, record the exact blocker in both the chat summary and the handoff document.
-11. Commit and push the branch from the local machine. Do not upload patches to `192.168.1.10` for server-side pushing.
+11. Commit and push the branch from the local machine. If this requirement came from an Orca Yunxiao todo pool claim, the git commit message must be exactly the full Yunxiao URL from the claim's `提交信息` or `链接` field, and nothing else. Do not replace it with only `DFHIS-12345`, the title, a summary, or a conventional commit message. Do not upload patches to `192.168.1.10` for server-side pushing.
 12. After every successful push, comment on the Yunxiao work item with `scripts/comment_yunxiao.py`. The comment must include repository, branch, commit id, changed files, concise fix summary, validation result, handoff document path, and any dependency/test blockers. If commenting fails, treat the workflow as incomplete and report the exact failure.
 13. After the comment, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. The script must update status to `待测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
 14. Report branch name, commit id, pushed remote, Yunxiao comment status/action id, Yunxiao field update status, changed files, validation result, local archive path, PRD/code-analysis document path, and any dependency/test blockers.
@@ -258,7 +258,7 @@ python3 scripts/guard_code_edit.py \
   "$YUNXIAO_REQUIREMENT_DIR/code/project/path/to/file.java"
 git status --short
 git add <changed-files>
-git commit -m "fix(scope): message"
+git commit -m "https://devops.aliyun.com/projex/bug/DFHIS-12345"
 git push -u origin <branch>
 python3 scripts/comment_yunxiao.py DFHIS-12345 \
   --content-file /path/to/comment.md

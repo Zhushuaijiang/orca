@@ -68,7 +68,9 @@ function buildYunxiaoTodoPoolPrompt(
   const targets = items
     .map((item, index) => {
       const target = item.serialNumber ?? item.url ?? item.id
+      const workItemUrl = resolveYunxiaoWorkItemUrl(item)
       const metadata = [
+        workItemUrl ? `提交信息: ${workItemUrl}` : null,
         `标题: ${item.title}`,
         item.typeName ? `类型: ${item.typeName}` : null,
         item.statusName ? `状态: ${item.statusName}` : null,
@@ -76,7 +78,7 @@ function buildYunxiaoTodoPoolPrompt(
         item.priority ? `优先级: ${item.priority}` : null,
         item.assignee?.name ? `负责人: ${item.assignee.name}` : null,
         item.sprint?.name ? `迭代: ${item.sprint.name}` : null,
-        item.url ? `链接: ${item.url}` : null
+        workItemUrl ? `链接: ${workItemUrl}` : null
       ]
         .filter(Boolean)
         .join('\n  ')
@@ -106,7 +108,30 @@ ${targets}
 - 原生自动化结果上报可用时，返回结构化 yunxiaoRequirementOutcomes，每个 item 包含 itemId、poolStatus、requirementContract、evidence；riskProfile、reviewChecks、methodologyGate 放在 requirementContract 内，不要放到顶层 outcome 字段。
 - 代码根目录优先从 YUNXIAO_CODE_WORKSPACE_ROOT 解析；如果不存在，再使用 YUNXIAO_DEFAULT_CODE_ROOT，最后使用 ORCA_USER_DATA_PATH/dfhis-environment.json 的 hisCodeRoot。
 - 不要直接编辑已选择/默认代码根目录。代码变更前，在 {requirement_dir}/code/<repo> 下创建或复用需求 worktree，并在每次编辑前运行 skill guard。
+- 如果代码发生变更并需要提交分支，git commit message 必须使用该工作项 claim 中“提交信息”字段的完整云效链接，提交信息只写这个链接，不要改写成 DFHIS 编号、标题、摘要或 conventional commit。
 - 默认低风险需求使用一个 builder 加本地验证。存在未解决决策、UI/流程、API/数据库、需求冲突、验证薄弱或用户明确要求 review 时，升级为 focused review。多仓库、权限/发布、API/数据库加验证薄弱、UI/流程加需求冲突时，升级为强制独立 PRD/architecture/implementation/verifier 多 agent 评审。可用时使用 Orca orchestration 或 agent-dispatch 工具；如果无法独立派发，必须明确说明阻断原因，且不能标记需求安全或完成。必须把每个 reviewer 结论保存在 reviewChecks，并按证据判断，不按多数票判断。
 - 任一必需 reviewer 角色缺失、阻断问题未解决、实现计划缺失、或缺少新鲜验证证据时，完成状态必须阻断。
 - 如果需求无法归档、分析、澄清或准备实现，停止并用中文清楚报告阻断原因。`
+}
+
+function resolveYunxiaoWorkItemUrl(item: YunxiaoTodoPoolItem): string | null {
+  if (item.url) {
+    return item.url
+  }
+  if (!item.serialNumber) {
+    return null
+  }
+  return `https://devops.aliyun.com/projex/${getYunxiaoWorkItemRouteSegment(
+    item.category
+  )}/${encodeURIComponent(item.serialNumber)}`
+}
+
+function getYunxiaoWorkItemRouteSegment(category: string | null): string {
+  if (category === 'Task') {
+    return 'task'
+  }
+  if (category === 'Bug') {
+    return 'bug'
+  }
+  return 'req'
 }
