@@ -172,6 +172,7 @@ describe('AutomationService', () => {
     expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
       id: 'item-1',
       poolStatus: 'running',
+      poolOrder: 99,
       attempts: 1,
       claimedByAutomationId: automation.id,
       claimedByRunId: run.id

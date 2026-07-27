@@ -437,6 +437,16 @@ describe('Store', () => {
     })
 
     expect(claimed.map((item) => item.serialNumber)).toEqual(['DFHIS-31773', 'DFHIS-31771'])
+    expect(claimed.map((item) => item.poolOrder)).toEqual([99, 99])
+    expect(
+      store
+        .getYunxiaoTodoPool()
+        .map((item) => ({ itemOrder: item.poolOrder, serialNumber: item.serialNumber }))
+    ).toEqual([
+      { itemOrder: 3, serialNumber: 'DFHIS-31772' },
+      { itemOrder: 99, serialNumber: 'DFHIS-31773' },
+      { itemOrder: 99, serialNumber: 'DFHIS-31771' }
+    ])
   })
 
   it('updates and removes Yunxiao todo pool items by DFHIS serial number', async () => {
@@ -602,6 +612,7 @@ describe('Store', () => {
     expect(claimed[0]).toMatchObject({
       id: item.id,
       poolStatus: 'running',
+      poolOrder: 99,
       attempts: 1,
       claimedByAutomationId: 'automation-1',
       claimedByRunId: 'run-1',

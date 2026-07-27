@@ -281,6 +281,8 @@ import { track } from './telemetry/client'
 import { getCohortAtEmit } from './telemetry/cohort-classifier'
 import { isStartupDiagnosticsEnabled, logStartupDiagnostic } from './startup/startup-diagnostics'
 
+const YUNXIAO_TODO_POOL_RUNNING_ORDER = 99
+
 function encrypt(plaintext: string): string {
   if (!plaintext || !safeStorage.isEncryptionAvailable()) {
     return plaintext
@@ -3407,14 +3409,12 @@ function normalizeYunxiaoTodoPool(value: unknown): YunxiaoTodoPoolItem[] {
 }
 
 function sortYunxiaoTodoPoolItems(items: readonly YunxiaoTodoPoolItem[]): YunxiaoTodoPoolItem[] {
-  return [...items]
-    .sort(
-      (left, right) =>
-        left.poolOrder - right.poolOrder ||
-        left.addedAt - right.addedAt ||
-        left.title.localeCompare(right.title)
-    )
-    .map((item, index) => ({ ...item, poolOrder: index + 1 }))
+  return [...items].sort(
+    (left, right) =>
+      left.poolOrder - right.poolOrder ||
+      left.addedAt - right.addedAt ||
+      left.title.localeCompare(right.title)
+  )
 }
 
 function moveYunxiaoTodoPoolItemToOrder(
@@ -5387,6 +5387,7 @@ export class Store {
       const next: YunxiaoTodoPoolItem = {
         ...item,
         poolStatus: 'running',
+        poolOrder: YUNXIAO_TODO_POOL_RUNNING_ORDER,
         attempts: item.attempts + 1,
         claimedAt: now,
         claimedByAutomationId: args.automationId,
