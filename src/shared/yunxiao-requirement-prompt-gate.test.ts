@@ -24,6 +24,9 @@ describe('Yunxiao requirement prompt gate', () => {
     expect(gated).toContain('必须执行的流程：')
     expect(gated).toContain('结论：通过/阻断/通过但存在非阻断限制')
     expect(gated).toContain('reviewChecks')
+    expect(gated).toContain('禁止修改构建/依赖定义来解决需求，包括 build.gradle')
+    expect(gated).toContain('不能把已发布依赖改成 compile project(...)')
+    expect(gated).toContain('禁止新增、修改或依赖项目内 *-api/API 模块')
     expect(gated).toContain(`原始用户请求：\n${prompt}`)
   })
 

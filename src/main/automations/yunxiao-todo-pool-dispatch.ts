@@ -5,6 +5,7 @@ import {
   type YunxiaoTodoPoolItem,
   type YunxiaoTodoPoolStatus
 } from '../../shared/yunxiao-types'
+import { YUNXIAO_DFHIS_CODE_CONSTRAINTS } from '../../shared/yunxiao-requirement-prompt-gate'
 
 export const EMPTY_YUNXIAO_TODO_POOL_MESSAGE =
   'No matching actionable Yunxiao todo pool items are available.'
@@ -111,7 +112,9 @@ ${targets}
 - 如果代码发生变更并需要提交分支，git commit message 必须使用该工作项 claim 中“提交信息”字段的完整云效链接，提交信息只写这个链接，不要改写成 DFHIS 编号、标题、摘要或 conventional commit。
 - 默认低风险需求使用一个 builder 加本地验证。存在未解决决策、UI/流程、API/数据库、需求冲突、验证薄弱或用户明确要求 review 时，升级为 focused review。多仓库、权限/发布、API/数据库加验证薄弱、UI/流程加需求冲突时，升级为强制独立 PRD/architecture/implementation/verifier 多 agent 评审。可用时使用 Orca orchestration 或 agent-dispatch 工具；如果无法独立派发，必须明确说明阻断原因，且不能标记需求安全或完成。必须把每个 reviewer 结论保存在 reviewChecks，并按证据判断，不按多数票判断。
 - 任一必需 reviewer 角色缺失、阻断问题未解决、实现计划缺失、或缺少新鲜验证证据时，完成状态必须阻断。
-- 如果需求无法归档、分析、澄清或准备实现，停止并用中文清楚报告阻断原因。`
+- 如果需求无法归档、分析、澄清或准备实现，停止并用中文清楚报告阻断原因。
+
+${YUNXIAO_DFHIS_CODE_CONSTRAINTS}`
 }
 
 function resolveYunxiaoWorkItemUrl(item: YunxiaoTodoPoolItem): string | null {

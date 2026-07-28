@@ -91,6 +91,9 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(prompt).toContain(
       'git commit message 必须使用该工作项 claim 中“提交信息”字段的完整云效链接'
     )
+    expect(prompt).toContain('禁止修改构建/依赖定义来解决需求，包括 build.gradle')
+    expect(prompt).toContain('不能把已发布依赖改成 compile project(...)')
+    expect(prompt).toContain('禁止新增、修改或依赖项目内 *-api/API 模块')
   })
 
   it('synthesizes a full Yunxiao URL from category and serial number when the item has no URL', () => {

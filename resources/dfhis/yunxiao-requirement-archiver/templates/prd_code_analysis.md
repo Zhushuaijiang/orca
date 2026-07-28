@@ -43,6 +43,7 @@ Use this section to keep the workflow compact but auditable. Default low-risk wo
 | --- | --- | --- |
 | Orca Yunxiao requirement workflow gate | Yes |  |
 | Implementation plan before edits |  |  |
+| DFHIS build/API guardrail checked | Yes | Confirm no `build.gradle`/`settings.gradle`/`pom.xml`/dependency lock changes and no project-local `*-api` / API module edits or dependencies. |
 | Test-first or regression evidence |  |  |
 | Independent review checks |  |  |
 | Final verification evidence |  |  |
@@ -169,6 +170,8 @@ Explain the existing frontend-to-backend flow with concrete evidence.
 |  |  |  |  |  |
 
 ### 5.5 Database, Parameter, Dictionary, And API Impact
+
+Do not use project-local `*-api` / API modules or build/dependency edits as an implementation path. If the requirement appears to need such a change, mark it as `待确认` and block for architecture/product confirmation.
 
 | Type | Name | Current Evidence | Required Change | Migration/Config Notes |
 | --- | --- | --- | --- | --- |
