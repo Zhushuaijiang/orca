@@ -96,6 +96,12 @@ describe('dfhis-environment', () => {
     )
     await expect(
       readFile(
+        path.join(homeDirectory, '.codex', 'skills', 'his-release-merge', 'SKILL.md'),
+        'utf8'
+      )
+    ).resolves.toContain('name: his-release-merge')
+    await expect(
+      readFile(
         path.join(
           homeDirectory,
           '.codex',
@@ -122,13 +128,7 @@ describe('dfhis-environment', () => {
     ).resolves.toContain('update_work_item')
     await expect(
       readFile(
-        path.join(
-          homeDirectory,
-          '.agents',
-          'skills',
-          'yunxiao-requirement-archiver',
-          '.orca-dfhis-workflow-pack.json'
-        ),
+        path.join(homeDirectory, '.agents', 'skills', '.orca-dfhis-workflow-pack.json'),
         'utf8'
       )
     ).resolves.toContain('"providerTarget": "agent-skills"')
@@ -147,6 +147,12 @@ describe('dfhis-environment', () => {
     await expect(readFile(skillPath, 'utf8')).resolves.toContain(
       'name: yunxiao-requirement-archiver'
     )
+    await expect(
+      readFile(
+        path.join(homeDirectory, '.codex', 'skills', 'his-release-merge', 'SKILL.md'),
+        'utf8'
+      )
+    ).resolves.toContain('name: his-release-merge')
     await expect(
       readFile(path.join(path.dirname(skillPath), 'local-note.md'), 'utf8')
     ).resolves.toBe('keep me')
@@ -178,6 +184,12 @@ describe('dfhis-environment', () => {
     await expect(readFile(skillPath, 'utf8')).resolves.toContain(
       'name: yunxiao-requirement-archiver'
     )
+    await expect(
+      readFile(
+        path.join(homeDirectory, '.codex', 'skills', 'his-release-merge', 'SKILL.md'),
+        'utf8'
+      )
+    ).resolves.toContain('name: his-release-merge')
     await expect(readFile(extraFilePath, 'utf8')).resolves.toBe('keep me')
     await expect(checkDfHisWorkflowPackPrerequisites(homeDirectory)).resolves.toEqual(
       expect.arrayContaining([

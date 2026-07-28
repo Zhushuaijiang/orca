@@ -4,7 +4,7 @@ export type CodeMergeAction = 'import' | 'preflight' | 'start'
 export type CodeMergeComposerAction = Exclude<CodeMergeAction, 'import'>
 
 const CODE_MERGE_BATCH_LABEL = '2026-07-27'
-const CODE_MERGE_SKILL_PATH = '/Users/jijiguowangdemac/Desktop/his-release-merge'
+const CODE_MERGE_SKILL_NAME = '$his-release-merge'
 const CODE_MERGE_SOURCE_ROOT = '/Users/jijiguowangdemac/workspace/dongfang/his/code'
 const CODE_MERGE_WORKSPACE_ROOT = '/Users/jijiguowangdemac/workspace/dongfang/his/release-merge'
 
@@ -32,7 +32,7 @@ export function buildCodeMergePrompt(action: CodeMergeAction, excelPath: string)
         ? '执行只读预检：解析 Excel、识别服务仓库、验证源/目标分支、评估冲突风险并输出执行计划；不要 cherry-pick、commit、push 或修改源仓库。'
         : '先执行完整预检；预检无阻塞后，把涉及服务复制/克隆到隔离工作区，再在那里执行合并。遇到歧义或冲突就停止并汇报，不要自动 push。'
   return [
-    `使用 ${CODE_MERGE_SKILL_PATH} skill 处理 HIS 发版代码合并。`,
+    `使用 ${CODE_MERGE_SKILL_NAME} skill 处理 HIS 发版代码合并。`,
     '',
     `本次动作: ${ACTION_LABELS[action]}`,
     actionInstruction,
@@ -72,7 +72,7 @@ export function buildCodeMergeLinkedWorkItem(
       version: 1,
       renderedText: [
         `Excel: ${excelPath}`,
-        `Skill: ${CODE_MERGE_SKILL_PATH}`,
+        `Skill: ${CODE_MERGE_SKILL_NAME}`,
         `Source root: ${CODE_MERGE_SOURCE_ROOT}`,
         `Workspace root: ${CODE_MERGE_WORKSPACE_ROOT}`,
         '16.1 target: RC_2.16.1_250514',

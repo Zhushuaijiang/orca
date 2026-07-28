@@ -9,7 +9,8 @@ describe('task-page-code-merge-workflow', () => {
   it('builds a guarded preflight prompt', () => {
     const prompt = buildCodeMergePrompt('preflight', '/tmp/钉钉文档_合并清单_2026-07-27.xlsx')
 
-    expect(prompt).toContain('/Users/jijiguowangdemac/Desktop/his-release-merge')
+    expect(prompt).toContain('$his-release-merge')
+    expect(prompt).not.toContain('/Users/jijiguowangdemac/Desktop/his-release-merge')
     expect(prompt).toContain('/tmp/钉钉文档_合并清单_2026-07-27.xlsx')
     expect(prompt).toContain('HIS 源码根目录只读')
     expect(prompt).toContain('禁止在源码根目录执行 git fetch')
@@ -34,6 +35,7 @@ describe('task-page-code-merge-workflow', () => {
     expect(item.provider).toBe('yunxiao')
     expect(item.linkedContext?.provider).toBe('code-merge')
     expect(item.linkedContext?.renderedText).toContain('/tmp/release.xlsx')
+    expect(item.linkedContext?.renderedText).toContain('$his-release-merge')
     expect(item.title).toContain('HIS 发版代码合并')
     expect(item.repoId).toBeUndefined()
   })

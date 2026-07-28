@@ -4,21 +4,15 @@ import { access, cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promise
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { app } from 'electron'
-import type {
-  DfHisEnvironmentPrerequisiteId,
-  DfHisEnvironmentPrerequisiteResult
-} from '../../shared/dfhis-environment-types'
-
-const DFHIS_WORKFLOW_PACK_NAME = 'yunxiao-requirement-archiver'
-const BUNDLED_DFHIS_WORKFLOW_PACK_RELATIVE_PATH = path.join('dfhis', DFHIS_WORKFLOW_PACK_NAME)
-const MANIFEST_FILE_NAME = '.orca-dfhis-workflow-pack.json'
-
-type DfHisWorkflowPackTarget = {
-  id: DfHisEnvironmentPrerequisiteId
-  providerTarget: 'agent-skills' | 'codex' | 'claude'
-  label: string
-  relativeDirectory: string[]
-}
+import type { DfHisEnvironmentPrerequisiteResult } from '../../shared/dfhis-environment-types'
+import {
+  BUNDLED_DFHIS_WORKFLOW_PACK_RELATIVE_PATH,
+  DFHIS_WORKFLOW_PACK_NAMES,
+  MANIFEST_FILE_NAME,
+  WORKFLOW_PACK_TARGETS,
+  type DfHisWorkflowPackName,
+  type DfHisWorkflowPackTarget
+} from './dfhis-workflow-pack-targets'
 
 type DfHisWorkflowPackManifest = {
   schemaVersion: 1
@@ -27,32 +21,6 @@ type DfHisWorkflowPackManifest = {
   installedAt: string
   orcaVersion: string
 }
-
-type WorkflowPackTargetDefinition = readonly [
-  DfHisEnvironmentPrerequisiteId,
-  DfHisWorkflowPackTarget['providerTarget'],
-  string,
-  readonly string[]
-]
-
-const WORKFLOW_PACK_TARGET_DEFINITIONS: readonly WorkflowPackTargetDefinition[] = [
-  [
-    'dfhis-workflow-pack-agent-skills',
-    'agent-skills',
-    'DFHIS workflow pack for universal agent skills',
-    ['.agents', 'skills']
-  ],
-  ['dfhis-workflow-pack-codex', 'codex', 'DFHIS workflow pack for Codex', ['.codex', 'skills']],
-  ['dfhis-workflow-pack-claude', 'claude', 'DFHIS workflow pack for Claude', ['.claude', 'skills']]
-]
-
-const WORKFLOW_PACK_TARGETS: readonly DfHisWorkflowPackTarget[] =
-  WORKFLOW_PACK_TARGET_DEFINITIONS.map(([id, providerTarget, label, directory]) => ({
-    id,
-    providerTarget,
-    label,
-    relativeDirectory: [...directory, DFHIS_WORKFLOW_PACK_NAME]
-  }))
 
 async function pathExists(filePath: string): Promise<boolean> {
   try {
@@ -151,13 +119,41 @@ async function readManifest(targetDirectory: string): Promise<DfHisWorkflowPackM
 }
 
 async function copyWorkflowPack(sourceDirectory: string, targetDirectory: string): Promise<void> {
-  await mkdir(path.dirname(targetDirectory), { recursive: true })
-  await cp(sourceDirectory, targetDirectory, {
-    recursive: true,
-    force: true,
-    errorOnExist: false,
-    filter: (source) => !shouldSkipPackFile(path.relative(sourceDirectory, source))
-  })
+  await mkdir(targetDirectory, { recursive: true })
+  await Promise.all(
+    DFHIS_WORKFLOW_PACK_NAMES.map((packName) => {
+      const packSourceDirectory = path.join(sourceDirectory, packName)
+      return cp(packSourceDirectory, path.join(targetDirectory, packName), {
+        recursive: true,
+        force: true,
+        errorOnExist: false,
+        filter: (source) => !shouldSkipPackFile(path.relative(packSourceDirectory, source))
+      })
+    })
+  )
+}
+
+async function findMissingWorkflowPack(
+  sourceDirectory: string
+): Promise<DfHisWorkflowPackName | null> {
+  const missingPack = (
+    await Promise.all(
+      DFHIS_WORKFLOW_PACK_NAMES.map(async (packName) => ({
+        packName,
+        exists: await pathExists(path.join(sourceDirectory, packName, 'SKILL.md'))
+      }))
+    )
+  ).find((pack) => !pack.exists)
+  return missingPack?.packName ?? null
+}
+
+async function assertBundledWorkflowPackExists(sourceDirectory: string): Promise<void> {
+  const missingPackName = await findMissingWorkflowPack(sourceDirectory)
+  if (missingPackName) {
+    throw new Error(
+      `Bundled DFHIS workflow pack is missing ${missingPackName} at ${sourceDirectory}.`
+    )
+  }
 }
 
 async function writeManifest(
@@ -188,13 +184,13 @@ async function checkWorkflowPackTarget(
   homeDirectory: string
 ): Promise<DfHisEnvironmentPrerequisiteResult> {
   const targetDirectory = getTargetDirectory(target, homeDirectory)
-  const skillPath = path.join(targetDirectory, 'SKILL.md')
-  if (!(await pathExists(skillPath))) {
+  const missingPackName = await findMissingWorkflowPack(targetDirectory)
+  if (missingPackName) {
     return {
       id: target.id,
       label: target.label,
       status: 'missing',
-      summary: 'Workflow pack is not installed',
+      summary: `${missingPackName} is not installed`,
       detail: targetDirectory,
       fixable: true
     }
@@ -270,7 +266,8 @@ async function installWorkflowPackTarget(
 
 export function getDfHisWorkflowPackPath(
   providerTarget: DfHisWorkflowPackTarget['providerTarget'] = 'codex',
-  homeDirectory = homedir()
+  homeDirectory = homedir(),
+  packName: DfHisWorkflowPackName = 'yunxiao-requirement-archiver'
 ): string {
   const target = WORKFLOW_PACK_TARGETS.find(
     (candidate) => candidate.providerTarget === providerTarget
@@ -278,7 +275,7 @@ export function getDfHisWorkflowPackPath(
   if (!target) {
     throw new Error(`Unknown DFHIS workflow pack target: ${providerTarget}`)
   }
-  return path.join(getTargetDirectory(target, homeDirectory), 'SKILL.md')
+  return path.join(getTargetDirectory(target, homeDirectory), packName, 'SKILL.md')
 }
 
 export function getDfHisSkillPath(homeDirectory = homedir()): string {
@@ -289,9 +286,7 @@ export async function checkDfHisWorkflowPackPrerequisites(
   homeDirectory = homedir()
 ): Promise<DfHisEnvironmentPrerequisiteResult[]> {
   const sourceDirectory = getBundledDfHisWorkflowPackPath()
-  if (!(await pathExists(path.join(sourceDirectory, 'SKILL.md')))) {
-    throw new Error(`Bundled DFHIS workflow pack is missing at ${sourceDirectory}.`)
-  }
+  await assertBundledWorkflowPackExists(sourceDirectory)
   const sourceFiles = await listPackFiles(sourceDirectory)
   const sourceHash = await hashPackDirectory(sourceDirectory, sourceFiles)
   return Promise.all(
@@ -305,9 +300,7 @@ export async function ensureDfHisWorkflowPackInstalled(
   homeDirectory = homedir()
 ): Promise<string[]> {
   const sourceDirectory = getBundledDfHisWorkflowPackPath()
-  if (!(await pathExists(path.join(sourceDirectory, 'SKILL.md')))) {
-    throw new Error(`Bundled DFHIS workflow pack is missing at ${sourceDirectory}.`)
-  }
+  await assertBundledWorkflowPackExists(sourceDirectory)
   const sourceFiles = await listPackFiles(sourceDirectory)
   const sourceHash = await hashPackDirectory(sourceDirectory, sourceFiles)
   return Promise.all(
