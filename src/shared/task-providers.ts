@@ -1,11 +1,12 @@
-export type TaskProvider = 'github' | 'gitlab' | 'linear' | 'jira' | 'yunxiao'
+export type TaskProvider = 'github' | 'gitlab' | 'linear' | 'jira' | 'yunxiao' | 'code-merge'
 
 export const TASK_PROVIDERS: readonly TaskProvider[] = [
   'github',
   'gitlab',
   'linear',
   'jira',
-  'yunxiao'
+  'yunxiao',
+  'code-merge'
 ]
 
 const TASK_PROVIDER_SET = new Set<TaskProvider>(TASK_PROVIDERS)
@@ -112,6 +113,9 @@ function isTaskProviderAvailable(
     return true
   }
   if (provider === 'yunxiao') {
+    return true
+  }
+  if (provider === 'code-merge') {
     return true
   }
   return availability.linearConnected

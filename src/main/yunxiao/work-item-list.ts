@@ -224,8 +224,7 @@ export async function listYunxiaoWorkItems(
       Number.MAX_SAFE_INTEGER
     )
     const perPage = cleanPositiveInteger(filters.perPage, DEFAULT_YUNXIAO_WORK_ITEM_PAGE_SIZE, 200)
-    const category =
-      filters.category && filters.category !== 'all' ? filters.category : 'Req,Task,Bug'
+    const category = filters.category && filters.category !== 'all' ? filters.category : 'Req,Bug'
     const participantId =
       filters.participantId === 'self'
         ? await resolveOfficialYunxiaoUserId()

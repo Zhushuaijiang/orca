@@ -1,5 +1,5 @@
 import React from 'react'
-import { Cloud, Github, Gitlab, LayoutGrid, List } from 'lucide-react'
+import { Cloud, GitMerge, Github, Gitlab, LayoutGrid, List } from 'lucide-react'
 
 import { JiraIcon } from '@/components/icons/JiraIcon'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
@@ -129,6 +129,11 @@ export const getSourceOptions = createLocalizedCatalog((): SourceOption[] => [
     id: 'yunxiao',
     label: translate('auto.components.TaskPage.yunxiaoSource', 'Yunxiao'),
     Icon: ({ className }) => <Cloud className={className} />
+  },
+  {
+    id: 'code-merge',
+    label: translate('auto.components.TaskPage.codeMergeSource', '代码合并'),
+    Icon: ({ className }) => <GitMerge className={className} />
   }
 ])
 

@@ -41,6 +41,7 @@ type SubmitFolderWorkspaceCreateParams = {
   name: string
   lastAutoName: string
   linkedWorkItem: LinkedWorkItemSummary | null
+  promptSeed?: string
   note: string
   quickAgent: TuiAgent | null
   autoRenameBranchFromWork: boolean | undefined
@@ -69,6 +70,7 @@ export function getFolderWorkspaceAgentLaunchPlatform(
 export function buildFolderWorkspaceLinkedStartupPlan(args: {
   agent: TuiAgent
   linkedWorkItem: LinkedWorkItemSummary
+  promptSeed?: string
   note: string
   agentCmdOverrides: Record<string, string> | undefined
   agentArgs?: string | null
@@ -80,7 +82,8 @@ export function buildFolderWorkspaceLinkedStartupPlan(args: {
 }): AgentStartupPlan | null {
   const { prompt, draftPrompt } = resolveQuickCreateLinkedWorkItemPrompt(
     args.linkedWorkItem,
-    args.note
+    args.note,
+    args.promptSeed
   )
   const linkedDraftPrompt = (draftPrompt ?? prompt.trim()) || null
   const draftLaunchPlan = linkedDraftPrompt
@@ -159,6 +162,7 @@ export async function submitFolderWorkspaceCreate({
   name,
   lastAutoName,
   linkedWorkItem,
+  promptSeed,
   note,
   quickAgent,
   autoRenameBranchFromWork,
@@ -187,11 +191,13 @@ export async function submitFolderWorkspaceCreate({
     isRemote: launchIsRemote,
     terminalWindowsShell
   })
+  const submitPrompt = [promptSeed?.trim(), note.trim()].filter(Boolean).join('\n\n')
   const startupPlan =
     quickAgent && linkedWorkItem
       ? buildFolderWorkspaceLinkedStartupPlan({
           agent: quickAgent,
           linkedWorkItem,
+          promptSeed,
           note,
           agentCmdOverrides,
           agentArgs,
@@ -204,7 +210,7 @@ export async function submitFolderWorkspaceCreate({
       : quickAgent
         ? buildAgentStartupPlan({
             agent: quickAgent,
-            prompt: note,
+            prompt: submitPrompt,
             cmdOverrides: agentCmdOverrides ?? {},
             agentArgs,
             agentEnv,
@@ -222,7 +228,7 @@ export async function submitFolderWorkspaceCreate({
     !name.trim() &&
     !linkedWorkItem &&
     Boolean(quickAgent) &&
-    note.trim().length > 0
+    submitPrompt.length > 0
 
   const workspace = await createFolderWorkspace({
     projectGroupId: projectGroup.id,

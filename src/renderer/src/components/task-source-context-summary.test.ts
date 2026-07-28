@@ -65,6 +65,17 @@ describe('task source context summary', () => {
     )
   })
 
+  it('shows code merge as a DFHIS account-backed source', () => {
+    const summary = getTaskSourceContextSummary({
+      provider: 'code-merge',
+      providerLabel: '代码合并',
+      accountHostId: 'local'
+    })
+
+    expect(summary.label).toBe(`代码合并 · ${LOCAL_HOST_LABEL} · DFHIS`)
+    expect(summary.title).toBe(`代码合并 source · Host: ${LOCAL_HOST_LABEL} · Account: DFHIS`)
+  })
+
   it('shows disconnected source-host availability for a single SSH repo source', () => {
     const summary = getTaskSourceContextSummary({
       provider: 'github',

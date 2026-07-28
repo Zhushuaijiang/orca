@@ -1,5 +1,5 @@
 import React from 'react'
-import { Cloud, EyeOff, Github, Gitlab, List } from 'lucide-react'
+import { Cloud, EyeOff, GitMerge, Github, Gitlab, List } from 'lucide-react'
 import { JiraIcon } from '@/components/icons/JiraIcon'
 import { LinearIcon } from '@/components/icons/LinearIcon'
 import {
@@ -257,6 +257,18 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
                 onOpen={() => openTaskPage({ taskSource: 'yunxiao' })}
               >
                 <Cloud className="size-3.5" />
+              </TaskProviderShortcut>
+            ) : null}
+            {visibleTaskProviders.includes('code-merge') ? (
+              <TaskProviderShortcut
+                canBrowseTasks={canBrowseTasks}
+                label={translate(
+                  'auto.components.sidebar.SidebarNav.codeMergeTasks',
+                  'Open code merge tasks'
+                )}
+                onOpen={() => openTaskPage({ taskSource: 'code-merge' })}
+              >
+                <GitMerge className="size-3.5" />
               </TaskProviderShortcut>
             ) : null}
           </span>

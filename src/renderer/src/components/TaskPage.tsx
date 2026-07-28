@@ -162,6 +162,13 @@ import {
 import JiraIssueWorkspace from '@/components/JiraIssueWorkspace'
 import { TaskPageJiraIssueList } from '@/components/task-page-jira-issue-list'
 import { TaskPageYunxiaoWorkItemList } from '@/components/task-page-yunxiao-work-item-list'
+import { TaskPageCodeMergeWorkspace } from '@/components/task-page-code-merge-workspace'
+import {
+  buildCodeMergeLinkedWorkItem,
+  buildCodeMergePrompt,
+  getCodeMergeWorkspaceSeed,
+  type CodeMergeAction
+} from '@/components/task-page-code-merge-workflow'
 import {
   getSingleJiraProjectScope,
   getTaskPageJiraStatusOrderScopeKey,
@@ -3683,7 +3690,12 @@ export default function TaskPage(): React.JSX.Element {
     ? getTaskSourceCacheScope(jiraTaskSourceContext)
     : providerRuntimeContextKey
   const accountBackedTaskSourceHostAvailability = useMemo<TaskSourceHostAvailability[]>(() => {
-    if (taskSource !== 'linear' && taskSource !== 'jira' && taskSource !== 'yunxiao') {
+    if (
+      taskSource !== 'linear' &&
+      taskSource !== 'jira' &&
+      taskSource !== 'yunxiao' &&
+      taskSource !== 'code-merge'
+    ) {
       return []
     }
     const host = hostRegistryById.get(accountBackedTaskSourceHostId)
@@ -3779,7 +3791,10 @@ export default function TaskPage(): React.JSX.Element {
       providerLabel,
       repoContexts: taskSourceRepoContexts,
       hostAvailability:
-        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'yunxiao'
+        taskSource === 'linear' ||
+        taskSource === 'jira' ||
+        taskSource === 'yunxiao' ||
+        taskSource === 'code-merge'
           ? accountBackedTaskSourceHostAvailability
           : taskSourceHostAvailability,
       accountHostId: accountBackedTaskSourceHostId,
@@ -3807,11 +3822,17 @@ export default function TaskPage(): React.JSX.Element {
     return getTaskSourceAvailabilityNotice({
       providerLabel,
       sourceCount:
-        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'yunxiao'
+        taskSource === 'linear' ||
+        taskSource === 'jira' ||
+        taskSource === 'yunxiao' ||
+        taskSource === 'code-merge'
           ? 1
           : Math.max(1, taskSourceRepoContexts.length),
       hostAvailability:
-        taskSource === 'linear' || taskSource === 'jira' || taskSource === 'yunxiao'
+        taskSource === 'linear' ||
+        taskSource === 'jira' ||
+        taskSource === 'yunxiao' ||
+        taskSource === 'code-merge'
           ? accountBackedTaskSourceHostAvailability
           : taskSourceHostAvailability,
       hostLabelById
@@ -8382,6 +8403,18 @@ export default function TaskPage(): React.JSX.Element {
     [openComposerForYunxiaoItem]
   )
 
+  const openComposerForCodeMerge = useCallback(
+    (action: CodeMergeAction): void => {
+      openModal('new-workspace-composer', {
+        linkedWorkItem: buildCodeMergeLinkedWorkItem(action),
+        prefilledName: getCodeMergeWorkspaceSeed(action),
+        initialPrompt: buildCodeMergePrompt(action),
+        telemetrySource: 'sidebar'
+      })
+    },
+    [openModal]
+  )
+
   const taskPageListChromeHidden = shouldHideTaskPageListChrome({
     taskSource,
     hasGitHubDetail: Boolean(dialogWorkItem),
@@ -10109,6 +10142,8 @@ export default function TaskPage(): React.JSX.Element {
                 </div>
               ) : null}
             </div>
+          ) : taskSource === 'code-merge' ? (
+            <TaskPageCodeMergeWorkspace onOpenCodeMergeComposer={openComposerForCodeMerge} />
           ) : taskSource === 'yunxiao' ? (
             <TaskPageYunxiaoWorkItemList onStartWorkspace={handleUseYunxiaoItem} />
           ) : taskSource === 'gitlab' && gitlabView === 'todos' ? (

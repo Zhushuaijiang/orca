@@ -3934,11 +3934,18 @@ export class Store {
             : [...rawTaskProviderSettings.visibleTaskProviders, 'jira' as const]
         const visibleTaskProvidersDefaultedForYunxiao =
           parsed.settings?.visibleTaskProvidersDefaultedForYunxiao === true
-        const migratedVisibleTaskProviders = visibleTaskProvidersDefaultedForYunxiao
+        const yunxiaoMigratedVisibleTaskProviders = visibleTaskProvidersDefaultedForYunxiao
           ? jiraMigratedVisibleTaskProviders
           : jiraMigratedVisibleTaskProviders.includes('yunxiao')
             ? jiraMigratedVisibleTaskProviders
             : [...jiraMigratedVisibleTaskProviders, 'yunxiao' as const]
+        const visibleTaskProvidersDefaultedForCodeMerge =
+          parsed.settings?.visibleTaskProvidersDefaultedForCodeMerge === true
+        const migratedVisibleTaskProviders = visibleTaskProvidersDefaultedForCodeMerge
+          ? yunxiaoMigratedVisibleTaskProviders
+          : yunxiaoMigratedVisibleTaskProviders.includes('code-merge')
+            ? yunxiaoMigratedVisibleTaskProviders
+            : [...yunxiaoMigratedVisibleTaskProviders, 'code-merge' as const]
         const taskProviderSettings = normalizeTaskProviderSettings({
           visibleTaskProviders: migratedVisibleTaskProviders,
           defaultTaskSource: rawTaskProviderSettings.defaultTaskSource
@@ -3959,7 +3966,11 @@ export class Store {
         if (migratePrimarySelectionPlatformDefault || stampPrimarySelectionTerminalDefaults) {
           this.loadNeedsSave = true
         }
-        if (!visibleTaskProvidersDefaultedForJira || !visibleTaskProvidersDefaultedForYunxiao) {
+        if (
+          !visibleTaskProvidersDefaultedForJira ||
+          !visibleTaskProvidersDefaultedForYunxiao ||
+          !visibleTaskProvidersDefaultedForCodeMerge
+        ) {
           this.loadNeedsSave = true
         }
         const claudeAgentTeamsDefaultDisabledMigrated =
@@ -4114,6 +4125,7 @@ export class Store {
             visibleTaskProviders: taskProviderSettings.visibleTaskProviders,
             visibleTaskProvidersDefaultedForJira: true,
             visibleTaskProvidersDefaultedForYunxiao: true,
+            visibleTaskProvidersDefaultedForCodeMerge: true,
             terminalShortcutPolicy: normalizeTerminalShortcutPolicy(
               parsed.settings?.terminalShortcutPolicy
             ),
@@ -6687,6 +6699,7 @@ export class Store {
       if ('visibleTaskProviders' in updates) {
         sanitizedUpdates.visibleTaskProvidersDefaultedForJira = true
         sanitizedUpdates.visibleTaskProvidersDefaultedForYunxiao = true
+        sanitizedUpdates.visibleTaskProvidersDefaultedForCodeMerge = true
       }
     }
     if ('autoRenameBranchFromWork' in updates || 'autoRenameBranchFromWorkDefaultedOn' in updates) {

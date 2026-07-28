@@ -32,5 +32,7 @@ export function shouldHideTaskPageListChrome({
       return hasLinearIssueDetail || hasLinearProjectContext || hasLinearViewContext
     case 'yunxiao':
       return false
+    case 'code-merge':
+      return false
   }
 }

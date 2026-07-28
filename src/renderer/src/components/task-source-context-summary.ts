@@ -57,6 +57,13 @@ export function getTaskSourceContextSummary(args: {
         hostLabelById: args.hostLabelById,
         hostAvailability: args.hostAvailability
       })
+    case 'code-merge':
+      return getAccountBackedTaskSourceSummary(args.providerLabel, {
+        accountLabel: 'DFHIS',
+        accountHostId: args.accountHostId,
+        hostLabelById: args.hostLabelById,
+        hostAvailability: args.hostAvailability
+      })
   }
 }
 

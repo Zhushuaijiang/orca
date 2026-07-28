@@ -67,4 +67,19 @@ describe('shouldHideTaskPageListChrome', () => {
       })
     ).toBe(false)
   })
+
+  it('keeps code merge chrome visible', () => {
+    expect(
+      shouldHideTaskPageListChrome({
+        ...baseState,
+        taskSource: 'code-merge',
+        hasGitHubDetail: true,
+        hasGitLabDetail: true,
+        hasJiraDetail: true,
+        hasLinearIssueDetail: true,
+        hasLinearProjectContext: true,
+        hasLinearViewContext: true
+      })
+    ).toBe(false)
+  })
 })

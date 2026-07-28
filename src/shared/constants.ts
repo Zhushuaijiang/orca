@@ -315,6 +315,7 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     visibleTaskProviders: [...TASK_PROVIDERS],
     visibleTaskProvidersDefaultedForJira: true,
     visibleTaskProvidersDefaultedForYunxiao: true,
+    visibleTaskProvidersDefaultedForCodeMerge: true,
     defaultRepoSelection: null,
     defaultLinearTeamSelection: null,
     opencodeSessionCookie: '',

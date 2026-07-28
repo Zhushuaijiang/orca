@@ -109,6 +109,7 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
         sanitizedUpdates.visibleTaskProviders = taskProviderSettings.visibleTaskProviders
         if ('visibleTaskProviders' in updates) {
           sanitizedUpdates.visibleTaskProvidersDefaultedForYunxiao = true
+          sanitizedUpdates.visibleTaskProvidersDefaultedForCodeMerge = true
         }
       }
       if ('openInApplications' in updates) {

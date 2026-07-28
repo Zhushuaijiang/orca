@@ -19,12 +19,14 @@ import {
   DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES,
   facetLabel,
   itemMatchesText,
+  resolveYunxiaoStatusFilterIds,
   statusSelectionLabel,
   todoPoolStatusLabel,
   workItemIdentity,
   YUNXIAO_PAGE_SIZE,
   type YunxiaoListView,
-  type YunxiaoRelationFilter
+  type YunxiaoRelationFilter,
+  type YunxiaoStatusFilterMode
 } from './task-page-yunxiao-work-item-model'
 
 type TaskPageYunxiaoWorkItemListProps = {
@@ -35,10 +37,11 @@ export function TaskPageYunxiaoWorkItemList({
   onStartWorkspace
 }: TaskPageYunxiaoWorkItemListProps): JSX.Element {
   const [view, setView] = useState<YunxiaoListView>('work-items')
-  const [category, setCategory] = useState<YunxiaoWorkItemCategory | 'all'>('Req')
+  const [category, setCategory] = useState<YunxiaoWorkItemCategory | 'all'>('all')
   const [relation, setRelation] = useState<YunxiaoRelationFilter>('assigned-self')
   const [sprintId, setSprintId] = useState<string>('all')
   const [statusIds, setStatusIds] = useState<string[]>([])
+  const [statusFilterMode, setStatusFilterMode] = useState<YunxiaoStatusFilterMode>('default')
   const [todoPoolStatuses, setTodoPoolStatuses] = useState<YunxiaoTodoPoolStatus[]>([])
   const [queryInput, setQueryInput] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
@@ -76,13 +79,19 @@ export function TaskPageYunxiaoWorkItemList({
 
   useEffect(() => {
     let cancelled = false
+    const effectiveStatusIds = resolveYunxiaoStatusFilterIds({
+      category,
+      mode: statusFilterMode,
+      selectedStatusIds: statusIds,
+      statuses: []
+    })
     setLoading(true)
     void window.api.yunxiao
       .listWorkItems({
         filters: {
           category,
           sprintId: sprintId === 'all' ? null : sprintId,
-          statusIds: statusIds.length > 0 ? statusIds : undefined,
+          statusIds: effectiveStatusIds.length > 0 ? effectiveStatusIds : undefined,
           assigneeId: relation === 'assigned-self' ? 'self' : null,
           participantId: relation === 'participant-self' ? 'self' : null,
           query: appliedQuery,
@@ -108,7 +117,7 @@ export function TaskPageYunxiaoWorkItemList({
     return () => {
       cancelled = true
     }
-  }, [appliedQuery, category, page, refreshNonce, relation, sprintId, statusIds])
+  }, [appliedQuery, category, page, refreshNonce, relation, sprintId, statusFilterMode, statusIds])
 
   useEffect(() => {
     let cancelled = false
@@ -162,14 +171,17 @@ export function TaskPageYunxiaoWorkItemList({
     items.length > 0 && items.every((item) => selectedWorkItemIds.has(item.id))
   const someVisibleWorkItemsSelected =
     items.some((item) => selectedWorkItemIds.has(item.id)) && !allVisibleWorkItemsSelected
-  const footerContextLabel =
-    (relation === 'all'
+  const footerContextLabel = [
+    relation === 'all'
       ? translate('auto.components.TaskPage.c2268a9982', 'All')
       : relation === 'assigned-self'
         ? translate('auto.components.TaskPage.yunxiaoAssignedToMe', 'Assigned to me')
-        : translate('auto.components.TaskPage.yunxiaoParticipating', 'Participating')) +
-    (sprintId !== 'all' ? ` · ${facetLabel(sprints, sprintId)}` : '') +
-    (statusIds.length > 0 ? ` · ${statusSelectionLabel(statuses, statusIds)}` : '')
+        : translate('auto.components.TaskPage.yunxiaoParticipating', 'Participating'),
+    sprintId !== 'all' ? facetLabel(sprints, sprintId) : null,
+    statusSelectionLabel(statuses, statusIds, statusFilterMode, category)
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' · ')
 
   const setTodoPoolFromApi = async (nextItems: YunxiaoWorkItem[]): Promise<void> => {
     const nextPool = await window.api.yunxiao.addTodoPoolItems({ items: nextItems })
@@ -266,6 +278,8 @@ export function TaskPageYunxiaoWorkItemList({
         onAddSelected={() => void handleAddSelectedToTodoPool()}
         onCategoryChange={(nextCategory) => {
           setCategory(nextCategory)
+          setStatusFilterMode('default')
+          setStatusIds([])
           setPage(1)
         }}
         onConfigureTodoPoolAutomation={() => void configureTodoPoolAutomation()}
@@ -287,7 +301,13 @@ export function TaskPageYunxiaoWorkItemList({
           setPage(1)
         }}
         onStatusIdsChange={(nextStatusIds) => {
+          setStatusFilterMode('custom')
           setStatusIds(nextStatusIds)
+          setPage(1)
+        }}
+        onStatusFilterModeChange={(nextMode) => {
+          setStatusFilterMode(nextMode)
+          setStatusIds([])
           setPage(1)
         }}
         onRunNextTodoPoolAutomation={() => void runNextTodoPoolAutomation()}
@@ -300,6 +320,7 @@ export function TaskPageYunxiaoWorkItemList({
         shownCount={view === 'work-items' ? items.length : visibleTodoPoolItems.length}
         sprintId={sprintId}
         sprints={sprints}
+        statusFilterMode={statusFilterMode}
         statusIds={statusIds}
         statuses={statuses}
         todoPoolStatus={todoPoolStatuses}

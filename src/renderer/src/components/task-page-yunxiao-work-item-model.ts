@@ -2,11 +2,13 @@ import { translate } from '@/i18n/i18n'
 import type {
   YunxiaoTodoPoolStatus,
   YunxiaoWorkItem,
+  YunxiaoWorkItemCategory,
   YunxiaoWorkItemFacet
 } from '../../../shared/types'
 
 export type YunxiaoRelationFilter = 'all' | 'assigned-self' | 'participant-self'
 export type YunxiaoListView = 'work-items' | 'todo-pool'
+export type YunxiaoStatusFilterMode = 'default' | 'custom'
 
 export const YUNXIAO_PAGE_SIZE = 100
 export const YUNXIAO_GRID_CLASS =
@@ -25,6 +27,8 @@ export const YUNXIAO_TODO_POOL_STATUSES: YunxiaoTodoPoolStatus[] = [
 ]
 export const DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES: YunxiaoTodoPoolStatus[] =
   YUNXIAO_TODO_POOL_STATUSES.filter((status) => status !== 'done' && status !== 'dismissed')
+export const DEFAULT_YUNXIAO_REQUIREMENT_STATUS_NAMES = ['新', '待开发'] as const
+export const DEFAULT_YUNXIAO_BUG_STATUS_NAMES = ['待修复'] as const
 
 export function formatYunxiaoDate(value: string | null): string {
   if (!value) {
@@ -106,8 +110,18 @@ export function todoPoolStatusSelectionLabel(
 
 export function statusSelectionLabel(
   statuses: readonly YunxiaoWorkItemFacet[],
-  selectedStatusIds: readonly string[]
+  selectedStatusIds: readonly string[],
+  mode: YunxiaoStatusFilterMode = 'custom',
+  category: YunxiaoWorkItemCategory | 'all' = 'all'
 ): string {
+  if (mode === 'default') {
+    const names = getDefaultYunxiaoStatusNames(category)
+    return names.length > 0
+      ? translate('auto.components.TaskPage.yunxiaoDefaultStatuses', 'Default: {{value0}}', {
+          value0: names.join(', ')
+        })
+      : translate('auto.components.TaskPage.yunxiaoAllStatuses', 'All statuses')
+  }
   if (selectedStatusIds.length === 0) {
     return translate('auto.components.TaskPage.yunxiaoAllStatuses', 'All statuses')
   }
@@ -117,4 +131,38 @@ export function statusSelectionLabel(
   return translate('auto.components.TaskPage.yunxiaoSelectedStatuses', '{{value0}} statuses', {
     value0: selectedStatusIds.length
   })
+}
+
+export function getDefaultYunxiaoStatusNames(category: YunxiaoWorkItemCategory | 'all'): string[] {
+  if (category === 'Req') {
+    return [...DEFAULT_YUNXIAO_REQUIREMENT_STATUS_NAMES]
+  }
+  if (category === 'Bug') {
+    return [...DEFAULT_YUNXIAO_BUG_STATUS_NAMES]
+  }
+  if (category === 'all') {
+    return [...DEFAULT_YUNXIAO_REQUIREMENT_STATUS_NAMES, ...DEFAULT_YUNXIAO_BUG_STATUS_NAMES]
+  }
+  return []
+}
+
+export function resolveDefaultYunxiaoStatusIds(
+  statuses: readonly YunxiaoWorkItemFacet[],
+  category: YunxiaoWorkItemCategory | 'all'
+): string[] {
+  return getDefaultYunxiaoStatusNames(category).map((name) => {
+    const status = statuses.find((facet) => facet.name === name || facet.id === name)
+    return status?.id ?? name
+  })
+}
+
+export function resolveYunxiaoStatusFilterIds(args: {
+  category: YunxiaoWorkItemCategory | 'all'
+  mode: YunxiaoStatusFilterMode
+  selectedStatusIds: readonly string[]
+  statuses: readonly YunxiaoWorkItemFacet[]
+}): string[] {
+  return args.mode === 'default'
+    ? resolveDefaultYunxiaoStatusIds(args.statuses, args.category)
+    : [...args.selectedStatusIds]
 }

@@ -2,8 +2,10 @@ import type { LinkedWorkItemContext } from '@/lib/linked-work-item-context'
 import type { TaskProvider, TuiAgent, WorkspaceCreateTelemetrySource } from '../../../shared/types'
 import type { LaunchSource } from '../../../shared/telemetry-events'
 
+export type LaunchableWorkItemProvider = Exclude<TaskProvider, 'code-merge'>
+
 export type LaunchableWorkItem = {
-  provider?: TaskProvider
+  provider?: LaunchableWorkItemProvider
   title: string
   url: string
   type: 'issue' | 'pr' | 'mr'

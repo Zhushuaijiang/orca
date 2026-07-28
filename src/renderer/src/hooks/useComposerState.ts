@@ -3206,6 +3206,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
           name: smartGitHubMetadata?.workspaceName ?? name,
           lastAutoName: lastAutoNameRef.current,
           linkedWorkItem: smartGitHubMetadata?.linkedWorkItem ?? linkedWorkItem,
+          promptSeed: agentPrompt,
           note,
           quickAgent: agent,
           autoRenameBranchFromWork: settings?.autoRenameBranchFromWork,
@@ -3255,6 +3256,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       }
     },
     [
+      agentPrompt,
       clearNewWorkspaceDraft,
       createFolderWorkspace,
       disabledTuiAgents,
@@ -3879,7 +3881,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
         // Why: agents needing post-ready paste/follow-up stay on the renderer path so prompt delivery isn't skipped.
         const promptLinkedWorkItem = agent === null ? null : submitLinkedWorkItem
         const { prompt: quickPrompt, draftPrompt: quickDraftPrompt } =
-          resolveQuickCreateLinkedWorkItemPrompt(promptLinkedWorkItem, trimmedNote)
+          resolveQuickCreateLinkedWorkItemPrompt(promptLinkedWorkItem, trimmedNote, agentPrompt)
         const draftLaunchPlan =
           agent === null || !quickDraftPrompt
             ? null
@@ -4072,6 +4074,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
       }
     },
     [
+      agentPrompt,
       baseBranch,
       compareBaseRef,
       branchNameOverride,

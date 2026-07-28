@@ -1,4 +1,4 @@
-import { Check, Cloud, Github, Gitlab } from 'lucide-react'
+import { Check, Cloud, GitMerge, Github, Gitlab } from 'lucide-react'
 import type { GlobalSettings, TaskProvider } from '../../../../shared/types'
 import {
   TASK_PROVIDERS,
@@ -88,6 +88,19 @@ const TASK_PROVIDER_OPTIONS: readonly {
       )
     },
     Icon: ({ className }) => <Cloud className={className} />
+  },
+  {
+    id: 'code-merge',
+    get label() {
+      return translate('auto.components.settings.TasksPane.codeMerge', '代码合并')
+    },
+    get description() {
+      return translate(
+        'auto.components.settings.TasksPane.codeMergeDescription',
+        'Show the HIS release code merge workspace in the Tasks source picker.'
+      )
+    },
+    Icon: ({ className }) => <GitMerge className={className} />
   }
 ]
 
@@ -136,6 +149,9 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
             'linear',
             'jira',
             'yunxiao',
+            'code merge',
+            'release merge',
+            'his merge',
             'dfhis',
             'aliyun',
             'atlassian',

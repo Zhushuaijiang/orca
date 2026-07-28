@@ -215,9 +215,11 @@ export function resolveQuickCreateLinkedWorkItemPrompt(
       > & { linkedContext?: LinkedWorkItemContext })
     | null
     | undefined,
-  note: string
+  note: string,
+  promptSeed = ''
 ): { prompt: string; draftPrompt: string | null } {
   const trimmedNote = note.trim()
+  const trustedPrompt = [promptSeed.trim(), trimmedNote].filter(Boolean).join('\n\n')
   const linearBlock = isLinearWorkItemReference(linkedWorkItem)
     ? buildLinearLaunchContextBlock({
         provider: linkedWorkItem?.provider,
@@ -229,13 +231,12 @@ export function resolveQuickCreateLinkedWorkItemPrompt(
   const linearDraft = linearBlock ? formatDraftContextBlock(linearBlock) : null
   const linkedUrl = linkedWorkItem?.url?.trim() || null
   const draftPrompt = linearDraft
-    ? [trimmedNote, linearDraft].filter(Boolean).join('\n\n')
+    ? [trustedPrompt, linearDraft].filter(Boolean).join('\n\n')
     : linkedUrl
-      ? [trimmedNote, linkedUrl].filter(Boolean).join('\n\n')
+      ? [trustedPrompt, linkedUrl].filter(Boolean).join('\n\n')
       : null
-  const isLinearTypedOnly = linkedWorkItem?.number === 0 && Boolean(trimmedNote) && !draftPrompt
   return {
-    prompt: isLinearTypedOnly ? trimmedNote : '',
+    prompt: draftPrompt ? '' : trustedPrompt,
     draftPrompt
   }
 }

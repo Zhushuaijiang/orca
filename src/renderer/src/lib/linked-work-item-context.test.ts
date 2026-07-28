@@ -233,6 +233,19 @@ describe('resolveQuickCreateLinkedWorkItemPrompt', () => {
       draftPrompt: 'note\n\nhttps://github.com/acme/repo/issues/42'
     })
   })
+
+  it('drafts the prompt seed before note and linked URL', () => {
+    expect(
+      resolveQuickCreateLinkedWorkItemPrompt(
+        { number: 0, url: 'file:///tmp/release.xlsx' },
+        'note',
+        'Use the release merge skill.'
+      )
+    ).toEqual({
+      prompt: '',
+      draftPrompt: 'Use the release merge skill.\n\nnote\n\nfile:///tmp/release.xlsx'
+    })
+  })
 })
 
 describe('getLaunchableWorkItemDraftContent', () => {

@@ -1721,7 +1721,14 @@ describe('Store', () => {
     expect(settings.rightSidebarOpenByDefault).toBe(true)
     expect(settings.showTasksButton).toBe(true)
     expect(settings.showAutomationsButton).toBe(true)
-    expect(settings.visibleTaskProviders).toEqual(['github', 'gitlab', 'linear', 'jira', 'yunxiao'])
+    expect(settings.visibleTaskProviders).toEqual([
+      'github',
+      'gitlab',
+      'linear',
+      'jira',
+      'yunxiao',
+      'code-merge'
+    ])
     expect(settings.openInApplications).toEqual([
       { id: 'vscode', label: 'VS Code', command: 'code' }
     ])
@@ -3394,7 +3401,8 @@ describe('Store', () => {
       'gitlab',
       'linear',
       'jira',
-      'yunxiao'
+      'yunxiao',
+      'code-merge'
     ])
     expect(store.getSettings().experimentalActivity).toBe(false)
     expect(store.getSettings().experimentalActivityDefaultedOffForAllUsers).toBe(true)
@@ -3762,7 +3770,12 @@ describe('Store', () => {
     })
 
     const store = await createStore()
-    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira', 'yunxiao'])
+    expect(store.getSettings().visibleTaskProviders).toEqual([
+      'gitlab',
+      'jira',
+      'yunxiao',
+      'code-merge'
+    ])
   })
 
   it('preserves a deliberate provider opt-out after migrations', async () => {
@@ -3773,7 +3786,8 @@ describe('Store', () => {
       settings: {
         visibleTaskProviders: ['gitlab'],
         visibleTaskProvidersDefaultedForJira: true,
-        visibleTaskProvidersDefaultedForYunxiao: true
+        visibleTaskProvidersDefaultedForYunxiao: true,
+        visibleTaskProvidersDefaultedForCodeMerge: true
       },
       ui: {},
       githubCache: { pr: {}, issue: {} },
@@ -3831,7 +3845,8 @@ describe('Store', () => {
       'github',
       'linear',
       'jira',
-      'yunxiao'
+      'yunxiao',
+      'code-merge'
     ])
   })
 
@@ -3848,7 +3863,12 @@ describe('Store', () => {
 
     const store = await createStore()
     expect(store.getSettings().defaultTaskSource).toBe('gitlab')
-    expect(store.getSettings().visibleTaskProviders).toEqual(['gitlab', 'jira', 'yunxiao'])
+    expect(store.getSettings().visibleTaskProviders).toEqual([
+      'gitlab',
+      'jira',
+      'yunxiao',
+      'code-merge'
+    ])
   })
 
   it('normalizes persisted open-in applications on load', async () => {

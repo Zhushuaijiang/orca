@@ -29,7 +29,8 @@ import {
   todoPoolStatusLabel,
   YUNXIAO_TODO_POOL_STATUSES,
   type YunxiaoListView,
-  type YunxiaoRelationFilter
+  type YunxiaoRelationFilter,
+  type YunxiaoStatusFilterMode
 } from './task-page-yunxiao-work-item-model'
 
 type TaskPageYunxiaoWorkItemToolbarProps = {
@@ -38,6 +39,7 @@ type TaskPageYunxiaoWorkItemToolbarProps = {
   relation: YunxiaoRelationFilter
   sprintId: string
   statusIds: string[]
+  statusFilterMode: YunxiaoStatusFilterMode
   todoPoolStatus: YunxiaoTodoPoolStatus[]
   queryInput: string
   selectedCount: number
@@ -52,6 +54,7 @@ type TaskPageYunxiaoWorkItemToolbarProps = {
   onRelationChange: (relation: YunxiaoRelationFilter) => void
   onSprintChange: (sprintId: string) => void
   onStatusIdsChange: (statusIds: string[]) => void
+  onStatusFilterModeChange: (mode: YunxiaoStatusFilterMode) => void
   onTodoPoolStatusChange: (statuses: YunxiaoTodoPoolStatus[]) => void
   onQueryInputChange: (query: string) => void
   onQuerySubmit: () => void
@@ -75,6 +78,7 @@ export function TaskPageYunxiaoWorkItemToolbar({
   onRunNextTodoPoolAutomation,
   onSprintChange,
   onStatusIdsChange,
+  onStatusFilterModeChange,
   onTodoPoolStatusChange,
   onViewChange,
   queryInput,
@@ -85,6 +89,7 @@ export function TaskPageYunxiaoWorkItemToolbar({
   sprintId,
   sprints,
   statusIds,
+  statusFilterMode,
   statuses,
   todoPoolStatus,
   view
@@ -116,12 +121,14 @@ export function TaskPageYunxiaoWorkItemToolbar({
             relation={relation}
             sprintId={sprintId}
             statusIds={statusIds}
+            statusFilterMode={statusFilterMode}
             sprints={sprints}
             statuses={statuses}
             onCategoryChange={onCategoryChange}
             onRelationChange={onRelationChange}
             onSprintChange={onSprintChange}
             onStatusIdsChange={onStatusIdsChange}
+            onStatusFilterModeChange={onStatusFilterModeChange}
           />
         ) : (
           <TodoPoolFilters
@@ -258,10 +265,12 @@ function WorkItemFilters({
   onRelationChange,
   onSprintChange,
   onStatusIdsChange,
+  onStatusFilterModeChange,
   relation,
   sprintId,
   sprints,
   statusIds,
+  statusFilterMode,
   statuses
 }: Pick<
   TaskPageYunxiaoWorkItemToolbarProps,
@@ -269,12 +278,14 @@ function WorkItemFilters({
   | 'relation'
   | 'sprintId'
   | 'statusIds'
+  | 'statusFilterMode'
   | 'sprints'
   | 'statuses'
   | 'onCategoryChange'
   | 'onRelationChange'
   | 'onSprintChange'
   | 'onStatusIdsChange'
+  | 'onStatusFilterModeChange'
 >): JSX.Element {
   return (
     <>
@@ -343,22 +354,34 @@ function WorkItemFilters({
             size="sm"
             className="h-8 w-[142px] justify-between border-border/50 bg-background/70 px-3 text-xs font-normal"
           >
-            <span className="min-w-0 truncate">{statusSelectionLabel(statuses, statusIds)}</span>
+            <span className="min-w-0 truncate">
+              {statusSelectionLabel(statuses, statusIds, statusFilterMode, category)}
+            </span>
             <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-52">
           <DropdownMenuCheckboxItem
-            checked={statusIds.length === 0}
+            checked={statusFilterMode === 'default'}
             onSelect={(event) => event.preventDefault()}
-            onCheckedChange={() => onStatusIdsChange([])}
+            onCheckedChange={() => onStatusFilterModeChange('default')}
+          >
+            {statusSelectionLabel(statuses, [], 'default', category)}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={statusFilterMode === 'custom' && statusIds.length === 0}
+            onSelect={(event) => event.preventDefault()}
+            onCheckedChange={() => {
+              onStatusFilterModeChange('custom')
+              onStatusIdsChange([])
+            }}
           >
             {translate('auto.components.TaskPage.yunxiaoAllStatuses', 'All statuses')}
           </DropdownMenuCheckboxItem>
           {statuses.map((status) => (
             <DropdownMenuCheckboxItem
               key={status.id}
-              checked={statusIds.includes(status.id)}
+              checked={statusFilterMode === 'custom' && statusIds.includes(status.id)}
               onSelect={(event) => event.preventDefault()}
               onCheckedChange={(checked) =>
                 onStatusIdsChange(
