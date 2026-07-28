@@ -35,7 +35,7 @@ export const codeMergeServiceGroups: ServiceGroup[] = [
 export const codeMergeRecords: MergeRecord[] = []
 
 export const codeMergeLogs = [
-  ['待执行', '选择导入 Excel、预检或开始合并后，将创建新工作区任务'],
+  ['待执行', '先导入 Excel；预检或开始合并时才会创建新工作区任务'],
   ['预检', 'agent 会先解析清单并输出服务映射与风险'],
   ['合并', '只有开始合并动作会在隔离目录里复制/克隆服务仓库'],
   ['复核', '遇到歧义或冲突时停止并等待人工确认']

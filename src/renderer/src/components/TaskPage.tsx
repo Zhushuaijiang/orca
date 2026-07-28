@@ -168,7 +168,7 @@ import {
   buildCodeMergeLinkedWorkItem,
   buildCodeMergePrompt,
   getCodeMergeWorkspaceSeed,
-  type CodeMergeAction
+  type CodeMergeComposerAction
 } from '@/components/task-page-code-merge-workflow'
 import {
   getSingleJiraProjectScope,
@@ -8406,11 +8406,11 @@ export default function TaskPage(): React.JSX.Element {
   )
 
   const openComposerForCodeMerge = useCallback(
-    (action: CodeMergeAction): void => {
+    (action: CodeMergeComposerAction, excelPath: string): void => {
       openModal('new-workspace-composer', {
-        linkedWorkItem: buildCodeMergeLinkedWorkItem(action),
+        linkedWorkItem: buildCodeMergeLinkedWorkItem(action, excelPath),
         prefilledName: getCodeMergeWorkspaceSeed(action),
-        initialPrompt: buildCodeMergePrompt(action),
+        initialPrompt: buildCodeMergePrompt(action, excelPath),
         telemetrySource: 'sidebar'
       })
     },

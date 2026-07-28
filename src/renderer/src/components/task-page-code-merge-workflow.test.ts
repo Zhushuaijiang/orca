@@ -7,10 +7,10 @@ import {
 
 describe('task-page-code-merge-workflow', () => {
   it('builds a guarded preflight prompt', () => {
-    const prompt = buildCodeMergePrompt('preflight')
+    const prompt = buildCodeMergePrompt('preflight', '/tmp/钉钉文档_合并清单_2026-07-27.xlsx')
 
     expect(prompt).toContain('/Users/jijiguowangdemac/Desktop/his-release-merge')
-    expect(prompt).toContain('/Users/jijiguowangdemac/Desktop/钉钉文档_合并清单_2026-07-27.xlsx')
+    expect(prompt).toContain('/tmp/钉钉文档_合并清单_2026-07-27.xlsx')
     expect(prompt).toContain('HIS 源码根目录只读')
     expect(prompt).toContain('禁止在源码根目录执行 git fetch')
     expect(prompt).toContain('任何会写工作区/.git 元数据的命令')
@@ -21,7 +21,7 @@ describe('task-page-code-merge-workflow', () => {
   })
 
   it('builds a start prompt that still requires preflight and no automatic push', () => {
-    const prompt = buildCodeMergePrompt('start')
+    const prompt = buildCodeMergePrompt('start', '/tmp/release.xlsx')
 
     expect(prompt).toContain('先执行完整预检')
     expect(prompt).toContain('隔离工作区')
@@ -29,10 +29,11 @@ describe('task-page-code-merge-workflow', () => {
   })
 
   it('marks code merge context without widening the persisted linked task provider', () => {
-    const item = buildCodeMergeLinkedWorkItem('import')
+    const item = buildCodeMergeLinkedWorkItem('preflight', '/tmp/release.xlsx')
 
     expect(item.provider).toBe('yunxiao')
     expect(item.linkedContext?.provider).toBe('code-merge')
+    expect(item.linkedContext?.renderedText).toContain('/tmp/release.xlsx')
     expect(item.title).toContain('HIS 发版代码合并')
     expect(item.repoId).toBeUndefined()
   })

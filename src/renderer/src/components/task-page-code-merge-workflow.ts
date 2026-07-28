@@ -1,9 +1,9 @@
 import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 
 export type CodeMergeAction = 'import' | 'preflight' | 'start'
+export type CodeMergeComposerAction = Exclude<CodeMergeAction, 'import'>
 
 const CODE_MERGE_BATCH_LABEL = '2026-07-27'
-const CODE_MERGE_EXCEL_PATH = '/Users/jijiguowangdemac/Desktop/钉钉文档_合并清单_2026-07-27.xlsx'
 const CODE_MERGE_SKILL_PATH = '/Users/jijiguowangdemac/Desktop/his-release-merge'
 const CODE_MERGE_SOURCE_ROOT = '/Users/jijiguowangdemac/workspace/dongfang/his/code'
 const CODE_MERGE_WORKSPACE_ROOT = '/Users/jijiguowangdemac/workspace/dongfang/his/release-merge'
@@ -14,11 +14,17 @@ const ACTION_LABELS: Record<CodeMergeAction, string> = {
   start: '开始合并'
 }
 
+function toLocalFileUrl(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/')
+  const prefix = /^[A-Za-z]:\//.test(normalized) ? 'file:///' : 'file://'
+  return `${prefix}${encodeURI(normalized)}`
+}
+
 export function getCodeMergeWorkspaceSeed(action: CodeMergeAction): string {
   return `his-release-merge-${CODE_MERGE_BATCH_LABEL}-${action}`
 }
 
-export function buildCodeMergePrompt(action: CodeMergeAction): string {
+export function buildCodeMergePrompt(action: CodeMergeAction, excelPath: string): string {
   const actionInstruction =
     action === 'import'
       ? '只解析 Excel 清单并输出服务分类、目标分支映射、非代码项和不明确记录；不要修改任何仓库。'
@@ -32,7 +38,7 @@ export function buildCodeMergePrompt(action: CodeMergeAction): string {
     actionInstruction,
     '',
     '输入与规则:',
-    `- Excel 清单: ${CODE_MERGE_EXCEL_PATH}`,
+    `- Excel 清单: ${excelPath}`,
     `- HIS 源码根目录只读: ${CODE_MERGE_SOURCE_ROOT}`,
     `- 隔离工作区根目录: ${CODE_MERGE_WORKSPACE_ROOT}`,
     '- 16.1 目标分支: RC_2.16.1_250514',
@@ -50,19 +56,22 @@ export function buildCodeMergePrompt(action: CodeMergeAction): string {
   ].join('\n')
 }
 
-export function buildCodeMergeLinkedWorkItem(action: CodeMergeAction): LinkedWorkItemSummary {
+export function buildCodeMergeLinkedWorkItem(
+  action: CodeMergeAction,
+  excelPath: string
+): LinkedWorkItemSummary {
   return {
     provider: 'yunxiao',
     type: 'issue',
     number: 0,
     title: `${ACTION_LABELS[action]} · HIS 发版代码合并`,
-    url: `file://${CODE_MERGE_EXCEL_PATH}`,
+    url: toLocalFileUrl(excelPath),
     yunxiaoIdentifier: `his-release-merge-${CODE_MERGE_BATCH_LABEL}`,
     linkedContext: {
       provider: 'code-merge',
       version: 1,
       renderedText: [
-        `Excel: ${CODE_MERGE_EXCEL_PATH}`,
+        `Excel: ${excelPath}`,
         `Skill: ${CODE_MERGE_SKILL_PATH}`,
         `Source root: ${CODE_MERGE_SOURCE_ROOT}`,
         `Workspace root: ${CODE_MERGE_WORKSPACE_ROOT}`,

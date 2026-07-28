@@ -32,7 +32,16 @@ import {
   getCodeMergeStatusLabel,
   type MergeStatus
 } from '@/components/task-page-code-merge-model'
-import type { CodeMergeAction } from '@/components/task-page-code-merge-workflow'
+import type { CodeMergeComposerAction } from '@/components/task-page-code-merge-workflow'
+import { toast } from 'sonner'
+
+function getPathBasename(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || filePath
+}
+
+function isExcelFilePath(filePath: string): boolean {
+  return /\.(xlsx|xls)$/i.test(filePath)
+}
 
 function StatusBadge({ status }: { status: MergeStatus }): React.JSX.Element {
   return (
@@ -103,15 +112,42 @@ function MetricCard({
 export function TaskPageCodeMergeWorkspace({
   onOpenCodeMergeComposer
 }: {
-  onOpenCodeMergeComposer: (action: CodeMergeAction) => void
+  onOpenCodeMergeComposer: (action: CodeMergeComposerAction, excelPath: string) => void
 }): React.JSX.Element {
+  const [excelPath, setExcelPath] = React.useState<string | null>(null)
+  const excelFileName = excelPath ? getPathBasename(excelPath) : null
+  const hasImportedExcel = Boolean(excelPath)
+
+  const handleImportExcel = React.useCallback(async (): Promise<void> => {
+    const selectedPath = await window.api.shell.pickAttachment()
+    if (!selectedPath) {
+      return
+    }
+    if (!isExcelFilePath(selectedPath)) {
+      toast.error('请选择 .xlsx 或 .xls Excel 清单')
+      return
+    }
+    setExcelPath(selectedPath)
+  }, [])
+
+  const handleOpenComposer = React.useCallback(
+    (action: CodeMergeComposerAction): void => {
+      if (!excelPath) {
+        toast.error('请先导入 Excel 清单')
+        return
+      }
+      onOpenCodeMergeComposer(action, excelPath)
+    },
+    [excelPath, onOpenCodeMergeComposer]
+  )
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-t-0 border-border/50 bg-background shadow-sm">
       <div className="flex flex-none flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-muted/35 px-3 py-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Badge variant="outline" className="max-w-[280px] gap-1 rounded-md bg-background">
             <FileSpreadsheet className="size-3" />
-            <span className="truncate">钉钉文档_合并清单_2026-07-27.xlsx</span>
+            <span className="truncate">{excelFileName ?? '未导入 Excel 清单'}</span>
           </Badge>
           <Badge variant="outline" className="rounded-md bg-background">
             16.1 → RC_2.16.1_250514
@@ -132,12 +168,17 @@ export function TaskPageCodeMergeWorkspace({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => onOpenCodeMergeComposer('import')}
+            onClick={() => void handleImportExcel()}
           >
             <Upload className="size-3.5" />
             导入 Excel
           </Button>
-          <Button type="button" size="sm" onClick={() => onOpenCodeMergeComposer('preflight')}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!hasImportedExcel}
+            onClick={() => handleOpenComposer('preflight')}
+          >
             <RefreshCw className="size-3.5" />
             预检
           </Button>
@@ -145,7 +186,8 @@ export function TaskPageCodeMergeWorkspace({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => onOpenCodeMergeComposer('start')}
+            disabled={!hasImportedExcel}
+            onClick={() => handleOpenComposer('start')}
           >
             <Play className="size-3.5" />
             开始合并
@@ -164,7 +206,7 @@ export function TaskPageCodeMergeWorkspace({
                 当前批次
               </div>
               <div className="mt-1 text-sm font-medium text-foreground">
-                2026-07-27 清单 · 待导入 / 待预检
+                {excelFileName ? `${excelFileName} · 待预检` : '待导入 Excel 清单'}
               </div>
             </div>
             <Progress value={0} className="w-24" />
@@ -236,7 +278,8 @@ export function TaskPageCodeMergeWorkspace({
                     <FileSpreadsheet className="mx-auto size-6 text-muted-foreground" />
                     <div className="mt-3 text-sm font-medium">尚未导入清单</div>
                     <div className="mt-1 max-w-[320px] text-xs leading-5 text-muted-foreground">
-                      点击导入或预检会创建 agent 任务；服务、分支、提交和冲突记录会由任务输出。
+                      先点击导入 Excel 选择清单文件。导入不会创建工作区，预检和开始合并才会创建
+                      agent 任务。
                     </div>
                   </div>
                 </div>
