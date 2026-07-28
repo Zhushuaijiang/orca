@@ -401,11 +401,22 @@ describe('SidebarNav', () => {
     const container = await renderSidebarNav()
 
     const tasksButton = getButtonByText(container, 'Tasks')
-    const shortcuts = tasksButton.querySelector('[aria-label="Open GitHub tasks"]')?.parentElement
+    const shortcuts = tasksButton.querySelector('[aria-label="Open GitLab tasks"]')?.parentElement
 
     expect(shortcuts?.className).toContain('hidden')
     expect(shortcuts?.className).toContain('group-hover:flex')
     expect(shortcuts?.className).toContain('group-focus-within:flex')
+  })
+
+  it('shows only GitLab, Yunxiao, and code merge task shortcuts by default', async () => {
+    const container = await renderSidebarNav()
+    const tasksButton = getButtonByText(container, 'Tasks')
+
+    expect(tasksButton.querySelector('[aria-label="Open GitLab tasks"]')).not.toBeNull()
+    expect(tasksButton.querySelector('[aria-label="Open Yunxiao tasks"]')).not.toBeNull()
+    expect(tasksButton.querySelector('[aria-label="Open code merge tasks"]')).not.toBeNull()
+    expect(tasksButton.querySelector('[aria-label="Open GitHub tasks"]')).toBeNull()
+    expect(tasksButton.querySelector('[aria-label="Open Jira tasks"]')).toBeNull()
   })
 
   it('hides available Tasks from its sidebar context menu', async () => {
@@ -421,18 +432,18 @@ describe('SidebarNav', () => {
     expect(mocks.updateSettings).toHaveBeenCalledWith({ showTasksButton: false })
   })
 
-  it('keeps unavailable Tasks context-menu-capable while left click remains inert', async () => {
+  it('keeps Tasks usable for folder-only projects', async () => {
     setSidebarState({ repos: [folderRepo()] })
     const container = await renderSidebarNav()
 
     const tasksButton = getButtonByText(container, 'Tasks')
-    expect(tasksButton.getAttribute('aria-disabled')).toBe('true')
+    expect(tasksButton.getAttribute('aria-disabled')).toBe('false')
     expect(tasksButton.disabled).toBe(false)
-    expect(tasksButton.querySelectorAll('[role="button"]')).toHaveLength(0)
+    expect(tasksButton.querySelectorAll('[role="button"]')).toHaveLength(3)
     expect(tasksButton.querySelector('[aria-label="Open GitHub tasks"]')).toBeNull()
 
     await clickButton(tasksButton)
-    expect(mocks.openTaskPage).not.toHaveBeenCalled()
+    expect(mocks.openTaskPage).toHaveBeenCalledTimes(1)
 
     const tasksMenu = tasksButton.closest('[data-testid="context-menu"]')
     expect(tasksMenu).not.toBeNull()

@@ -186,7 +186,12 @@ import {
   normalizeRuntimePathForComparison
 } from '../shared/cross-platform-path'
 import { normalizeTerminalQuickCommands } from '../shared/terminal-quick-commands'
-import { normalizeTaskProviderSettings } from '../shared/task-providers'
+import {
+  DEFAULT_TASK_SOURCE,
+  DEFAULT_VISIBLE_TASK_PROVIDERS,
+  normalizeTaskProviderSettings,
+  TASK_PROVIDERS
+} from '../shared/task-providers'
 import { normalizeAutoRenameBranchFromWorkDefaultOn } from '../shared/auto-rename-branch-from-work-settings'
 import { normalizeOpenInApplications } from '../shared/open-in-applications'
 import { normalizeTerminalShortcutPolicy } from '../shared/keybindings'
@@ -596,6 +601,32 @@ type LegacyTerminalScrollbackSettings = {
 }
 
 const LEGACY_TERMINAL_TUI_SCROLL_SENSITIVITY_DEFAULT = 3
+
+function isOldDefaultTaskProviderSettings(settings: Partial<GlobalSettings> | undefined): boolean {
+  const visibleTaskProviders = settings?.visibleTaskProviders
+  return (
+    settings?.defaultTaskSource === 'github' &&
+    Array.isArray(visibleTaskProviders) &&
+    visibleTaskProviders.length === TASK_PROVIDERS.length &&
+    TASK_PROVIDERS.every((provider, index) => visibleTaskProviders[index] === provider)
+  )
+}
+
+function getTaskProviderSettingsForMigration(settings: Partial<GlobalSettings> | undefined): {
+  visibleTaskProviders: unknown
+  defaultTaskSource: unknown
+} {
+  if (isOldDefaultTaskProviderSettings(settings)) {
+    return {
+      visibleTaskProviders: DEFAULT_VISIBLE_TASK_PROVIDERS,
+      defaultTaskSource: DEFAULT_TASK_SOURCE
+    }
+  }
+  return {
+    visibleTaskProviders: settings?.visibleTaskProviders,
+    defaultTaskSource: settings?.defaultTaskSource
+  }
+}
 
 function readLegacyTerminalScrollbackSettings(settings: unknown): LegacyTerminalScrollbackSettings {
   return settings && typeof settings === 'object'
@@ -3929,17 +3960,12 @@ export class Store {
         ) {
           this.loadNeedsSave = true
         }
-        const rawTaskProviderSettings = normalizeTaskProviderSettings({
-          visibleTaskProviders: parsed.settings?.visibleTaskProviders,
-          defaultTaskSource: parsed.settings?.defaultTaskSource
-        })
+        const rawTaskProviderSettings = normalizeTaskProviderSettings(
+          getTaskProviderSettingsForMigration(parsed.settings)
+        )
         const visibleTaskProvidersDefaultedForJira =
           parsed.settings?.visibleTaskProvidersDefaultedForJira === true
-        const jiraMigratedVisibleTaskProviders = visibleTaskProvidersDefaultedForJira
-          ? rawTaskProviderSettings.visibleTaskProviders
-          : rawTaskProviderSettings.visibleTaskProviders.includes('jira')
-            ? rawTaskProviderSettings.visibleTaskProviders
-            : [...rawTaskProviderSettings.visibleTaskProviders, 'jira' as const]
+        const jiraMigratedVisibleTaskProviders = rawTaskProviderSettings.visibleTaskProviders
         const visibleTaskProvidersDefaultedForYunxiao =
           parsed.settings?.visibleTaskProvidersDefaultedForYunxiao === true
         const yunxiaoMigratedVisibleTaskProviders = visibleTaskProvidersDefaultedForYunxiao

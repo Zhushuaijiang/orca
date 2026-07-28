@@ -16,6 +16,7 @@ import { useRepoMap } from '@/store/selectors'
 import { translate } from '@/i18n/i18n'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
 import {
+  DEFAULT_TASK_SOURCE,
   normalizeVisibleTaskProviders,
   restoreAvailableDefaultTaskProvider,
   resolveVisibleTaskProvider
@@ -33,33 +34,24 @@ function HideTaskSidebarMenu({ onHide }: { onHide: () => void }): React.JSX.Elem
 }
 
 function TaskProviderShortcut({
-  canBrowseTasks,
   label,
   onOpen,
   children
 }: {
-  canBrowseTasks: boolean
   label: string
   onOpen: () => void
   children: React.ReactNode
 }): React.JSX.Element {
   return (
     <span
-      role={canBrowseTasks ? 'button' : undefined}
+      role="button"
       tabIndex={-1}
       onClick={(e) => {
         e.stopPropagation()
-        if (!canBrowseTasks) {
-          return
-        }
         onOpen()
       }}
-      className={cn(
-        'rounded p-0.5 text-muted-foreground/70',
-        canBrowseTasks ? 'transition-colors hover:text-foreground' : 'cursor-default'
-      )}
-      aria-label={canBrowseTasks ? label : undefined}
-      aria-hidden={canBrowseTasks ? undefined : true}
+      className="rounded p-0.5 text-muted-foreground/70 transition-colors hover:text-foreground"
+      aria-label={label}
     >
       {children}
     </span>
@@ -72,10 +64,10 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
   const activeView = useAppStore((s) => s.activeView)
   const repos = useAppStore((s) => s.repos)
   const repoMap = useRepoMap()
-  const canBrowseTasks = repos.some((repo) => isGitRepoKind(repo))
+  const hasGitRepo = repos.some((repo) => isGitRepoKind(repo))
   const showTasksButton = useAppStore((s) => s.settings?.showTasksButton !== false)
   const rawVisibleTaskProviders = useAppStore((s) => s.settings?.visibleTaskProviders)
-  const defaultTaskSource = useAppStore((s) => s.settings?.defaultTaskSource ?? 'github')
+  const defaultTaskSource = useAppStore((s) => s.settings?.defaultTaskSource ?? DEFAULT_TASK_SOURCE)
   const preflightStatus = useAppStore((s) => s.preflightStatus)
   const preflightStatusChecked = useAppStore((s) => s.preflightStatusChecked)
   const preflightStatusContextKey = useAppStore((s) => s.preflightStatusContextKey)
@@ -133,7 +125,7 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
   ])
 
   const handlePrefetch = React.useCallback(() => {
-    if (!canBrowseTasks || resolvedDefaultTaskSource !== 'github') {
+    if (!hasGitRepo || resolvedDefaultTaskSource !== 'github') {
       return
     }
     const activeRepo = activeRepoId ? (repoMap.get(activeRepoId) ?? null) : null
@@ -149,8 +141,8 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
     }
   }, [
     activeRepoId,
-    canBrowseTasks,
     defaultTaskViewPreset,
+    hasGitRepo,
     prefetchWorkItems,
     repoMap,
     repos,
@@ -173,22 +165,18 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
         <button
           type="button"
           onClick={() => {
-            if (!canBrowseTasks) {
-              return
-            }
             openTaskPage()
           }}
           onPointerEnter={handlePrefetch}
           onFocus={handlePrefetch}
-          aria-disabled={!canBrowseTasks}
+          aria-disabled={false}
           aria-current={tasksActive ? 'page' : undefined}
           data-contextual-tour-target="sidebar-tasks"
           className={cn(
             'group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] font-medium tracking-tight transition-colors',
             tasksActive
               ? 'bg-worktree-sidebar-accent text-worktree-sidebar-accent-foreground'
-              : 'text-worktree-sidebar-foreground/60 hover:bg-worktree-sidebar-foreground/8',
-            !canBrowseTasks && 'cursor-not-allowed opacity-50 hover:bg-transparent'
+              : 'text-worktree-sidebar-foreground/60 hover:bg-worktree-sidebar-foreground/8'
           )}
         >
           <List
@@ -201,7 +189,6 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
           <span className="hidden items-center gap-1 group-hover:flex group-focus-within:flex">
             {visibleTaskProviders.includes('github') ? (
               <TaskProviderShortcut
-                canBrowseTasks={canBrowseTasks}
                 label={translate(
                   'auto.components.sidebar.SidebarNav.0ccba862b8',
                   'Open GitHub tasks'
@@ -213,7 +200,6 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
             ) : null}
             {visibleTaskProviders.includes('gitlab') ? (
               <TaskProviderShortcut
-                canBrowseTasks={canBrowseTasks}
                 label={translate(
                   'auto.components.sidebar.SidebarNav.196c1b5362',
                   'Open GitLab tasks'
@@ -225,7 +211,6 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
             ) : null}
             {visibleTaskProviders.includes('linear') ? (
               <TaskProviderShortcut
-                canBrowseTasks={canBrowseTasks}
                 label={translate(
                   'auto.components.sidebar.SidebarNav.c39ab10000',
                   'Open Linear tasks'
@@ -237,7 +222,6 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
             ) : null}
             {visibleTaskProviders.includes('jira') ? (
               <TaskProviderShortcut
-                canBrowseTasks={canBrowseTasks}
                 label={translate(
                   'auto.components.sidebar.SidebarNav.e7ad3c540d',
                   'Open Jira tasks'
@@ -249,7 +233,6 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
             ) : null}
             {visibleTaskProviders.includes('yunxiao') ? (
               <TaskProviderShortcut
-                canBrowseTasks={canBrowseTasks}
                 label={translate(
                   'auto.components.sidebar.SidebarNav.yunxiaoTasks',
                   'Open Yunxiao tasks'
@@ -261,7 +244,6 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
             ) : null}
             {visibleTaskProviders.includes('code-merge') ? (
               <TaskProviderShortcut
-                canBrowseTasks={canBrowseTasks}
                 label={translate(
                   'auto.components.sidebar.SidebarNav.codeMergeTasks',
                   'Open code merge tasks'

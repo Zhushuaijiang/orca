@@ -16,7 +16,7 @@ import { DEFAULT_TERMINAL_FONT_WEIGHT } from './terminal-fonts'
 import { getDefaultTerminalQuickCommands } from './terminal-quick-commands'
 import type { VoiceSettings } from './speech-types'
 import { cloneDefaultWorkspaceStatuses } from './workspace-statuses'
-import { TASK_PROVIDERS } from './task-providers'
+import { DEFAULT_TASK_SOURCE, DEFAULT_VISIBLE_TASK_PROVIDERS } from './task-providers'
 import { DEFAULT_WORKTREE_CARD_PROPERTIES } from './worktree-card-properties'
 import { getDefaultSourceControlAiSettings } from './source-control-ai'
 import { DEFAULT_APP_ICON_ID } from './app-icon'
@@ -315,8 +315,8 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     skipDeleteAutomationConfirm: false,
     skipCodexRateLimitResetConfirm: false,
     defaultTaskViewPreset: 'all',
-    defaultTaskSource: 'github',
-    visibleTaskProviders: [...TASK_PROVIDERS],
+    defaultTaskSource: DEFAULT_TASK_SOURCE,
+    visibleTaskProviders: [...DEFAULT_VISIBLE_TASK_PROVIDERS],
     visibleTaskProvidersDefaultedForJira: true,
     visibleTaskProvidersDefaultedForYunxiao: true,
     visibleTaskProvidersDefaultedForCodeMerge: true,

@@ -9,6 +9,14 @@ export const TASK_PROVIDERS: readonly TaskProvider[] = [
   'code-merge'
 ]
 
+export const DEFAULT_TASK_SOURCE: TaskProvider = 'gitlab'
+
+export const DEFAULT_VISIBLE_TASK_PROVIDERS: readonly TaskProvider[] = [
+  'gitlab',
+  'yunxiao',
+  'code-merge'
+]
+
 const TASK_PROVIDER_SET = new Set<TaskProvider>(TASK_PROVIDERS)
 
 export function isTaskProvider(value: unknown): value is TaskProvider {
@@ -22,7 +30,7 @@ export function normalizeTaskProviderSettings(value: {
   const visibleTaskProviders = normalizeVisibleTaskProviders(value.visibleTaskProviders)
   const defaultTaskSource = isTaskProvider(value.defaultTaskSource)
     ? value.defaultTaskSource
-    : resolveVisibleTaskProvider('github', visibleTaskProviders)
+    : resolveVisibleTaskProvider(DEFAULT_TASK_SOURCE, visibleTaskProviders)
 
   if (visibleTaskProviders.includes(defaultTaskSource)) {
     return { visibleTaskProviders, defaultTaskSource }
@@ -41,7 +49,7 @@ export function normalizeTaskProviderSettings(value: {
 
 export function normalizeVisibleTaskProviders(value: unknown): TaskProvider[] {
   if (!Array.isArray(value)) {
-    return [...TASK_PROVIDERS]
+    return [...DEFAULT_VISIBLE_TASK_PROVIDERS]
   }
 
   const normalized: TaskProvider[] = []
@@ -56,7 +64,7 @@ export function normalizeVisibleTaskProviders(value: unknown): TaskProvider[] {
 
   // Why: at least one provider must remain visible so the Tasks surface always
   // has a valid source to select after settings hydration or manual edits.
-  return normalized.length > 0 ? normalized : [...TASK_PROVIDERS]
+  return normalized.length > 0 ? normalized : [...DEFAULT_VISIBLE_TASK_PROVIDERS]
 }
 
 export type TaskProviderAvailability = {
@@ -72,7 +80,7 @@ export function filterAvailableTaskProviders(
     isTaskProviderAvailable(provider, availability)
   )
 
-  return available.length > 0 ? available : ['github']
+  return available.length > 0 ? available : [DEFAULT_TASK_SOURCE]
 }
 
 export function restoreAvailableDefaultTaskProvider(
@@ -128,5 +136,5 @@ export function resolveVisibleTaskProvider(
   if (preferred && visibleProviders.includes(preferred)) {
     return preferred
   }
-  return visibleProviders[0] ?? 'github'
+  return visibleProviders[0] ?? DEFAULT_TASK_SOURCE
 }

@@ -198,7 +198,6 @@ import {
   ModifierDoubleTapDetector,
   toModifierDoubleTapEvent
 } from '../../shared/modifier-double-tap-detector'
-import { isGitRepoKind } from '../../shared/repo-kind'
 import { showTerminalShortcutCaptureNotification } from '@/lib/terminal-shortcut-capture-notification'
 import { resolveMountedLazyModalIds, type LazyModalId } from './lazy-modal-mount-state'
 import { translate } from '@/i18n/i18n'
@@ -1652,7 +1651,7 @@ function App(): React.JSX.Element {
           'view.tasks',
           () => {
             const store = useAppStore.getState()
-            if (activeView === 'settings' || !store.repos.some((repo) => isGitRepoKind(repo))) {
+            if (activeView === 'settings') {
               return false
             }
             return claim('view.tasks', () => store.openTaskPage())

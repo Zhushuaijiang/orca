@@ -355,6 +355,7 @@ import {
 } from './jira-issue-sorter'
 import { TaskPageJiraSortControls } from './task-page-jira-sort-controls'
 import {
+  DEFAULT_TASK_SOURCE,
   normalizeVisibleTaskProviders,
   restoreAvailableDefaultTaskProvider,
   resolveVisibleTaskProvider
@@ -3382,7 +3383,7 @@ export default function TaskPage(): React.JSX.Element {
     () => normalizeVisibleTaskProviders(settings?.visibleTaskProviders),
     [settings?.visibleTaskProviders]
   )
-  const defaultTaskSource = settings?.defaultTaskSource ?? 'github'
+  const defaultTaskSource = settings?.defaultTaskSource ?? DEFAULT_TASK_SOURCE
   const visibleTaskProviders = useMemo(
     () =>
       restoreAvailableDefaultTaskProvider(

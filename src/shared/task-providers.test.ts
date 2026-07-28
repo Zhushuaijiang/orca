@@ -15,15 +15,8 @@ describe('task providers', () => {
     ])
   })
 
-  it('falls back to all providers when none are visible', () => {
-    expect(normalizeVisibleTaskProviders([])).toEqual([
-      'github',
-      'gitlab',
-      'linear',
-      'jira',
-      'yunxiao',
-      'code-merge'
-    ])
+  it('falls back to default providers when none are visible', () => {
+    expect(normalizeVisibleTaskProviders([])).toEqual(['gitlab', 'yunxiao', 'code-merge'])
   })
 
   it('restores a valid saved default when provider settings drifted', () => {
@@ -47,6 +40,18 @@ describe('task providers', () => {
     ).toEqual({
       defaultTaskSource: 'gitlab',
       visibleTaskProviders: ['gitlab']
+    })
+  })
+
+  it('defaults missing provider settings to GitLab, Yunxiao, and code merge', () => {
+    expect(
+      normalizeTaskProviderSettings({
+        visibleTaskProviders: undefined,
+        defaultTaskSource: undefined
+      })
+    ).toEqual({
+      defaultTaskSource: 'gitlab',
+      visibleTaskProviders: ['gitlab', 'yunxiao', 'code-merge']
     })
   })
 
@@ -118,6 +123,15 @@ describe('task providers', () => {
   it('falls back to GitLab when it is the only repo-backed visible provider', () => {
     expect(
       filterAvailableTaskProviders(['gitlab', 'linear'], {
+        gitlabInstalled: false,
+        linearConnected: false
+      })
+    ).toEqual(['gitlab'])
+  })
+
+  it('falls back to GitLab when no visible providers are available', () => {
+    expect(
+      filterAvailableTaskProviders(['linear'], {
         gitlabInstalled: false,
         linearConnected: false
       })
