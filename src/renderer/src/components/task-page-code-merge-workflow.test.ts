@@ -17,7 +17,12 @@ describe('task-page-code-merge-workflow', () => {
     expect(prompt).toContain('任何会写工作区/.git 元数据的命令')
     expect(prompt).toContain('RC_2.16.1_250514')
     expect(prompt).toContain('release_2.15.3_250515')
-    expect(prompt).toContain('不要 cherry-pick、commit、push 或修改源仓库')
+    expect(prompt).toContain('预检阶段不得修改任何仓库或工作区')
+    expect(prompt).toContain('不得创建隔离副本')
+    expect(prompt).toContain('预检阶段不得 cherry-pick、merge、commit、push')
+    expect(prompt).toContain('只允许读取 Excel、读取文件')
+    expect(prompt).toContain('计划中需要复制/合并的仓库')
+    expect(prompt).not.toContain('将要复制/合并的仓库')
     expect(prompt).toContain('当前任务页选择的仓库不是合并目标')
   })
 
