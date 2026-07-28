@@ -20,7 +20,15 @@ import { StatsCollector, initStatsPath } from './stats/collector'
 import { ClaudeUsageStore, initClaudeUsagePath } from './claude-usage/store'
 import { CodexUsageStore, initCodexUsagePath } from './codex-usage/store'
 import { OpenCodeUsageStore, initOpenCodeUsagePath } from './opencode-usage/store'
-import { killAllPty } from './ipc/pty'
+import {
+  killAllPty,
+  clearProviderPtyState,
+  getPtyIdForPaneKey,
+  registerPaneKeyTeardownListener,
+  getLocalPtyProvider,
+  getSshPtyProvider,
+  registerHeadlessPtyRuntime
+} from './ipc/pty'
 import { initDaemonPtyProvider, disconnectDaemon, shutdownDaemon } from './daemon/daemon-init'
 import { closeAllWatchers } from './ipc/filesystem-watcher'
 import { disposeWorktreeBaseDirectoryWatchers } from './ipc/worktree-base-directory-watcher'
@@ -39,8 +47,15 @@ import { initCohortClassifier } from './telemetry/cohort-classifier'
 import { initOnboardingCohortClassifier } from './telemetry/onboarding-cohort-classifier'
 import { resolveConsent } from './telemetry/consent'
 import { triggerStartupNotificationRegistration } from './ipc/notifications'
-import { OrcaRuntimeService } from './runtime/orca-runtime'
+import { OrcaRuntimeService, type RuntimeWorktreeLifecycleEvent } from './runtime/orca-runtime'
 import { loadAgentSessionClaimSigner } from './runtime/agent-session-claim-identity'
+import {
+  fingerprintOrchestrationPeer,
+  type OrchestrationEnvironmentTransport
+} from './runtime/orchestration/environment-transport'
+import { callRuntimeEnvironment } from './ipc/runtime-environment-transport-routing'
+import { resolveEnvironment } from '../shared/runtime-environment-store'
+import { getPreferredPairingOffer } from '../shared/runtime-environments'
 import { OrcaRuntimeRpcServer } from './runtime/runtime-rpc'
 import { resolveAdvertisedPairingEndpoint } from './runtime/pairing-endpoint'
 import { ServeReadinessPublisher } from './server/serve-readiness'
@@ -49,7 +64,7 @@ import { DesktopRelayService } from './runtime/relay/desktop-relay-service'
 import type { RelayBrokerStatus } from './runtime/relay/relay-session-broker'
 import { awaitRuntimeFileWatcherUnsubscribes } from './runtime/orca-runtime-files'
 import { clearRuntimeMetadataIfOwned } from './runtime/runtime-metadata'
-import { ensureMainI18n, setMainUiLanguage } from './i18n/main-i18n'
+import { ensureMainI18n, setMainPluginLanguagePacks, setMainUiLanguage } from './i18n/main-i18n'
 import {
   getNextDefaultOnAppearanceSettingValue,
   registerAppMenu,
@@ -171,10 +186,8 @@ import { startCodexSessionIndexHealInBackground } from './codex/codex-session-in
 import { createCodexSessionMigrationScheduler } from './codex/codex-session-migration-scheduler'
 import { prepareLegacySharedCodexSessionResume } from './codex/codex-legacy-session-resume'
 import { resolveHostCodexSessionSourceHome } from './codex/codex-session-source-home'
-import {
-  claimsCodexRolloutLayout,
-  findTrustedCodexSessionResume
-} from './codex/codex-session-resume-home'
+import type { CodexSessionResumePreparation } from './codex/codex-session-resume-home'
+import { prepareCodexSessionResume } from './codex/codex-session-resume-preparation'
 import { getOrcaManagedCodexHomePath, getSystemCodexHomePath } from './codex/codex-home-paths'
 import { normalizeRuntimePathForComparison } from '../shared/cross-platform-path'
 import type { AgentProviderSessionMetadata } from '../shared/agent-session-resume'
@@ -198,14 +211,6 @@ import { setDefaultWslDistroOverride } from './git/runner'
 import { getRepoIdFromWorktreeId } from '../shared/worktree-id'
 import { parseWorkspaceKey } from '../shared/workspace-scope'
 import { setMigrationUnsupportedPtyListener } from './agent-hooks/migration-unsupported-pty-state'
-import {
-  clearProviderPtyState,
-  getPtyIdForPaneKey,
-  registerPaneKeyTeardownListener,
-  getLocalPtyProvider,
-  getSshPtyProvider,
-  registerHeadlessPtyRuntime
-} from './ipc/pty'
 import { AgentBrowserBridge } from './browser/agent-browser-bridge'
 import { EmulatorBridge } from './emulator/emulator-bridge'
 import { browserCertificateTrustController, browserManager } from './browser/browser-manager'
@@ -218,6 +223,20 @@ import { buildHeadlessAutomationWorktreeCreateArgs } from './automations/headles
 import { AgentAwakeService } from './agent-awake-service'
 import { registerSystemResumeBroadcast } from './system-resume-broadcast'
 import { settleTeardownWithinDeadline } from './quit-teardown-deadline'
+import { PluginService } from './plugins/plugin-service'
+import { PluginKillListService } from './plugins/plugin-kill-list-service'
+import { getPluginsDataDir } from './plugins/plugin-discovery'
+import { PluginMarketplaceService } from './plugins/plugin-marketplace-service'
+import { PluginMarketplaceInstaller } from './plugins/plugin-marketplace-installer'
+import { PluginBundledBootstrapCoordinator } from './plugins/plugin-bundled-bootstrap-coordinator'
+import { resolveBundledPluginRoot } from './plugins/plugin-bundled-bootstrap'
+import { resolvePluginHostEntryPath } from './plugins/plugin-host-process'
+import { applyPluginConsent, applyPluginEnablement } from './plugins/plugin-enablement'
+import { setPluginServiceForRpc } from './runtime/rpc/methods/plugins'
+import {
+  normalizePluginConsents,
+  normalizePluginIdList
+} from '../shared/plugins/plugin-consent-state'
 import {
   recordCoalescedCrashBreadcrumb,
   recordCrashBreadcrumb
@@ -286,7 +305,20 @@ let unsubscribeSystemResumeBroadcast: (() => void) | null = null
 let watcherShutdownPromise: Promise<void> | null = null
 let watcherShutdownDone = false
 let automations: AutomationService | null = null
+let pluginService: PluginService | null = null
+let pluginKillListService: PluginKillListService | null = null
+let pluginMarketplaceService: PluginMarketplaceService | null = null
+let pluginMarketplaceInstaller: PluginMarketplaceInstaller | null = null
 let keybindings: KeybindingService | null = null
+
+function emitPluginWorktreeLifecycle(event: RuntimeWorktreeLifecycleEvent): void {
+  pluginService?.emitEvent(
+    event.kind === 'created' ? 'worktree.created' : 'worktree.removed',
+    event.kind === 'created'
+      ? { worktreeId: event.worktreeId, path: event.path, branch: event.branch }
+      : { worktreeId: event.worktreeId, path: event.path }
+  )
+}
 // Why: a reload intent must not leak to a later load; the recovery reload re-fires did-finish-load, so its flag spares live PTYs from the orphan sweep (#5787).
 const expectedRendererReload = createWebContentsTimedFlag()
 const recoveryReloadInFlight = createWebContentsTimedFlag()
@@ -839,7 +871,7 @@ async function prepareCodexSessionResumeForLaunch(args: {
   target: CodexAccountSelectionTarget
   launchEnv?: NodeJS.ProcessEnv
   workspacePath?: string
-}): Promise<{ codexHomePath: string | null } | null> {
+}): Promise<CodexSessionResumePreparation | null> {
   if (args.target.runtime === 'wsl' || !codexRuntimeHome || !store) {
     return null
   }
@@ -849,7 +881,10 @@ async function prepareCodexSessionResumeForLaunch(args: {
     systemHomePath,
     ...codexRuntimeHome.getHostCodexHomePathsForSessionDiscovery()
   ]
-  const sessionSource = await findTrustedCodexSessionResume({
+  const settingsStore = store
+  // Why: a `fresh` outcome must skip migration, trust and hook repair entirely — there is
+  // no verified origin home to prepare, so the PTY layer drops the resume argv (#10793).
+  return prepareCodexSessionResume({
     sessionId: args.providerSession.id,
     transcriptPath: args.providerSession.transcriptPath,
     trustedCodexHomes: trustedHomes,
@@ -860,66 +895,57 @@ async function prepareCodexSessionResumeForLaunch(args: {
     systemCodexHomePath: systemHomePath,
     // Why: the mirror winning is what triggers the migration into ~/.codex below, so it must
     // outrank the path-sorted account homes or a system-default selection resumes as an account.
-    sharedRuntimeCodexHomePath: getOrcaManagedCodexHomePath()
-  })
-  if (!sessionSource) {
-    // Why: an unverifiable Codex rollout still blocks; only paths that never claimed Codex
-    // provenance (e.g. ~/.claude/… on a pane mislabeled "codex") fall through to a normal launch.
-    if (claimsCodexRolloutLayout(args.providerSession.transcriptPath)) {
-      throw new Error(
-        'Orca could not verify the originating Codex session file, so automatic resume was stopped to avoid using a different account.'
-      )
-    }
-    return null
-  }
-
-  let migrated = { useRealCodexHome: false }
-  try {
-    migrated = await prepareLegacySharedCodexSessionResume(
-      {
-        agent: 'codex',
-        executionHostId: 'local',
-        filePath: sessionSource.transcriptPath,
-        codexHome: sessionSource.homePath
-      },
-      {
-        isHostSystemDefaultRealHome: () => codexRuntimeHome!.isHostSystemDefaultRealHome(),
-        systemCodexHomePath: systemHomePath
+    sharedRuntimeCodexHomePath: getOrcaManagedCodexHomePath(),
+    resolveVerifiedResumeHome: async (sessionSource) => {
+      let migrated = { useRealCodexHome: false }
+      try {
+        migrated = await prepareLegacySharedCodexSessionResume(
+          {
+            agent: 'codex',
+            executionHostId: 'local',
+            filePath: sessionSource.transcriptPath,
+            codexHome: sessionSource.homePath
+          },
+          {
+            isHostSystemDefaultRealHome: () => codexRuntimeHome!.isHostSystemDefaultRealHome(),
+            systemCodexHomePath: systemHomePath
+          }
+        )
+      } catch (error) {
+        // Why: migration is a compatibility repair; its failure must not prevent the PTY from resuming from its trusted origin home.
+        console.warn(
+          '[codex-session-resume] Legacy rollout migration failed; using origin home:',
+          error
+        )
       }
-    )
-  } catch (error) {
-    // Why: migration is a compatibility repair; its failure must not prevent the PTY from resuming from its trusted origin home.
-    console.warn(
-      '[codex-session-resume] Legacy rollout migration failed; using origin home:',
-      error
-    )
-  }
-  const resumeHome = migrated.useRealCodexHome ? systemHomePath : sessionSource.homePath
+      const resumeHome = migrated.useRealCodexHome ? systemHomePath : sessionSource.homePath
 
-  if (args.workspacePath) {
-    try {
-      markCodexProjectTrusted(args.workspacePath)
-    } catch (error) {
-      console.warn('[codex-project-trust] failed to pre-mark resumed workspace:', error)
+      if (args.workspacePath) {
+        try {
+          markCodexProjectTrusted(args.workspacePath)
+        } catch (error) {
+          console.warn('[codex-project-trust] failed to pre-mark resumed workspace:', error)
+        }
+      }
+      const isSystemHome =
+        normalizeRuntimePathForComparison(resumeHome) ===
+        normalizeRuntimePathForComparison(systemHomePath)
+      const hooksEnabled = isAgentStatusHooksEnabled(settingsStore.getSettings())
+      try {
+        if (isSystemHome) {
+          ensureRealHomeCodexHookState({ hooksEnabled, userDataPath: app.getPath('userData') })
+        } else if (hooksEnabled) {
+          codexHookService.install(resumeHome)
+        } else {
+          codexHookService.refreshRuntimeUserHooks(resumeHome)
+        }
+      } catch (error) {
+        // Why: hook repair is best-effort; session provenance must still win over the currently selected home.
+        console.warn('[codex-hook-service] failed to prepare automatic resume home:', error)
+      }
+      return resumeHome
     }
-  }
-  const isSystemHome =
-    normalizeRuntimePathForComparison(resumeHome) ===
-    normalizeRuntimePathForComparison(systemHomePath)
-  const hooksEnabled = isAgentStatusHooksEnabled(store.getSettings())
-  try {
-    if (isSystemHome) {
-      ensureRealHomeCodexHookState({ hooksEnabled, userDataPath: app.getPath('userData') })
-    } else if (hooksEnabled) {
-      codexHookService.install(resumeHome)
-    } else {
-      codexHookService.refreshRuntimeUserHooks(resumeHome)
-    }
-  } catch (error) {
-    // Why: hook repair is best-effort; session provenance must still win over the currently selected home.
-    console.warn('[codex-hook-service] failed to prepare automatic resume home:', error)
-  }
-  return { codexHomePath: resumeHome }
+  })
 }
 
 // Why: restore the window the close handler may have hidden to tray, or reopen it (dock-reactivation style) if fully torn down.
@@ -1177,7 +1203,11 @@ function openMainWindow(): BrowserWindow {
       },
       onOrcaProfileAuthMutation: () => desktopRelayService?.authMutated(),
       onBeforeOrcaProfileSignOut: () => desktopRelayService?.fenceAndCloseNow()
-    }
+    },
+    pluginService ?? undefined,
+    pluginMarketplaceService && pluginMarketplaceInstaller
+      ? { marketplace: pluginMarketplaceService, installer: pluginMarketplaceInstaller }
+      : undefined
   )
   automations.setWebContents(window.webContents)
   automations.start()
@@ -1201,7 +1231,8 @@ function openMainWindow(): BrowserWindow {
       isRecoveryReloadInFlight,
       onBeforeUpdateQuit: () =>
         preserveAgentAuthBeforeRestart({ codexRuntimeHome, claudeRuntimeAuth, store }),
-      updateInstallMode: resolveUpdateInstallMode(isServeMode)
+      updateInstallMode: resolveUpdateInstallMode(isServeMode),
+      onWorktreeLifecycle: emitPluginWorktreeLifecycle
     }
   )
   rateLimits.attach(window)
@@ -2085,6 +2116,27 @@ app.whenReady().then(async () => {
       .filter((account) => !activeIds.has(account.id))
       .map((account) => ({ id: account.id, managedHomePath: account.managedHomePath }))
   })
+  const orchestrationEnvironmentTransport: OrchestrationEnvironmentTransport = {
+    resolve: (selector) => {
+      const environment = resolveEnvironment(app.getPath('userData'), selector)
+      const pairing = getPreferredPairingOffer(environment)
+      return {
+        environmentId: environment.id,
+        name: environment.name,
+        peerFingerprint: fingerprintOrchestrationPeer(pairing.publicKeyB64)
+      }
+    },
+    call: (selector, method, params, timeoutMs, envelope) =>
+      callRuntimeEnvironment(
+        app.getPath('userData'),
+        selector,
+        method,
+        params,
+        timeoutMs,
+        undefined,
+        envelope
+      )
+  }
   const runtimeService = new OrcaRuntimeService(store, stats, {
     agentSessionClaimSigner: loadAgentSessionClaimSigner(
       getProfileUserDataPath(),
@@ -2123,7 +2175,8 @@ app.whenReady().then(async () => {
         systemCodexHomePath: resolveHostCodexSessionSourceHome(store!.getSettings())
       }),
     buildAgentHookPtyEnv: () =>
-      isAgentStatusHooksEnabled(store?.getSettings()) ? agentHookServer.buildPtyEnv() : {}
+      isAgentStatusHooksEnabled(store?.getSettings()) ? agentHookServer.buildPtyEnv() : {},
+    orchestrationEnvironmentTransport
   })
   runtime = runtimeService
   publishProviderSessionChanges(agentHookServer.getProviderSessionIdentities())
@@ -2228,6 +2281,137 @@ app.whenReady().then(async () => {
     // Why: Codex hooks/auth live in Orca's managed runtime home even for the default path, so every launch must resolve CODEX_HOME via runtime-home.
     prepareForCodexLaunch: prepareCodexRuntimeHomeForLaunch,
     prepareForClaudeLaunch: (target) => claudeRuntimeAuth!.prepareForClaudeLaunch(target)
+  })
+  const pluginSystemStartupStartedAt = performance.now()
+  pluginKillListService = new PluginKillListService({
+    pluginsDataDir: getPluginsDataDir(app.getPath('userData'))
+  })
+  await pluginKillListService.initialize()
+  pluginMarketplaceService = new PluginMarketplaceService({
+    pluginsDataDir: getPluginsDataDir(app.getPath('userData')),
+    getKillListEntry: (pluginKey) => pluginKillListService?.find(pluginKey) ?? null
+  })
+  const requestOfficialMarketplaceSeed = (): void => {
+    if (store?.getSettings().pluginSystemEnabled !== true) {
+      return
+    }
+    void pluginMarketplaceService?.seedOfficialSource().catch((error) => {
+      console.warn('[plugins] failed to configure the official marketplace:', error)
+    })
+  }
+  pluginMarketplaceInstaller = new PluginMarketplaceInstaller({
+    marketplace: pluginMarketplaceService,
+    userDataPath: app.getPath('userData'),
+    hostVersion: app.getVersion(),
+    blockedPluginReason: (pluginKey) => pluginKillListService?.reason(pluginKey) ?? null
+  })
+  pluginService = new PluginService({
+    userDataPath: app.getPath('userData'),
+    hostVersion: app.getVersion(),
+    // Feature flag: with the setting off, discovery returns nothing and no
+    // plugin code path runs at all.
+    isPluginSystemEnabled: () => store?.getSettings().pluginSystemEnabled === true,
+    getDisabledPlugins: () => normalizePluginIdList(store?.getSettings().disabledPlugins),
+    getPluginConsents: () => normalizePluginConsents(store?.getSettings().pluginConsents),
+    getDevPluginPaths: () => normalizePluginIdList(store?.getSettings().devPluginPaths),
+    getKeybindings: () => keybindings?.getOverrides() ?? {},
+    getPluginKillListEntry: (pluginKey) => pluginKillListService?.find(pluginKey) ?? null,
+    hostEntryPath: resolvePluginHostEntryPath(app.getAppPath(), app.isPackaged)
+  })
+  const bundledPluginBootstrap = new PluginBundledBootstrapCoordinator({
+    root: resolveBundledPluginRoot({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath()
+    }),
+    userDataPath: app.getPath('userData'),
+    hostVersion: app.getVersion(),
+    isEnabled: () => store?.getSettings().pluginSystemEnabled === true,
+    blockedPluginReason: (pluginKey) => pluginKillListService?.reason(pluginKey) ?? null,
+    refreshPlugins: () => pluginService?.refresh() ?? Promise.resolve()
+  })
+  const requestBundledPluginBootstrap = (): void => {
+    void bundledPluginBootstrap
+      .request()
+      .then((result) => {
+        for (const failure of result?.errors ?? []) {
+          console.warn(`[plugins] failed to publish bundled ${failure.pluginKey}:`, failure.error)
+        }
+      })
+      .catch((error) => {
+        console.warn('[plugins] failed to bootstrap bundled plugins:', error)
+      })
+  }
+  pluginKillListService.onChanged(() => {
+    void pluginService?.reconcileActivationState().catch((error) => {
+      console.warn('[plugins] failed to apply plugin safety-list refresh:', error)
+    })
+  })
+  store.onSettingsChanged((updates) => {
+    if (updates.pluginSystemEnabled === true) {
+      requestBundledPluginBootstrap()
+      requestOfficialMarketplaceSeed()
+    }
+    if (app.isPackaged && updates.pluginSystemEnabled === true) {
+      void pluginKillListService?.refresh().catch((error) => {
+        console.warn('[plugins] failed to refresh plugin safety list; using cached state:', error)
+      })
+    }
+  })
+  // Why: headless `orca serve` clients reach plugins through the runtime RPC
+  // methods, which resolve the service via this module-level setter. Consent
+  // over RPC uses the same hash-keyed write path as the desktop dialog.
+  setPluginServiceForRpc(pluginService, {
+    applyConsent: (request) =>
+      applyPluginConsent({ store: store!, pluginService: pluginService!, ...request }),
+    applyEnablement: (pluginKey, enabled) =>
+      applyPluginEnablement({ store: store!, pluginService: pluginService!, pluginKey, enabled })
+  })
+  // Lazy kernel: initialize() only discovers manifests — no worker forks, no
+  // panel reads. Zero plugin code runs before an explicit trigger.
+  void pluginService
+    .initialize()
+    .then(() => {
+      logStartupMilestone('plugin-system-initialized', {
+        durationMs: Number((performance.now() - pluginSystemStartupStartedAt).toFixed(2)),
+        installedPlugins: pluginService?.getDiscovered().length ?? 0
+      })
+    })
+    .catch((error) => {
+      console.warn('[plugins] failed to initialize plugin service:', error)
+    })
+  if (app.isPackaged && store?.getSettings().pluginSystemEnabled === true) {
+    void pluginKillListService.refresh().catch((error) => {
+      console.warn('[plugins] failed to refresh plugin safety list; using cached state:', error)
+    })
+  }
+  pluginService.onChanged((event) => {
+    if (
+      event.contentPacksChanged &&
+      setMainPluginLanguagePacks(pluginService?.contentPacks.languagePacks.list() ?? [])
+    ) {
+      void setMainUiLanguage(store!.getSettings().uiLanguage).then(() => rebuildAppMenu())
+    }
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send('plugins:changed', event)
+      }
+    }
+  })
+  requestBundledPluginBootstrap()
+  requestOfficialMarketplaceSeed()
+  // v0 plugin event seams: agent status (hook pipeline tap) + worktree
+  // lifecycle (runtime tap). Server-side filtered per plugin subscription.
+  agentHookServer.subscribeEnrichedStatus((enriched) => {
+    pluginService?.emitEvent('agent.status.changed', {
+      worktreeId: enriched.worktreeId ?? null,
+      paneKey: enriched.paneKey,
+      state: enriched.payload.state,
+      receivedAt: enriched.receivedAt
+    })
+  })
+  runtimeService.onWorktreeLifecycle((event) => {
+    emitPluginWorktreeLifecycle(event)
   })
   starNag = new StarNagService(store, stats)
   starNag.start()
@@ -2577,6 +2761,16 @@ app.on('will-quit', (e) => {
   // Why: stats.flush() must precede killAllPty() so still-running agents emit synthetic agent_stop events (killAllPty skips runtime.onPtyExit()).
   starNag?.stop()
   automations?.stop()
+  // Why: plugin hosts are forked children; dispose sends shutdown and
+  // escalates to SIGKILL so they cannot outlive the app. The promise joins
+  // the teardown barrier below — quitting before it resolves would let
+  // Electron exit first and orphan the hosts.
+  setPluginServiceForRpc(null)
+  pluginKillListService = null
+  pluginMarketplaceService = null
+  pluginMarketplaceInstaller = null
+  const pluginHostShutdown = pluginService?.dispose() ?? Promise.resolve()
+  pluginService = null
   setUnreadDockBadgeCount(0)
   agentHookServer.stop()
   // Why: cancels relay restart/reinstall timers and kills wsl.exe children deterministically, not via stdio-pipe teardown.
@@ -2623,7 +2817,8 @@ app.on('will-quit', (e) => {
       { name: 'daemon', promise: daemonTeardown },
       { name: 'runtime-rpc', promise: rpcStopAndClear },
       { name: 'watchers', promise: watcherShutdown },
-      { name: 'emulator', promise: emulatorShutdown }
+      { name: 'emulator', promise: emulatorShutdown },
+      { name: 'plugin-hosts', promise: pluginHostShutdown }
     ])
       .then((pendingTeardowns) => {
         if (pendingTeardowns.length > 0) {

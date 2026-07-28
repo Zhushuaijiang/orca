@@ -225,7 +225,11 @@ function CommentCard({
           {comment.line ? `:${comment.line}` : ''}
         </div>
       ) : null}
-      <CommentMarkdown content={comment.body} />
+      <CommentMarkdown
+        content={comment.body}
+        variant="document"
+        className="min-w-0 max-w-full overflow-hidden break-words text-[13px] leading-relaxed [&_a]:break-all [&_code]:break-words [&_pre]:max-w-full"
+      />
     </div>
   )
 }
@@ -1413,7 +1417,11 @@ export default function GitLabItemDialog({
                           </Button>
                         </div>
                       ) : null}
-                      <CommentMarkdown content={details.body} />
+                      <CommentMarkdown
+                        content={details.body}
+                        variant="document"
+                        className="min-w-0 max-w-full overflow-hidden break-words text-[13px] leading-relaxed [&_a]:break-all [&_code]:break-words [&_pre]:max-w-full"
+                      />
                     </div>
                   ) : (
                     <div>

@@ -132,7 +132,7 @@ export const getSourceOptions = createLocalizedCatalog((): SourceOption[] => [
   },
   {
     id: 'code-merge',
-    label: translate('auto.components.TaskPage.codeMergeSource', '代码合并'),
+    label: translate('auto.components.TaskPage.codeMergeSource', 'Code merge'),
     Icon: ({ className }) => <GitMerge className={className} />
   }
 ])

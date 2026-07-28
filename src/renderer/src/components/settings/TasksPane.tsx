@@ -92,7 +92,7 @@ const TASK_PROVIDER_OPTIONS: readonly {
   {
     id: 'code-merge',
     get label() {
-      return translate('auto.components.settings.TasksPane.codeMerge', '代码合并')
+      return translate('auto.components.settings.TasksPane.codeMerge', 'Code merge')
     },
     get description() {
       return translate(
