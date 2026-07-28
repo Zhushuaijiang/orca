@@ -11,8 +11,9 @@ const BRACKETED_PASTE_END = '\u001b[201~'
 export const YUNXIAO_DFHIS_CODE_CONSTRAINTS = `DFHIS 代码约束：
 - 禁止修改构建/依赖定义来解决需求，包括 build.gradle、settings.gradle、pom.xml、package dependency lock 等；特别不能把已发布依赖改成 compile project(...) 或启用本地 project API 模块。
 - 禁止新增、修改或依赖项目内 *-api/API 模块、DTO、Req、Feign/客户端 API 包来推进需求；这些项目 API 已废弃，不能作为新实现入口或兼容性补丁。
-- 如果实现看起来必须改构建文件、切换依赖、补 API 模块字段、发布 API jar 或调用项目 API，必须先把 Requirement Contract 标为 needs_clarification 或 blocked，并请求架构/产品确认；不得自行编码。
-- 实现计划和最终复核必须明确记录是否触碰 build/API 约束；只要实际 diff 包含上述文件或 API 模块变更，不能标记为完成。`
+- 如果实现看起来必须改 API 契约、DTO、Req、Feign 客户端或对外 API 字段，必须优先定位并修改共享 API 仓库 df-his-api 中对应模块；不能只改业务仓库内的 mic-*/agg-*/winbff-* 本地 *-api 模块，否则依赖发布包的其它仓库会编译失败。
+- 如果实现看起来必须改构建文件、切换依赖、补 API 模块字段、发布 API jar 或调用项目 API，必须先把 Requirement Contract 标为 needs_clarification 或 blocked，并请求架构/产品确认；确认后也必须把 df-his-api/API jar 发布依赖写入实现计划和数据/服务端变更，不得自行用本地 API 模块绕过。
+- 实现计划和最终复核必须明确记录是否触碰 build/API 约束；只要实际 diff 包含上述文件或 API 模块变更但没有同步 df-his-api、发布 API jar/调用方 API 兼容计划和本地编译验证，不能标记为完成。`
 
 export type ManualYunxiaoRequirementGate = {
   identifier: string

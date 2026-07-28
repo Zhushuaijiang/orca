@@ -43,7 +43,7 @@ Use this section to keep the workflow compact but auditable. Default low-risk wo
 | --- | --- | --- |
 | Orca Yunxiao requirement workflow gate | Yes |  |
 | Implementation plan before edits |  |  |
-| DFHIS build/API guardrail checked | Yes | Confirm no `build.gradle`/`settings.gradle`/`pom.xml`/dependency lock changes and no project-local `*-api` / API module edits or dependencies. |
+| DFHIS build/API guardrail checked | Yes | Confirm no `build.gradle`/`settings.gradle`/`pom.xml`/dependency lock changes. If API contracts/DTOs/Req/Feign clients changed, confirm the matching `df-his-api` module and API jar/release dependency are included, and no project-local `*-api` module is the only contract change. |
 | Test-first or regression evidence |  |  |
 | Independent review checks |  |  |
 | Final verification evidence |  |  |
@@ -171,7 +171,7 @@ Explain the existing frontend-to-backend flow with concrete evidence.
 
 ### 5.5 Database, Parameter, Dictionary, And API Impact
 
-Do not use project-local `*-api` / API modules or build/dependency edits as an implementation path. If the requirement appears to need such a change, mark it as `待确认` and block for architecture/product confirmation.
+Do not use project-local `*-api` / API modules or build/dependency edits as the only implementation path. If the requirement needs API contracts, DTOs, Req classes, Feign clients, or external API fields, locate the corresponding shared module in `df-his-api`, include that repository in the implementation/release plan, record the API jar dependency, and verify every consuming service compiles against the shared API. If the `df-his-api` path or release dependency is unclear, mark it as `待确认` and block for architecture/product confirmation.
 
 | Type | Name | Current Evidence | Required Change | Migration/Config Notes |
 | --- | --- | --- | --- | --- |

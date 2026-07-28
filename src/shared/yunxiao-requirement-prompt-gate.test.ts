@@ -27,6 +27,11 @@ describe('Yunxiao requirement prompt gate', () => {
     expect(gated).toContain('禁止修改构建/依赖定义来解决需求，包括 build.gradle')
     expect(gated).toContain('不能把已发布依赖改成 compile project(...)')
     expect(gated).toContain('禁止新增、修改或依赖项目内 *-api/API 模块')
+    expect(gated).toContain('必须优先定位并修改共享 API 仓库 df-his-api 中对应模块')
+    expect(gated).toContain('不能只改业务仓库内的 mic-*/agg-*/winbff-* 本地 *-api 模块')
+    expect(gated).toContain(
+      '没有同步 df-his-api、发布 API jar/调用方 API 兼容计划和本地编译验证，不能标记为完成'
+    )
     expect(gated).toContain(`原始用户请求：\n${prompt}`)
   })
 

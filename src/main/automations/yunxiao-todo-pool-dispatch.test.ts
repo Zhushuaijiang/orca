@@ -94,6 +94,8 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(prompt).toContain('禁止修改构建/依赖定义来解决需求，包括 build.gradle')
     expect(prompt).toContain('不能把已发布依赖改成 compile project(...)')
     expect(prompt).toContain('禁止新增、修改或依赖项目内 *-api/API 模块')
+    expect(prompt).toContain('必须优先定位并修改共享 API 仓库 df-his-api 中对应模块')
+    expect(prompt).toContain('不能只改业务仓库内的 mic-*/agg-*/winbff-* 本地 *-api 模块')
   })
 
   it('synthesizes a full Yunxiao URL from category and serial number when the item has no URL', () => {
