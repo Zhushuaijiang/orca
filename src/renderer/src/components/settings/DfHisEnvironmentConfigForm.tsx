@@ -17,7 +17,8 @@ export function createEmptyDfHisEnvironmentConfigForm(): DfHisEnvironmentConfigF
     hisMcpToken: '',
     hisMcpUrl: '',
     hisCodeRoot: '',
-    archiveWorkspacePath: ''
+    archiveWorkspacePath: '',
+    dfhisSkillPackUrl: ''
   }
 }
 
@@ -151,6 +152,23 @@ export function DfHisEnvironmentConfigForm({
             placeholder={translate(
               'auto.components.settings.DfHisEnvironmentPane.archiveWorkspacePathPlaceholder',
               '~/workspace/yunxiao'
+            )}
+            disabled={disabled}
+          />
+        </label>
+        <label className="space-y-1.5 md:col-span-2">
+          <span className="text-xs font-medium text-foreground">
+            {translate(
+              'auto.components.settings.DfHisEnvironmentPane.dfhisSkillPackUrl',
+              'DFHIS skill pack URL'
+            )}
+          </span>
+          <Input
+            value={value.dfhisSkillPackUrl}
+            onChange={(event) => onChange('dfhisSkillPackUrl', event.target.value)}
+            placeholder={translate(
+              'auto.components.settings.DfHisEnvironmentPane.dfhisSkillPackUrlPlaceholder',
+              'https://.../dfhis-skill-pack.json'
             )}
             disabled={disabled}
           />

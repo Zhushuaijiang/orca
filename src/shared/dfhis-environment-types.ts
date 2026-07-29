@@ -39,6 +39,7 @@ export type DfHisEnvironmentConfigInput = {
   hisMcpUrl?: string
   hisCodeRoot?: string
   archiveWorkspacePath?: string
+  dfhisSkillPackUrl?: string
 }
 
 export type DfHisEnvironmentConfigSnapshot = {
@@ -53,6 +54,7 @@ export type DfHisEnvironmentConfigSnapshot = {
   hasHisMcpToken: boolean
   hisCodeRoot: string
   archiveWorkspacePath: string
+  dfhisSkillPackUrl: string
 }
 
 export type DfHisEnvironmentInstallResult = {

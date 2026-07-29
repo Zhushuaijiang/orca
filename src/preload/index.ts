@@ -2386,7 +2386,11 @@ const api = {
       ipcRenderer.invoke('dfhisEnvironment:getConfig'),
     check: (): Promise<DfHisEnvironmentCheckResult> => ipcRenderer.invoke('dfhisEnvironment:check'),
     install: (config?: DfHisEnvironmentConfigInput): Promise<DfHisEnvironmentInstallResult> =>
-      ipcRenderer.invoke('dfhisEnvironment:install', config)
+      ipcRenderer.invoke('dfhisEnvironment:install', config),
+    updateWorkflowPack: (
+      config?: DfHisEnvironmentConfigInput
+    ): Promise<DfHisEnvironmentInstallResult> =>
+      ipcRenderer.invoke('dfhisEnvironment:updateWorkflowPack', config)
   },
 
   pet: {

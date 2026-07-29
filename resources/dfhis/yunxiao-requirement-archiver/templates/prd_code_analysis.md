@@ -149,7 +149,15 @@ Describe business state changes before and after implementation.
 | --- | --- | --- | --- | --- | --- |
 |  |  |  |  |  |  |
 
-### 5.2 Existing Flow
+### 5.2 Page / Component Ownership Trace
+
+For UI requirements, prove which repository owns the rendered page before editing. The selected task repository may only be a shell/container. Trace routes, menu config, iframe/micro-frontend registration, remote imports, shared package aliases, and screenshot-visible labels. If not a UI requirement, write `Not applicable`.
+
+| Screenshot/Page | Route/Menu Evidence | Mount/Import Evidence | Container Repository | Rendered Component Repository | Conclusion |
+| --- | --- | --- | --- | --- | --- |
+|  |  |  |  |  |  |
+
+### 5.3 Existing Flow
 
 Explain the existing frontend-to-backend flow with concrete evidence.
 
@@ -157,19 +165,19 @@ Explain the existing frontend-to-backend flow with concrete evidence.
 | --- | --- | --- | --- |
 |  |  |  |  |
 
-### 5.3 Affected Frontend Code
+### 5.4 Affected Frontend Code
 
 | File | Lines/Function | Current Responsibility | Required Change | Risk |
 | --- | --- | --- | --- | --- |
 |  |  |  |  |  |
 
-### 5.4 Affected Backend Code
+### 5.5 Affected Backend Code
 
 | File | Lines/Class/Method | Current Responsibility | Required Change | Risk |
 | --- | --- | --- | --- | --- |
 |  |  |  |  |  |
 
-### 5.5 Database, Parameter, Dictionary, And API Impact
+### 5.6 Database, Parameter, Dictionary, And API Impact
 
 Do not use project-local `*-api` / API modules or build/dependency edits as the only implementation path. If the requirement needs API contracts, DTOs, Req classes, Feign clients, or external API fields, locate the corresponding shared module in `df-his-api`, include that repository in the implementation/release plan, record the API jar dependency, and verify every consuming service compiles against the shared API. If the `df-his-api` path or release dependency is unclear, mark it as `待确认` and block for architecture/product confirmation.
 
@@ -180,7 +188,7 @@ Do not use project-local `*-api` / API modules or build/dependency edits as the 
 | Table/Column |  |  |  |  |
 | API |  |  |  |  |
 
-### 5.6 Missing Or External Repositories
+### 5.7 Missing Or External Repositories
 
 If a referenced service/API implementation is absent from the local code root, list it here with the evidence that proves it is required.
 
@@ -275,6 +283,7 @@ Do not claim completion without fresh evidence. Prefer command, screenshot, buil
 - [ ] Confirm Requirement Contract status is `ready_to_build` before code edits.
 - [ ] Record answers to blocking questions in the decision ledger.
 - [ ] Confirm all impacted repositories exist locally or record missing repositories.
+- [ ] For UI work, confirm page/component ownership and mounted repository before edits.
 - [ ] Apply database/parameter/dictionary changes.
 - [ ] Implement backend changes.
 - [ ] Implement frontend changes.

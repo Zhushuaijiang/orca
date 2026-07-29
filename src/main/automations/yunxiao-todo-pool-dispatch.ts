@@ -108,6 +108,7 @@ ${targets}
 - 只有当合同为 ready_to_build 且影响实现的决策已记录后，才能编辑代码。
 - 原生自动化结果上报可用时，返回结构化 yunxiaoRequirementOutcomes，每个 item 包含 itemId、poolStatus、requirementContract、evidence；riskProfile、reviewChecks、methodologyGate 放在 requirementContract 内，不要放到顶层 outcome 字段。
 - 代码根目录优先从 YUNXIAO_CODE_WORKSPACE_ROOT 解析；如果不存在，再使用 YUNXIAO_DEFAULT_CODE_ROOT，最后使用 ORCA_USER_DATA_PATH/dfhis-environment.json 的 hisCodeRoot。
+- UI/流程需求不能只根据当前任务页仓库或工作项服务名决定修改位置。编辑前必须用截图页名、路由/菜单配置、iframe/微前端挂载、组件 import、共享包别名等证据确认实际渲染组件所在仓库；如果当前前端只是容器，必须把被挂载仓库加入 PRD_AND_CODE_ANALYSIS.md 和实现计划。
 - 不要直接编辑已选择/默认代码根目录。代码变更前，在 {requirement_dir}/code/<repo> 下创建或复用需求 worktree，并在每次编辑前运行 skill guard。
 - 如果代码发生变更并需要提交分支，git commit message 必须使用该工作项 claim 中“提交信息”字段的完整云效链接，提交信息只写这个链接，不要改写成 DFHIS 编号、标题、摘要或 conventional commit。
 - 默认低风险需求使用一个 builder 加本地验证。存在未解决决策、UI/流程、API/数据库、需求冲突、验证薄弱或用户明确要求 review 时，升级为 focused review。多仓库、权限/发布、API/数据库加验证薄弱、UI/流程加需求冲突时，升级为强制独立 PRD/architecture/implementation/verifier 多 agent 评审。可用时使用 Orca orchestration 或 agent-dispatch 工具；如果无法独立派发，必须明确说明阻断原因，且不能标记需求安全或完成。必须把每个 reviewer 结论保存在 reviewChecks，并按证据判断，不按多数票判断。

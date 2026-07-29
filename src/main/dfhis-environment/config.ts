@@ -14,6 +14,8 @@ const DEFAULT_HIS_MCP_URL = 'http://192.168.1.10:9020/mcp'
 const DEFAULT_YUNXIAO_MCP_URL =
   'https://openapi-rdc.aliyuncs.com/ai/mcp?toolsets=organization-management,project-management'
 const DEFAULT_ARCHIVE_WORKSPACE_PATH = path.join(homedir(), 'workspace', 'yunxiao')
+const DEFAULT_DFHIS_SKILL_PACK_URL =
+  'http://192.168.1.10:18800/static/downloads/dfhis/dfhis-skill-pack.json'
 
 export type DfHisEnvironmentConfig = {
   gitlabHost: string
@@ -24,6 +26,7 @@ export type DfHisEnvironmentConfig = {
   hisMcpUrl: string
   hisCodeRoot: string
   archiveWorkspacePath: string
+  dfhisSkillPackUrl: string
 }
 
 function userDataPath(): string {
@@ -70,7 +73,10 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
     hisCodeRoot: cleanPath((config as Record<string, unknown>).hisCodeRoot),
     archiveWorkspacePath:
       cleanPath((config as Record<string, unknown>).archiveWorkspacePath) ||
-      DEFAULT_ARCHIVE_WORKSPACE_PATH
+      DEFAULT_ARCHIVE_WORKSPACE_PATH,
+    dfhisSkillPackUrl:
+      cleanString((config as Record<string, unknown>).dfhisSkillPackUrl) ||
+      DEFAULT_DFHIS_SKILL_PACK_URL
   }
 }
 
@@ -100,7 +106,8 @@ function mergeConfigPatch(
     hisMcpToken: cleanString(patch.hisMcpToken) || current.hisMcpToken,
     hisMcpUrl: cleanString(patch.hisMcpUrl) || current.hisMcpUrl,
     hisCodeRoot: cleanPath(patch.hisCodeRoot) || current.hisCodeRoot,
-    archiveWorkspacePath: cleanPath(patch.archiveWorkspacePath) || current.archiveWorkspacePath
+    archiveWorkspacePath: cleanPath(patch.archiveWorkspacePath) || current.archiveWorkspacePath,
+    dfhisSkillPackUrl: cleanString(patch.dfhisSkillPackUrl) || current.dfhisSkillPackUrl
   })
 }
 
@@ -133,6 +140,7 @@ export function snapshotDfHisEnvironmentConfig(
     hisMcpToken: config.hisMcpToken,
     hasHisMcpToken: config.hisMcpToken.length > 0,
     hisCodeRoot: config.hisCodeRoot,
-    archiveWorkspacePath: config.archiveWorkspacePath
+    archiveWorkspacePath: config.archiveWorkspacePath,
+    dfhisSkillPackUrl: config.dfhisSkillPackUrl
   }
 }

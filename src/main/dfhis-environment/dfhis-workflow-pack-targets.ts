@@ -1,4 +1,8 @@
 import type { DfHisEnvironmentPrerequisiteId } from '../../shared/dfhis-environment-types'
+import type {
+  BundledSkillPackDefinition,
+  BundledSkillPackTarget
+} from '../skill-packs/bundled-skill-pack-installer'
 
 export const DFHIS_WORKFLOW_PACK_NAMES = [
   'yunxiao-requirement-archiver',
@@ -9,12 +13,10 @@ export const MANIFEST_FILE_NAME = '.orca-dfhis-workflow-pack.json'
 
 export type DfHisWorkflowPackName = (typeof DFHIS_WORKFLOW_PACK_NAMES)[number]
 
-export type DfHisWorkflowPackTarget = {
-  id: DfHisEnvironmentPrerequisiteId
-  providerTarget: 'agent-skills' | 'codex' | 'claude'
-  label: string
-  relativeDirectory: string[]
-}
+export type DfHisWorkflowPackTarget = BundledSkillPackTarget<
+  DfHisEnvironmentPrerequisiteId,
+  'agent-skills' | 'codex' | 'claude'
+>
 
 type WorkflowPackTargetDefinition = readonly [
   DfHisEnvironmentPrerequisiteId,
@@ -41,3 +43,12 @@ export const WORKFLOW_PACK_TARGETS: readonly DfHisWorkflowPackTarget[] =
     label,
     relativeDirectory: [...directory]
   }))
+
+export const DFHIS_BUNDLED_SKILL_PACK = {
+  id: 'dfhis',
+  label: 'DFHIS workflow pack',
+  bundledResourcePath: BUNDLED_DFHIS_WORKFLOW_PACK_RELATIVE_PATH,
+  manifestFileName: MANIFEST_FILE_NAME,
+  skillNames: DFHIS_WORKFLOW_PACK_NAMES,
+  targets: WORKFLOW_PACK_TARGETS
+} satisfies BundledSkillPackDefinition<DfHisWorkflowPackName, DfHisWorkflowPackTarget>

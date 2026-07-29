@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, rm, stat, writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -16,6 +17,7 @@ import {
   saveDfHisEnvironmentConfig,
   snapshotDfHisEnvironmentConfig
 } from '../dfhis-environment/config'
+import { installRemoteDfHisWorkflowPack } from '../dfhis-environment/remote-workflow-pack-installer'
 
 vi.mock('electron', () => ({
   app: {
@@ -40,6 +42,42 @@ async function createTemporaryHome(): Promise<string> {
   const directory = await mkdtemp(path.join(tmpdir(), 'orca-ygt-env-'))
   temporaryDirectories.push(directory)
   return directory
+}
+
+function sha256(content: string): string {
+  return createHash('sha256').update(content).digest('hex')
+}
+
+async function writeRemoteSkillPackManifest(directory: string): Promise<string> {
+  const yunxiaoSkill = '---\nname: yunxiao-requirement-archiver\n---\nremote yunxiao skill\n'
+  const mergeSkill = '---\nname: his-release-merge\n---\nremote merge skill\n'
+  const manifestPath = path.join(directory, 'dfhis-skill-pack.json')
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        skillPackId: 'dfhis',
+        version: 'test-pack',
+        files: [
+          {
+            path: 'yunxiao-requirement-archiver/SKILL.md',
+            sha256: sha256(yunxiaoSkill),
+            content: yunxiaoSkill
+          },
+          {
+            path: 'his-release-merge/SKILL.md',
+            sha256: sha256(mergeSkill),
+            content: mergeSkill
+          }
+        ]
+      },
+      null,
+      2
+    )}\n`,
+    'utf8'
+  )
+  return manifestPath
 }
 
 describe('dfhis-environment', () => {
@@ -196,6 +234,33 @@ describe('dfhis-environment', () => {
         expect.objectContaining({ id: 'dfhis-workflow-pack-codex', status: 'ok' })
       ])
     )
+  })
+
+  it('installs a manually pulled DFHIS workflow pack and keeps using its cache', async () => {
+    const homeDirectory = await createTemporaryHome()
+    const userDataDirectory = await createTemporaryHome()
+    process.env.ORCA_USER_DATA_PATH = userDataDirectory
+    const manifestPath = await writeRemoteSkillPackManifest(userDataDirectory)
+
+    await expect(installRemoteDfHisWorkflowPack(manifestPath, homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Downloaded DFHIS workflow pack test-pack'),
+        expect.stringContaining('DFHIS workflow pack for Codex')
+      ])
+    )
+
+    await expect(ensureDfHisWorkflowPackInstalled(homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([expect.stringContaining('DFHIS workflow pack for Codex')])
+    )
+    await expect(readFile(getDfHisSkillPath(homeDirectory), 'utf8')).resolves.toContain(
+      'remote yunxiao skill'
+    )
+    await expect(
+      readFile(
+        path.join(homeDirectory, '.codex', 'skills', 'his-release-merge', 'SKILL.md'),
+        'utf8'
+      )
+    ).resolves.toContain('remote merge skill')
   })
 
   it('reports Yunxiao MCP token readiness without exposing the token', () => {

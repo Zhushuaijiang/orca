@@ -96,6 +96,8 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(prompt).toContain('禁止新增、修改或依赖项目内 *-api/API 模块')
     expect(prompt).toContain('必须优先定位并修改共享 API 仓库 df-his-api 中对应模块')
     expect(prompt).toContain('不能只改业务仓库内的 mic-*/agg-*/winbff-* 本地 *-api 模块')
+    expect(prompt).toContain('必须用截图页名、路由/菜单配置、iframe/微前端挂载')
+    expect(prompt).toContain('确认实际渲染组件所在仓库')
   })
 
   it('synthesizes a full Yunxiao URL from category and serial number when the item has no URL', () => {
