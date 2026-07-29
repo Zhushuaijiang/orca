@@ -8,6 +8,7 @@ const projectDir = resolve(import.meta.dirname, '../..')
 const require = createRequire(import.meta.url)
 const { createPackagedRuntimeNodeModuleResources } = require('../packaged-runtime-node-modules.cjs')
 const packageJson = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'))
+const pnpmWorkspace = parse(readFileSync(join(projectDir, 'pnpm-workspace.yaml'), 'utf8'))
 
 describe('Electron runtime package contract', () => {
   it('keeps shared WebGL atlas invalidation reproducible from vendored source', () => {
@@ -25,7 +26,7 @@ describe('Electron runtime package contract', () => {
 
   it('keeps root postinstall as the single Electron binary install owner', () => {
     expect(packageJson.scripts.postinstall).toBe('node config/scripts/rebuild-native-deps.mjs')
-    expect(packageJson.pnpm.onlyBuiltDependencies).not.toContain('electron')
+    expect(pnpmWorkspace.allowBuilds.electron).not.toBe(true)
   })
 
   it('keeps the native Windows registry addon optional and platform-gated', () => {
@@ -40,7 +41,7 @@ describe('Electron runtime package contract', () => {
     expect(packageJson.optionalDependencies['windows-native-registry']).toBe('3.2.2')
     // Why: pnpm installs optional target architectures on every host; the root
     // Windows-only rebuild owns this addon so macOS/Linux never run node-gyp for it.
-    expect(packageJson.pnpm.onlyBuiltDependencies).not.toContain('windows-native-registry')
+    expect(pnpmWorkspace.allowBuilds['windows-native-registry']).not.toBe(true)
     expect(rebuildScript).toContain(
       "rebuildPlatform === 'win32' ? ['windows-native-registry'] : []"
     )
@@ -598,7 +599,6 @@ describe('Electron runtime package contract', () => {
   })
 
   it('keeps terminal rendering regressions in the fast golden E2E gate', () => {
-    const packageScripts = packageJson.scripts
     const goldenWorkflow = parse(
       readFileSync(join(projectDir, '.github/workflows/golden-e2e-experiment.yml'), 'utf8')
     )
@@ -629,22 +629,22 @@ describe('Electron runtime package contract', () => {
     // Why: Windows release evidence is temporarily paused for CI runner PTY readiness.
     const releaseEvidencePlatforms = ['linux', 'mac']
 
-    expect(packageScripts['test:e2e:terminal-rendering-golden']).toContain(
+    expect(packageJson.scripts['test:e2e:terminal-rendering-golden']).toContain(
       '@terminal-rendering-golden'
     )
-    expect(packageScripts['test:e2e:terminal-rendering-golden']).toContain(
+    expect(packageJson.scripts['test:e2e:terminal-rendering-golden']).toContain(
       'terminal-raw-emoji-table-scroll-restore.spec.ts'
     )
-    expect(packageScripts['test:e2e:terminal-rendering-golden']).toContain(
+    expect(packageJson.scripts['test:e2e:terminal-rendering-golden']).toContain(
       'terminal-webgl-atlas-budget.spec.ts'
     )
-    expect(packageScripts['test:e2e:terminal-rendering-golden']).not.toContain(
+    expect(packageJson.scripts['test:e2e:terminal-rendering-golden']).not.toContain(
       'terminal-long-table-scroll-restore.spec.ts'
     )
-    expect(packageScripts['test:e2e:terminal-rendering-release-evidence']).toContain(
+    expect(packageJson.scripts['test:e2e:terminal-rendering-release-evidence']).toContain(
       'terminal-opencode-emoji-table-rendering.spec.ts'
     )
-    expect(packageScripts['test:e2e:terminal-rendering-release-evidence']).toContain(
+    expect(packageJson.scripts['test:e2e:terminal-rendering-release-evidence']).toContain(
       'terminal-long-table-scroll-restore.spec.ts'
     )
     for (const runStep of goldenRunSteps) {

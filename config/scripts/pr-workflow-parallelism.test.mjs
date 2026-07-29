@@ -7,6 +7,7 @@ const dependencyAction = parse(
   readFileSync('.github/actions/install-node-dependencies/action.yml', 'utf8')
 )
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8'))
+const pnpmWorkspace = parse(readFileSync('pnpm-workspace.yaml', 'utf8'))
 const shellContractFiles = [
   'src/main/daemon/shell-ready.test.ts',
   'src/main/providers/local-pty-shell-ready.test.ts',
@@ -135,10 +136,10 @@ describe('PR workflow parallelism', () => {
     expect(dependencyInstall.run).toContain('--ignore-scripts')
     expect(dependencyInstall.run).not.toContain('--os=')
     expect(dependencyInstall.run).not.toContain('--cpu=')
-    expect(packageJson.pnpm.supportedArchitectures.os).toEqual(
+    expect(pnpmWorkspace.supportedArchitectures.os).toEqual(
       expect.arrayContaining(['current', 'win32'])
     )
-    expect(packageJson.pnpm.supportedArchitectures.cpu).toContain('current')
+    expect(pnpmWorkspace.supportedArchitectures.cpu).toContain('current')
     const prepareRuntime = dependencyAction.runs.steps.find(
       (step) => step.name === 'Prepare native runtime'
     )
