@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -24,13 +25,13 @@ import type {
   YunxiaoWorkItemFacet
 } from '../../../shared/types'
 import {
+  getDefaultYunxiaoStatusNames,
   statusSelectionLabel,
   todoPoolStatusSelectionLabel,
   todoPoolStatusLabel,
   YUNXIAO_TODO_POOL_STATUSES,
   type YunxiaoListView,
-  type YunxiaoRelationFilter,
-  type YunxiaoStatusFilterMode
+  type YunxiaoRelationFilter
 } from './task-page-yunxiao-work-item-model'
 
 type TaskPageYunxiaoWorkItemToolbarProps = {
@@ -39,7 +40,6 @@ type TaskPageYunxiaoWorkItemToolbarProps = {
   relation: YunxiaoRelationFilter
   sprintId: string
   statusIds: string[]
-  statusFilterMode: YunxiaoStatusFilterMode
   todoPoolStatus: YunxiaoTodoPoolStatus[]
   queryInput: string
   selectedCount: number
@@ -54,7 +54,6 @@ type TaskPageYunxiaoWorkItemToolbarProps = {
   onRelationChange: (relation: YunxiaoRelationFilter) => void
   onSprintChange: (sprintId: string) => void
   onStatusIdsChange: (statusIds: string[]) => void
-  onStatusFilterModeChange: (mode: YunxiaoStatusFilterMode) => void
   onTodoPoolStatusChange: (statuses: YunxiaoTodoPoolStatus[]) => void
   onQueryInputChange: (query: string) => void
   onQuerySubmit: () => void
@@ -78,7 +77,6 @@ export function TaskPageYunxiaoWorkItemToolbar({
   onRunNextTodoPoolAutomation,
   onSprintChange,
   onStatusIdsChange,
-  onStatusFilterModeChange,
   onTodoPoolStatusChange,
   onViewChange,
   queryInput,
@@ -89,7 +87,6 @@ export function TaskPageYunxiaoWorkItemToolbar({
   sprintId,
   sprints,
   statusIds,
-  statusFilterMode,
   statuses,
   todoPoolStatus,
   view
@@ -121,14 +118,12 @@ export function TaskPageYunxiaoWorkItemToolbar({
             relation={relation}
             sprintId={sprintId}
             statusIds={statusIds}
-            statusFilterMode={statusFilterMode}
             sprints={sprints}
             statuses={statuses}
             onCategoryChange={onCategoryChange}
             onRelationChange={onRelationChange}
             onSprintChange={onSprintChange}
             onStatusIdsChange={onStatusIdsChange}
-            onStatusFilterModeChange={onStatusFilterModeChange}
           />
         ) : (
           <TodoPoolFilters
@@ -259,18 +254,29 @@ function TodoPoolFilters({
   )
 }
 
+function isStatusSelected(statusIds: readonly string[], status: YunxiaoWorkItemFacet): boolean {
+  return statusIds.includes(status.id) || statusIds.includes(status.name)
+}
+
+function toggleStatusSelection(
+  statusIds: readonly string[],
+  status: YunxiaoWorkItemFacet,
+  checked: boolean
+): string[] {
+  const withoutStatus = statusIds.filter((id) => id !== status.id && id !== status.name)
+  return checked ? [...withoutStatus, status.id] : withoutStatus
+}
+
 function WorkItemFilters({
   category,
   onCategoryChange,
   onRelationChange,
   onSprintChange,
   onStatusIdsChange,
-  onStatusFilterModeChange,
   relation,
   sprintId,
   sprints,
   statusIds,
-  statusFilterMode,
   statuses
 }: Pick<
   TaskPageYunxiaoWorkItemToolbarProps,
@@ -278,15 +284,14 @@ function WorkItemFilters({
   | 'relation'
   | 'sprintId'
   | 'statusIds'
-  | 'statusFilterMode'
   | 'sprints'
   | 'statuses'
   | 'onCategoryChange'
   | 'onRelationChange'
   | 'onSprintChange'
   | 'onStatusIdsChange'
-  | 'onStatusFilterModeChange'
 >): JSX.Element {
+  const defaultStatusNames = getDefaultYunxiaoStatusNames(category)
   return (
     <>
       <Select
@@ -354,39 +359,32 @@ function WorkItemFilters({
             size="sm"
             className="h-8 w-[142px] justify-between border-border/50 bg-background/70 px-3 text-xs font-normal"
           >
-            <span className="min-w-0 truncate">
-              {statusSelectionLabel(statuses, statusIds, statusFilterMode, category)}
-            </span>
+            <span className="min-w-0 truncate">{statusSelectionLabel(statuses, statusIds)}</span>
             <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-52">
+          {defaultStatusNames.length > 0 ? (
+            <DropdownMenuLabel inset className="truncate">
+              {translate('auto.components.TaskPage.yunxiaoDefaultStatuses', 'Default: {{value0}}', {
+                value0: defaultStatusNames.join(', ')
+              })}
+            </DropdownMenuLabel>
+          ) : null}
           <DropdownMenuCheckboxItem
-            checked={statusFilterMode === 'default'}
+            checked={statusIds.length === 0}
             onSelect={(event) => event.preventDefault()}
-            onCheckedChange={() => onStatusFilterModeChange('default')}
-          >
-            {statusSelectionLabel(statuses, [], 'default', category)}
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={statusFilterMode === 'custom' && statusIds.length === 0}
-            onSelect={(event) => event.preventDefault()}
-            onCheckedChange={() => {
-              onStatusFilterModeChange('custom')
-              onStatusIdsChange([])
-            }}
+            onCheckedChange={() => onStatusIdsChange([])}
           >
             {translate('auto.components.TaskPage.yunxiaoAllStatuses', 'All statuses')}
           </DropdownMenuCheckboxItem>
           {statuses.map((status) => (
             <DropdownMenuCheckboxItem
               key={status.id}
-              checked={statusFilterMode === 'custom' && statusIds.includes(status.id)}
+              checked={isStatusSelected(statusIds, status)}
               onSelect={(event) => event.preventDefault()}
               onCheckedChange={(checked) =>
-                onStatusIdsChange(
-                  checked ? [...statusIds, status.id] : statusIds.filter((id) => id !== status.id)
-                )
+                onStatusIdsChange(toggleStatusSelection(statusIds, status, checked))
               }
             >
               <span className="min-w-0 flex-1 truncate">{status.name}</span>

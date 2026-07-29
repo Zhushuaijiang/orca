@@ -8,7 +8,6 @@ import type {
 
 export type YunxiaoRelationFilter = 'all' | 'assigned-self' | 'participant-self'
 export type YunxiaoListView = 'work-items' | 'todo-pool'
-export type YunxiaoStatusFilterMode = 'default' | 'custom'
 
 export const YUNXIAO_PAGE_SIZE = 100
 export const YUNXIAO_GRID_CLASS =
@@ -42,7 +41,7 @@ export function formatYunxiaoDate(value: string | null): string {
 }
 
 export function facetLabel(facets: readonly YunxiaoWorkItemFacet[], id: string): string {
-  return facets.find((facet) => facet.id === id)?.name ?? id
+  return facets.find((facet) => facet.id === id || facet.name === id)?.name ?? id
 }
 
 export function workItemIdentity(item: Pick<YunxiaoWorkItem, 'id' | 'serialNumber'>): string {
@@ -110,18 +109,8 @@ export function todoPoolStatusSelectionLabel(
 
 export function statusSelectionLabel(
   statuses: readonly YunxiaoWorkItemFacet[],
-  selectedStatusIds: readonly string[],
-  mode: YunxiaoStatusFilterMode = 'custom',
-  category: YunxiaoWorkItemCategory | 'all' = 'all'
+  selectedStatusIds: readonly string[]
 ): string {
-  if (mode === 'default') {
-    const names = getDefaultYunxiaoStatusNames(category)
-    return names.length > 0
-      ? translate('auto.components.TaskPage.yunxiaoDefaultStatuses', 'Default: {{value0}}', {
-          value0: names.join(', ')
-        })
-      : translate('auto.components.TaskPage.yunxiaoAllStatuses', 'All statuses')
-  }
   if (selectedStatusIds.length === 0) {
     return translate('auto.components.TaskPage.yunxiaoAllStatuses', 'All statuses')
   }
@@ -154,15 +143,4 @@ export function resolveDefaultYunxiaoStatusIds(
     const status = statuses.find((facet) => facet.name === name || facet.id === name)
     return status?.id ?? name
   })
-}
-
-export function resolveYunxiaoStatusFilterIds(args: {
-  category: YunxiaoWorkItemCategory | 'all'
-  mode: YunxiaoStatusFilterMode
-  selectedStatusIds: readonly string[]
-  statuses: readonly YunxiaoWorkItemFacet[]
-}): string[] {
-  return args.mode === 'default'
-    ? resolveDefaultYunxiaoStatusIds(args.statuses, args.category)
-    : [...args.selectedStatusIds]
 }

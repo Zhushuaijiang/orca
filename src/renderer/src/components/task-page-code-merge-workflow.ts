@@ -3,10 +3,8 @@ import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 export type CodeMergeAction = 'import' | 'preflight' | 'start'
 export type CodeMergeComposerAction = Exclude<CodeMergeAction, 'import'>
 
-const CODE_MERGE_BATCH_LABEL = '2026-07-27'
 const CODE_MERGE_SKILL_NAME = '$his-release-merge'
-const CODE_MERGE_SOURCE_ROOT = '/Users/jijiguowangdemac/workspace/dongfang/his/code'
-const CODE_MERGE_WORKSPACE_ROOT = '/Users/jijiguowangdemac/workspace/dongfang/his/release-merge'
+const CODE_MERGE_BATCH_FALLBACK = 'manual'
 
 const ACTION_LABELS: Record<CodeMergeAction, string> = {
   import: '导入清单',
@@ -20,11 +18,25 @@ function toLocalFileUrl(filePath: string): string {
   return `${prefix}${encodeURI(normalized)}`
 }
 
-export function getCodeMergeWorkspaceSeed(action: CodeMergeAction): string {
-  return `his-release-merge-${CODE_MERGE_BATCH_LABEL}-${action}`
+function getPathBasename(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || filePath
+}
+
+export function getCodeMergeBatchLabel(excelPath?: string): string {
+  if (!excelPath) {
+    return CODE_MERGE_BATCH_FALLBACK
+  }
+  const fileName = getPathBasename(excelPath)
+  const match = fileName.match(/(?:^|\D)(20\d{2})[-_](\d{2})[-_](\d{2})(?!\d)/)
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : CODE_MERGE_BATCH_FALLBACK
+}
+
+export function getCodeMergeWorkspaceSeed(action: CodeMergeAction, excelPath?: string): string {
+  return `his-release-merge-${getCodeMergeBatchLabel(excelPath)}-${action}`
 }
 
 export function buildCodeMergePrompt(action: CodeMergeAction, excelPath: string): string {
+  const batchLabel = getCodeMergeBatchLabel(excelPath)
   const actionInstruction =
     action === 'import'
       ? '只解析 Excel 清单并输出服务分类、目标分支映射、非代码项和不明确记录；不要修改任何仓库。'
@@ -47,8 +59,12 @@ export function buildCodeMergePrompt(action: CodeMergeAction, excelPath: string)
     '',
     '输入与规则:',
     `- Excel 清单: ${excelPath}`,
-    `- HIS 源码根目录只读: ${CODE_MERGE_SOURCE_ROOT}`,
-    `- 隔离工作区根目录: ${CODE_MERGE_WORKSPACE_ROOT}`,
+    `- 批次标识: ${batchLabel}`,
+    '- HIS 源码根目录只读: 不要使用预设固定路径；必须按当前执行主机动态发现。',
+    '- 源码根目录发现顺序: 先读取 HIS_SOURCE_ROOT 或 DFHIS_SOURCE_ROOT；再检查 Excel 所在目录及父级附近的 HIS code 聚合目录；再检查当前用户 HOME/USERPROFILE 下常见 workspace 目录。',
+    '- 只有确认目录下存在多个 Git 仓库且能匹配清单服务名后，才把它作为 HIS 源码根目录。',
+    '- 如果找不到源码根目录或匹配出多个候选，停止并请用户提供这台机器上的 HIS 源码根目录。',
+    '- 隔离工作区根目录: 不要使用预设固定路径；开始合并时优先使用 HIS_RELEASE_MERGE_ROOT 或 DFHIS_RELEASE_MERGE_ROOT，否则使用当前会话可写目录下的 his-release-merge/<批次>，且不得位于源码根目录内部。',
     '- 16.1 目标分支: RC_2.16.1_250514',
     '- 15.3 目标分支: release_2.15.3_250515',
     '- 不要在源码根目录下直接修改、提交、重置、清理或推送。',
@@ -75,15 +91,16 @@ export function buildCodeMergeLinkedWorkItem(
     number: 0,
     title: `${ACTION_LABELS[action]} · HIS 发版代码合并`,
     url: toLocalFileUrl(excelPath),
-    yunxiaoIdentifier: `his-release-merge-${CODE_MERGE_BATCH_LABEL}`,
+    yunxiaoIdentifier: `his-release-merge-${getCodeMergeBatchLabel(excelPath)}`,
     linkedContext: {
       provider: 'code-merge',
       version: 1,
       renderedText: [
         `Excel: ${excelPath}`,
         `Skill: ${CODE_MERGE_SKILL_NAME}`,
-        `Source root: ${CODE_MERGE_SOURCE_ROOT}`,
-        `Workspace root: ${CODE_MERGE_WORKSPACE_ROOT}`,
+        `Batch: ${getCodeMergeBatchLabel(excelPath)}`,
+        'Source root: discover on the current execution host',
+        'Workspace root: use env override or a writable isolated session directory',
         '16.1 target: RC_2.16.1_250514',
         '15.3 target: release_2.15.3_250515'
       ].join('\n')

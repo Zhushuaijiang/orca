@@ -8410,7 +8410,7 @@ export default function TaskPage(): React.JSX.Element {
     (action: CodeMergeComposerAction, excelPath: string): void => {
       openModal('new-workspace-composer', {
         linkedWorkItem: buildCodeMergeLinkedWorkItem(action, excelPath),
-        prefilledName: getCodeMergeWorkspaceSeed(action),
+        prefilledName: getCodeMergeWorkspaceSeed(action, excelPath),
         initialPrompt: buildCodeMergePrompt(action, excelPath),
         telemetrySource: 'sidebar'
       })
