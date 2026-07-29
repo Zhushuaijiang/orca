@@ -226,6 +226,12 @@ Keep this short. For focused/mandatory risk, record the main alternatives before
 
 Include migration SQL or config records if known. If not known, write the exact table/parameter/dictionary that must be provided and mark as `待确认`.
 
+| Kind | Table / Parameter / Dictionary | Delivery file | Yunxiao data-change value | Attachment required | Verification |
+| --- | --- | --- | --- | --- | --- |
+|  |  |  |  |  |  |
+
+If the requirement adds or changes parameters, dictionaries, tenant seed data, menus, permissions, or config-table rows, create a real SQL/data patch file and upload it as a Yunxiao attachment. Do not write `数据变更: 无` for these cases.
+
 ### 6.5 API Contract
 
 For every new or changed API:

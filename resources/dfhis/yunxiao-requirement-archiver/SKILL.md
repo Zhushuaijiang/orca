@@ -31,7 +31,7 @@ When this skill triggers from any raw `DFHIS-12345` text or `devops.aliyun.com/p
 - Required local development handoff document: `{当前对话工作目录}/{需求编号}/PRD_AND_CODE_ANALYSIS.md`.
 - Required requirement gate: create a concise Requirement Contract before any code edit. If the contract status is `needs_clarification`, ask 1-3 blocking decision questions and stop until answered.
 - Required audit marker: for manual prompts, todo-pool items, linked work items, and follow-up checks, record `Orca Yunxiao requirement workflow gate` in both the first visible progress message and the `Methodology Gate` section of `PRD_AND_CODE_ANALYSIS.md`.
-- Required Yunxiao MCP/OpenAPI tools for direct archive and post-push completion: `get_current_organization_info`, `get_current_user`, `get_work_item`, `list_workitem_attachments`, `get_workitem_file`, `list_work_item_comments`, `create_work_item_comment`, `get_work_item_type_field_config`, `get_work_item_workflow`, `update_work_item`
+- Required Yunxiao MCP/OpenAPI tools for direct archive and post-push completion: `get_current_organization_info`, `get_current_user`, `get_work_item`, `list_workitem_attachments`, `get_workitem_file`, `list_work_item_comments`, `create_work_item_comment`, `create_workitem_attachment`, `get_work_item_type_field_config`, `get_work_item_workflow`, `update_work_item`
 - Optional legacy HIS MCP tools: `dfhis_agent_chat`, `download_yunxiao_archive`, `comment_yunxiao_workitem`, `git_inspect`
 
 Do not store MCP bearer tokens, SSH passwords, Yunxiao access tokens, model API keys, Jenkins passwords, or DingTalk webhook secrets in this skill. Prefer credentials already saved by DFHIS Setup. For one-off shell usage, pass `YUNXIAO_ACCESS_TOKEN` through the current process environment only.
@@ -129,6 +129,7 @@ Useful options:
 - `--json` prints a machine-readable wrapper with `work_item_id`, `output_dir`, `rows`, and `message`.
 - `run_mcp_archive.py`, `download_mcp_archive.py`, and `comment_mcp_yunxiao.py` remain available for legacy HIS MCP fallback only.
 - `update_yunxiao_completion_fields.py` uses Yunxiao MCP/OpenAPI directly. It reads `raw.json`, resolves the current organization, finds the work item workflow and field config, updates status to `待测试`, adds participants, writes `客户端变更`/`服务端变更`/`数据变更`, then reads the work item back and fails if verification does not match.
+- `upload_yunxiao_attachment.py` uploads the exact bytes of a local file as a Yunxiao attachment and verifies by reading `list_workitem_attachments` back. Use it for SQL/data/config scripts; do not fake a file name by uploading PRD/comment text.
 
 ## Post-Push Yunxiao Completion Harness
 
@@ -143,6 +144,21 @@ Use actual changes to decide field values:
 - `状态`: update to `待测试` after code is pushed and the above fields are written.
 
 The completion harness must run after all branch pushes and before the final chat summary. If it fails because Yunxiao MCP credentials, tools, workflow, or field config are unavailable, report the workflow as incomplete with the exact error. Do not silently fall back to a plain comment or browser screenshot.
+
+## Parameter And Data Change Gate
+
+Treat parameter, dictionary, tenant seed, menu, permission, and config-table changes as data changes even when the Java/TypeScript code has a safe default. Examples include `gy_canshu`, `canshuid`, `tenantid`, dictionary rows, menu routes, feature switches, and any user-supplied `INSERT`/`UPDATE`/`DELETE`.
+
+When such a change is present:
+
+- Create a real SQL or data patch file under the changed repository's existing delivery location, preferably `*/src/main/docs/sql/{DFHIS-ID}.sql` when the repo already uses `docs/sql`.
+- Put the user-provided SQL in that file verbatim unless syntax or idempotency must be fixed; record any fix as a decision in `PRD_AND_CODE_ANALYSIS.md`.
+- Validate the script as far as the environment allows: syntax/text review, `git diff --check`, related compile/build, and exact blocker if no business database is available.
+- Run `scripts/upload_yunxiao_attachment.py --requirement-dir {需求目录} --file {SQL文件}` after the branch is pushed, and verify the returned file name and byte size.
+- Set Yunxiao `数据变更` to the SQL/data patch path or identifier. Do not use `无`.
+- Add the attachment id/file name/size and data-change field value to the Yunxiao comment, the handoff document, and the final summary.
+
+If a parameter/data change is discovered after the work item was already moved to `待测试`, reopen the handoff as a follow-up delivery: update the Requirement Contract, add the SQL/data patch, rerun fresh verification, upload the attachment, update `数据变更`, add a new Yunxiao comment, and only then restate completion.
 
 ## PRD And Code Analysis Handoff
 
@@ -237,8 +253,9 @@ When the user asks to fix a DFHIS requirement:
 10. Verify locally. Prefer `lint`, `build`, or syntax checks from the repo scripts. If private dependencies block verification, record the exact blocker in both the chat summary and the handoff document.
 11. Commit and push the branch from the local machine. If this requirement came from an Orca Yunxiao todo pool claim, the git commit message must be exactly the full Yunxiao URL from the claim's `提交信息` or `链接` field, and nothing else. Do not replace it with only `DFHIS-12345`, the title, a summary, or a conventional commit message. Do not upload patches to `192.168.1.10` for server-side pushing.
 12. After every successful push, comment on the Yunxiao work item with `scripts/comment_yunxiao.py`. The comment must include repository, branch, commit id, changed files, concise fix summary, validation result, handoff document path, and any dependency/test blockers. If commenting fails, treat the workflow as incomplete and report the exact failure.
-13. After the comment, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. The script must update status to `待测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
-14. Report branch name, commit id, pushed remote, Yunxiao comment status/action id, Yunxiao field update status, changed files, validation result, local archive path, PRD/code-analysis document path, and any dependency/test blockers.
+13. If a SQL/data/config script changed, upload the exact script file with `scripts/upload_yunxiao_attachment.py` and verify the attachment list before updating structured fields. If upload or verification fails, treat the workflow as incomplete.
+14. After the comment and any required attachment upload, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. The script must update status to `待测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
+15. Report branch name, commit id, pushed remote, Yunxiao comment status/action id, Yunxiao attachment id/status when relevant, Yunxiao field update status, changed files, validation result, local archive path, PRD/code-analysis document path, and any dependency/test blockers.
 
 ## Local Git Workflow
 
