@@ -273,6 +273,14 @@ Backward compatibility:
 
 Do not claim completion without fresh evidence. Prefer command, screenshot, build, test, or inspected artifact records over prose.
 
+For frontend repositories, record the selected Node version and package manager before lint/build evidence. If the repo has `yarn.lock` and a legacy Vue CLI stack, try Node 18 + Yarn in the isolated worktree before treating missing dependencies as a blocker.
+
+| Environment Item | Value / Command | Result | Side Effects Checked |
+| --- | --- | --- | --- |
+| Node version |  |  |  |
+| Package manager / lock file |  |  |  |
+| Dependency install |  |  |  |
+
 | Type | Command / Artifact | Result | Evidence Link / Output Summary | Collected At |
 | --- | --- | --- | --- | --- |
 |  |  |  |  |  |
@@ -293,6 +301,7 @@ Do not claim completion without fresh evidence. Prefer command, screenshot, buil
 - [ ] Apply database/parameter/dictionary changes.
 - [ ] Implement backend changes.
 - [ ] Implement frontend changes.
+- [ ] For frontend repositories, confirm Node/package-manager selection and guard against dependency-definition churn before local verification.
 - [ ] Run local verification.
 - [ ] Update this document with actual changed files and validation results.
 - [ ] Push branch and comment on Yunxiao if code was changed.

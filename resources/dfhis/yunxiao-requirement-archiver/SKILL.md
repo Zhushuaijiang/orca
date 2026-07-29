@@ -160,6 +160,19 @@ When such a change is present:
 
 If a parameter/data change is discovered after the work item was already moved to `待测试`, reopen the handoff as a follow-up delivery: update the Requirement Contract, add the SQL/data patch, rerun fresh verification, upload the attachment, update `数据变更`, add a new Yunxiao comment, and only then restate completion.
 
+## DFHIS Frontend Verification Environment
+
+Do not stop at `vue-cli-service: command not found` or missing `node_modules` when the repository can be verified with its locked package manager in an isolated worktree.
+
+For DFHIS frontend repositories:
+
+- Inspect `package.json`, lock files, `.nvmrc`, `.node-version`, and existing scripts before choosing commands. Prefer the lock-file package manager: `yarn.lock` means Yarn, `pnpm-lock.yaml` means pnpm, `package-lock.json` means npm.
+- Legacy Vue CLI 3/4 DFHIS frontends with `yarn.lock` usually require Node 18. If `nvm` is available, run `nvm use 18` before `yarn install` and record the exact Node/npm/yarn versions. Do not run verification on the host's default Node 20/22 and then report generic dependency failure.
+- When using corepack, prevent package-definition churn: set `COREPACK_ENABLE_AUTO_PIN=0`. If corepack or another tool adds a `packageManager` field, remove that unintended change before continuing and record it as an installation side effect.
+- Install only inside `{需求目录}/code/<repo>` or another approved isolated worktree, never in the original selected code root. Use frozen/locked installs such as `corepack yarn install --frozen-lockfile --force`; avoid changing `package.json`, lock files, or dependency definitions to make validation pass.
+- After install/build scripts, run `git status --short` and revert only generated side effects you created, such as version stamping in `public/config.json`; leave ignored `node_modules/` or `dist/` as local artifacts.
+- If full lint is blocked by unrelated historical files, run focused lint or syntax checks on the requirement's changed/affected files, then run the closest build script. Record both the full-lint blocker and the focused/build evidence in `PRD_AND_CODE_ANALYSIS.md`.
+
 ## PRD And Code Analysis Handoff
 
 After downloading the archive, create one durable handoff document named `PRD_AND_CODE_ANALYSIS.md` in the requirement-id directory. Use `templates/prd_code_analysis.md` as the required structure.
@@ -250,7 +263,7 @@ When the user asks to fix a DFHIS requirement:
 7. Clone or update only the target repository on the local machine using local Git credentials. Use `scripts/prepare_local_worktree.py` to run `git clone`, `git fetch`, and `git worktree add`. Put requirement-specific code worktrees under `{需求目录}/code/{repo-name}` so requirement evidence and code stay together. Branch naming is based on Yunxiao work-item type: defects/bugs use `hotfix-DFHIS-12345`; requirements/features use `feature-DFHIS-12345`. If the type is unknown, inspect `raw.json`/`requirement.md` first instead of guessing.
 8. Before every code edit, run `scripts/guard_code_edit.py --requirement-dir {需求目录} {待编辑文件...}` and confirm it prints `ok`. This is mandatory even when the target file path looks obvious. The guard must validate that each edited path is under `{需求目录}/code/<repo>` and that the branch is `feature-DFHIS-12345` or `hotfix-DFHIS-12345`; if it fails, fix the worktree setup first and do not edit the original workspace.
 9. Implement the smallest code change that matches the evidence and the handoff document. Do not modify unrelated repositories or formatting. Do not modify `build.gradle`/`settings.gradle`/`pom.xml`/dependency lock files, switch to `compile project(...)`, or touch project-local `*-api` / API modules as the only contract change. If API contract changes are required, update the matching `df-his-api` module and include API jar/release dependency plus downstream compile verification in the handoff; if that path is unclear, stop and update the contract as `needs_clarification` or `blocked`.
-10. Verify locally. Prefer `lint`, `build`, or syntax checks from the repo scripts. If private dependencies block verification, record the exact blocker in both the chat summary and the handoff document.
+10. Verify locally. Prefer `lint`, `build`, or syntax checks from the repo scripts. For frontend repositories, follow the DFHIS frontend verification environment gate above before declaring dependency/tooling blockers. If private dependencies still block verification after the correct Node/package-manager attempt, record the exact blocker in both the chat summary and the handoff document.
 11. Commit and push the branch from the local machine. If this requirement came from an Orca Yunxiao todo pool claim, the git commit message must be exactly the full Yunxiao URL from the claim's `提交信息` or `链接` field, and nothing else. Do not replace it with only `DFHIS-12345`, the title, a summary, or a conventional commit message. Do not upload patches to `192.168.1.10` for server-side pushing.
 12. After every successful push, comment on the Yunxiao work item with `scripts/comment_yunxiao.py`. The comment must include repository, branch, commit id, changed files, concise fix summary, validation result, handoff document path, and any dependency/test blockers. If commenting fails, treat the workflow as incomplete and report the exact failure.
 13. If a SQL/data/config script changed, upload the exact script file with `scripts/upload_yunxiao_attachment.py` and verify the attachment list before updating structured fields. If upload or verification fails, treat the workflow as incomplete.
