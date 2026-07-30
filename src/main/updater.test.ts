@@ -1,5 +1,5 @@
 /* eslint-disable max-lines */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appMock,
@@ -208,6 +208,10 @@ describe('updater', () => {
     })
     vi.unstubAllGlobals()
     vi.useRealTimers()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('does not load or configure electron-updater during dev setup', async () => {
@@ -1277,9 +1281,13 @@ describe('updater', () => {
     resolveStableCheck()
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.35', 2, {
-        includePrerelease: true
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.4.35',
+        2,
+        expect.objectContaining({
+          includePrerelease: true
+        })
+      )
       expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2)
     })
     expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
@@ -1389,9 +1397,13 @@ describe('updater', () => {
     checkForUpdatesFromMenu({ includePrerelease: true })
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.3.17', 2, {
-        includePrerelease: true
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.3.17',
+        2,
+        expect.objectContaining({
+          includePrerelease: true
+        })
+      )
       expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
         provider: 'generic',
         url: 'https://github.com/stablyai/orca/releases/download/v1.3.18-rc.1'
@@ -1415,10 +1427,14 @@ describe('updater', () => {
     checkForUpdatesFromMenu({ includePerfPrerelease: true })
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.120', 2, {
-        includePrerelease: true,
-        releaseFilter: 'perf'
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.4.120',
+        2,
+        expect.objectContaining({
+          includePrerelease: true,
+          releaseFilter: 'perf'
+        })
+      )
       expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
         provider: 'generic',
         url: 'https://github.com/stablyai/orca/releases/download/v1.4.121-rc.6.perf'
@@ -1448,10 +1464,14 @@ describe('updater', () => {
         userInitiated: true
       })
     })
-    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.120', 2, {
-      includePrerelease: true,
-      releaseFilter: 'perf'
-    })
+    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+      '1.4.120',
+      2,
+      expect.objectContaining({
+        includePrerelease: true,
+        releaseFilter: 'perf'
+      })
+    )
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
     expect(autoUpdaterMock.setFeedURL.mock.calls.length).toBe(setupFeedUrlCalls)
   })
@@ -1483,9 +1503,14 @@ describe('updater', () => {
     await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenNthCalledWith(2, '1.4.120', 1, {
-        includePrerelease: false
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenNthCalledWith(
+        2,
+        '1.4.120',
+        1,
+        expect.objectContaining({
+          includePrerelease: false
+        })
+      )
       expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
         provider: 'generic',
         url: 'https://github.com/stablyai/orca/releases/download/v1.4.121'
@@ -1512,9 +1537,13 @@ describe('updater', () => {
         userInitiated: true
       })
     })
-    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.120-rc.5', 2, {
-      includePrerelease: true
-    })
+    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+      '1.4.120-rc.5',
+      2,
+      expect.objectContaining({
+        includePrerelease: true
+      })
+    )
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
   })
 
@@ -2473,9 +2502,13 @@ describe('updater', () => {
     checkForUpdatesFromMenu()
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.3.17-rc.1', 2, {
-        includePrerelease: true
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.3.17-rc.1',
+        2,
+        expect.objectContaining({
+          includePrerelease: true
+        })
+      )
       expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
         provider: 'generic',
         url: 'https://github.com/stablyai/orca/releases/download/v1.3.17-rc.2'
@@ -2804,9 +2837,13 @@ describe('updater', () => {
     await vi.waitFor(() => {
       expect(fetchNewerReleaseTagsMock).toHaveBeenCalledTimes(1)
     })
-    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.26', 1, {
-      includePrerelease: false
-    })
+    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+      '1.4.26',
+      1,
+      expect.objectContaining({
+        includePrerelease: false
+      })
+    )
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
     expect(setLastUpdateCheckAt).not.toHaveBeenCalled()
 
@@ -2880,9 +2917,13 @@ describe('updater', () => {
       await vi.waitFor(() => {
         expect(fetchNewerReleaseTagsMock).toHaveBeenCalledTimes(1)
       })
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(version, candidateLimit, {
-        includePrerelease
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        version,
+        candidateLimit,
+        expect.objectContaining({
+          includePrerelease
+        })
+      )
       expect(setPendingUpdateNudgeId).toHaveBeenCalledWith('campaign-1')
       expect(setPendingUpdateNudgeId).not.toHaveBeenCalledWith(null)
       expect(setDismissedUpdateNudgeId).not.toHaveBeenCalled()
@@ -3706,9 +3747,13 @@ describe('updater', () => {
     checkForUpdatesFromMenu()
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.3.17', 1, {
-        includePrerelease: false
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.3.17',
+        1,
+        expect.objectContaining({
+          includePrerelease: false
+        })
+      )
       expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
     })
     expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
@@ -3731,15 +3776,45 @@ describe('updater', () => {
     checkForUpdatesFromMenu({ includePrerelease: true })
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.3.17', 2, {
-        includePrerelease: true
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.3.17',
+        2,
+        expect.objectContaining({
+          includePrerelease: true
+        })
+      )
       expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
     })
     expect(autoUpdaterMock.allowPrerelease).toBe(true)
     expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
       provider: 'generic',
       url: 'https://github.com/stablyai/orca/releases/download/v1.3.18-rc.1'
+    })
+  })
+
+  it('does not check public releases when the packaged release feed is disabled', async () => {
+    vi.stubEnv('ORCA_RELEASE_FEED_MODE', 'disabled')
+    const send = vi.fn()
+    const { setupAutoUpdater, checkForUpdates, checkForUpdatesFromMenu } = await import('./updater')
+
+    setupAutoUpdater({ webContents: { send } } as never, {
+      getLastUpdateCheckAt: () => null
+    })
+
+    expect(autoUpdaterMock.setFeedURL).not.toHaveBeenCalled()
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+    expect(fetchNudgeMock).not.toHaveBeenCalled()
+    expect(powerMonitorOnMock).not.toHaveBeenCalled()
+
+    checkForUpdates()
+    await Promise.resolve()
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+
+    checkForUpdatesFromMenu()
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
+    expect(send).toHaveBeenCalledWith('updater:status', {
+      state: 'not-available',
+      userInitiated: true
     })
   })
 })

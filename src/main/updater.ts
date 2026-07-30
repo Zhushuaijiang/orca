@@ -1,6 +1,7 @@
 /* eslint-disable max-lines */
 import { app, BrowserWindow, powerMonitor } from 'electron'
 import { is } from '@electron-toolkit/utils'
+import { join } from 'node:path'
 import type { UpdateCheckOptions, UpdateStatus } from '../shared/types'
 import type {
   RemoteServerUpdateInstallResult,
@@ -36,6 +37,11 @@ import {
   fetchNewerReleaseTagsWithReadiness,
   getReleaseDownloadUrl
 } from './updater-prerelease-feed'
+import {
+  resolveReleaseFeedConfig,
+  type GithubReleaseFeedConfig,
+  type ReleaseFeedConfig
+} from './updater-release-feed-config'
 import { fetchNudge, shouldApplyNudge } from './updater-nudge'
 import {
   failServeUpdateHandoff,
@@ -143,6 +149,7 @@ let autoUpdater: ElectronAutoUpdater | null = null
 let activeUpdateSource: 'release' | 'local' = 'release'
 let activeLocalBuildFeed: LocalBuildFeed | null = null
 let localBuildSelectionInProgress = false
+let releaseFeedConfig: ReleaseFeedConfig = resolveReleaseFeedConfig()
 
 function getAutoUpdater(): ElectronAutoUpdater {
   if (!autoUpdater) {
@@ -171,6 +178,29 @@ function restoreReleaseUpdateSource(): void {
     autoUpdater.allowDowngrade = false
     autoUpdater.disableDifferentialDownload = false
   }
+}
+
+function getPackageJsonPath(): string | undefined {
+  try {
+    return join(app.getAppPath(), 'package.json')
+  } catch {
+    return undefined
+  }
+}
+
+function isReleaseFeedDisabled(): boolean {
+  return releaseFeedConfig.mode === 'disabled'
+}
+
+function getGithubReleaseFeed(): GithubReleaseFeedConfig {
+  if (releaseFeedConfig.mode === 'github') {
+    return releaseFeedConfig
+  }
+  const defaultFeed = resolveReleaseFeedConfig(undefined, {})
+  if (defaultFeed.mode !== 'github') {
+    throw new Error('Release feed is disabled')
+  }
+  return defaultFeed
 }
 
 function sendLocalBuildErrorAndRestore(message: string, userInitiated?: boolean): void {
@@ -1109,17 +1139,24 @@ function markMissingManifestPrereleaseFallbackPromiseHandled(message: string): v
 async function pinDefaultReleaseFeed(
   variant: UpdateCheckVariant = 'default'
 ): Promise<ReleaseFeedPreflightResult> {
+  if (isReleaseFeedDisabled()) {
+    clearPrereleaseFallbackContext()
+    clearPublishingWindowLastGoodCheck()
+    return 'not-available'
+  }
   const autoUpdater = getAutoUpdater()
   // Why: the latest/download redirect can move between check and download, so pin the concrete tag (prerelease users resolve any channel, stable only stable).
   const currentVersion = app.getVersion()
   const isPerfCheck = variant === 'perf'
   const includePrerelease =
     isPerfCheck || includePrereleaseActive || isPrereleaseVersion(currentVersion)
+  const releaseFeed = getGithubReleaseFeed()
   const releaseTagsResult = await fetchNewerReleaseTagsWithReadiness(
     currentVersion,
     includePrerelease ? 2 : 1,
     {
       includePrerelease,
+      releaseFeed,
       ...(isPerfCheck ? { releaseFilter: 'perf' as const } : {})
     }
   )
@@ -1143,7 +1180,7 @@ async function pinDefaultReleaseFeed(
   // Why: console.info is captured by Console.app/--enable-logging — our only field visibility into the updater.
   if (newerTag) {
     clearPublishingWindowLastGoodCheck()
-    const url = getReleaseDownloadUrl(newerTag)
+    const url = getReleaseDownloadUrl(newerTag, releaseFeed)
     console.info(
       `[updater] release feed pinned: current=${currentVersion} includePrerelease=${includePrerelease} → ${url}`
     )
@@ -1153,7 +1190,7 @@ async function pinDefaultReleaseFeed(
     clearPrereleaseFallbackContext()
     if (releaseTagsResult.lastGoodTag) {
       // Why: during a publish window the newest tag is unsafe; a verified last-good concrete feed lets electron-updater emit a real result.
-      const url = getReleaseDownloadUrl(releaseTagsResult.lastGoodTag)
+      const url = getReleaseDownloadUrl(releaseTagsResult.lastGoodTag, releaseFeed)
       console.info(
         `[updater] release feed pinned to last-good: current=${currentVersion} includePrerelease=${includePrerelease} → ${url}`
       )
@@ -1195,7 +1232,7 @@ async function pinDefaultReleaseFeed(
   } else {
     clearPrereleaseFallbackContext()
     clearPublishingWindowLastGoodCheck()
-    const url = 'https://github.com/stablyai/orca/releases/latest/download'
+    const url = releaseFeed.latestDownloadUrl
     console.info(
       `[updater] release feed fallback: current=${currentVersion} includePrerelease=${includePrerelease} → ${url}`
     )
@@ -1232,7 +1269,7 @@ function retryPrereleaseFallbackAfterMissingManifest(
     source === 'promise' ? { failureKey, error: sourceError } : null
   pendingPrereleaseFallback.fallbackCheckingForUpdateSeen = false
   const { primaryTag, fallbackTag } = pendingPrereleaseFallback
-  const url = getReleaseDownloadUrl(fallbackTag)
+  const url = getReleaseDownloadUrl(fallbackTag, getGithubReleaseFeed())
   console.info(
     `[updater] prerelease manifest missing for ${primaryTag}; retrying once against ${url}`
   )
@@ -1266,6 +1303,9 @@ function retryPrereleaseFallbackAfterMissingManifest(
 function runBackgroundUpdateCheck(
   nudgeId: string | null = getPersistedPendingUpdateNudgeId()
 ): boolean {
+  if (isReleaseFeedDisabled()) {
+    return false
+  }
   if (activeUpdateSource === 'local' || localBuildSelectionInProgress) {
     return false
   }
@@ -1347,6 +1387,11 @@ export function checkForUpdatesFromMenu(options?: UpdateCheckOptions): void {
     activeUpdateSource === 'local' &&
     (currentStatus.state === 'checking' || currentStatus.state === 'downloading')
   ) {
+    return
+  }
+  if (isReleaseFeedDisabled()) {
+    restoreReleaseUpdateSource()
+    sendStatus({ state: 'not-available', userInitiated: true })
     return
   }
   restoreReleaseUpdateSource()
@@ -1500,6 +1545,9 @@ async function checkForUpdateNudge(): Promise<void> {
   if (!app.isPackaged || is.dev) {
     return
   }
+  if (isReleaseFeedDisabled()) {
+    return
+  }
   if (nudgeCheckInFlight) {
     return
   }
@@ -1592,6 +1640,7 @@ export function setupAutoUpdater(
     installMode?: UpdateInstallMode
   }
 ): void {
+  releaseFeedConfig = resolveReleaseFeedConfig(getPackageJsonPath())
   mainWindowRef = mainWindow
   onBeforeQuitCleanup = opts?.onBeforeQuit ?? null
   persistLastUpdateCheckAt = opts?.setLastUpdateCheckAt ?? null
@@ -1642,10 +1691,10 @@ export function setupAutoUpdater(
   // Security: never re-add a verifyUpdateCodeSignature override — a no-op disables electron-updater's built-in Authenticode check and accepts any installer.
 
   // Why: generic provider avoids the native GitHub provider's RC-channel filtering; per-check repinning to a concrete /releases/download/<tag>/ URL avoids /latest redirect drift between check and download.
-  if (activeUpdateSource === 'release') {
+  if (activeUpdateSource === 'release' && releaseFeedConfig.mode === 'github') {
     autoUpdater.setFeedURL({
       provider: 'generic',
-      url: 'https://github.com/stablyai/orca/releases/latest/download'
+      url: releaseFeedConfig.latestDownloadUrl
     })
   }
 
@@ -1697,8 +1746,14 @@ export function setupAutoUpdater(
     }
   })
 
-  void checkForUpdateNudge()
-  scheduleUpdateNudgeCheck()
+  if (!isReleaseFeedDisabled()) {
+    void checkForUpdateNudge()
+    scheduleUpdateNudgeCheck()
+  }
+
+  if (isReleaseFeedDisabled()) {
+    return
+  }
 
   const checkDailyOnWake = () => {
     void checkForUpdateNudge()

@@ -191,6 +191,49 @@ describe('fetchNewerReleaseTag', () => {
     expect(await fetchNewerReleaseTag('1.3.19-rc.6')).toBe(null)
   })
 
+  it('uses a configured GitHub-compatible release feed', async () => {
+    netFetchMock.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === 'https://updates.example.test/releases.atom') {
+        return Promise.resolve({
+          ok: true,
+          text: () =>
+            Promise.resolve(
+              '<feed><entry><link href="https://updates.example.test/releases/tag/v1.4.1"/></entry></feed>'
+            )
+        })
+      }
+      if (url === 'https://updates.example.test/releases/download/v1.4.1/latest-mac.yml') {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(buildManifest('v1.4.1'))
+        })
+      }
+      if (
+        init?.method === 'HEAD' &&
+        url === 'https://updates.example.test/releases/download/v1.4.1/Orca-1.4.1-arm64-mac.zip'
+      ) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve('')
+        })
+      }
+      return Promise.resolve({ ok: false, text: () => Promise.resolve('') })
+    })
+
+    const { fetchNewerReleaseTag } = await import('./updater-prerelease-feed')
+
+    await expect(
+      fetchNewerReleaseTag('1.4.0', {
+        releaseFeed: {
+          mode: 'github',
+          atomUrl: 'https://updates.example.test/releases.atom',
+          downloadBaseUrl: 'https://updates.example.test/releases/download',
+          latestDownloadUrl: 'https://updates.example.test/releases/latest/download'
+        }
+      })
+    ).resolves.toBe('v1.4.1')
+  })
+
   it('picks semver-newest across a mixed-order feed', async () => {
     // atom feed sort by publish time, not version — verify we pick by semver
     respondWithAtom(['v1.2.0', 'v1.3.19', 'v1.3.19-rc.6', 'v1.3.20-rc.1', 'v1.3.18'])

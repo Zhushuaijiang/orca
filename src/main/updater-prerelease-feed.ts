@@ -1,19 +1,27 @@
 import { net } from 'electron'
 import { parse } from 'yaml'
 import { compareVersions, isPrereleaseVersion, isValidVersion } from './updater-fallback'
+import type { GithubReleaseFeedConfig } from './updater-release-feed-config'
 
-const ATOM_FEED_URL = 'https://github.com/stablyai/orca/releases.atom'
-const RELEASES_DOWNLOAD_BASE = 'https://github.com/stablyai/orca/releases/download'
+const DEFAULT_RELEASE_FEED: GithubReleaseFeedConfig = {
+  mode: 'github',
+  atomUrl: 'https://github.com/stablyai/orca/releases.atom',
+  downloadBaseUrl: 'https://github.com/stablyai/orca/releases/download',
+  latestDownloadUrl: 'https://github.com/stablyai/orca/releases/latest/download'
+}
 const FETCH_TIMEOUT_MS = 5000
 const MAX_MANIFEST_PROBE_CANDIDATES = 6
 
 // Why: GitHub's atom feed lists every release (prerelease or stable) in a
 // single flat list. Each entry has a /releases/tag/<tag> URL we can mine
 // without any channel filtering.
-const TAG_HREF_RE = /href="https:\/\/github\.com\/stablyai\/orca\/releases\/tag\/([^"]+)"/g
+const TAG_HREF_RE = /href="[^"]*\/releases\/tag\/([^"]+)"/g
 
-export function getReleaseDownloadUrl(tag: string): string {
-  return `${RELEASES_DOWNLOAD_BASE}/${encodeURIComponent(tag)}`
+export function getReleaseDownloadUrl(
+  tag: string,
+  releaseFeed: GithubReleaseFeedConfig = DEFAULT_RELEASE_FEED
+): string {
+  return `${releaseFeed.downloadBaseUrl}/${encodeURIComponent(tag)}`
 }
 
 function getPlatformManifestName(): string {
@@ -26,12 +34,16 @@ function getPlatformManifestName(): string {
   return 'latest.yml'
 }
 
-function getReleaseManifestUrl(tag: string): string {
-  return `${getReleaseDownloadUrl(tag)}/${getPlatformManifestName()}`
+function getReleaseManifestUrl(tag: string, releaseFeed: GithubReleaseFeedConfig): string {
+  return `${getReleaseDownloadUrl(tag, releaseFeed)}/${getPlatformManifestName()}`
 }
 
-function getReleaseAssetUrl(tag: string, assetName: string): string {
-  return `${getReleaseDownloadUrl(tag)}/${encodeURIComponent(assetName)}`
+function getReleaseAssetUrl(
+  tag: string,
+  assetName: string,
+  releaseFeed: GithubReleaseFeedConfig
+): string {
+  return `${getReleaseDownloadUrl(tag, releaseFeed)}/${encodeURIComponent(assetName)}`
 }
 
 export function normalizeTagToVersion(tag: string): string {
@@ -55,9 +67,13 @@ export function isPerfPrereleaseTag(tag: string): boolean {
   )
 }
 
-async function fetchReleaseFeedTags(): Promise<ReleaseFeedTag[] | null> {
+async function fetchReleaseFeedTags(
+  releaseFeed: GithubReleaseFeedConfig
+): Promise<ReleaseFeedTag[] | null> {
   try {
-    const res = await net.fetch(ATOM_FEED_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+    const res = await net.fetch(releaseFeed.atomUrl, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+    })
     if (!res.ok) {
       return null
     }
@@ -105,11 +121,15 @@ function getManifestAssetNames(manifestText: string): string[] {
 
 type ReleaseReadiness = 'ready' | 'not-ready' | 'unavailable'
 
-async function isReleaseAssetAvailable(tag: string, assetName: string): Promise<ReleaseReadiness> {
+async function isReleaseAssetAvailable(
+  tag: string,
+  assetName: string,
+  releaseFeed: GithubReleaseFeedConfig
+): Promise<ReleaseReadiness> {
   try {
     const assetUrl = assetName.startsWith('http')
       ? assetName
-      : getReleaseAssetUrl(tag, assetName.split('/').findLast(Boolean) ?? assetName)
+      : getReleaseAssetUrl(tag, assetName.split('/').findLast(Boolean) ?? assetName, releaseFeed)
     const res = await net.fetch(assetUrl, {
       method: 'HEAD',
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
@@ -120,12 +140,15 @@ async function isReleaseAssetAvailable(tag: string, assetName: string): Promise<
   }
 }
 
-async function getPlatformManifestReadiness(tag: string): Promise<ReleaseReadiness> {
+async function getPlatformManifestReadiness(
+  tag: string,
+  releaseFeed: GithubReleaseFeedConfig
+): Promise<ReleaseReadiness> {
   try {
     // Why: cancelled/draft releases can appear in GitHub's atom feed before
     // they have updater manifests or the ZIP/exe/AppImage assets referenced by
     // those manifests. Pinning to those tags makes download clicks 404.
-    const manifestUrl = getReleaseManifestUrl(tag)
+    const manifestUrl = getReleaseManifestUrl(tag, releaseFeed)
     const res = await net.fetch(manifestUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
     if (res.status === 404) {
       return 'not-ready'
@@ -144,7 +167,7 @@ async function getPlatformManifestReadiness(tag: string): Promise<ReleaseReadine
       return 'not-ready'
     }
     const assetResults = await Promise.all(
-      assetNames.map((assetName) => isReleaseAssetAvailable(tag, assetName))
+      assetNames.map((assetName) => isReleaseAssetAvailable(tag, assetName, releaseFeed))
     )
     return assetResults.includes('not-ready')
       ? 'not-ready'
@@ -172,6 +195,7 @@ async function getPlatformManifestReadiness(tag: string): Promise<ReleaseReadine
 type FetchNewerReleaseTagOptions = {
   includePrerelease?: boolean
   releaseFilter?: 'perf'
+  releaseFeed?: GithubReleaseFeedConfig
 }
 
 export type FetchNewerReleaseTagsResult =
@@ -204,7 +228,8 @@ export async function fetchNewerReleaseTagsWithReadiness(
   if (maxTags <= 0) {
     return { tags: [], state: 'no-newer' }
   }
-  const tags = await fetchReleaseFeedTags()
+  const releaseFeed = options.releaseFeed ?? DEFAULT_RELEASE_FEED
+  const tags = await fetchReleaseFeedTags(releaseFeed)
   if (!tags) {
     return { tags: [], state: 'unavailable', unavailableReason: 'feed' }
   }
@@ -234,7 +259,7 @@ export async function fetchNewerReleaseTagsWithReadiness(
     probeCandidates.map(async ({ tag, version }) => ({
       tag,
       version,
-      readiness: await getPlatformManifestReadiness(tag)
+      readiness: await getPlatformManifestReadiness(tag, releaseFeed)
     }))
   )
 

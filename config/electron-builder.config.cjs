@@ -18,6 +18,23 @@ const { verifyPackagedPluginResources } = require('./scripts/verify-packaged-plu
 const isMacRelease = process.env.ORCA_MAC_RELEASE === '1'
 const isLinuxArm64Release = process.env.ORCA_LINUX_ARM64_RELEASE === '1'
 const localBuildVersion = isMacRelease ? undefined : process.env.ORCA_LOCAL_BUILD_VERSION
+const explicitReleaseFeedMode = process.env.ORCA_RELEASE_FEED_MODE
+const hasDfhisResources = existsSync(resolve(__dirname, '..', 'resources', 'dfhis'))
+const releaseFeedMode = explicitReleaseFeedMode || (hasDfhisResources ? 'disabled' : undefined)
+const releaseFeedMetadata = releaseFeedMode
+  ? {
+      mode: releaseFeedMode,
+      ...(process.env.ORCA_RELEASE_ATOM_URL
+        ? { atomUrl: process.env.ORCA_RELEASE_ATOM_URL }
+        : {}),
+      ...(process.env.ORCA_RELEASE_DOWNLOAD_BASE_URL
+        ? { downloadBaseUrl: process.env.ORCA_RELEASE_DOWNLOAD_BASE_URL }
+        : {}),
+      ...(process.env.ORCA_RELEASE_LATEST_DOWNLOAD_URL
+        ? { latestDownloadUrl: process.env.ORCA_RELEASE_LATEST_DOWNLOAD_URL }
+        : {})
+    }
+  : undefined
 const appId = 'com.stablyai.orca'
 const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
@@ -73,7 +90,14 @@ const winSpeechNativeResource = {
 module.exports = {
   appId,
   productName: 'Orca',
-  ...(localBuildVersion ? { extraMetadata: { version: localBuildVersion } } : {}),
+  ...(localBuildVersion || releaseFeedMetadata
+    ? {
+        extraMetadata: {
+          ...(localBuildVersion ? { version: localBuildVersion } : {}),
+          ...(releaseFeedMetadata ? { orca: { releaseFeed: releaseFeedMetadata } } : {})
+        }
+      }
+    : {}),
   directories: {
     buildResources: 'resources/build'
   },
