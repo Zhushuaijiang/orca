@@ -1,0 +1,52 @@
+# ==============================================================
+# Nacos 配置示例：df-demo-service 服务独立配置
+#
+# DataId  : df-demo-service-prod.yml
+# Group   : DEFAULT_GROUP
+# Namespace: 按实际环境对应
+#
+# 此文件为"应该放入 Nacos"的内容示例。
+# 不要将此文件提交为 Spring 配置文件，也不要在代码中直接引用它。
+# 密码字段建议配合 Nacos 加密插件（如 jasypt 或 Nacos 官方加密）存储。
+# ==============================================================
+
+spring:
+  datasource:
+    # Doris 走 MySQL 协议，切换真实数据库时修改 url 和 driver-class-name
+    url: jdbc:mysql://doris.internal:9030/demo_db?useUnicode=true&characterEncoding=utf8&connectTimeout=3000&socketTimeout=30000
+    username: app_user
+    password: ENC(your-encrypted-password)
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # 生产不要用 update，改用 validate 或 none
+      ddl-auto: validate
+    show-sql: false
+
+df:
+  core:
+    web:
+      logging:
+        enabled: true
+        # 命中 body-path-patterns 的接口，请求体/响应体最多记录前 4096 个字符
+        max-body-length: 4096
+        # 这些请求头仍会记录键名，但值会被替换为 ***，用于避免 token/cookie 等敏感信息泄露
+        masked-header-names:
+          - Authorization
+          - Cookie
+          - Set-Cookie
+        body-path-patterns:
+          # 仅在临时排障或联调阶段为少量接口开启 body 日志
+          - /api/base/patients
+          - /api/base/patients/**
+  security:
+    jwt:
+      issuer: df-ygt
+      # 生产必须替换为强随机密钥（≥32 字节），建议加密存储
+      secret: ENC(your-encrypted-jwt-secret)
+      expiration: 2h
+  jpa:
+    max-row-limit:
+      # 生产按实际业务量调整
+      max: 2000
+      level: error

@@ -1,0 +1,13 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    container_name: df-demo-redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: df-demo-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"

@@ -88,6 +88,7 @@ describe('prepareYunxiaoTodoPoolRun', () => {
 
     expect(prompt).toContain('提交信息: https://devops.aliyun.com/projex/bug/DFHIS-31704')
     expect(prompt).toContain('链接: https://devops.aliyun.com/projex/bug/DFHIS-31704')
+    expect(prompt).toContain('工作流: dfhis-requirement-gate')
     expect(prompt).toContain(
       'git commit message 必须使用该工作项 claim 中“提交信息”字段的完整云效链接'
     )
@@ -107,5 +108,24 @@ describe('prepareYunxiaoTodoPoolRun', () => {
 
     expect(prompt).toContain('提交信息: https://devops.aliyun.com/projex/bug/DFHIS-31762')
     expect(prompt).toContain('链接: https://devops.aliyun.com/projex/bug/DFHIS-31762')
+  })
+
+  it('adds the YGT harness profile for 医共体 page governance items', () => {
+    const prompt = preparePrompt(
+      makeYunxiaoWorkItem({
+        serialNumber: 'DFHIS-31812',
+        category: 'Req',
+        typeName: '需求',
+        title: '公告管理页面体验优化',
+        url: 'https://devops.aliyun.com/projex/req/DFHIS-31812'
+      })
+    )
+
+    expect(prompt).toContain('工作流: ygt-harness')
+    expect(prompt).toContain('Orca YGT workflow harness gate')
+    expect(prompt).toContain('必须先使用 $ygt skill')
+    expect(prompt).toContain("node scripts/harness/ygt-workflow.mjs /ygt 'DFHIS-31812")
+    expect(prompt).toContain('--project auto --json')
+    expect(prompt).toContain('df-web-base layout README 和 STYLE_CONSTRAINTS.md')
   })
 })

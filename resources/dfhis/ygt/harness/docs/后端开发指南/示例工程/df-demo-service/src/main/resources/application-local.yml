@@ -1,0 +1,31 @@
+# ==============================================================
+# df-demo-service 本地开发环境配置（profile: local）
+#
+# 使用 H2 内存数据库，无需外部依赖即可直接启动。
+# 生产/预发环境的等效配置请参考 nacos-examples/ 目录。
+# ==============================================================
+spring:
+  datasource:
+    url: jdbc:h2:mem:df_demo;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+
+df:
+  security:
+    jwt:
+      issuer: df-ygt
+      # 本地开发占位密钥，生产必须通过 Nacos 注入真实密钥
+      secret: change-me-before-production-change-me-before-production
+      expiration: 2h

@@ -1,0 +1,40 @@
+{
+  "name": "ygt",
+  "version": "0.2.0",
+  "description": "YGT workflow harness plugin for routing, verifying, releasing, diagnosing, reporting, and self-testing df-ygt work through df-ygt-main/scripts/harness/ygt-workflow.mjs.",
+  "author": {
+    "name": "DF YGT"
+  },
+  "homepage": "https://gitlab.df-mic.com/df-ygt/df-ygt-main",
+  "repository": "git@gitlab.df-mic.com:df-ygt/df-ygt-main.git",
+  "license": "Proprietary",
+  "keywords": [
+    "ygt",
+    "harness",
+    "workflow",
+    "jenkins",
+    "rollout"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "YGT",
+    "shortDescription": "Route YGT bugs and requirements through harness",
+    "longDescription": "YGT lets Codex route natural-language YGT platform requirements, bugs, rollout checks, smoke tests, and multi-project work through the shared workflow harness before implementation.",
+    "developerName": "DF YGT",
+    "category": "Engineering",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://gitlab.df-mic.com/df-ygt/df-ygt-main",
+    "defaultPrompt": [
+      "Use $ygt to handle this YGT bug through the workflow harness.",
+      "Use $ygt to scan YGT layout consistency and propose fixes.",
+      "Use $ygt to run a YGT release workflow with verification.",
+      "Use $ygt to improve the harness and run selftest before completion."
+    ],
+    "brandColor": "#1677FF",
+    "screenshots": []
+  }
+}

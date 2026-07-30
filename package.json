@@ -256,12 +256,20 @@
     "windows-native-registry": "3.2.2"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx,mjs,mts,cts}": [
+    "./*.{ts,tsx,js,jsx,mjs,mts,cts}": [
       "oxlint",
       "oxlint --config config/oxlint-react-doctor.json",
       "oxfmt --write"
     ],
-    "*.{json,css}": [
+    "{src,config,build-plugins,native,tests,mobile,tools,examples,skills,skill-stubs}/**/*.{ts,tsx,js,jsx,mjs,mts,cts}": [
+      "oxlint",
+      "oxlint --config config/oxlint-react-doctor.json",
+      "oxfmt --write"
+    ],
+    "./*.{json,css}": [
+      "oxfmt --write"
+    ],
+    "{src,config,build-plugins,native,tests,mobile,tools,examples,skills,skill-stubs}/**/*.{json,css}": [
       "oxfmt --write"
     ]
   },

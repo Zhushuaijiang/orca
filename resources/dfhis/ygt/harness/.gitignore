@@ -1,0 +1,14 @@
+/frontend/df-web-ygt-main/node_modules/
+/frontend/df-web-ygt-main/dist/
+/frontend/df-web-ygt-main/coverage/
+/frontend/df-web-ygt-main/playwright-report/
+/frontend/df-web-ygt-main/test-results/
+/.idea/
+/backend/target/
+/frontend/df-web-ygt-main/dist/
+/apis/target/
+/.ygt-runs/
+/scripts/harness/ygt-env.company-dev.local.ps1
+/scripts/harness/ygt-env.*.local.ps1
+/scripts/harness/ygt-env.*.secret.ps1
+/scripts/harness/ygt-env.*.private.ps1

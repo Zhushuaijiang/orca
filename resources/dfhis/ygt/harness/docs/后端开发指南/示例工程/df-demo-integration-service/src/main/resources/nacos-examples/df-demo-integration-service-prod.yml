@@ -1,0 +1,43 @@
+# ==============================================================
+# Nacos 配置示例：df-demo-integration-service 服务独立配置
+#
+# DataId  : df-demo-integration-service-prod.yml
+# Group   : DEFAULT_GROUP
+# Namespace: 按实际环境对应
+#
+# 此文件为"应该放入 Nacos"的内容示例，不要提交为 Spring 配置文件。
+# Redis / RabbitMQ 连接信息已在 shared-middleware-prod.yml 中统一声明，此处不重复。
+# ==============================================================
+
+df:
+  core:
+    web:
+      logging:
+        enabled: true
+        # 默认记录 URL、headers、query、客户端地址、状态码、耗时；body 仅命中下列路径时输出
+        max-body-length: 4096
+        # 这些请求头仍会记录键名，但值会被替换为 ***，用于避免 token/cookie 等敏感信息泄露
+        masked-header-names:
+          - Authorization
+          - Cookie
+          - Set-Cookie
+        body-path-patterns:
+          - /api/appointments
+          - /api/appointments/**
+  security:
+    jwt:
+      issuer: df-ygt
+      # 生产必须替换为强随机密钥（≥32 字节），建议加密存储
+      secret: ENC(your-encrypted-jwt-secret)
+      expiration: 2h
+  message:
+    rabbit:
+      management:
+        enabled: true
+        base-url: http://rabbitmq.internal:15672
+        username: admin
+        password: ENC(your-encrypted-management-password)
+        vhost: /
+        # 队列治理策略优先级，与平台其他 policy 错峰
+        policy-priority: 50
+        operator-policy-priority: 100

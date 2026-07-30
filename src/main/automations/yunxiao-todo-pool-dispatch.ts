@@ -6,6 +6,10 @@ import {
   type YunxiaoTodoPoolStatus
 } from '../../shared/yunxiao-types'
 import { YUNXIAO_DFHIS_CODE_CONSTRAINTS } from '../../shared/yunxiao-requirement-prompt-gate'
+import {
+  buildYgtWorkflowProfileInstruction,
+  resolveYunxiaoRequirementWorkflowProfile
+} from '../../shared/yunxiao-requirement-workflow-profile'
 
 export const EMPTY_YUNXIAO_TODO_POOL_MESSAGE =
   'No matching actionable Yunxiao todo pool items are available.'
@@ -73,19 +77,22 @@ function buildYunxiaoTodoPoolPrompt(
       const metadata = [
         workItemUrl ? `提交信息: ${workItemUrl}` : null,
         `标题: ${item.title}`,
+        `工作流: ${formatWorkflowProfile(resolveYunxiaoRequirementWorkflowProfile(item))}`,
         item.typeName ? `类型: ${item.typeName}` : null,
         item.statusName ? `状态: ${item.statusName}` : null,
         item.customer ? `客户: ${item.customer}` : null,
         item.priority ? `优先级: ${item.priority}` : null,
         item.assignee?.name ? `负责人: ${item.assignee.name}` : null,
         item.sprint?.name ? `迭代: ${item.sprint.name}` : null,
-        workItemUrl ? `链接: ${workItemUrl}` : null
+        workItemUrl ? `链接: ${workItemUrl}` : null,
+        item.notes ? `备注: ${item.notes}` : null
       ]
         .filter(Boolean)
         .join('\n  ')
       return `${index + 1}. ${target}\n  ${metadata}`
     })
     .join('\n\n')
+  const workflowProfileInstruction = buildYgtWorkflowProfileInstruction(items)
 
   return `${basePrompt.trim() || '处理下一条云效 todo pool 需求。'}
 
@@ -115,7 +122,14 @@ ${targets}
 - 任一必需 reviewer 角色缺失、阻断问题未解决、实现计划缺失、或缺少新鲜验证证据时，完成状态必须阻断。
 - 如果需求无法归档、分析、澄清或准备实现，停止并用中文清楚报告阻断原因。
 
+${workflowProfileInstruction ? `${workflowProfileInstruction}\n\n` : ''}
 ${YUNXIAO_DFHIS_CODE_CONSTRAINTS}`
+}
+
+function formatWorkflowProfile(
+  profile: ReturnType<typeof resolveYunxiaoRequirementWorkflowProfile>
+): string {
+  return profile === 'ygt' ? 'ygt-harness' : 'dfhis-requirement-gate'
 }
 
 function resolveYunxiaoWorkItemUrl(item: YunxiaoTodoPoolItem): string | null {

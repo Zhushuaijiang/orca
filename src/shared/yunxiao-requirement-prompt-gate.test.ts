@@ -35,6 +35,17 @@ describe('Yunxiao requirement prompt gate', () => {
     expect(gated).toContain(`原始用户请求：\n${prompt}`)
   })
 
+  it('adds YGT harness instructions for manual 医共体 requirement prompts', () => {
+    const prompt = 'https://devops.aliyun.com/projex/req/DFHIS-31812 公告管理页面体验优化'
+    const gated = applyYunxiaoRequirementPromptGate(prompt)
+
+    expect(gated).toContain('Orca Yunxiao requirement workflow gate')
+    expect(gated).toContain('Orca YGT workflow harness gate')
+    expect(gated).toContain('必须先使用 $ygt skill')
+    expect(gated).toContain('node scripts/harness/ygt-workflow.mjs /ygt')
+    expect(gated).toContain('--project auto --json')
+  })
+
   it('does not wrap already gated or todo-pool prompts again', () => {
     const gated = applyYunxiaoRequirementPromptGate('DFHIS-31732')
 

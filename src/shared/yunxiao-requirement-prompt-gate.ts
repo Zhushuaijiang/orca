@@ -1,4 +1,5 @@
 import type { YunxiaoRequirementContractSnapshot } from './yunxiao-types'
+import { buildYgtManualPromptInstruction } from './yunxiao-requirement-workflow-profile'
 
 const DFHIS_WORK_ITEM_RE = /\bDFHIS-\d+\b/i
 const YUNXIAO_WORK_ITEM_URL_RE = /https?:\/\/devops\.aliyun\.com\/projex\/\S+/i
@@ -53,6 +54,7 @@ export function applyYunxiaoRequirementPromptGate(prompt: string): string {
   if (!shouldApplyYunxiaoRequirementPromptGate(prompt)) {
     return prompt
   }
+  const workflowProfileInstruction = buildYgtManualPromptInstruction(prompt)
   return `${YUNXIAO_GATE_MARKER}
 
 当前提示包含云效/DFHIS 需求。无论用户是手动粘贴，还是从 todo pool 领取，都必须按受控需求流程处理。
@@ -75,6 +77,7 @@ export function applyYunxiaoRequirementPromptGate(prompt: string): string {
 - 没有记录新鲜验证证据前，不得声称需求已完成或没问题；如果验证被环境阻断，必须说明精确阻断原因和剩余负责人。
 - 如果有结构化结果通道，返回 yunxiaoRequirementOutcomes，包含 requirementContract.riskProfile、reviewChecks、methodologyGate、evidence。字段名可以英文，但字段值中的解释必须中文。
 
+${workflowProfileInstruction ? `${workflowProfileInstruction}\n\n` : ''}
 ${YUNXIAO_DFHIS_CODE_CONSTRAINTS}
 
 原始用户请求：

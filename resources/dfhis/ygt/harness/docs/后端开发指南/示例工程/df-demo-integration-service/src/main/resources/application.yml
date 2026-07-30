@@ -1,0 +1,52 @@
+# ==============================================================
+# df-demo-integration-service 本地引导配置
+# 仅存放：服务标识、端口、不因环境变化的行为开关
+#
+# 各环境连接信息管理方式：
+#   本地开发 ：application-local.yml（需先执行 docker compose up -d 启动 Redis/RabbitMQ）
+#   生产/预发  ：Nacos 配置中心（参见 nacos-examples/ 目录示例）
+#
+# 切换到 Nacos 方案时，需要：
+#   1. 在 pom.xml 中引入 df-cloud-starter（已包含 Nacos 配置客户端）
+#   2. 取消下方 spring.cloud / spring.config.import 注释块
+#   3. 将 nacos-examples/ 中的示例内容上传到 Nacos 对应 DataId
+# ==============================================================
+spring:
+  application:
+    name: df-demo-integration-service
+  profiles:
+    active: local
+
+  # ── 生产环境取消注释，启用 Nacos 分层配置导入 ───────────────────
+  # cloud:
+  #   nacos:
+  #     server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+  #     config:
+  #       namespace: ${NACOS_NAMESPACE:}
+  #       group: DEFAULT_GROUP
+  #       file-extension: yml
+  # config:
+  #   import:
+  #     # 跨服务共享：Redis / RabbitMQ / ES 连接信息（所有服务公用）
+  #     - nacos:shared-middleware-${spring.profiles.active}.yml
+  #     # 服务独立：JWT secret / Management API 凭证 / 服务独有参数
+  #     - nacos:${spring.application.name}-${spring.profiles.active}.yml
+  # ──────────────────────────────────────────────────────────────
+
+server:
+  port: 8089
+
+tenant:
+  enabled: true
+  isolation: field
+
+df:
+  message:
+    retry:
+      max-attempts: 5
+      initial-delay: 1s
+
+demo:
+  messaging:
+    exchange: df.demo.exchange
+    routing-key: appointment.created

@@ -1,0 +1,37 @@
+# ==============================================================
+# Nacos 配置示例：跨服务共享中间件连接配置
+#
+# DataId  : shared-middleware-prod.yml
+# Group   : DEFAULT_GROUP
+# Namespace: 按实际环境对应
+#
+# 适用范围：所有接入脚手架的业务服务（在 spring.config.import 中引用）
+# 此文件为"应该放入 Nacos"的内容示例，不要提交为 Spring 配置文件。
+# 密码字段建议配合 Nacos 加密插件存储。
+# ==============================================================
+
+spring:
+  data:
+    redis:
+      host: redis.internal
+      port: 6379
+      password: ENC(your-encrypted-redis-password)
+      database: 0
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+  rabbitmq:
+    host: rabbitmq.internal
+    port: 5672
+    username: app
+    password: ENC(your-encrypted-rabbitmq-password)
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: manual
+  elasticsearch:
+    uris: https://es.internal:9200
+    username: elastic
+    password: ENC(your-encrypted-es-password)

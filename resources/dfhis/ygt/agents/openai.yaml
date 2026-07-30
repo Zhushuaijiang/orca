@@ -1,0 +1,5 @@
+interface:
+  display_name: "YGT"
+  short_description: "Route YGT bugs and requirements through harness"
+  brand_color: "#1677FF"
+  default_prompt: "Use $ygt to handle this YGT bug or requirement through the workflow harness."

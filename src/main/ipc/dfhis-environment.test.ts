@@ -51,6 +51,10 @@ function sha256(content: string): string {
 async function writeRemoteSkillPackManifest(directory: string): Promise<string> {
   const yunxiaoSkill = '---\nname: yunxiao-requirement-archiver\n---\nremote yunxiao skill\n'
   const mergeSkill = '---\nname: his-release-merge\n---\nremote merge skill\n'
+  const ygtSkill = '---\nname: ygt\n---\nremote ygt skill\n'
+  const ygtHarness = '#!/usr/bin/env node\nconst ygtHarness = true\n'
+  const ygtPluginManifest = '{"name":"ygt","skills":"./skills/"}\n'
+  const ygtHarnessGuide = '# YGT 工作流 Harness\n'
   const manifestPath = path.join(directory, 'dfhis-skill-pack.json')
   await writeFile(
     manifestPath,
@@ -69,6 +73,26 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
             path: 'his-release-merge/SKILL.md',
             sha256: sha256(mergeSkill),
             content: mergeSkill
+          },
+          {
+            path: 'ygt/SKILL.md',
+            sha256: sha256(ygtSkill),
+            content: ygtSkill
+          },
+          {
+            path: 'ygt/harness/scripts/harness/ygt-workflow.mjs',
+            sha256: sha256(ygtHarness),
+            content: ygtHarness
+          },
+          {
+            path: 'ygt/harness/plugins/ygt/.codex-plugin/plugin.json',
+            sha256: sha256(ygtPluginManifest),
+            content: ygtPluginManifest
+          },
+          {
+            path: 'ygt/harness/docs/04-YGT工作流Harness.md',
+            sha256: sha256(ygtHarnessGuide),
+            content: ygtHarnessGuide
           }
         ]
       },
@@ -139,6 +163,68 @@ describe('dfhis-environment', () => {
       )
     ).resolves.toContain('name: his-release-merge')
     await expect(
+      readFile(path.join(homeDirectory, '.codex', 'skills', 'ygt', 'SKILL.md'), 'utf8')
+    ).resolves.toContain('name: ygt')
+    await expect(
+      readFile(
+        path.join(
+          homeDirectory,
+          '.codex',
+          'skills',
+          'ygt',
+          'harness',
+          'scripts',
+          'harness',
+          'ygt-workflow.mjs'
+        ),
+        'utf8'
+      )
+    ).resolves.toContain('superpowerSkillCatalog')
+    await expect(
+      readFile(
+        path.join(
+          homeDirectory,
+          '.codex',
+          'skills',
+          'ygt',
+          'harness',
+          'plugins',
+          'ygt',
+          '.codex-plugin',
+          'plugin.json'
+        ),
+        'utf8'
+      )
+    ).resolves.toContain('"name": "ygt"')
+    await expect(
+      readFile(
+        path.join(
+          homeDirectory,
+          '.codex',
+          'skills',
+          'ygt',
+          'harness',
+          'docs',
+          '04-YGT工作流Harness.md'
+        ),
+        'utf8'
+      )
+    ).resolves.toContain('YGT 工作流')
+    await expect(
+      readFile(
+        path.join(
+          homeDirectory,
+          '.codex',
+          'skills',
+          'ygt',
+          'df-web-common-ygt-biz',
+          'docs',
+          'ai-dev-sop.md'
+        ),
+        'utf8'
+      )
+    ).resolves.toContain('AI 开发 SOP')
+    await expect(
       readFile(
         path.join(
           homeDirectory,
@@ -192,6 +278,9 @@ describe('dfhis-environment', () => {
       )
     ).resolves.toContain('name: his-release-merge')
     await expect(
+      readFile(path.join(homeDirectory, '.codex', 'skills', 'ygt', 'SKILL.md'), 'utf8')
+    ).resolves.toContain('name: ygt')
+    await expect(
       readFile(path.join(path.dirname(skillPath), 'local-note.md'), 'utf8')
     ).resolves.toBe('keep me')
   })
@@ -228,6 +317,9 @@ describe('dfhis-environment', () => {
         'utf8'
       )
     ).resolves.toContain('name: his-release-merge')
+    await expect(
+      readFile(path.join(homeDirectory, '.codex', 'skills', 'ygt', 'SKILL.md'), 'utf8')
+    ).resolves.toContain('name: ygt')
     await expect(readFile(extraFilePath, 'utf8')).resolves.toBe('keep me')
     await expect(checkDfHisWorkflowPackPrerequisites(homeDirectory)).resolves.toEqual(
       expect.arrayContaining([
@@ -261,6 +353,40 @@ describe('dfhis-environment', () => {
         'utf8'
       )
     ).resolves.toContain('remote merge skill')
+    await expect(
+      readFile(path.join(homeDirectory, '.codex', 'skills', 'ygt', 'SKILL.md'), 'utf8')
+    ).resolves.toContain('remote ygt skill')
+    await expect(
+      readFile(
+        path.join(
+          homeDirectory,
+          '.codex',
+          'skills',
+          'ygt',
+          'harness',
+          'scripts',
+          'harness',
+          'ygt-workflow.mjs'
+        ),
+        'utf8'
+      )
+    ).resolves.toContain('ygtHarness')
+    await expect(
+      readFile(
+        path.join(
+          homeDirectory,
+          '.codex',
+          'skills',
+          'ygt',
+          'harness',
+          'plugins',
+          'ygt',
+          '.codex-plugin',
+          'plugin.json'
+        ),
+        'utf8'
+      )
+    ).resolves.toContain('"name":"ygt"')
   })
 
   it('reports Yunxiao MCP token readiness without exposing the token', () => {
