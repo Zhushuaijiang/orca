@@ -251,7 +251,6 @@ type TerminalPaneProps = {
   showSplitButton?: boolean
   onPtyExit: (ptyId: string) => void
   onCloseTab: () => void
-  onInitialRenderSettled?: () => void
 }
 
 export type TerminalPaneHandle = {
@@ -299,8 +298,7 @@ function TerminalPane(
     isolatedPaneKey = null,
     showSplitButton = true,
     onPtyExit,
-    onCloseTab,
-    onInitialRenderSettled
+    onCloseTab
   }: TerminalPaneProps,
   ref: React.ForwardedRef<TerminalPaneHandle>
 ): React.JSX.Element {
@@ -331,8 +329,6 @@ function TerminalPane(
   const isRendererVisible = isVisible && isWorktreeActive
   const isVisibleRef = useRef(isRendererVisible)
   isVisibleRef.current = isRendererVisible
-  const onInitialRenderSettledRef = useRef(onInitialRenderSettled)
-  onInitialRenderSettledRef.current = onInitialRenderSettled
   const sshReconnectTargetId = useAppStore((store) => {
     const connectionId = getConnectionIdFromState(store, worktreeId)
     // Why: runtime-owned SSH targets are internal plumbing users can't connect to, so a reconnect prompt would mislead.
@@ -1486,8 +1482,7 @@ function TerminalPane(
     setPaneCount,
     setPaneLayoutRevision,
     resolveExternalPaneDropTarget,
-    onExternalPaneDrop: handleExternalPaneDrop,
-    onInitialRenderSettledRef
+    onExternalPaneDrop: handleExternalPaneDrop
   })
 
   useEffect(() => {

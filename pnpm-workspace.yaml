@@ -28,6 +28,7 @@ patchedDependencies:
 
 allowBuilds:
   '@parcel/watcher': true
+  '@swc/core': true
   agent-browser: true
   cpu-features: true
   electron-winstaller: true
