@@ -17,10 +17,17 @@ export const DEFAULT_VISIBLE_TASK_PROVIDERS: readonly TaskProvider[] = [
   'code-merge'
 ]
 
+export const TASK_SOURCE_PICKER_PROVIDERS: readonly TaskProvider[] = DEFAULT_VISIBLE_TASK_PROVIDERS
+
 const TASK_PROVIDER_SET = new Set<TaskProvider>(TASK_PROVIDERS)
+const TASK_SOURCE_PICKER_PROVIDER_SET = new Set<TaskProvider>(TASK_SOURCE_PICKER_PROVIDERS)
 
 export function isTaskProvider(value: unknown): value is TaskProvider {
   return TASK_PROVIDER_SET.has(value as TaskProvider)
+}
+
+export function isTaskSourcePickerProvider(value: unknown): value is TaskProvider {
+  return TASK_SOURCE_PICKER_PROVIDER_SET.has(value as TaskProvider)
 }
 
 export function normalizeTaskProviderSettings(value: {
@@ -28,7 +35,7 @@ export function normalizeTaskProviderSettings(value: {
   defaultTaskSource: unknown
 }): { visibleTaskProviders: TaskProvider[]; defaultTaskSource: TaskProvider } {
   const visibleTaskProviders = normalizeVisibleTaskProviders(value.visibleTaskProviders)
-  const defaultTaskSource = isTaskProvider(value.defaultTaskSource)
+  const defaultTaskSource = isTaskSourcePickerProvider(value.defaultTaskSource)
     ? value.defaultTaskSource
     : resolveVisibleTaskProvider(DEFAULT_TASK_SOURCE, visibleTaskProviders)
 
@@ -41,7 +48,7 @@ export function normalizeTaskProviderSettings(value: {
   // reads the same settings contract.
   return {
     defaultTaskSource,
-    visibleTaskProviders: TASK_PROVIDERS.filter(
+    visibleTaskProviders: TASK_SOURCE_PICKER_PROVIDERS.filter(
       (provider) => provider === defaultTaskSource || visibleTaskProviders.includes(provider)
     )
   }
@@ -54,7 +61,7 @@ export function normalizeVisibleTaskProviders(value: unknown): TaskProvider[] {
 
   const normalized: TaskProvider[] = []
   for (const provider of value) {
-    if (!TASK_PROVIDER_SET.has(provider as TaskProvider)) {
+    if (!TASK_SOURCE_PICKER_PROVIDER_SET.has(provider as TaskProvider)) {
       continue
     }
     if (!normalized.includes(provider as TaskProvider)) {
@@ -76,8 +83,9 @@ export function filterAvailableTaskProviders(
   visibleProviders: readonly TaskProvider[],
   availability: TaskProviderAvailability
 ): TaskProvider[] {
-  const available = visibleProviders.filter((provider) =>
-    isTaskProviderAvailable(provider, availability)
+  const available = visibleProviders.filter(
+    (provider) =>
+      isTaskSourcePickerProvider(provider) && isTaskProviderAvailable(provider, availability)
   )
 
   return available.length > 0 ? available : [DEFAULT_TASK_SOURCE]
@@ -94,10 +102,11 @@ export function restoreAvailableDefaultTaskProvider(
   // provider becomes available. Keep that default reachable after hydration.
   if (
     isTaskProvider(preferredProvider) &&
+    isTaskSourcePickerProvider(preferredProvider) &&
     isTaskProviderAvailable(preferredProvider, availability) &&
     !available.includes(preferredProvider)
   ) {
-    return TASK_PROVIDERS.filter(
+    return TASK_SOURCE_PICKER_PROVIDERS.filter(
       (provider) => provider === preferredProvider || available.includes(provider)
     )
   }
@@ -115,8 +124,8 @@ function isTaskProviderAvailable(
   if (provider === 'gitlab') {
     return true
   }
-  // Why: Jira can be connected from the Tasks surface itself, so hiding it
-  // when disconnected would remove the entry point for first-time setup.
+  // Why: legacy/direct Jira task contexts can still resolve availability; picker
+  // visibility is enforced before this check.
   if (provider === 'jira') {
     return true
   }
@@ -133,8 +142,9 @@ export function resolveVisibleTaskProvider(
   preferred: TaskProvider | null | undefined,
   visibleProviders: readonly TaskProvider[]
 ): TaskProvider {
-  if (preferred && visibleProviders.includes(preferred)) {
+  const pickerProviders = visibleProviders.filter(isTaskSourcePickerProvider)
+  if (preferred && isTaskSourcePickerProvider(preferred) && pickerProviders.includes(preferred)) {
     return preferred
   }
-  return visibleProviders[0] ?? DEFAULT_TASK_SOURCE
+  return pickerProviders[0] ?? DEFAULT_TASK_SOURCE
 }

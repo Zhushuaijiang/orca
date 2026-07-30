@@ -1,13 +1,11 @@
-import { Check, Cloud, GitMerge, Github, Gitlab } from 'lucide-react'
+import { Check, Cloud, GitMerge, Gitlab } from 'lucide-react'
 import type { GlobalSettings, TaskProvider } from '../../../../shared/types'
 import {
-  TASK_PROVIDERS,
+  TASK_SOURCE_PICKER_PROVIDERS,
   normalizeVisibleTaskProviders,
   resolveVisibleTaskProvider
 } from '../../../../shared/task-providers'
 import { cn } from '@/lib/utils'
-import { JiraIcon } from '@/components/icons/JiraIcon'
-import { LinearIcon } from '@/components/icons/LinearIcon'
 import { Label } from '../ui/label'
 import { SearchableSetting } from './SearchableSetting'
 import { SettingsSubsectionHeader } from './SettingsFormControls'
@@ -25,19 +23,6 @@ const TASK_PROVIDER_OPTIONS: readonly {
   Icon: (props: { className?: string }) => React.JSX.Element
 }[] = [
   {
-    id: 'github',
-    get label() {
-      return translate('auto.components.settings.TasksPane.e14063e727', 'GitHub')
-    },
-    get description() {
-      return translate(
-        'auto.components.settings.TasksPane.1db47236cd',
-        'Show GitHub in the Tasks source picker and sidebar shortcuts.'
-      )
-    },
-    Icon: ({ className }) => <Github className={className} />
-  },
-  {
     id: 'gitlab',
     get label() {
       return translate('auto.components.settings.TasksPane.7c5d7fdc20', 'GitLab')
@@ -49,32 +34,6 @@ const TASK_PROVIDER_OPTIONS: readonly {
       )
     },
     Icon: ({ className }) => <Gitlab className={className} />
-  },
-  {
-    id: 'linear',
-    get label() {
-      return translate('auto.components.settings.TasksPane.09ae2d7c51', 'Linear')
-    },
-    get description() {
-      return translate(
-        'auto.components.settings.TasksPane.e4170c9615',
-        'Show Linear in the Tasks source picker and sidebar shortcuts.'
-      )
-    },
-    Icon: ({ className }) => <LinearIcon className={className} />
-  },
-  {
-    id: 'jira',
-    get label() {
-      return translate('auto.components.settings.TasksPane.6b23a34f6d', 'Jira')
-    },
-    get description() {
-      return translate(
-        'auto.components.settings.TasksPane.8e1305fcc6',
-        'Show Jira in the Tasks source picker and sidebar shortcuts.'
-      )
-    },
-    Icon: ({ className }) => <JiraIcon className={className} />
   },
   {
     id: 'yunxiao',
@@ -115,7 +74,9 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
 
     const nextProviders = isVisible
       ? visibleProviders.filter((entry) => entry !== provider)
-      : TASK_PROVIDERS.filter((entry) => entry === provider || visibleProviders.includes(entry))
+      : TASK_SOURCE_PICKER_PROVIDERS.filter(
+          (entry) => entry === provider || visibleProviders.includes(entry)
+        )
 
     updateSettings({
       visibleTaskProviders: nextProviders,
@@ -144,17 +105,13 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
             'tasks',
             'provider',
             'source',
-            'github',
             'gitlab',
-            'linear',
-            'jira',
             'yunxiao',
             'code merge',
             'release merge',
             'his merge',
             'dfhis',
             'aliyun',
-            'atlassian',
             'display',
             'hide'
           ]}
