@@ -25,7 +25,7 @@ When this skill triggers from any raw `DFHIS-12345` text or `devops.aliyun.com/p
 - Default archive directory rule: `/opt/workspace/df-his/yunxiao/{需求编号}`
 - Default local download directory rule: `{当前对话工作目录}/{需求编号}`. Put downloaded materials, `_mcp_download_manifest.json`, attachment manifests, and any kept zip inside that requirement-id directory; do not create ad hoc sibling folders such as `yunxiao-archives/`.
 - Code workspace rule: use Orca's explicit selected repo/workspace first. Orca normally injects that path as `YUNXIAO_CODE_WORKSPACE_ROOT`; when it is absent, resolve the DFHIS Setup default code root from Orca's local `dfhis-environment.json` (`hisCodeRoot`) before asking the user. Do not let archived requirement text such as `Code workspace:` override the Orca-provided or DFHIS Setup root, and do not hardcode or infer a product workspace name.
-- UI/module ownership rule: the task-page repository, work-item service name, or product label is only a starting hint. Before planning or editing UI code, prove the runtime owner of the affected page/component by tracing routes, menu config, iframe/micro-frontend registration, remote component imports, shared package aliases, and screenshot-visible page names. DFHIS frontends often reuse pages across products; for example a 门诊医生站 page may mount 病历文书 from 住院医生站. If ownership evidence points to another repository, mark the original repository as caller/container only and add the actual mounted repository to the implementation plan before edits.
+- UI/module ownership rule: the task-page repository, work-item service name, or product label is only a starting hint. Before planning or editing UI code, prove the runtime owner of the affected page/component by tracing routes, menu config, iframe/micro-frontend registration, remote component imports, shared package aliases, and screenshot-visible page names. DFHIS frontends often reuse pages across products and workstation modules; if ownership evidence points to another repository, mark the original repository as caller/container only and add the actual mounted repository to the implementation plan before edits.
 - Code edit guardrail: never edit files directly inside the selected/original code workspace such as `YUNXIAO_CODE_WORKSPACE_ROOT`. For every code-fix workflow, create or reuse `{需求目录}/code/<repo>` with `scripts/prepare_local_worktree.py`, then run `scripts/guard_code_edit.py` against the exact target file paths immediately before any file-edit tool call. If the guard fails, do not edit code.
 - DFHIS build/API guardrail: do not modify build or dependency files such as `build.gradle`, `settings.gradle`, `pom.xml`, or dependency lock files to solve a requirement. Do not switch published dependencies to `compile project(...)`, do not enable local project API modules, and do not add/modify/rely on project-local `*-api` / API modules, DTOs, Req classes, Feign clients, or client API packages as the only contract change; these project APIs are deprecated and invalid for new requirement work. If an implementation requires API contract, DTO, Req, Feign client, or external API field changes, locate and update the corresponding shared module in `df-his-api` first, and record the API jar/release dependency plus every consuming repository that must compile against it. If a solution appears to require any build/API-module change but the `df-his-api` path or release plan is unclear, mark the Requirement Contract as `needs_clarification` or `blocked` and request architecture/product confirmation before code edits.
 - Required local development handoff document: `{当前对话工作目录}/{需求编号}/PRD_AND_CODE_ANALYSIS.md`.
@@ -35,6 +35,27 @@ When this skill triggers from any raw `DFHIS-12345` text or `devops.aliyun.com/p
 - Optional legacy HIS MCP tools: `dfhis_agent_chat`, `download_yunxiao_archive`, `comment_yunxiao_workitem`, `git_inspect`
 
 Do not store MCP bearer tokens, SSH passwords, Yunxiao access tokens, model API keys, Jenkins passwords, or DingTalk webhook secrets in this skill. Prefer credentials already saved by DFHIS Setup. For one-off shell usage, pass `YUNXIAO_ACCESS_TOKEN` through the current process environment only.
+
+## HIS MCP Business Gate
+
+When DFHIS business semantics are not proven by local code or archive evidence, ask the HIS MCP expert before implementing guesses or declaring a blocker. Use `dfhis_agent_chat` when available; if unavailable, record that exact limitation in `PRD_AND_CODE_ANALYSIS.md`.
+
+Mandatory HIS MCP triggers:
+
+- Rule-engine behavior involving `GZ_MOXING`, `GZ_SHUXING`, `GZ_GUIZE`, QLExpress variables, model attributes, prompt text, or rule scope.
+- Diagnosis semantics such as 主诊断, `zhenDuanLb`, diagnosis ordering, first-row assumptions, 医保/入院登记诊断 categories, or disease extension flags.
+- Dictionary, tenant, and parameter rollout such as `gy_daima`, `gy_daimalb`, `tenantid`, code defaults, site-maintained options, or missing-data compatibility.
+- Clinical workflow ownership or cross-station reuse, especially when a page appears under one workstation/module but routes, imports, iframes, or shared components mount another workstation/module's implementation.
+- Any case where the agent is about to write “业务不确定”, “缺规则配置口径”, “页面不在当前仓库”, or “只能猜”.
+
+Ask focused questions with current evidence and the proposed implementation. Preserve the HIS MCP conclusion in `reviewChecks.hisMcpResult`, then convert the answer into concrete code, SQL, or verification changes.
+
+General guardrails learned from prior work:
+
+- When rule expressions read context properties, verify the required rule metadata tables as well as the expression table; do not assume the expression row alone is enough for runtime loading or UI maintenance.
+- Do not take a diagnosis, order, charge, prescription, or document list's first row as the business primary item unless HIS MCP or code evidence proves the ordering contract; prefer explicit category/flag fields and a documented fallback order.
+- If a product rule is scoped to a specific category, status, flag, tenant, or workflow phase, model “the scoped item exists” separately when absence should mean “this rule does not apply” rather than “block”.
+- Check target table column lengths and uniqueness rules before generating ids for rule/dictionary/parameter SQL; fix ids deterministically and record the fix.
 
 ## Requirement Contract Gate
 
@@ -66,6 +87,16 @@ Rules:
 - Completion is blocked while any required reviewer role is missing, blocking questions are unresolved, the implementation plan is missing, or fresh verification evidence is absent.
 - When native automation result reporting is available, return structured `yunxiaoRequirementOutcomes` as a per-item array with `itemId`, `poolStatus`, `requirementContract`, and evidence; put `riskProfile`, `reviewChecks`, and `methodologyGate` inside `requirementContract` so Orca can update the todo pool without parsing final text.
 - Do not claim completion without fresh evidence from tests, builds, screenshots, or inspected artifacts.
+
+## Delivery State Versus Final Acceptance
+
+Keep delivery progress separate from final business acceptance. Do not turn an expected unpublished state into a user-facing blocker.
+
+- Before code is committed and pushed, deployed UI/static assets are expected not to contain the change. Record this as `implementation_pending_push`, not as package/runtime failure.
+- After code is pushed but before frontend/backend release, deployed UI may still be old. Record this as `code_pushed_pending_release_validation`.
+- If a deployed app is reachable but its `config.json`, commit id, or bundled JS does not contain the pushed change after release was expected, record `deployed_package_missing_requirement_changes` with asset evidence.
+- If code, SQL, attachments, Yunxiao comment, and structured fields are done but post-release UI evidence is missing, update Yunxiao to `待测试` when appropriate and state “交付已流转，最终验收待发布后验证”; do not report the whole workflow as blocked unless the user asked for final production acceptance.
+- Never ask the user why a deployed package lacks a change when the branch has not yet been pushed or released. First check local commits, remote branches, Yunxiao fields, and release status.
 
 ## Archive Workflow
 
@@ -257,18 +288,32 @@ When the user asks to fix a DFHIS requirement:
 1. Archive or reuse the existing local archive with `scripts/run_direct_archive.py`.
 2. Inspect the local archive before code changes. Required evidence files are `raw.json`, `requirement.md`, `description.md`, `context.txt`, `analysis_input.md`, `analysis.md`, and `attachments_manifest.json`. If core evidence is missing, rerun direct archive; only use `download_mcp_archive.py --wait-complete --require-complete` as a HIS MCP fallback.
 3. Use the local archive facts and local code search to identify affected repositories, modules, file paths, rg keywords, and whether backend/database changes are required.
-4. Cross-check with read-only evidence. Use local `rg` against the selected Orca code workspace, including project names, routes, menu keys, component names, screenshot-visible text, service endpoint paths, Feign client names, controller names, and package names because service names and repository directories can differ. For UI pages, trace whether the selected frontend is a shell/container that mounts another repository's page through route config, iframe/micro-frontend registration, shared package aliases, or comments in code. Use HIS MCP `git_inspect` only as optional fallback. Do not use SSH shell access to `192.168.1.10` as a required step.
+4. Cross-check with read-only evidence. Use local `rg` against the selected Orca code workspace, including project names, routes, menu keys, component names, screenshot-visible text, service endpoint paths, Feign client names, controller names, and package names because service names and repository directories can differ. For UI pages, trace whether the selected frontend is a shell/container that mounts another repository's page through route config, iframe/micro-frontend registration, shared package aliases, or comments in code. If business ownership or reuse is unclear, ask HIS MCP before deciding the owning repo. Use HIS MCP `git_inspect` only as optional fallback. Do not use SSH shell access to `192.168.1.10` as a required step.
 5. Generate or update `{需求编号}/PRD_AND_CODE_ANALYSIS.md` from the required template before editing code. The document must include the Requirement Contract, final planned file/module changes, and known gaps. If the contract is `needs_clarification`, ask/record the blocking questions and stop before cloning or editing code.
 6. Resolve the Git remote URL for each target repository from the local selected code workspace first. Use HIS MCP only as an optional fallback for missing remote metadata. Do not copy repositories from `/opt/workspace/df-his/df-knowledge` with `rsync`, `scp`, or server filesystem access.
 7. Clone or update only the target repository on the local machine using local Git credentials. Use `scripts/prepare_local_worktree.py` to run `git clone`, `git fetch`, and `git worktree add`. Put requirement-specific code worktrees under `{需求目录}/code/{repo-name}` so requirement evidence and code stay together. Branch naming is based on Yunxiao work-item type: defects/bugs use `hotfix-DFHIS-12345`; requirements/features use `feature-DFHIS-12345`. If the type is unknown, inspect `raw.json`/`requirement.md` first instead of guessing.
 8. Before every code edit, run `scripts/guard_code_edit.py --requirement-dir {需求目录} {待编辑文件...}` and confirm it prints `ok`. This is mandatory even when the target file path looks obvious. The guard must validate that each edited path is under `{需求目录}/code/<repo>` and that the branch is `feature-DFHIS-12345` or `hotfix-DFHIS-12345`; if it fails, fix the worktree setup first and do not edit the original workspace.
 9. Implement the smallest code change that matches the evidence and the handoff document. Do not modify unrelated repositories or formatting. Do not modify `build.gradle`/`settings.gradle`/`pom.xml`/dependency lock files, switch to `compile project(...)`, or touch project-local `*-api` / API modules as the only contract change. If API contract changes are required, update the matching `df-his-api` module and include API jar/release dependency plus downstream compile verification in the handoff; if that path is unclear, stop and update the contract as `needs_clarification` or `blocked`.
 10. Verify locally. Prefer `lint`, `build`, or syntax checks from the repo scripts. For frontend repositories, follow the DFHIS frontend verification environment gate above before declaring dependency/tooling blockers. If private dependencies still block verification after the correct Node/package-manager attempt, record the exact blocker in both the chat summary and the handoff document.
-11. Commit and push the branch from the local machine. If this requirement came from an Orca Yunxiao todo pool claim, the git commit message must be exactly the full Yunxiao URL from the claim's `提交信息` or `链接` field, and nothing else. Do not replace it with only `DFHIS-12345`, the title, a summary, or a conventional commit message. Do not upload patches to `192.168.1.10` for server-side pushing.
+11. Commit and push the branch from the local machine. If this requirement came from an Orca Yunxiao todo pool claim, the git commit message must be exactly the full Yunxiao URL from the claim's `提交信息` or `链接` field, and nothing else. Do not replace it with only `DFHIS-12345`, the title, a summary, or a conventional commit message. Push explicitly to the requirement branch, for example `git push -u origin feature-DFHIS-12345`, then verify `git status -sb` so the local branch tracks the pushed feature/hotfix branch rather than the RC base. Do not upload patches to `192.168.1.10` for server-side pushing.
 12. After every successful push, comment on the Yunxiao work item with `scripts/comment_yunxiao.py`. The comment must include repository, branch, commit id, changed files, concise fix summary, validation result, handoff document path, and any dependency/test blockers. If commenting fails, treat the workflow as incomplete and report the exact failure.
 13. If a SQL/data/config script changed, upload the exact script file with `scripts/upload_yunxiao_attachment.py` and verify the attachment list before updating structured fields. If upload or verification fails, treat the workflow as incomplete.
 14. After the comment and any required attachment upload, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. The script must update status to `待测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
 15. Report branch name, commit id, pushed remote, Yunxiao comment status/action id, Yunxiao attachment id/status when relevant, Yunxiao field update status, changed files, validation result, local archive path, PRD/code-analysis document path, and any dependency/test blockers.
+
+## DFHIS Micro-Frontend Release Verification
+
+When validating a deployed DFHIS frontend, prove which bundle is actually serving the page. Do not rely only on the main shell's default child-app `entry` or on a connection failure to a configured host.
+
+Required checks:
+
+- Check the main shell `config.json`, but treat it as shell evidence only.
+- If the user supplies a mounted child-app path such as `/apps/{subAppCode}`, verify that child app directly; DFHIS deployments often expose child apps through nginx paths even when the shell's default `entry` points elsewhere.
+- Fetch the child app's `config.json` when present and record branch, commit, build time, and app name.
+- Parse the child app HTML for hashed JS/CSS assets, then scan those assets for requirement-specific stable keywords such as DFHIS id, route key, dictionary id, field name, API method, or prompt text.
+- Compare deployed commit/asset keywords with pushed branch commits. If the app is reachable but keywords are absent, the evidence is “child app reachable but deployed package lacks this change”.
+- If direct child host access fails, retry with explicit no-proxy/direct networking when safe, then test known mounted paths before declaring the child app unavailable.
+- Record one of these states in the Requirement Contract: `shell_available_child_unknown`, `child_app_unreachable`, `child_app_available_old_package`, `child_app_contains_change_pending_ui_test`, or `ui_verified_after_release`.
 
 ## Local Git Workflow
 
