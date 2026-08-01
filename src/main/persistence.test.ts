@@ -402,6 +402,40 @@ describe('Store', () => {
     expect(reloaded.getYunxiaoTodoPool()).toEqual([])
   })
 
+  it('clears stale claim ownership from terminal Yunxiao pool items on load', async () => {
+    writeDataFile({
+      ...getDefaultPersistedState(testState.dir),
+      yunxiaoTodoPool: [
+        {
+          ...makeYunxiaoWorkItem(),
+          poolStatus: 'done',
+          poolOrder: 1,
+          addedAt: 1,
+          poolUpdatedAt: 1,
+          lastSyncedAt: null,
+          attempts: 1,
+          claimedAt: 123,
+          claimedByAutomationId: 'automation-1',
+          claimedByRunId: 'run-1',
+          lastError: null,
+          notes: '',
+          requirementContract: null
+        }
+      ]
+    })
+
+    const store = await createStore()
+
+    expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
+      poolStatus: 'done',
+      claimedAt: null,
+      claimedByAutomationId: null,
+      claimedByRunId: null
+    })
+    store.flush()
+    expect((readDataFile() as PersistedState).yunxiaoTodoPool[0]?.claimedAt).toBeNull()
+  })
+
   it('orders Yunxiao todo pool items from top to bottom and claims in that order', async () => {
     const store = await createStore()
     const first = makeYunxiaoWorkItem({ id: 'item-1', serialNumber: 'DFHIS-31771' })

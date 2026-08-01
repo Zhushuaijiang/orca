@@ -1328,6 +1328,36 @@ function reconcileCompletedYunxiaoTodoPoolClaims(
   }
 }
 
+function clearTerminalYunxiaoTodoPoolClaims(state: Pick<PersistedState, 'yunxiaoTodoPool'>): {
+  state: Pick<PersistedState, 'yunxiaoTodoPool'>
+  changed: boolean
+} {
+  let changed = false
+  const activeStatuses = new Set<YunxiaoTodoPoolStatus>([
+    'running',
+    'dispatched',
+    'workspace-created'
+  ])
+  const yunxiaoTodoPool = (state.yunxiaoTodoPool ?? []).map((item) => {
+    if (
+      activeStatuses.has(item.poolStatus) ||
+      (item.claimedAt === null &&
+        item.claimedByAutomationId === null &&
+        item.claimedByRunId === null)
+    ) {
+      return item
+    }
+    changed = true
+    return {
+      ...item,
+      claimedAt: null,
+      claimedByAutomationId: null,
+      claimedByRunId: null
+    }
+  })
+  return { state: changed ? { ...state, yunxiaoTodoPool } : state, changed }
+}
+
 type LegacySshTarget = SshTarget & {
   remoteWorkspaceSyncEnabled?: unknown
   remoteWorkspaceSyncGracePeriodSeconds?: unknown
@@ -4594,9 +4624,15 @@ export class Store {
     if (completedYunxiaoTodoPoolClaims.changed) {
       this.loadNeedsSave = true
     }
+    const terminalYunxiaoTodoPoolClaims = clearTerminalYunxiaoTodoPoolClaims({
+      yunxiaoTodoPool: completedYunxiaoTodoPoolClaims.state.yunxiaoTodoPool
+    })
+    if (terminalYunxiaoTodoPoolClaims.changed) {
+      this.loadNeedsSave = true
+    }
     result = {
       ...result,
-      yunxiaoTodoPool: completedYunxiaoTodoPoolClaims.state.yunxiaoTodoPool
+      yunxiaoTodoPool: terminalYunxiaoTodoPoolClaims.state.yunxiaoTodoPool
     }
 
     const folderScopeConnectionMigration = backfillFolderScopeConnectionIds({
