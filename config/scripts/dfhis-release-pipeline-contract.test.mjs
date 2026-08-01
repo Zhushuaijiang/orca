@@ -48,4 +48,14 @@ describe('DFHIS release pipeline contract', () => {
     expect(evidenceUpload.with.path).toContain('windows-runtime-evidence.txt')
     expect(evidenceUpload.with.path).toContain('windows-signed-runtime-evidence.txt')
   })
+
+  it('does not fail a successful Windows runtime check during process cleanup', () => {
+    const source = readFileSync(
+      join(projectDir, 'config/scripts/verify-windows-installer-runtime.ps1'),
+      'utf8'
+    )
+
+    expect(source).toContain('taskkill.exe /PID $running.Id /T /F')
+    expect(source).toContain('$global:LASTEXITCODE = 0')
+  })
 })

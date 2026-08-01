@@ -60,4 +60,12 @@ $hash = (Get-FileHash -Algorithm SHA256 -Path $installer).Hash.ToLowerInvariant(
   "main_window_title=$($running.MainWindowTitle)"
 ) | Set-Content -Path $EvidencePath
 Get-Content $EvidencePath
-taskkill /PID $running.Id /T /F | Out-Null
+
+# Cleanup is best-effort because Electron children can exit before taskkill walks the tree.
+try {
+  taskkill.exe /PID $running.Id /T /F *> $null
+} catch {
+  Get-Process Orca -ErrorAction SilentlyContinue |
+    Stop-Process -Force -ErrorAction SilentlyContinue
+}
+$global:LASTEXITCODE = 0
