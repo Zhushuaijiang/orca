@@ -77,6 +77,15 @@ export function getYunxiaoRequirementCompletionGate(
   const expectation = getYunxiaoRequirementReviewExpectation(contract)
   const gate = contract.methodologyGate ?? null
   const gaps: string[] = []
+  if (contract.status !== 'ready_to_verify') {
+    gaps.push('Requirement Contract is not ready_to_verify.')
+  }
+  if (!contract.riskProfile) {
+    gaps.push('Machine-readable risk profile is missing.')
+  }
+  if (!gate) {
+    gaps.push('Methodology gate is missing.')
+  }
   if (contract.status === 'needs_clarification' || contract.blockingQuestions.length > 0) {
     gaps.push('Blocking product decisions are unresolved.')
   }
@@ -103,11 +112,17 @@ export function getYunxiaoRequirementCompletionGate(
     gaps.push('Fresh passing verification evidence is required.')
   }
   const requiredEvidenceTypes = new Set(gate?.requiredEvidenceTypes ?? [])
+  if (contract.status === 'ready_to_verify') {
+    requiredEvidenceTypes.add('runtime')
+    requiredEvidenceTypes.add('yunxiao')
+  }
   if (contract.riskProfile?.uiWorkflow) {
+    requiredEvidenceTypes.add('build')
     requiredEvidenceTypes.add('screenshot')
   }
   if (contract.riskProfile?.apiOrDatabase) {
     requiredEvidenceTypes.add('passing_test')
+    requiredEvidenceTypes.add('build')
   }
   if (contract.riskProfile?.permissionsOrRelease) {
     for (const type of ['build', 'jenkins', 'deployment', 'smoke'] as const) {

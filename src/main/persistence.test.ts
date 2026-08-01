@@ -664,6 +664,61 @@ describe('Store', () => {
     })
   })
 
+  it('requeues recoverable Yunxiao failures after a durable backoff', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    store.claimYunxiaoTodoPoolItems({
+      automationId: 'automation-1',
+      runId: 'run-1',
+      statuses: ['queued'],
+      limit: 1
+    })
+
+    const [requeued] = store.finishYunxiaoTodoPoolClaim({
+      runId: 'run-1',
+      poolStatus: 'failed',
+      automationRunStatus: 'dispatch_failed',
+      error: 'fetch failed: ECONNRESET'
+    })
+
+    expect(requeued).toMatchObject({
+      poolStatus: 'queued',
+      lastFailureKind: 'transient_infrastructure',
+      claimedAt: null,
+      claimedByRunId: null
+    })
+    expect(requeued.retryNotBefore).toBeGreaterThan(Date.now())
+    expect(
+      store.claimYunxiaoTodoPoolItems({
+        automationId: 'automation-2',
+        runId: 'run-2',
+        statuses: ['queued'],
+        limit: 1
+      })
+    ).toEqual([])
+  })
+
+  it('recovers an expired Yunxiao claim and eventually exhausts its budget', async () => {
+    const store = await createStore()
+    const item = makeYunxiaoWorkItem()
+    store.addYunxiaoTodoPoolItems([item])
+    const firstClaim = store.claimYunxiaoTodoPoolItems({
+      automationId: 'automation-1',
+      runId: 'missing-run',
+      statuses: ['queued'],
+      limit: 1
+    })[0]!
+
+    const [recovered] = store.recoverStaleYunxiaoTodoPoolClaims(firstClaim.claimedAt! + 1)
+
+    expect(recovered).toMatchObject({
+      poolStatus: 'queued',
+      lastFailureKind: 'host_unavailable',
+      claimedAt: null
+    })
+  })
+
   it('reconciles completed Yunxiao todo pool claims that were left in workspace-created state', async () => {
     const store = await createStore()
     store.addRepo(makeRepo())
@@ -1180,7 +1235,7 @@ describe('Store', () => {
     )
   })
 
-  it('applies ready-to-verify structured outcomes by DFHIS serial number', async () => {
+  it('blocks incomplete ready-to-verify outcomes by DFHIS serial number', async () => {
     const store = await createStore()
     store.addRepo(makeRepo())
     const item = makeYunxiaoWorkItem({ id: 'internal-31687', serialNumber: 'DFHIS-31687' })
@@ -1257,12 +1312,13 @@ describe('Store', () => {
     expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
       id: 'internal-31687',
       serialNumber: 'DFHIS-31687',
-      poolStatus: 'done',
-      lastError: null
+      poolStatus: 'ready-to-build',
+      lastError:
+        'Machine-readable risk profile is missing. Required delivery evidence is missing: runtime, yunxiao.'
     })
   })
 
-  it('backfills completed Yunxiao outcomes from persisted output snapshots', async () => {
+  it('backfills and gates incomplete Yunxiao outcomes from persisted output snapshots', async () => {
     const store = await createStore()
     store.addRepo(makeRepo())
     const item = makeYunxiaoWorkItem({ id: 'internal-31687', serialNumber: 'DFHIS-31687' })
@@ -1354,8 +1410,9 @@ describe('Store', () => {
     expect(reloaded.getYunxiaoTodoPool()[0]).toMatchObject({
       id: 'internal-31687',
       serialNumber: 'DFHIS-31687',
-      poolStatus: 'done',
-      lastError: null
+      poolStatus: 'ready-to-build',
+      lastError:
+        'Machine-readable risk profile is missing. Required delivery evidence is missing: runtime, yunxiao.'
     })
     expect(reloaded.listAutomationRuns(automation.id)[0]).toMatchObject({
       yunxiaoRequirementOutcomes: [expect.objectContaining({ itemId: 'DFHIS-31687' })]

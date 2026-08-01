@@ -78,6 +78,14 @@ Use `release` or `full` only after code changes are verified:
 node scripts/harness/ygt-workflow.mjs full --project <project> --message "fix: ..." --task-id <task-id> --report
 ```
 
+`full` and `release` persist `.ygt-runs/<task-id>/release-state.json` after every stage. After a process, host, network, Jenkins, or SSH interruption, continue the same run without replaying completed stages:
+
+```bash
+node scripts/harness/ygt-workflow.mjs resume --project <project> --task-id <task-id>
+```
+
+Jenkins queue and build URLs are persisted immediately, so resume monitors the existing build instead of triggering a duplicate. Transient doctor/Jenkins/rollout/smoke failures use bounded exponential backoff; authorization, configuration, verification, commit, and push failures stop immediately. If smoke retries are exhausted, the harness runs `--rollback-command` or `YGT_ROLLBACK_COMMAND` when configured, otherwise records `rollback-required` in release state.
+
 For harness, plugin, installer, skill, or workflow documentation changes, run the dedicated selftest:
 
 ```bash

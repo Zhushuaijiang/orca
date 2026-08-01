@@ -4,6 +4,14 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  createReleaseState,
+  executeReleaseState,
+  loadReleaseState,
+  prepareReleaseResume,
+  releaseStatePath,
+  saveReleaseState,
+} from './ygt-workflow-release-state.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -244,6 +252,9 @@ async function main(action, options) {
     case 'full':
       await full(project, options);
       break;
+    case 'resume':
+      await resumeRelease(project, options);
+      break;
     case 'env':
       printEnv(project);
       break;
@@ -253,55 +264,111 @@ async function main(action, options) {
 }
 
 async function full(project, options) {
-  await status(project);
-  await impact(project, options);
-  await verify(project, options);
-  await review(project, options);
-
-  if (!options.noCommit) {
-    await commit(project, options);
-    await push(project);
-  }
-
-  if (!options.skipDoctor) {
-    await doctor(project, options);
-  }
-  await triggerAndWaitJenkins(project, options);
-
-  if (!options.skipRollout) {
-    await rollout(project, options);
-  }
-
-  await smoke(project, options);
-  if (options.report || options.taskId || options.task) {
-    await report(project, options);
-  }
-  ok('Full workflow completed.');
+  await durableRelease(project, options, 'full');
 }
 
 async function release(project, options) {
-  await impact(project, options);
-  await review(project, options);
+  await durableRelease(project, options, 'release');
+}
 
-  if (!options.noCommit) {
-    await commit(project, options);
-    await push(project);
+async function resumeRelease(project, options) {
+  if (!options.stateFile && !options.taskId && !options.task) {
+    throw new Error('Resume requires --state-file or --task-id.');
   }
+  await durableRelease(project, options, 'resume');
+}
 
-  if (!options.skipDoctor) {
-    await doctor(project, options);
+async function durableRelease(project, options, requestedAction) {
+  const branch = (await capture('git', ['branch', '--show-current'], { cwd: project.repoDir })).trim();
+  const taskId = sanitizeTaskId(options.taskId ?? options.task ?? `ygt-${Date.now()}`);
+  const filePath = releaseStatePath(project.repoDir, taskId, options.stateFile);
+  const resumed = requestedAction === 'resume';
+  const loaded = resumed ? await loadReleaseState(filePath) : null;
+  const action = loaded?.action ?? requestedAction;
+  const stages = releaseStages(action, options);
+  const state = loaded ?? createReleaseState({
+    action,
+    project: project.name,
+    repoDir: project.repoDir,
+    branch,
+    taskId,
+    stages,
+  });
+  if (loaded) {
+    prepareReleaseResume(state, { project: project.name, repoDir: project.repoDir, branch });
   }
-  await triggerAndWaitJenkins(project, options);
+  const context = {
+    project,
+    options: { ...options, taskId: state.runId },
+    state,
+    statePath: filePath,
+    persist: () => saveReleaseState(filePath, state),
+  };
+  await context.persist();
+  try {
+    await executeReleaseState(context, {
+      runStage: runReleaseStage,
+      rollback: (releaseContext, cause) => rollbackRelease(releaseContext, cause),
+    });
+    state.status = 'passed';
+    state.completedAt = Date.now();
+    state.error = null;
+    await context.persist();
+    ok(`${action === 'full' ? 'Full' : 'Release'} workflow completed. State: ${filePath}`);
+  } catch (error) {
+    state.status = 'failed';
+    state.completedAt = Date.now();
+    state.error = error instanceof Error ? error.message : String(error);
+    await context.persist();
+    throw error;
+  }
+}
 
-  if (!options.skipRollout) {
-    await rollout(project, options);
-  }
+function releaseStages(action, options) {
+  const stages = action === 'full'
+    ? ['status', 'impact', 'verify', 'review']
+    : ['impact', 'review'];
+  if (!options.noCommit) {stages.push('commit', 'push');}
+  if (!options.skipDoctor) {stages.push('doctor');}
+  stages.push('jenkins');
+  if (!options.skipRollout) {stages.push('rollout');}
+  stages.push('smoke');
+  if (options.report || options.taskId || options.task) {stages.push('report');}
+  return stages;
+}
 
-  await smoke(project, options);
-  if (options.report || options.taskId || options.task) {
-    await report(project, options);
+async function runReleaseStage(name, context) {
+  const { project, options } = context;
+  if (name === 'status') {return status(project);}
+  if (name === 'impact') {return impact(project, options);}
+  if (name === 'verify') {return verify(project, options);}
+  if (name === 'review') {return review(project, options);}
+  if (name === 'commit') {return commit(project, options);}
+  if (name === 'push') {return push(project);}
+  if (name === 'doctor') {return doctor(project, options);}
+  if (name === 'jenkins') {return triggerAndWaitJenkins(project, { ...options, releaseContext: context });}
+  if (name === 'rollout') {return rollout(project, options);}
+  if (name === 'smoke') {return smoke(project, options);}
+  if (name === 'report') {return report(project, options);}
+  throw new Error(`Unknown release stage: ${name}`);
+}
+
+async function rollbackRelease(context, cause) {
+  const command = context.options.rollbackCommand ?? env('YGT_ROLLBACK_COMMAND', false);
+  if (!command) {return false;}
+  section(`Rollback: ${context.project.name}`);
+  log(`Triggering configured rollback after: ${cause instanceof Error ? cause.message : cause}`);
+  const via = context.options.via ?? env('YGT_ROLLOUT_VIA', false) ?? 'ssh';
+  if (via === 'jenkins') {
+    await runJenkinsScript(command);
+    return true;
   }
-  ok('Release workflow completed.');
+  if (via !== 'ssh') {throw new Error(`Unknown rollback transport: ${via}`);}
+  const target = `${env('YGT_DEPLOY_USER')}@${env('YGT_DEPLOY_HOST')}`;
+  await run('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', target, command], {
+    timeoutMs: 5 * 60 * 1000,
+  });
+  return true;
 }
 
 async function status(project) {
@@ -684,28 +751,46 @@ async function triggerAndWaitJenkins(project, options) {
   const jobPath = job.split('/').map((part) => `job/${encodeURIComponent(part)}`).join('/');
   const auth = Buffer.from(`${user}:${token}`).toString('base64');
   const headers = { Authorization: `Basic ${auth}` };
-  const crumb = await getJenkinsCrumb(baseUrl, headers);
-  const buildHeaders = crumb
-    ? { ...headers, ...crumb.headers }
-    : headers;
-
-  const params = parseParameters(options.param);
-  const buildUrl = `${baseUrl}/${jobPath}/${params.size ? 'buildWithParameters' : 'build'}`;
-  const body = params.size ? new URLSearchParams(params) : undefined;
-  const response = await fetch(buildUrl, { method: 'POST', headers: buildHeaders, body });
-
-  if (!response.ok) {
-    throw new Error(`Jenkins trigger failed: HTTP ${response.status} ${await response.text()}`);
+  const releaseContext = options.releaseContext;
+  const external = releaseContext?.state.stages.jenkins.external ?? {};
+  let queueUrl = external.queueUrl ?? null;
+  if (!queueUrl && !external.buildUrl) {
+    const crumb = await getJenkinsCrumb(baseUrl, headers);
+    const buildHeaders = crumb ? { ...headers, ...crumb.headers } : headers;
+    const params = parseParameters(options.param);
+    const buildUrl = `${baseUrl}/${jobPath}/${params.size ? 'buildWithParameters' : 'build'}`;
+    const body = params.size ? new URLSearchParams(params) : undefined;
+    const response = await fetch(buildUrl, { method: 'POST', headers: buildHeaders, body });
+    if (!response.ok) {
+      throw new Error(`Jenkins trigger failed: HTTP ${response.status} ${await response.text()}`);
+    }
+    queueUrl = response.headers.get('location');
+    if (queueUrl && releaseContext) {
+      external.queueUrl = queueUrl;
+      await releaseContext.persist();
+    }
   }
-
-  const queueUrl = response.headers.get('location');
   if (!queueUrl) {
-    ok('Jenkins build triggered. No queue URL returned.');
-    return null;
+    if (!external.buildUrl) {
+      ok('Jenkins build triggered. No queue URL returned.');
+      return null;
+    }
   }
 
   const pollMs = Number(options.pollMs ?? env('YGT_JENKINS_POLL_MS', false) ?? DEFAULT_JENKINS_POLL_MS);
-  const buildInfo = await waitForJenkinsBuild(baseUrl, queueUrl, headers, Number(options.timeoutMs ?? 20 * 60 * 1000), pollMs);
+  const buildInfo = await waitForJenkinsBuild(
+    baseUrl,
+    queueUrl,
+    headers,
+    Number(options.timeoutMs ?? 20 * 60 * 1000),
+    pollMs,
+    external.buildUrl,
+    async (buildUrl) => {
+      if (!releaseContext) {return;}
+      external.buildUrl = buildUrl;
+      await releaseContext.persist();
+    },
+  );
   ok(`Jenkins ${job} #${buildInfo.number} ${buildInfo.result}: ${buildInfo.url}`);
   if (buildInfo.result !== 'SUCCESS') {
     throw new Error(`Jenkins build failed with result ${buildInfo.result}.`);
@@ -823,6 +908,7 @@ Commands:
   report    Write .ygt-runs/<task-id>/report.json and report.md
   release   impact -> review -> commit -> push -> doctor -> jenkins -> rollout -> smoke
   full      status -> impact -> verify -> review -> commit -> push -> doctor -> jenkins -> rollout -> smoke
+  resume    Continue a durable release/full run after restart
 
 Common options:
   --project main|base|huanzhe360|zhusuoyin|shujumx
@@ -840,6 +926,8 @@ Common options:
   --include <pathspec>    Limit commit/claim scope, can be repeated
   --exclude <pathspec>    Exclude commit/claim scope, can be repeated
   --task <file>           Task manifest for claim, or task id for report
+  --state-file <path>     Explicit durable release/full state path
+  --rollback-command <s>  Explicit rollback command after final smoke failure
   --agent <name>          Agent name for claim
   --json                  Print machine-readable JSON for supported commands
   --poll-ms <ms>          Jenkins polling interval, default ${DEFAULT_JENKINS_POLL_MS}
@@ -958,14 +1046,23 @@ async function runJenkinsScript(command) {
   }
 }
 
-async function waitForJenkinsBuild(baseUrl, queueUrl, headers, timeoutMs, pollMs) {
+async function waitForJenkinsBuild(
+  baseUrl,
+  queueUrl,
+  headers,
+  timeoutMs,
+  pollMs,
+  resumedBuildUrl = null,
+  onBuildUrl = async () => {},
+) {
   const startedAt = Date.now();
-  let executableUrl = null;
+  let executableUrl = resumedBuildUrl;
 
-  while (Date.now() - startedAt < timeoutMs) {
+  while (!executableUrl && Date.now() - startedAt < timeoutMs) {
     const queue = await getJson(`${queueUrl}api/json`, headers);
     if (queue.executable?.url) {
       executableUrl = queue.executable.url;
+      await onBuildUrl(executableUrl);
       break;
     }
     log(`Waiting Jenkins queue item: ${queue.why ?? 'pending'}`);

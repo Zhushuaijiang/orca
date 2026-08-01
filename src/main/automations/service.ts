@@ -171,6 +171,7 @@ export class AutomationService {
     this.evaluating = true
     try {
       const now = Date.now()
+      this.store.recoverStaleYunxiaoTodoPoolClaims(now)
       for (const automation of this.store.listAutomations()) {
         if (!automation.enabled || automation.nextRunAt > now) {
           continue

@@ -45,26 +45,36 @@ export async function triggerAndWaitForJenkins(config, variables, options = {}) 
       String(template).replace(/\$\{([^}]+)\}/g, (_, name) => String(variables[name] ?? ''))
     )
   }
-  const endpoint = parameters.size > 0 ? 'buildWithParameters' : 'build'
-  const response = await fetch(`${baseUrl}/${jobPath(config.job)}/${endpoint}?${parameters}`, {
-    method: 'POST',
-    headers: { ...headers, ...crumbHeaders }
-  })
-  if (!response.ok) {throw new Error(`Jenkins trigger failed: HTTP ${response.status}`)}
-  const queueUrl = response.headers.get('location')
-  if (!queueUrl) {throw new Error('Jenkins did not return a queue location.')}
+  if (config.idempotencyParameter && variables.runId) {
+    parameters.set(config.idempotencyParameter, String(variables.runId))
+  }
+  let queueUrl = options.external?.queueUrl ?? ''
+  let buildUrl = options.external?.buildUrl ?? ''
+  if (!queueUrl && !buildUrl) {
+    const endpoint = parameters.size > 0 ? 'buildWithParameters' : 'build'
+    const response = await fetch(`${baseUrl}/${jobPath(config.job)}/${endpoint}?${parameters}`, {
+      method: 'POST',
+      headers: { ...headers, ...crumbHeaders }
+    })
+    if (!response.ok) {throw new Error(`Jenkins trigger failed: HTTP ${response.status}`)}
+    queueUrl = response.headers.get('location') ?? ''
+    if (!queueUrl) {throw new Error('Jenkins did not return a queue location.')}
+    await options.onExternalState?.({ queueUrl, buildUrl: null })
+  }
   const timeoutMs = options.timeoutMs ?? 30 * 60 * 1000
   const pollMs = options.pollMs ?? 5000
   const deadline = Date.now() + timeoutMs
-  let buildUrl = ''
-  while (Date.now() < deadline) {
-    const queue = await jsonFetch(`${queueUrl.replace(/\/$/, '')}/api/json`, { headers })
-    if (queue.cancelled) {throw new Error('Jenkins queue item was cancelled.')}
-    if (queue.executable?.url) {
-      buildUrl = queue.executable.url
-      break
+  if (!buildUrl) {
+    while (Date.now() < deadline) {
+      const queue = await jsonFetch(`${queueUrl.replace(/\/$/, '')}/api/json`, { headers })
+      if (queue.cancelled) {throw new Error('Jenkins queue item was cancelled.')}
+      if (queue.executable?.url) {
+        buildUrl = queue.executable.url
+        await options.onExternalState?.({ queueUrl, buildUrl })
+        break
+      }
+      await wait(pollMs)
     }
-    await wait(pollMs)
   }
   if (!buildUrl) {throw new Error('Timed out waiting for Jenkins queue.')}
   while (Date.now() < deadline) {

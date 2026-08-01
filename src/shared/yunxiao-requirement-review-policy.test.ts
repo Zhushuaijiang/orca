@@ -114,6 +114,7 @@ describe('getYunxiaoRequirementCompletionGate', () => {
     expect(
       getYunxiaoRequirementCompletionGate({
         ...baseContract,
+        status: 'ready_to_verify',
         riskProfile: {
           reviewTier: 'mandatory',
           reasons: ['Release behavior changes.'],
@@ -229,6 +230,24 @@ describe('getYunxiaoRequirementCompletionGate', () => {
               result: 'pass',
               summary: 'Online smoke checks passed.',
               collectedAt: 6
+            },
+            {
+              id: 'VE-007',
+              type: 'runtime',
+              command: 'node --version',
+              artifactPath: null,
+              result: 'pass',
+              summary: 'Repository runtime was selected.',
+              collectedAt: 7
+            },
+            {
+              id: 'VE-008',
+              type: 'yunxiao',
+              command: null,
+              artifactPath: null,
+              result: 'pass',
+              summary: 'Yunxiao fields were updated and read back.',
+              collectedAt: 8
             }
           ]
         }

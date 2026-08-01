@@ -203,6 +203,8 @@ export type YunxiaoTodoPoolItem = YunxiaoWorkItem & {
   poolUpdatedAt: number
   lastSyncedAt: number | null
   attempts: number
+  retryNotBefore: number | null
+  lastFailureKind: AutomationFailureKind | null
   claimedAt: number | null
   claimedByAutomationId: string | null
   claimedByRunId: string | null
@@ -272,3 +274,4 @@ export type YunxiaoRequirementResult =
 export type YunxiaoArchiveRequirementResult =
   | { ok: true; workItemId: string | null; message: string }
   | { ok: false; error: string }
+import type { AutomationFailureKind } from './automation-recovery-policy'

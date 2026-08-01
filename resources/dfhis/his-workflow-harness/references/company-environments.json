@@ -2,7 +2,10 @@
   "schemaVersion": 1,
   "environments": {
     "local-development": {
-      "aliases": ["本地开发环境", "本地开发"],
+      "aliases": [
+        "本地开发环境",
+        "本地开发"
+      ],
       "variables": {
         "PGHOST": "192.168.1.60",
         "PGPORT": "5000",
@@ -14,13 +17,48 @@
         "baseUrl": "http://192.168.1.56:8080",
         "user": "admin",
         "token": "hisdev@2024"
-      }
+      },
+      "databaseChecks": [
+        {
+          "name": "PostgreSQL connectivity",
+          "driver": "postgres",
+          "sql": "SELECT 1",
+          "requiredEnv": [
+            "PGHOST",
+            "PGPORT",
+            "PGDATABASE",
+            "PGUSER",
+            "PGPASSWORD"
+          ]
+        }
+      ],
+      "smokeChecks": [
+        {
+          "url": "http://main.hisdev.com",
+          "expectedStatuses": [
+            200
+          ]
+        },
+        {
+          "url": "http://api.hisdev.com",
+          "expectedStatuses": [
+            200,
+            401,
+            403
+          ]
+        }
+      ]
     },
     "local-152": {
-      "aliases": ["本地152开发环境", "152开发环境", "152"],
+      "aliases": [
+        "本地152开发环境",
+        "152开发环境",
+        "152"
+      ],
       "variables": {
         "PGHOST": "192.168.1.154",
         "PGPORT": "5432",
+        "PGDATABASE": "df_his",
         "PGUSER": "df_zhushuju",
         "PGPASSWORD": "xjbnhtest@2024"
       },
@@ -28,10 +66,43 @@
         "baseUrl": "http://192.168.1.150:8081",
         "user": "admin",
         "token": "718293"
-      }
+      },
+      "databaseChecks": [
+        {
+          "name": "PostgreSQL connectivity",
+          "driver": "postgres",
+          "sql": "SELECT 1",
+          "requiredEnv": [
+            "PGHOST",
+            "PGPORT",
+            "PGDATABASE",
+            "PGUSER",
+            "PGPASSWORD"
+          ]
+        }
+      ],
+      "smokeChecks": [
+        {
+          "url": "http://192.168.1.151:8015",
+          "expectedStatuses": [
+            200
+          ]
+        },
+        {
+          "url": "http://192.168.1.151:9000",
+          "expectedStatuses": [
+            200,
+            401,
+            403
+          ]
+        }
+      ]
     },
     "local-test": {
-      "aliases": ["本地测试环境", "测试环境"],
+      "aliases": [
+        "本地测试环境",
+        "测试环境"
+      ],
       "variables": {
         "PGHOST": "192.168.1.131",
         "PGPORT": "5432",
@@ -44,7 +115,10 @@
       }
     },
     "local-standard": {
-      "aliases": ["本地标准库环境", "标准库环境"],
+      "aliases": [
+        "本地标准库环境",
+        "标准库环境"
+      ],
       "variables": {
         "PGHOST": "192.168.1.136",
         "PGPORT": "5432",
@@ -57,7 +131,10 @@
       }
     },
     "local-demo": {
-      "aliases": ["本地演示环境", "演示环境"],
+      "aliases": [
+        "本地演示环境",
+        "演示环境"
+      ],
       "variables": {
         "MYSQL_HOST": "192.168.1.89",
         "MYSQL_PORT": "3306",
@@ -71,7 +148,11 @@
       }
     },
     "ygt-development": {
-      "aliases": ["医共体公司开发环境", "医共体开发环境", "YGT开发环境"],
+      "aliases": [
+        "医共体公司开发环境",
+        "医共体开发环境",
+        "YGT开发环境"
+      ],
       "variables": {
         "DORIS_HOST": "192.168.1.10",
         "DORIS_PORT": "9030",
@@ -86,5 +167,1309 @@
       }
     }
   },
-  "services": {}
+  "services": {
+    "df-his-gateway": {
+      "repoNames": [
+        "df-his-gateway"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "his-gateway-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/his-gateway-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "his-gateway-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/his-gateway-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-biaodan": {
+      "repoNames": [
+        "df-mic-biaodan"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "gy-biaodan-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/gy-biaodan-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-21965",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "gy-biaodan-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/gy-biaodan-test/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-28062",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-bingrenzsy": {
+      "repoNames": [
+        "df-mic-bingrenzsy"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "gy-bingrenzsy-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/gy-bingrenzsy-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.14.3_240829",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "gy-bingrenzsy-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/gy-bingrenzsy-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-jichufw": {
+      "repoNames": [
+        "df-mic-jichufw"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "gy-jichufw-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/gy-jichufw-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "gy-jichufw-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/gy-jichufw-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-oss": {
+      "repoNames": [
+        "df-mic-oss"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "oss-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/oss-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "oss-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/oss-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-office": {
+      "repoNames": [
+        "df-office"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "df-office-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/df-office-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "df-office-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/df-office-test/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        }
+      }
+    },
+    "df-bff--jichufw": {
+      "repoNames": [
+        "df-bff--jichufw"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "winbff-jichufw-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/winbff-jichufw-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-DFHIS-28054",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "winbff-jichufw-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/winbff-jichufw-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-bff-bingan": {
+      "repoNames": [
+        "df-bff-bingan"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "winbff-bingan-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/winbff-bingan-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "winbff-bingan-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/winbff-bingan-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-bff-binglizk": {
+      "repoNames": [
+        "df-bff-binglizk"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "winbff-binglizk-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/winbff-binglizk-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "winbff-binglizk-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/winbff-binglizk-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-bff-cdr": {
+      "repoNames": [
+        "df-bff-cdr"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "hisbff-cdr-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/hisbff-cdr-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature_DFHIS-24999",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "hisbff-cdr-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/hisbff-cdr-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-bff-guahaosf": {
+      "repoNames": [
+        "df-bff-guahaosf"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "winbff-guahaosf-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/winbff-guahaosf-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "winbff-guahaosf-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/winbff-guahaosf-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-bff-yaokufang": {
+      "repoNames": [
+        "df-bff-yaokufang"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "winbff-yaokufang-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/winbff-yaokufang-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature_26135",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "winbff-yaokufang-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/winbff-yaokufang-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-bff-zhuyuansf": {
+      "repoNames": [
+        "df-bff-zhuyuansf"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "winbff-zhuyuansf-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/winbff-zhuyuansf-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.15.2",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "winbff-zhuyuansf-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/winbff-zhuyuansf-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-jj-zhuyuan": {
+      "repoNames": [
+        "df-mic-jj-zhuyuan"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "jj-zhuyuan-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/jj-zhuyuan-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-DFHIS-28027",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "jj-zhuyuan-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/jj-zhuyuan-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-oapi": {
+      "repoNames": [
+        "df-oapi"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "df-oapi-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/df-oapi-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.14.1",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-sapi": {
+      "repoNames": [
+        "df-sapi"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "df-sapi-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/df-sapi-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.14.3_240829",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "df-sapi-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/df-sapi-test/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-zhifu": {
+      "repoNames": [
+        "df-zhifu"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "df-zhifu-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/df-zhifu-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-DFHIS-26209",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "df-zhifu-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/df-zhifu-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-agg-bingangl": {
+      "repoNames": [
+        "df-agg-bingangl"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "agg-bingangl-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/agg-bingangl-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "agg-bingangl-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/agg-bingangl-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.15.2",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-agg-jiancha": {
+      "repoNames": [
+        "df-agg-jiancha"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "agg-jianchagl-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/agg-jianchagl-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.2401.9",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "agg-jianchagl-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/agg-jianchagl-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-agg-jianyan": {
+      "repoNames": [
+        "df-agg-jianyan"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "agg-jianyantmgl-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/agg-jianyantmgl-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature_DFHIS-28613",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "agg-jianyantmgl-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/agg-jianyantmgl-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-agg-linchuangmz": {
+      "repoNames": [
+        "df-agg-linchuangmz"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "agg-linchuangmz-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/agg-linchuangmz-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.14.3_240829",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "agg-linchuangmz-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/agg-linchuangmz-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-agg-zhuyuanyz": {
+      "repoNames": [
+        "df-agg-zhuyuanyz"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "agg-zhuyuanyz-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/agg-zhuyuanyz-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.15.2",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "agg-zhuyuanyz-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/agg-zhuyuanyz-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-bingliku": {
+      "repoNames": [
+        "df-mic-bingliku"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "lc-bingliku-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/lc-bingliku-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.14.3_240829",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "lc-bingliku-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/lc-bingliku-test/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-31494",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-lc-menzhen": {
+      "repoNames": [
+        "df-mic-lc-menzhen"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "lc-menzhenjz-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/lc-menzhenjz-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "lc-menzhenjz-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/lc-menzhenjz-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-lc-zhuyuan": {
+      "repoNames": [
+        "df-mic-lc-zhuyuan"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "lc-zhuyuan-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/lc-zhuyuan-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-DFHIS-26288",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "lc-zhuyuan-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/lc-zhuyuan-test/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-DFHIS-31800",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-yibao-hunangs": {
+      "repoNames": [
+        "df-mic-yibao-hunangs"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "yb-hunangs-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/yb-hunangs-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        }
+      }
+    },
+    "df-mic-yaokufang": {
+      "repoNames": [
+        "df-mic-yaokufang"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "agg-yaokufang-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/agg-yaokufang-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.2401.9",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "agg-yaokufang-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/agg-yaokufang-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-bingan": {
+      "repoNames": [
+        "df-mic-bingan"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "gy-bingan-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/gy-bingan-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "gy-bingan-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/gy-bingan-test/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        }
+      }
+    },
+    "df-mic-binglizk": {
+      "repoNames": [
+        "df-mic-binglizk"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "lc-binglizk-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/lc-binglizk-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "lc-binglizk-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/lc-binglizk-test/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-DFHIS-31801",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-jibingbk": {
+      "repoNames": [
+        "df-mic-jibingbk"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "lc-jibingbk-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/lc-jibingbk-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.2401.9",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "lc-jibingbk-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/lc-jibingbk-test/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.14.3_240829",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-yiliaogl": {
+      "repoNames": [
+        "df-mic-yiliaogl"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "gy-yiliaogl-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/gy-yiliaogl-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-DFHIS-28768",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "gy-yiliaogl-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/gy-yiliaogl-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-report": {
+      "repoNames": [
+        "df-web-report"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-report-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-report-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-report-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-report-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-biaodangl": {
+      "repoNames": [
+        "df-web-biaodangl"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-biaodangl-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-biaodangl-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-25024",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-biaodangl-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-biaodangl-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-main": {
+      "repoNames": [
+        "df-web-main"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-main-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-main-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-main-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-main-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-mobanbjq": {
+      "repoNames": [
+        "df-web-mobanbjq"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-mobanbjq-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-mobanbjq-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-mobanbjq-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-mobanbjq-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-yewugymk": {
+      "repoNames": [
+        "df-web-yewugymk"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-yewugymk-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-yewugymk-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-yewugymk-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-yewugymk-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-zhushujugl": {
+      "repoNames": [
+        "df-web-zhushujugl"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-zhushujugl-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-zhushujugl-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-27171",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-zhushujugl-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-zhushujugl-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-guahaosf": {
+      "repoNames": [
+        "df-web-guahaosf"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-guahaosf-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-guahaosf-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-guahaosf-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-guahaosf-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-zhuyuansf": {
+      "repoNames": [
+        "df-web-zhuyuansf"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-zhuyuansf-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-zhuyuansf-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.15.3_250303",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-zhuyuansf-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-zhuyuansf-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-ui": {
+      "repoNames": [
+        "df-ui"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "df-ui-docs",
+            "discoveredUrl": "http://192.168.1.56:8080/job/df-ui-docs/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        }
+      }
+    },
+    "df-web-yibaogl": {
+      "repoNames": [
+        "df-web-yibaogl"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-yibaogl-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-yibaogl-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-yibaogl-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-yibaogl-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-cdr": {
+      "repoNames": [
+        "df-web-cdr"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-cdr-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-cdr-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-cdr-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-cdr-test/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-menzhenysz": {
+      "repoNames": [
+        "df-web-menzhenysz"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-menzhenysz-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-menzhenysz-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-menzhenysz-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-menzhenysz-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-zhuyuanhsz": {
+      "repoNames": [
+        "df-web-zhuyuanhsz"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-zhuyuanhsz-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-zhuyuanhsz-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-zhuyuanhsz-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-zhuyuanhsz-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-zhuyuanysz": {
+      "repoNames": [
+        "df-web-zhuyuanysz"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-zhuyuanysz-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-zhuyuanysz-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-zhuyuanysz-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-zhuyuanysz-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-yaofang": {
+      "repoNames": [
+        "df-web-yaofang"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-yaofang-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-yaofang-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-yaofang-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-yaofang-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-yaoku": {
+      "repoNames": [
+        "df-web-yaoku"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-yaoku-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-yaoku-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-yaoku-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-yaoku-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-bingangl": {
+      "repoNames": [
+        "df-web-bingangl"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-bingangl-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-bingangl-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-22052",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-bingangl-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-bingangl-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-binglizk": {
+      "repoNames": [
+        "df-web-binglizk"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-binglizk-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-binglizk-dev/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-22271",
+            "branchMode": "fixed"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-binglizk-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-binglizk-test/",
+            "performsDeployment": true,
+            "requiredBranch": "feature-DFHIS-31801",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-chuanranbingbk": {
+      "repoNames": [
+        "df-web-chuanranbingbk"
+      ],
+      "environments": {
+        "local-development": {
+          "jenkins": {
+            "job": "web-chuanranbingbk-dev",
+            "discoveredUrl": "http://192.168.1.56:8080/job/web-chuanranbingbk-dev/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        },
+        "local-152": {
+          "jenkins": {
+            "job": "web-chuanranbingbk-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-chuanranbingbk-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-bff-cunyi": {
+      "repoNames": [
+        "df-bff-cunyi"
+      ],
+      "environments": {
+        "local-152": {
+          "jenkins": {
+            "job": "winbff-cunyi-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/winbff-cunyi-test/",
+            "performsDeployment": true,
+            "requiredBranch": "release_2.15.3_250515",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-agg-shenqingdan": {
+      "repoNames": [
+        "df-agg-shenqingdan"
+      ],
+      "environments": {
+        "local-152": {
+          "jenkins": {
+            "job": "agg-shenqingdan-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/agg-shenqingdan-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-mic-yibao-moni": {
+      "repoNames": [
+        "df-mic-yibao-moni"
+      ],
+      "environments": {
+        "local-152": {
+          "jenkins": {
+            "job": "yb-moni-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/yb-moni-test/",
+            "performsDeployment": true,
+            "requiredBranch": null,
+            "branchMode": "unknown"
+          }
+        }
+      }
+    },
+    "df-web-biaodanbjq": {
+      "repoNames": [
+        "df-web-biaodanbjq"
+      ],
+      "environments": {
+        "local-152": {
+          "jenkins": {
+            "job": "web-biaodanbjq-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-biaodanbjq-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.15.2",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    },
+    "df-web-bui": {
+      "repoNames": [
+        "df-web-bui"
+      ],
+      "environments": {
+        "local-152": {
+          "jenkins": {
+            "job": "web-bui-test",
+            "discoveredUrl": "http://192.168.1.150:8081/job/web-bui-test/",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
+    }
+  }
 }

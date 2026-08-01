@@ -22,7 +22,7 @@
       "databaseChecks": [
         {
           "name": "required configuration exists",
-          "command": "psql",
+          "driver": "postgres",
           "args": ["--no-psqlrc", "--tuples-only"],
           "sql": "SELECT 1",
           "requiredEnv": ["PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"]
@@ -33,13 +33,32 @@
         "userEnv": "HIS_JENKINS_USER",
         "tokenEnv": "HIS_JENKINS_TOKEN",
         "job": "example-his-service",
+        "performsDeployment": true,
+        "branchMode": "parameter",
         "parameters": {
           "BRANCH": "${branch}",
           "NODE_VERSION": "${nodeMajor}"
         }
       },
       "deployCommand": ["kubectl", "rollout", "restart", "deployment/example-his-service"],
-      "smokeUrls": ["http://service.example/actuator/health"]
+      "deployCheckCommand": ["kubectl", "rollout", "status", "deployment/example-his-service"],
+      "rollbackCommand": ["kubectl", "rollout", "undo", "deployment/example-his-service"],
+      "smokeChecks": [
+        {
+          "url": "http://service.example/actuator/health",
+          "expectedStatuses": [200]
+        }
+      ],
+      "environments": {
+        "local-152": {
+          "jenkins": {
+            "job": "example-his-service-test",
+            "performsDeployment": true,
+            "requiredBranch": "RC_2.16.1_250514",
+            "branchMode": "fixed"
+          }
+        }
+      }
     }
   }
 }

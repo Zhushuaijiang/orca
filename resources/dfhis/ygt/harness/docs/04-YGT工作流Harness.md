@@ -41,6 +41,15 @@ node scripts/harness/ygt-workflow.mjs help
 | `report` | 生成 `.ygt-runs/<task-id>/report.json` 和 `report.md` |
 | `release` | `impact -> review -> commit/push -> doctor -> jenkins -> rollout -> smoke` |
 | `full` | `status -> impact -> verify -> review -> commit/push -> doctor -> jenkins -> rollout -> smoke` |
+| `resume` | 从 `.ygt-runs/<task-id>/release-state.json` 断点续跑，不重复已完成阶段 |
+
+`full` 和 `release` 每个阶段都原子持久化状态。Jenkins 排队 URL 和构建 URL 会立即保存；进程重启后，`resume` 继续监听原构建，不重复触发。网络、Jenkins 和 SSH 瞬时错误使用有上限的指数退避，鉴权、配置、验证、提交和推送错误立即停止。
+
+```powershell
+node scripts/harness/ygt-workflow.mjs resume --project main --task-id ygt-20260801-topic
+```
+
+线上 smoke 重试耗尽后，仅在配置 `--rollback-command` 或 `YGT_ROLLBACK_COMMAND` 时执行回滚；未配置时在状态文件记录 `rollback-required`，不猜测回滚命令。
 
 ## 安全约定
 

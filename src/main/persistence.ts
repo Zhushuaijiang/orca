@@ -24,6 +24,7 @@ import {
   type AutomationPrecheckResult,
   type AutomationRunOutputSnapshot,
   type AutomationRun,
+  type AutomationRunStatus,
   type AutomationSchedulerOwner,
   type AutomationRunTrigger,
   type AutomationUpdateInput,
@@ -112,6 +113,11 @@ import {
 } from '../shared/yunxiao-types'
 import { getYunxiaoRequirementCompletionGate } from '../shared/yunxiao-requirement-review-policy'
 import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../shared/yunxiao-requirement-gate-outcome'
+import {
+  AUTOMATION_CLAIM_LEASE_MS,
+  getAutomationRecoveryDecision,
+  getExpiredClaimRecoveryDecision
+} from '../shared/automation-recovery-policy'
 import { MOBILE_PAIRING_USERDATA_FILES } from './runtime/mobile-pairing-files'
 import { normalizePersistedMobileClientTabSelections } from './runtime/client-session-tab-selection-persistence'
 import { sanitizeWorkspaceSessionTerminalRetirements } from './runtime/mobile-session-terminal-persistence-retirement'
@@ -3458,6 +3464,10 @@ function normalizeYunxiaoTodoPoolItem(
     poolUpdatedAt: Number.isFinite(candidate.poolUpdatedAt) ? Number(candidate.poolUpdatedAt) : now,
     lastSyncedAt: Number.isFinite(candidate.lastSyncedAt) ? Number(candidate.lastSyncedAt) : null,
     attempts: normalizeYunxiaoTodoPoolAttempts(candidate.attempts),
+    retryNotBefore: Number.isFinite(candidate.retryNotBefore)
+      ? Number(candidate.retryNotBefore)
+      : null,
+    lastFailureKind: candidate.lastFailureKind ?? null,
     claimedAt: normalizeYunxiaoTodoPoolClaimTime(candidate.claimedAt),
     claimedByAutomationId: normalizeOptionalNonEmptyString(candidate.claimedByAutomationId),
     claimedByRunId: normalizeOptionalNonEmptyString(candidate.claimedByRunId),
@@ -5367,6 +5377,7 @@ export class Store {
     itemIds?: readonly string[]
     excludeItemIds?: readonly string[]
     poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>
+    automationRunStatus?: AutomationRunStatus
     error?: string | null
   }): YunxiaoTodoPoolItem[] {
     const now = Date.now()
@@ -5401,14 +5412,42 @@ export class Store {
         args.poolStatus,
         item.requirementContract
       )
+      const recovery =
+        completionStatus.status === 'failed' && args.automationRunStatus
+          ? getAutomationRecoveryDecision({
+              status: args.automationRunStatus,
+              error: args.error,
+              attempts: item.attempts,
+              now
+            })
+          : null
+      const recoveredStatus = recovery?.recoverable
+        ? item.requirementContract?.status === 'ready_to_build'
+          ? 'ready-to-build'
+          : 'queued'
+        : completionStatus.status
       const next: YunxiaoTodoPoolItem = {
         ...item,
-        poolStatus: completionStatus.status,
+        poolStatus: recoveredStatus,
         poolUpdatedAt: now,
-        lastError:
-          completionStatus.status === 'failed'
+        retryNotBefore: recovery?.retryAt ?? null,
+        lastFailureKind: recovery?.kind ?? null,
+        lastError: recovery?.recoverable
+          ? `Automatic retry scheduled after recoverable ${recovery.kind} failure: ${normalizeOptionalNonEmptyString(args.error) ?? 'unknown error'}`
+          : completionStatus.status === 'failed'
             ? (normalizeOptionalNonEmptyString(args.error) ?? 'Automation run failed.')
             : completionStatus.error
+      }
+      if (
+        recovery?.recoverable ||
+        recoveredStatus === 'failed' ||
+        recoveredStatus === 'done' ||
+        recoveredStatus === 'needs-clarification' ||
+        recoveredStatus === 'ready-to-build'
+      ) {
+        next.claimedAt = null
+        next.claimedByAutomationId = null
+        next.claimedByRunId = null
       }
       updatedItems.push(next)
       return next
@@ -5433,6 +5472,8 @@ export class Store {
         poolUpdatedAt: now,
         lastSyncedAt: now,
         attempts: 0,
+        retryNotBefore: null,
+        lastFailureKind: null,
         claimedAt: null,
         claimedByAutomationId: null,
         claimedByRunId: null,
@@ -5454,6 +5495,8 @@ export class Store {
             poolUpdatedAt: now,
             notes: existing.notes,
             attempts: existing.attempts,
+            retryNotBefore: existing.retryNotBefore,
+            lastFailureKind: existing.lastFailureKind,
             claimedAt: existing.claimedAt,
             claimedByAutomationId: existing.claimedByAutomationId,
             claimedByRunId: existing.claimedByRunId,
@@ -5512,6 +5555,8 @@ export class Store {
         item.claimedAt = null
         item.claimedByAutomationId = null
         item.claimedByRunId = null
+        item.retryNotBefore = null
+        item.lastFailureKind = null
         if (!nextStatus.error) {
           item.lastError = null
         }
@@ -5570,6 +5615,7 @@ export class Store {
         .filter(
           (item) =>
             statuses.has(item.poolStatus) &&
+            (item.retryNotBefore === null || item.retryNotBefore <= now) &&
             isYunxiaoRequirementContractClaimable(item.requirementContract)
         )
         .sort(
@@ -5594,6 +5640,7 @@ export class Store {
         poolStatus: 'running',
         poolOrder: YUNXIAO_TODO_POOL_RUNNING_ORDER,
         attempts: item.attempts + 1,
+        retryNotBefore: null,
         claimedAt: now,
         claimedByAutomationId: args.automationId,
         claimedByRunId: args.runId,
@@ -5607,10 +5654,58 @@ export class Store {
     return claimed
   }
 
+  recoverStaleYunxiaoTodoPoolClaims(
+    now = Date.now(),
+    leaseMs = AUTOMATION_CLAIM_LEASE_MS
+  ): YunxiaoTodoPoolItem[] {
+    const runById = new Map((this.state.automationRuns ?? []).map((run) => [run.id, run]))
+    const activeStatuses = new Set<YunxiaoTodoPoolStatus>([
+      'running',
+      'dispatched',
+      'workspace-created'
+    ])
+    const recovered: YunxiaoTodoPoolItem[] = []
+    this.state.yunxiaoTodoPool = this.getYunxiaoTodoPool().map((item) => {
+      if (!activeStatuses.has(item.poolStatus) || item.claimedAt === null) {
+        return item
+      }
+      const run = item.claimedByRunId ? runById.get(item.claimedByRunId) : null
+      const leaseExpired = now - item.claimedAt >= leaseMs
+      if (run && !isFinalAutomationRunStatus(run.status) && !leaseExpired) {
+        return item
+      }
+      const decision = getExpiredClaimRecoveryDecision({ attempts: item.attempts, now })
+      const next: YunxiaoTodoPoolItem = {
+        ...item,
+        poolStatus: decision.recoverable
+          ? item.requirementContract?.status === 'ready_to_build'
+            ? 'ready-to-build'
+            : 'queued'
+          : 'failed',
+        retryNotBefore: decision.retryAt,
+        lastFailureKind: decision.kind,
+        claimedAt: null,
+        claimedByAutomationId: null,
+        claimedByRunId: null,
+        poolUpdatedAt: now,
+        lastError: decision.recoverable
+          ? 'Expired automation claim recovered and scheduled for retry.'
+          : 'Expired automation claim exhausted its retry budget.'
+      }
+      recovered.push(next)
+      return next
+    })
+    if (recovered.length > 0) {
+      this.scheduleSave()
+    }
+    return recovered
+  }
+
   finishYunxiaoTodoPoolClaim(args: {
     runId: string
     itemIds?: readonly string[]
     poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>
+    automationRunStatus?: AutomationRunStatus
     error?: string | null
   }): YunxiaoTodoPoolItem[] {
     const updatedItems = this.updateYunxiaoTodoPoolClaimStatus(args)
@@ -6430,6 +6525,7 @@ export class Store {
         excludeItemIds: structuredOutcomeItems.map((item) => item.id),
         poolStatus:
           updated.status === 'completed' ? inferYunxiaoTodoPoolCompletedStatus(updated) : 'failed',
+        automationRunStatus: updated.status,
         error: updated.error
       })
     }
