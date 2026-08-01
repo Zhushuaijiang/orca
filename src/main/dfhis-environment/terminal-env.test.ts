@@ -48,6 +48,7 @@ describe('Yunxiao terminal environment', () => {
         hisMcpToken: 'his-token',
         hisMcpUrl: 'http://192.168.1.10:9020/mcp',
         hisCodeRoot: '/workspace/default-code',
+        hisWorkflowCatalogPath: '/workspace/his-workflow-catalog.json',
         archiveWorkspacePath: '/workspace/yunxiao'
       })
     )
@@ -82,7 +83,11 @@ describe('Yunxiao terminal environment', () => {
       YUNXIAO_MCP_URL: 'https://openapi-rdc.aliyuncs.com/ai/mcp',
       HIS_MCP_TOKEN: 'his-token',
       HIS_MCP_URL: 'http://192.168.1.10:9020/mcp',
-      YUNXIAO_ARCHIVE_WORKSPACE: '/workspace/yunxiao'
+      HIS_WORKFLOW_CATALOG: '/workspace/his-workflow-catalog.json',
+      YUNXIAO_ARCHIVE_WORKSPACE: '/workspace/yunxiao',
+      DFHIS_PROJECT_FAMILY: 'unknown',
+      DFHIS_NODE_SOURCE: 'unknown',
+      DFHIS_PACKAGE_MANAGER: 'unknown'
     })
     expect(env.HIS_CODE_ROOT).toBeUndefined()
   })

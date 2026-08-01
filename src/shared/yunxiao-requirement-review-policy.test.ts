@@ -193,6 +193,42 @@ describe('getYunxiaoRequirementCompletionGate', () => {
               result: 'pass',
               summary: 'Regression suite passed.',
               collectedAt: 2
+            },
+            {
+              id: 'VE-003',
+              type: 'build',
+              command: 'pnpm build',
+              artifactPath: null,
+              result: 'pass',
+              summary: 'Release build passed.',
+              collectedAt: 3
+            },
+            {
+              id: 'VE-004',
+              type: 'jenkins',
+              command: null,
+              artifactPath: null,
+              result: 'pass',
+              summary: 'Jenkins build passed.',
+              collectedAt: 4
+            },
+            {
+              id: 'VE-005',
+              type: 'deployment',
+              command: null,
+              artifactPath: null,
+              result: 'pass',
+              summary: 'Deployment completed.',
+              collectedAt: 5
+            },
+            {
+              id: 'VE-006',
+              type: 'smoke',
+              command: null,
+              artifactPath: null,
+              result: 'pass',
+              summary: 'Online smoke checks passed.',
+              collectedAt: 6
             }
           ]
         }

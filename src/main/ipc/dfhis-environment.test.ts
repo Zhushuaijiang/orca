@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   checkArchiveWorkspacePrerequisite,
   checkHisCodeRootPrerequisite,
+  checkHisWorkflowCatalogPrerequisite,
   checkHisMcpPrerequisite,
   checkDfHisWorkflowPackPrerequisites,
   checkYunxiaoMcpPrerequisite,
@@ -50,6 +51,7 @@ function sha256(content: string): string {
 
 async function writeRemoteSkillPackManifest(directory: string): Promise<string> {
   const yunxiaoSkill = '---\nname: yunxiao-requirement-archiver\n---\nremote yunxiao skill\n'
+  const hisWorkflowSkill = '---\nname: his-workflow-harness\n---\nremote HIS workflow skill\n'
   const mergeSkill = '---\nname: his-release-merge\n---\nremote merge skill\n'
   const ygtSkill = '---\nname: ygt\n---\nremote ygt skill\n'
   const environmentSkill = '---\nname: dfhis-company-environment\n---\nremote environment skill\n'
@@ -74,6 +76,11 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
             path: 'his-release-merge/SKILL.md',
             sha256: sha256(mergeSkill),
             content: mergeSkill
+          },
+          {
+            path: 'his-workflow-harness/SKILL.md',
+            sha256: sha256(hisWorkflowSkill),
+            content: hisWorkflowSkill
           },
           {
             path: 'ygt/SKILL.md',
@@ -168,6 +175,12 @@ describe('dfhis-environment', () => {
         'utf8'
       )
     ).resolves.toContain('name: his-release-merge')
+    await expect(
+      readFile(
+        path.join(homeDirectory, '.codex', 'skills', 'his-workflow-harness', 'SKILL.md'),
+        'utf8'
+      )
+    ).resolves.toContain('name: his-workflow-harness')
     await expect(
       readFile(path.join(homeDirectory, '.codex', 'skills', 'ygt', 'SKILL.md'), 'utf8')
     ).resolves.toContain('name: ygt')
@@ -366,6 +379,12 @@ describe('dfhis-environment', () => {
       )
     ).resolves.toContain('remote merge skill')
     await expect(
+      readFile(
+        path.join(homeDirectory, '.codex', 'skills', 'his-workflow-harness', 'SKILL.md'),
+        'utf8'
+      )
+    ).resolves.toContain('remote HIS workflow skill')
+    await expect(
       readFile(path.join(homeDirectory, '.codex', 'skills', 'ygt', 'SKILL.md'), 'utf8')
     ).resolves.toContain('remote ygt skill')
     await expect(
@@ -417,8 +436,8 @@ describe('dfhis-environment', () => {
   it('reports HIS MCP credential readiness without exposing the token', () => {
     expect(checkHisMcpPrerequisite()).toMatchObject({
       id: 'his-mcp',
-      status: 'ok',
-      summary: 'Optional fallback is not configured',
+      status: 'missing',
+      summary: 'HIS MCP credentials are required for business-semantics verification',
       command: 'export HIS_MCP_TOKEN=...'
     })
 
@@ -431,6 +450,7 @@ describe('dfhis-environment', () => {
   it('uses saved config for MCP readiness and snapshots local tokens', async () => {
     const userDataDirectory = await createTemporaryHome()
     const hisCodeRoot = path.join(userDataDirectory, 'his-code')
+    const hisWorkflowCatalogPath = path.join(userDataDirectory, 'his-workflow-catalog.json')
     const archiveWorkspacePath = path.join(userDataDirectory, 'archives')
     process.env.ORCA_USER_DATA_PATH = userDataDirectory
 
@@ -439,6 +459,7 @@ describe('dfhis-environment', () => {
       yunxiaoAccessToken: 'yunxiao-secret',
       hisMcpToken: 'his-secret',
       hisCodeRoot,
+      hisWorkflowCatalogPath,
       archiveWorkspacePath
     })
 
@@ -450,6 +471,7 @@ describe('dfhis-environment', () => {
       hisMcpToken: 'his-secret',
       hasHisMcpToken: true,
       hisCodeRoot,
+      hisWorkflowCatalogPath,
       archiveWorkspacePath
     })
     expect(checkYunxiaoMcpPrerequisite()).toMatchObject({ status: 'ok' })
@@ -488,6 +510,26 @@ describe('dfhis-environment', () => {
     })
     await expect(checkArchiveWorkspacePrerequisite()).resolves.toMatchObject({
       id: 'archive-workspace',
+      status: 'ok'
+    })
+  })
+
+  it('requires a valid HIS workflow service catalog', async () => {
+    const userDataDirectory = await createTemporaryHome()
+    const hisWorkflowCatalogPath = path.join(userDataDirectory, 'his-workflow-catalog.json')
+    process.env.ORCA_USER_DATA_PATH = userDataDirectory
+    await saveDfHisEnvironmentConfig({ hisWorkflowCatalogPath })
+
+    await expect(checkHisWorkflowCatalogPrerequisite()).resolves.toMatchObject({
+      id: 'his-workflow-catalog',
+      status: 'missing'
+    })
+    await writeFile(hisWorkflowCatalogPath, '{"schemaVersion":2,"services":{}}')
+    await expect(checkHisWorkflowCatalogPrerequisite()).resolves.toMatchObject({
+      status: 'invalid'
+    })
+    await writeFile(hisWorkflowCatalogPath, '{"schemaVersion":1,"services":{}}')
+    await expect(checkHisWorkflowCatalogPrerequisite()).resolves.toMatchObject({
       status: 'ok'
     })
   })

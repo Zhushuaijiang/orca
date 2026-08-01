@@ -28,7 +28,7 @@ import { translate } from '@/i18n/i18n'
 
 type LoadState = 'idle' | 'checking' | 'installing' | 'updating-skills'
 type DfHisEnvironmentApi = typeof window.api.dfhisEnvironment
-const DFHIS_PREREQUISITE_COUNT = 15
+const DFHIS_PREREQUISITE_COUNT = 13
 
 function getDfHisEnvironmentApi(): DfHisEnvironmentApi {
   const api = (window.api as { dfhisEnvironment?: DfHisEnvironmentApi }).dfhisEnvironment
@@ -182,6 +182,7 @@ export function DfHisEnvironmentPane(): JSX.Element {
       hisMcpUrl: current.hisMcpUrl || snapshot.hisMcpUrl,
       hisMcpToken: current.hisMcpToken || snapshot.hisMcpToken,
       hisCodeRoot: current.hisCodeRoot || snapshot.hisCodeRoot,
+      hisWorkflowCatalogPath: current.hisWorkflowCatalogPath || snapshot.hisWorkflowCatalogPath,
       archiveWorkspacePath: current.archiveWorkspacePath || snapshot.archiveWorkspacePath,
       dfhisSkillPackUrl: current.dfhisSkillPackUrl || snapshot.dfhisSkillPackUrl
     }))

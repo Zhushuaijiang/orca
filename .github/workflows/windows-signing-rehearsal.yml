@@ -101,6 +101,13 @@ jobs:
             throw 'electron-builder --prepackaged did not produce dist/orca-windows-setup.exe'
           }
 
+      - name: Install and launch Windows artifact
+        shell: pwsh
+        run: |
+          ./config/scripts/verify-windows-installer-runtime.ps1 `
+            -InstallerPath 'dist/orca-windows-setup.exe' `
+            -EvidencePath 'windows-runtime-evidence.txt'
+
       - name: Upload unsigned Windows installer artifact
         uses: actions/upload-artifact@v7
         with:
@@ -355,6 +362,13 @@ jobs:
           }
           Write-Host "All $((Get-Content 'inner-signing-list.txt').Count) inner binaries plus the installer are signed."
 
+      - name: Install and launch signed Windows artifact
+        shell: pwsh
+        run: |
+          ./config/scripts/verify-windows-installer-runtime.ps1 `
+            -InstallerPath 'dist/orca-windows-setup.exe' `
+            -EvidencePath 'windows-signed-runtime-evidence.txt'
+
       - name: Upload rehearsal evidence and installer
         if: always()
         uses: actions/upload-artifact@v7
@@ -363,6 +377,8 @@ jobs:
           path: |
             signing-evidence.txt
             inner-signing-list.txt
+            windows-runtime-evidence.txt
+            windows-signed-runtime-evidence.txt
             dist/orca-windows-setup.exe
             dist/orca-windows-setup.exe.blockmap
             dist/latest.yml

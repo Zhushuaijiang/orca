@@ -2709,6 +2709,7 @@ describe('web UI preload API', () => {
       hisMcpToken: '',
       hasHisMcpToken: false,
       hisCodeRoot: '/opt/workspace/df-his/dfhis-workspace',
+      hisWorkflowCatalogPath: '/opt/workspace/df-his/his-workflow-catalog.json',
       archiveWorkspacePath: '/opt/workspace/df-his/yunxiao',
       dfhisSkillPackUrl: 'http://192.168.1.10/static/downloads/dfhis/dfhis-skill-pack.zip'
     }

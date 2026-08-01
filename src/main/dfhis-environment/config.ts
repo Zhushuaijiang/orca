@@ -14,6 +14,14 @@ const DEFAULT_HIS_MCP_URL = 'http://192.168.1.10:9020/mcp'
 const DEFAULT_YUNXIAO_MCP_URL =
   'https://openapi-rdc.aliyuncs.com/ai/mcp?toolsets=organization-management,project-management'
 const DEFAULT_ARCHIVE_WORKSPACE_PATH = path.join(homedir(), 'workspace', 'yunxiao')
+const DEFAULT_HIS_WORKFLOW_CATALOG_PATH = path.join(
+  homedir(),
+  '.codex',
+  'skills',
+  'his-workflow-harness',
+  'references',
+  'company-environments.json'
+)
 const DEFAULT_DFHIS_SKILL_PACK_URL =
   'http://192.168.1.10:18800/static/downloads/dfhis/dfhis-skill-pack.json'
 
@@ -25,6 +33,7 @@ export type DfHisEnvironmentConfig = {
   hisMcpToken: string
   hisMcpUrl: string
   hisCodeRoot: string
+  hisWorkflowCatalogPath: string
   archiveWorkspacePath: string
   dfhisSkillPackUrl: string
 }
@@ -71,6 +80,9 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
     hisMcpToken: cleanString((config as Record<string, unknown>).hisMcpToken),
     hisMcpUrl: cleanString((config as Record<string, unknown>).hisMcpUrl) || DEFAULT_HIS_MCP_URL,
     hisCodeRoot: cleanPath((config as Record<string, unknown>).hisCodeRoot),
+    hisWorkflowCatalogPath:
+      cleanPath((config as Record<string, unknown>).hisWorkflowCatalogPath) ||
+      DEFAULT_HIS_WORKFLOW_CATALOG_PATH,
     archiveWorkspacePath:
       cleanPath((config as Record<string, unknown>).archiveWorkspacePath) ||
       DEFAULT_ARCHIVE_WORKSPACE_PATH,
@@ -106,6 +118,8 @@ function mergeConfigPatch(
     hisMcpToken: cleanString(patch.hisMcpToken) || current.hisMcpToken,
     hisMcpUrl: cleanString(patch.hisMcpUrl) || current.hisMcpUrl,
     hisCodeRoot: cleanPath(patch.hisCodeRoot) || current.hisCodeRoot,
+    hisWorkflowCatalogPath:
+      cleanPath(patch.hisWorkflowCatalogPath) || current.hisWorkflowCatalogPath,
     archiveWorkspacePath: cleanPath(patch.archiveWorkspacePath) || current.archiveWorkspacePath,
     dfhisSkillPackUrl: cleanString(patch.dfhisSkillPackUrl) || current.dfhisSkillPackUrl
   })
@@ -140,6 +154,7 @@ export function snapshotDfHisEnvironmentConfig(
     hisMcpToken: config.hisMcpToken,
     hasHisMcpToken: config.hisMcpToken.length > 0,
     hisCodeRoot: config.hisCodeRoot,
+    hisWorkflowCatalogPath: config.hisWorkflowCatalogPath,
     archiveWorkspacePath: config.archiveWorkspacePath,
     dfhisSkillPackUrl: config.dfhisSkillPackUrl
   }

@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "environments": {
+    "local-development": {
+      "aliases": ["本地开发环境", "本地开发"],
+      "variables": {
+        "PGHOST": "192.168.1.60",
+        "PGPORT": "5000",
+        "PGDATABASE": "df_his",
+        "PGUSER": "df_zhushuju",
+        "PGPASSWORD": "hisdev@2024"
+      },
+      "jenkins": {
+        "baseUrl": "http://192.168.1.56:8080",
+        "user": "admin",
+        "token": "hisdev@2024"
+      }
+    },
+    "local-152": {
+      "aliases": ["本地152开发环境", "152开发环境", "152"],
+      "variables": {
+        "PGHOST": "192.168.1.154",
+        "PGPORT": "5432",
+        "PGUSER": "df_zhushuju",
+        "PGPASSWORD": "xjbnhtest@2024"
+      },
+      "jenkins": {
+        "baseUrl": "http://192.168.1.150:8081",
+        "user": "admin",
+        "token": "718293"
+      }
+    },
+    "local-test": {
+      "aliases": ["本地测试环境", "测试环境"],
+      "variables": {
+        "PGHOST": "192.168.1.131",
+        "PGPORT": "5432",
+        "PGPASSWORD": "histest@2023"
+      },
+      "jenkins": {
+        "baseUrl": "http://192.168.1.174:8080",
+        "user": "admin",
+        "token": "147852"
+      }
+    },
+    "local-standard": {
+      "aliases": ["本地标准库环境", "标准库环境"],
+      "variables": {
+        "PGHOST": "192.168.1.136",
+        "PGPORT": "5432",
+        "PGPASSWORD": "biaozhunku@2023"
+      },
+      "jenkins": {
+        "baseUrl": "http://192.168.1.138:8080",
+        "user": "admin",
+        "token": "biaozhunku@2023"
+      }
+    },
+    "local-demo": {
+      "aliases": ["本地演示环境", "演示环境"],
+      "variables": {
+        "MYSQL_HOST": "192.168.1.89",
+        "MYSQL_PORT": "3306",
+        "MYSQL_USER": "root",
+        "MYSQL_PASSWORD": "dfhis@2021"
+      },
+      "jenkins": {
+        "baseUrl": "http://192.168.1.37:8081",
+        "user": "admin",
+        "token": "dfhis@2021"
+      }
+    },
+    "ygt-development": {
+      "aliases": ["医共体公司开发环境", "医共体开发环境", "YGT开发环境"],
+      "variables": {
+        "DORIS_HOST": "192.168.1.10",
+        "DORIS_PORT": "9030",
+        "DORIS_DATABASE": "df_ygt",
+        "DORIS_USER": "df_admin",
+        "DORIS_PASSWORD": "cloudhis@2123"
+      },
+      "jenkins": {
+        "baseUrl": "http://192.168.199.42:8082",
+        "user": "admin",
+        "token": "cloudhis@2123"
+      }
+    }
+  },
+  "services": {}
+}

@@ -1,6 +1,7 @@
 import path from 'node:path'
 import type { FolderWorkspace } from '../../shared/types'
 import { readDfHisEnvironmentConfigSync } from './config'
+import { resolveDfHisProjectRuntime } from './project-runtime'
 
 function addIfMissing(
   env: Record<string, string>,
@@ -53,6 +54,17 @@ export function buildYunxiaoTerminalEnv(
   addIfMissing(env, 'YUNXIAO_MCP_URL', config.yunxiaoMcpUrl)
   addIfMissing(env, 'HIS_MCP_TOKEN', config.hisMcpToken)
   addIfMissing(env, 'HIS_MCP_URL', config.hisMcpUrl)
+  addIfMissing(env, 'HIS_WORKFLOW_CATALOG', config.hisWorkflowCatalogPath)
   addIfMissing(env, 'YUNXIAO_ARCHIVE_WORKSPACE', config.archiveWorkspacePath)
+  const codeWorkspaceRoot = options.codeWorkspaceRoot || config.hisCodeRoot
+  const runtime = resolveDfHisProjectRuntime(codeWorkspaceRoot)
+  addIfMissing(env, 'DFHIS_PROJECT_FAMILY', runtime.family)
+  addIfMissing(env, 'DFHIS_NODE_MAJOR', runtime.nodeMajor?.toString())
+  addIfMissing(env, 'DFHIS_NODE_SOURCE', runtime.nodeSource)
+  addIfMissing(env, 'DFHIS_PACKAGE_MANAGER', runtime.packageManager)
+  if (runtime.nodeBinPath) {
+    const pathKey = process.platform === 'win32' && !Object.hasOwn(env, 'PATH') ? 'Path' : 'PATH'
+    env[pathKey] = [runtime.nodeBinPath, env[pathKey]].filter(Boolean).join(path.delimiter)
+  }
   return env
 }

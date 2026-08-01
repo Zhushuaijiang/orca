@@ -48,7 +48,7 @@ Mandatory HIS MCP triggers:
 - Clinical workflow ownership or cross-station reuse, especially when a page appears under one workstation/module but routes, imports, iframes, or shared components mount another workstation/module's implementation.
 - Any case where the agent is about to write “业务不确定”, “缺规则配置口径”, “页面不在当前仓库”, or “只能猜”.
 
-Ask focused questions with current evidence and the proposed implementation. Preserve the HIS MCP conclusion in `reviewChecks.hisMcpResult`, then convert the answer into concrete code, SQL, or verification changes.
+Ask focused questions with current evidence and the proposed implementation. Preserve the conclusion in the decision ledger and as passing `business` verification evidence, then convert the answer into concrete code, SQL, or verification changes.
 
 General guardrails learned from prior work:
 
@@ -203,6 +203,21 @@ For DFHIS frontend repositories:
 - Install only inside `{需求目录}/code/<repo>` or another approved isolated worktree, never in the original selected code root. Use frozen/locked installs such as `corepack yarn install --frozen-lockfile --force`; avoid changing `package.json`, lock files, or dependency definitions to make validation pass.
 - After install/build scripts, run `git status --short` and revert only generated side effects you created, such as version stamping in `public/config.json`; leave ignored `node_modules/` or `dist/` as local artifacts.
 - If full lint is blocked by unrelated historical files, run focused lint or syntax checks on the requirement's changed/affected files, then run the closest build script. Record both the full-lint blocker and the focused/build evidence in `PRD_AND_CODE_ANALYSIS.md`.
+
+## Executable HIS Workflow Gate
+
+For general HIS repositories, run `his-workflow-harness` intake against the isolated requirement worktree before dependency installation, build, database, Jenkins, deployment, or smoke work. Use the returned repository runtime and package manager; do not reuse the host's default Node. YGT repositories must use the YGT harness instead.
+
+Before `ready_to_verify`, set `methodologyGate.requiredEvidenceTypes` and populate matching passing evidence:
+
+- Every frontend/backend build: `runtime` plus `build` or `passing_test` as applicable.
+- UI/workflow: `build` and `screenshot`.
+- Database/data/config: `database`; keep checks read-only and attach the delivery SQL separately.
+- Mandatory HIS MCP business gate: `business`.
+- Jenkins/release: `jenkins`, `deployment`, and `smoke` in addition to local build evidence.
+- Successful Yunxiao comment, attachment, field update, and read-back: `yunxiao`.
+
+Use `his-workflow-harness full` only when the user requested Jenkins/deployment and the service catalog is unambiguous. Save its report under `{需求目录}/evidence/his-workflow` and copy the report evidence into the Requirement Contract. A missing catalog mapping is a concrete release blocker, not permission to guess a job or environment.
 
 ## PRD And Code Analysis Handoff
 

@@ -10,6 +10,7 @@ export type DfHisEnvironmentPrerequisiteId =
   | 'dfhis-workflow-pack-codex'
   | 'dfhis-workflow-pack-claude'
   | 'his-code-root'
+  | 'his-workflow-catalog'
   | 'archive-workspace'
 
 export type DfHisEnvironmentPrerequisiteStatus = 'ok' | 'missing' | 'invalid'
@@ -38,6 +39,7 @@ export type DfHisEnvironmentConfigInput = {
   hisMcpToken?: string
   hisMcpUrl?: string
   hisCodeRoot?: string
+  hisWorkflowCatalogPath?: string
   archiveWorkspacePath?: string
   dfhisSkillPackUrl?: string
 }
@@ -53,6 +55,7 @@ export type DfHisEnvironmentConfigSnapshot = {
   hisMcpToken: string
   hasHisMcpToken: boolean
   hisCodeRoot: string
+  hisWorkflowCatalogPath: string
   archiveWorkspacePath: string
   dfhisSkillPackUrl: string
 }

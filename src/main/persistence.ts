@@ -3098,9 +3098,16 @@ function normalizeYunxiaoRequirementVerificationEvidence(
       candidate.type === 'failing_test' ||
       candidate.type === 'passing_test' ||
       candidate.type === 'command' ||
+      candidate.type === 'runtime' ||
+      candidate.type === 'business' ||
+      candidate.type === 'database' ||
       candidate.type === 'build' ||
+      candidate.type === 'jenkins' ||
+      candidate.type === 'deployment' ||
+      candidate.type === 'smoke' ||
       candidate.type === 'screenshot' ||
-      candidate.type === 'artifact'
+      candidate.type === 'artifact' ||
+      candidate.type === 'yunxiao'
         ? candidate.type
         : 'command',
     command: normalizeOptionalNonEmptyString(candidate.command),
@@ -3137,6 +3144,29 @@ function normalizeYunxiaoRequirementMethodologyGate(
         .filter((evidence): evidence is YunxiaoRequirementVerificationEvidence => evidence !== null)
         .slice(0, 20)
     : []
+  const requiredEvidenceTypes = Array.isArray(candidate.requiredEvidenceTypes)
+    ? [
+        ...new Set(
+          candidate.requiredEvidenceTypes.filter((type) =>
+            [
+              'failing_test',
+              'passing_test',
+              'command',
+              'runtime',
+              'business',
+              'database',
+              'build',
+              'jenkins',
+              'deployment',
+              'smoke',
+              'screenshot',
+              'artifact',
+              'yunxiao'
+            ].includes(type)
+          )
+        )
+      ].slice(0, 13)
+    : []
   if (
     candidate.designConfirmed !== true &&
     alternatives.length === 0 &&
@@ -3151,6 +3181,7 @@ function normalizeYunxiaoRequirementMethodologyGate(
     implementationPlan: normalizeYunxiaoRequirementImplementationPlanSnapshot(
       candidate.implementationPlan
     ),
+    requiredEvidenceTypes,
     verificationEvidence
   }
 }

@@ -10,12 +10,21 @@ import { tmpdir } from 'node:os'
 const DEFAULT_REMOTE = 'root@192.168.1.10'
 const DEFAULT_REMOTE_DIR =
   '/opt/workspace/github/hermes-agent-260623/bot_manager/static/downloads/orca'
+const DEFAULT_SKILL_PACK_JSON = 'out/dfhis-skill-pack.json'
+const DEFAULT_SKILL_PACK_ZIP = 'out/dfhis-skill-pack.zip'
 
 function parseArgs(argv) {
+  const remoteDir = process.env.ORCA_RELEASE_REMOTE_DIR || DEFAULT_REMOTE_DIR
   const args = {
     buildMac: true,
     remote: process.env.ORCA_RELEASE_REMOTE || DEFAULT_REMOTE,
-    remoteDir: process.env.ORCA_RELEASE_REMOTE_DIR || DEFAULT_REMOTE_DIR,
+    remoteDir,
+    remoteSkillPackDir:
+      process.env.ORCA_DFHIS_SKILL_PACK_REMOTE_DIR || path.posix.join(remoteDir, '..', 'dfhis'),
+    skillPackJson: process.env.ORCA_DFHIS_SKILL_PACK_JSON || DEFAULT_SKILL_PACK_JSON,
+    skillPackZip: process.env.ORCA_DFHIS_SKILL_PACK_ZIP || DEFAULT_SKILL_PACK_ZIP,
+    publishSkillPack: true,
+    generateSkillPack: true,
     notes: process.env.ORCA_RELEASE_NOTES || ''
   }
   for (let i = 0; i < argv.length; i += 1) {
@@ -30,6 +39,19 @@ function parseArgs(argv) {
       args.remote = argv[++i]
     } else if (arg === '--remote-dir') {
       args.remoteDir = argv[++i]
+      if (!process.env.ORCA_DFHIS_SKILL_PACK_REMOTE_DIR) {
+        args.remoteSkillPackDir = path.posix.join(args.remoteDir, '..', 'dfhis')
+      }
+    } else if (arg === '--remote-skill-pack-dir') {
+      args.remoteSkillPackDir = argv[++i]
+    } else if (arg === '--skill-pack-json') {
+      args.skillPackJson = argv[++i]
+    } else if (arg === '--skill-pack-zip') {
+      args.skillPackZip = argv[++i]
+    } else if (arg === '--skip-skill-pack') {
+      args.publishSkillPack = false
+    } else if (arg === '--skip-skill-pack-generation') {
+      args.generateSkillPack = false
     } else if (arg === '--notes') {
       args.notes = argv[++i]
     } else {
@@ -114,7 +136,7 @@ async function artifactInfo(input) {
   return {
     filename: input.filename,
     download_name: input.downloadName,
-    path: `releases/${input.version}/${input.filename}`,
+    path: input.publishedPath ?? `releases/${input.version}/${input.filename}`,
     size: info.size,
     sha256: await sha256(input.path)
   }
@@ -180,6 +202,10 @@ async function main() {
   const macApp = args.macApp || 'dist/mac-arm64/Orca.app'
   const windowsExe = args.windowsExe || (await newestWindowsExe())
 
+  if (args.publishSkillPack && args.generateSkillPack) {
+    run('pnpm', ['run', 'generate:dfhis-skill-pack'])
+  }
+
   if (args.buildMac) {
     await buildMacApp()
   }
@@ -188,6 +214,12 @@ async function main() {
   }
   if (!windowsExe || !existsSync(windowsExe)) {
     throw new Error('Windows installer not found. Pass --windows-exe <path>.')
+  }
+  if (
+    args.publishSkillPack &&
+    (!existsSync(args.skillPackJson) || !existsSync(args.skillPackZip))
+  ) {
+    throw new Error('DFHIS skill pack JSON/ZIP is missing. Generate it or pass explicit paths.')
   }
 
   verifyMacAppVersion(macApp, version)
@@ -211,8 +243,14 @@ async function main() {
 
   const macZip = path.join(stageDir, 'orca-macos-arm64.zip')
   const windowsOut = path.join(stageDir, 'orca-windows-setup.exe')
+  const skillPackJsonOut = path.join(stageDir, 'dfhis-skill-pack.json')
+  const skillPackZipOut = path.join(stageDir, 'dfhis-skill-pack.zip')
   run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', macApp, macZip])
   await copyFile(windowsSource, windowsOut)
+  if (args.publishSkillPack) {
+    await copyFile(args.skillPackJson, skillPackJsonOut)
+    await copyFile(args.skillPackZip, skillPackZipOut)
+  }
   if (temporaryWindowsSource) {
     await rm(temporaryWindowsSource, { force: true })
   }
@@ -238,22 +276,67 @@ async function main() {
       })
     }
   }
+  if (args.publishSkillPack) {
+    const manifest = JSON.parse(await readFile(skillPackJsonOut, 'utf8'))
+    release.dfhis_skill_pack = {
+      version: manifest.version ?? publishedAt,
+      manifest: await artifactInfo({
+        path: skillPackJsonOut,
+        filename: 'dfhis-skill-pack.json',
+        downloadName: `dfhis-skill-pack-${version}.json`,
+        publishedPath: '/static/downloads/dfhis/dfhis-skill-pack.json',
+        version
+      }),
+      zip: await artifactInfo({
+        path: skillPackZipOut,
+        filename: 'dfhis-skill-pack.zip',
+        downloadName: `dfhis-skill-pack-${version}.zip`,
+        publishedPath: '/static/downloads/dfhis/dfhis-skill-pack.zip',
+        version
+      })
+    }
+  }
   const releaseJson = path.join(stageDir, 'release.json')
   await writeFile(releaseJson, `${JSON.stringify(release, null, 2)}\n`)
 
   const remoteTemp = `/tmp/orca-desktop-release-${version}-${Date.now()}`
   remoteCommand(args, `mkdir -p ${JSON.stringify(remoteTemp)}`)
-  scpUpload(args, [macZip, windowsOut, releaseJson], remoteTemp)
+  const uploadFiles = [macZip, windowsOut, releaseJson]
+  if (args.publishSkillPack) {
+    uploadFiles.push(skillPackJsonOut, skillPackZipOut)
+  }
+  scpUpload(args, uploadFiles, remoteTemp)
+
+  const expectedMacSha = release.downloads.macos.sha256
+  const expectedWindowsSha = release.downloads.windows.sha256
+  const expectedSkillJsonSha = release.dfhis_skill_pack?.manifest.sha256 ?? ''
+  const expectedSkillZipSha = release.dfhis_skill_pack?.zip.sha256 ?? ''
 
   const publishScript = `
 set -euo pipefail
 ROOT=${JSON.stringify(args.remoteDir)}
+SKILL_ROOT=${JSON.stringify(args.remoteSkillPackDir)}
 VERSION=${JSON.stringify(version)}
 TMP=${JSON.stringify(remoteTemp)}
+test "$(sha256sum "$TMP/orca-macos-arm64.zip" | awk '{print $1}')" = ${JSON.stringify(expectedMacSha)}
+test "$(sha256sum "$TMP/orca-windows-setup.exe" | awk '{print $1}')" = ${JSON.stringify(expectedWindowsSha)}
 mkdir -p "$ROOT/releases/$VERSION"
 mv "$TMP/orca-macos-arm64.zip" "$ROOT/releases/$VERSION/orca-macos-arm64.zip"
 mv "$TMP/orca-windows-setup.exe" "$ROOT/releases/$VERSION/orca-windows-setup.exe"
 mv "$TMP/release.json" "$ROOT/releases/$VERSION/release.json"
+${
+  args.publishSkillPack
+    ? `test "$(sha256sum "$TMP/dfhis-skill-pack.json" | awk '{print $1}')" = ${JSON.stringify(expectedSkillJsonSha)}
+test "$(sha256sum "$TMP/dfhis-skill-pack.zip" | awk '{print $1}')" = ${JSON.stringify(expectedSkillZipSha)}
+mkdir -p "$SKILL_ROOT"
+SKILL_JSON_TMP="$SKILL_ROOT/.dfhis-skill-pack-$VERSION-$$.json.tmp"
+SKILL_ZIP_TMP="$SKILL_ROOT/.dfhis-skill-pack-$VERSION-$$.zip.tmp"
+mv "$TMP/dfhis-skill-pack.json" "$SKILL_JSON_TMP"
+mv "$TMP/dfhis-skill-pack.zip" "$SKILL_ZIP_TMP"
+mv "$SKILL_JSON_TMP" "$SKILL_ROOT/dfhis-skill-pack.json"
+mv "$SKILL_ZIP_TMP" "$SKILL_ROOT/dfhis-skill-pack.zip"`
+    : ''
+}
 rmdir "$TMP"
 ROOT="$ROOT" VERSION="$VERSION" python3 - <<'PY'
 import json
@@ -285,6 +368,9 @@ PY
   console.log(`Published Orca desktop release ${version}`)
   console.log(`macOS: /downloads/orca/macos`)
   console.log(`Windows: /downloads/orca/windows`)
+  if (args.publishSkillPack) {
+    console.log('DFHIS skills: /static/downloads/dfhis/dfhis-skill-pack.json')
+  }
 }
 
 main().catch((error) => {

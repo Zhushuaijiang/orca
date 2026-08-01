@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "environments": {
+    "local-152": {
+      "aliases": ["本地152开发环境", "152"],
+      "variables": {
+        "PGHOST": "192.168.1.154",
+        "PGPORT": "5432"
+      },
+      "jenkins": {
+        "baseUrl": "http://192.168.1.150:8081",
+        "userEnv": "HIS_JENKINS_USER",
+        "tokenEnv": "HIS_JENKINS_TOKEN"
+      }
+    }
+  },
+  "services": {
+    "example-his-service": {
+      "repoNames": ["df-example-service"],
+      "family": "his",
+      "verifyCommands": [["./gradlew", "test"]],
+      "databaseChecks": [
+        {
+          "name": "required configuration exists",
+          "command": "psql",
+          "args": ["--no-psqlrc", "--tuples-only"],
+          "sql": "SELECT 1",
+          "requiredEnv": ["PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"]
+        }
+      ],
+      "jenkins": {
+        "baseUrlEnv": "HIS_JENKINS_URL",
+        "userEnv": "HIS_JENKINS_USER",
+        "tokenEnv": "HIS_JENKINS_TOKEN",
+        "job": "example-his-service",
+        "parameters": {
+          "BRANCH": "${branch}",
+          "NODE_VERSION": "${nodeMajor}"
+        }
+      },
+      "deployCommand": ["kubectl", "rollout", "restart", "deployment/example-his-service"],
+      "smokeUrls": ["http://service.example/actuator/health"]
+    }
+  }
+}

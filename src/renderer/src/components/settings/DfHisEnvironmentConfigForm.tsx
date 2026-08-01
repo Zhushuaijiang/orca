@@ -17,6 +17,7 @@ export function createEmptyDfHisEnvironmentConfigForm(): DfHisEnvironmentConfigF
     hisMcpToken: '',
     hisMcpUrl: '',
     hisCodeRoot: '',
+    hisWorkflowCatalogPath: '',
     archiveWorkspacePath: '',
     dfhisSkillPackUrl: ''
   }
@@ -135,6 +136,23 @@ export function DfHisEnvironmentConfigForm({
             placeholder={translate(
               'auto.components.settings.DfHisEnvironmentPane.hisCodeRootPlaceholder',
               '~/workspace/<project>/code'
+            )}
+            disabled={disabled}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-foreground">
+            {translate(
+              'auto.components.settings.DfHisEnvironmentPane.hisWorkflowCatalogPath',
+              'HIS workflow service catalog'
+            )}
+          </span>
+          <Input
+            value={value.hisWorkflowCatalogPath}
+            onChange={(event) => onChange('hisWorkflowCatalogPath', event.target.value)}
+            placeholder={translate(
+              'auto.components.settings.DfHisEnvironmentPane.hisWorkflowCatalogPathPlaceholder',
+              '~/workspace/his-workflow-catalog.json'
             )}
             disabled={disabled}
           />

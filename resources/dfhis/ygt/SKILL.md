@@ -126,3 +126,5 @@ For Yunxiao completion and regression tasks:
 - Verify the work item type before updating structured fields; tasks may not have the same fields or status workflow as requirements.
 - In final comments, include the affected repos/branches/commits, shared package versions, Jenkins job names and build numbers, local build commands, smoke/doctor results, and any known unrelated workspace state.
 - If the user challenges a release answer, re-check from commits, package manifests, lockfiles, registry, and Jenkins before responding.
+- Map the harness report into Requirement Contract evidence: actual Node/package manager as `runtime`, local checks as `passing_test`/`build`, Jenkins as `jenkins`, rollout as `deployment`, online checks as `smoke`, and verified Yunxiao updates as `yunxiao`.
+- Before `ready_to_verify`, declare these entries in `methodologyGate.requiredEvidenceTypes`; a successful local build alone does not satisfy a release request.

@@ -16,6 +16,7 @@ import {
 import {
   checkArchiveWorkspacePrerequisite,
   checkHisCodeRootPrerequisite,
+  checkHisWorkflowCatalogPrerequisite,
   ensureArchiveWorkspace
 } from '../../../dfhis-environment/dfhis-workspace-prerequisites'
 import {
@@ -45,6 +46,7 @@ const DfHisEnvironmentConfigInputSchema = z
     hisMcpToken: OptionalPlainString,
     hisMcpUrl: OptionalPlainString,
     hisCodeRoot: OptionalPlainString,
+    hisWorkflowCatalogPath: OptionalPlainString,
     archiveWorkspacePath: OptionalPlainString,
     dfhisSkillPackUrl: OptionalPlainString
   })
@@ -85,18 +87,18 @@ function checkHisMcpPrerequisite(): DfHisEnvironmentPrerequisiteResult {
   if (!connection.bearerToken && !connection.hasQueryToken) {
     return {
       id: 'his-mcp',
-      label: 'HIS MCP fallback',
-      status: 'ok',
-      summary: 'Optional fallback is not configured',
+      label: 'HIS MCP business expert',
+      status: 'missing',
+      summary: 'HIS MCP credentials are required for business-semantics verification',
       detail:
-        'Direct Yunxiao archive uses the official Yunxiao MCP. Paste a HIS MCP token only for legacy fallback.',
+        'Configure HIS MCP so diagnosis, rule, dictionary, tenant, and cross-station decisions can be verified before implementation.',
       command: HIS_MCP_TOKEN_COMMAND,
       fixable: true
     }
   }
   return {
     id: 'his-mcp',
-    label: 'HIS MCP fallback',
+    label: 'HIS MCP business expert',
     status: 'ok',
     summary: 'Credentials configured',
     detail: connection.url,
@@ -154,6 +156,7 @@ async function checkDfHisEnvironment() {
     hisMcpTools,
     dfhisWorkflowPack,
     hisCodeRoot,
+    hisWorkflowCatalog,
     archiveWorkspace
   ] = await Promise.all([
     checkGitPrerequisite(),
@@ -163,6 +166,7 @@ async function checkDfHisEnvironment() {
     checkHisMcpToolsPrerequisite(),
     checkDfHisWorkflowPackPrerequisites(),
     checkHisCodeRootPrerequisite(),
+    checkHisWorkflowCatalogPrerequisite(),
     checkArchiveWorkspacePrerequisite()
   ])
   return {
@@ -177,6 +181,7 @@ async function checkDfHisEnvironment() {
       hisMcpTools,
       ...dfhisWorkflowPack,
       hisCodeRoot,
+      hisWorkflowCatalog,
       archiveWorkspace
     ],
     config: snapshotDfHisEnvironmentConfig()

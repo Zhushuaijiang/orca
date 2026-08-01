@@ -139,9 +139,24 @@ export type YunxiaoRequirementImplementationPlanSnapshot = {
   updatedAt: number | null
 }
 
+export type YunxiaoRequirementVerificationEvidenceType =
+  | 'failing_test'
+  | 'passing_test'
+  | 'command'
+  | 'runtime'
+  | 'business'
+  | 'database'
+  | 'build'
+  | 'jenkins'
+  | 'deployment'
+  | 'smoke'
+  | 'screenshot'
+  | 'artifact'
+  | 'yunxiao'
+
 export type YunxiaoRequirementVerificationEvidence = {
   id: string
-  type: 'failing_test' | 'passing_test' | 'command' | 'build' | 'screenshot' | 'artifact'
+  type: YunxiaoRequirementVerificationEvidenceType
   command: string | null
   artifactPath: string | null
   result: 'pass' | 'fail' | 'blocked'
@@ -153,6 +168,7 @@ export type YunxiaoRequirementMethodologyGate = {
   designConfirmed: boolean
   alternatives: YunxiaoRequirementDesignAlternative[]
   implementationPlan: YunxiaoRequirementImplementationPlanSnapshot | null
+  requiredEvidenceTypes?: YunxiaoRequirementVerificationEvidenceType[]
   verificationEvidence: YunxiaoRequirementVerificationEvidence[]
 }
 

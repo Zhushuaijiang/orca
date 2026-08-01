@@ -102,6 +102,29 @@ export function getYunxiaoRequirementCompletionGate(
   ) {
     gaps.push('Fresh passing verification evidence is required.')
   }
+  const requiredEvidenceTypes = new Set(gate?.requiredEvidenceTypes ?? [])
+  if (contract.riskProfile?.uiWorkflow) {
+    requiredEvidenceTypes.add('screenshot')
+  }
+  if (contract.riskProfile?.apiOrDatabase) {
+    requiredEvidenceTypes.add('passing_test')
+  }
+  if (contract.riskProfile?.permissionsOrRelease) {
+    for (const type of ['build', 'jenkins', 'deployment', 'smoke'] as const) {
+      requiredEvidenceTypes.add(type)
+    }
+  }
+  const passedEvidenceTypes = new Set(
+    (gate?.verificationEvidence ?? [])
+      .filter((evidence) => evidence.result === 'pass')
+      .map((evidence) => evidence.type)
+  )
+  const missingEvidenceTypes = [...requiredEvidenceTypes].filter(
+    (type) => !passedEvidenceTypes.has(type)
+  )
+  if (missingEvidenceTypes.length > 0) {
+    gaps.push(`Required delivery evidence is missing: ${missingEvidenceTypes.join(', ')}.`)
+  }
   return { ready: gaps.length === 0, gaps }
 }
 

@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { access, mkdir, stat } from 'node:fs/promises'
+import { access, mkdir, readFile, stat } from 'node:fs/promises'
 import type { DfHisEnvironmentPrerequisiteResult } from '../../shared/dfhis-environment-types'
 import { readDfHisEnvironmentConfigSync, type DfHisEnvironmentConfig } from './config'
 
@@ -68,6 +68,49 @@ export async function checkHisCodeRootPrerequisite(): Promise<DfHisEnvironmentPr
     summary: 'Code root configured',
     detail: config.hisCodeRoot,
     fixable: false
+  }
+}
+
+export async function checkHisWorkflowCatalogPrerequisite(): Promise<DfHisEnvironmentPrerequisiteResult> {
+  const { hisWorkflowCatalogPath } = readDfHisEnvironmentConfigSync()
+  const base = {
+    id: 'his-workflow-catalog' as const,
+    label: 'HIS workflow service catalog',
+    fixable: false
+  }
+  if (!hisWorkflowCatalogPath || !(await pathExists(hisWorkflowCatalogPath))) {
+    return {
+      ...base,
+      status: 'missing',
+      summary: hisWorkflowCatalogPath
+        ? 'Service catalog does not exist'
+        : 'Service catalog is not configured',
+      detail:
+        hisWorkflowCatalogPath ||
+        'Configure the catalog that maps HIS services to databases, Jenkins jobs, deployments, and smoke checks.'
+    }
+  }
+  try {
+    const value = JSON.parse(await readFile(hisWorkflowCatalogPath, 'utf8')) as {
+      schemaVersion?: unknown
+      services?: unknown
+    }
+    if (value.schemaVersion !== 1 || !value.services || typeof value.services !== 'object') {
+      throw new Error('Expected schemaVersion 1 and a services object')
+    }
+  } catch (error) {
+    return {
+      ...base,
+      status: 'invalid',
+      summary: 'Service catalog is not valid JSON or has an unsupported schema',
+      detail: `${hisWorkflowCatalogPath}: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+  return {
+    ...base,
+    status: 'ok',
+    summary: 'Service catalog ready',
+    detail: hisWorkflowCatalogPath
   }
 }
 

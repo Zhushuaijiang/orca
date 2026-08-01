@@ -31,3 +31,12 @@ Use this skill when a DFHIS task needs real company environment details for veri
 4. Load `references/runtime-toolchain.md` before build or Jenkins work.
 5. Run focused validation: database query, Redis key check, service health, SkyWalking trace, or Jenkins/build check.
 6. Summarize results without exposing secrets.
+
+## Executable Workflow
+
+- Use `his-workflow-harness` for general HIS runtime selection, local verification, read-only database checks, Jenkins, deployment, and smoke evidence.
+- Use `ygt` and its harness for 医共体/YGT repositories.
+- Run harness commands against the isolated requirement worktree, not the original aggregate code root.
+- Use the bundled `../his-workflow-harness/references/company-environments.json` catalog for named company environments; add service mappings there as Jenkins jobs become known.
+- Pass an alternate catalog through `HIS_WORKFLOW_CATALOG` or `--catalog` when a requirement needs mappings not present in the bundled catalog.
+- Save the harness report below the requirement directory and record its `runtime`, `database`, `jenkins`, `deployment`, and `smoke` evidence in the Requirement Contract.

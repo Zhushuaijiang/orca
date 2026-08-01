@@ -1,0 +1,4 @@
+interface:
+  display_name: "HIS Workflow Harness"
+  short_description: "Run evidence-driven HIS build and release workflows"
+  default_prompt: "Use $his-workflow-harness to verify and release this HIS project with runtime, Jenkins, database, deployment, and smoke evidence."

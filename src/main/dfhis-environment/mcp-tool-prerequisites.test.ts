@@ -27,7 +27,7 @@ describe('DFHIS MCP tool prerequisites', () => {
     mocks.openMcpSession.mockResolvedValue('session-1')
   })
 
-  it('treats missing HIS token as an optional fallback without opening an MCP session', async () => {
+  it('blocks business verification when the HIS token is missing', async () => {
     mocks.getHisMcpConnection.mockReturnValue({
       url: 'http://192.168.1.10:9020/mcp',
       bearerToken: null,
@@ -36,13 +36,13 @@ describe('DFHIS MCP tool prerequisites', () => {
 
     await expect(checkHisMcpToolsPrerequisite()).resolves.toMatchObject({
       id: 'his-mcp-tools',
-      status: 'ok',
-      summary: 'Optional fallback is not configured'
+      status: 'missing',
+      summary: 'HIS MCP token is not set'
     })
     expect(mocks.openMcpSession).not.toHaveBeenCalled()
   })
 
-  it('requires the HIS archive, comment, agent chat, and git inspect tools', async () => {
+  it('requires the HIS business expert without coupling readiness to legacy archive tools', async () => {
     mocks.getHisMcpConnection.mockReturnValue({
       url: 'http://192.168.1.10:9020/mcp',
       bearerToken: 'token',
@@ -52,8 +52,8 @@ describe('DFHIS MCP tool prerequisites', () => {
 
     await expect(checkHisMcpToolsPrerequisite()).resolves.toMatchObject({
       id: 'his-mcp-tools',
-      status: 'invalid',
-      detail: expect.stringContaining('comment_yunxiao_workitem')
+      status: 'ok',
+      detail: 'dfhis_agent_chat'
     })
   })
 

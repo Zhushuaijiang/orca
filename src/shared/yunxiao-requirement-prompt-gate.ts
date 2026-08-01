@@ -74,6 +74,9 @@ export function applyYunxiaoRequirementPromptGate(prompt: string): string {
 - 可用时使用 Orca orchestration 或 agent-dispatch 工具创建独立评审 agent；如果无法独立派发，必须明确说明阻断原因，且不能标记需求安全或完成。
 - 必须把 reviewer 结论保存在 reviewChecks 中，并按证据判断，不按投票数判断。
 - 任一必需 reviewer 角色缺失、阻断问题未解决、实现计划缺失、或缺少新鲜验证证据时，完成状态必须阻断。
+- 通用 HIS 仓库必须先用 his-workflow-harness 执行 intake，并按仓库声明优先、项目族兜底选择 Node/JDK/包管理器；医共体/YGT 使用 ygt harness。不得直接沿用宿主机默认 Node。
+- 必须在 methodologyGate.requiredEvidenceTypes 声明本需求所需证据并逐项写入 verificationEvidence：UI/流程至少 build+screenshot；后端/API 至少 passing_test+build；数据库变更加 database；HIS 业务语义加 business；发布加 build+jenkins+deployment+smoke；云效完成回写加 yunxiao；实际工具链加 runtime。
+- 不得用 git diff --check、代码阅读或 Agent 自述代替构建、HIS MCP、数据库、Jenkins、部署、smoke 或页面验收证据。
 - 没有记录新鲜验证证据前，不得声称需求已完成或没问题；如果验证被环境阻断，必须说明精确阻断原因和剩余负责人。
 - 如果有结构化结果通道，返回 yunxiaoRequirementOutcomes，包含 requirementContract.riskProfile、reviewChecks、methodologyGate、evidence。字段名可以英文，但字段值中的解释必须中文。
 

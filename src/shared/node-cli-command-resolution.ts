@@ -6,6 +6,7 @@ type ResolveCommandOptions = {
   pathEnv?: string | null
   platform?: NodeJS.Platform
   homePath?: string
+  macApplicationsPath?: string
 }
 
 function getExecutableNames(platform: NodeJS.Platform, commandName: string): string[] {
@@ -131,6 +132,16 @@ function getNvmVersionDirectories(homePath: string): string[] {
     .map((entry) => join(nvmVersionsDir, entry, 'bin'))
 }
 
+function getMacAppBundledDirectories(
+  platform: NodeJS.Platform,
+  commandName: string,
+  applicationsPath: string
+): string[] {
+  return platform === 'darwin' && commandName === 'codex'
+    ? [join(applicationsPath, 'ChatGPT.app', 'Contents', 'Resources')]
+    : []
+}
+
 function getVersionManagerDirectories(
   platform: NodeJS.Platform,
   homePath: string,
@@ -173,7 +184,16 @@ export function resolveCliCommand(
       getBaseVersionManagerDirectories(platform, homePath),
       executableNames
     )
-  return versionManagerCandidate ?? commandName
+  const appBundledCandidate = findFirstExecutable(
+    platform,
+    getMacAppBundledDirectories(
+      platform,
+      commandName,
+      options.macApplicationsPath ?? '/Applications'
+    ),
+    executableNames
+  )
+  return versionManagerCandidate ?? appBundledCandidate ?? commandName
 }
 
 export function resolveCliCommands(
@@ -184,7 +204,7 @@ export function resolveCliCommands(
   const pathEnv = options.pathEnv ?? process.env.PATH ?? process.env.Path ?? null
   const pathDirectories = splitPath(pathEnv)
   const homePath = options.homePath ?? homedir()
-  const installDirectories = [
+  const versionManagerDirectories = [
     ...getNvmVersionDirectories(homePath),
     ...getBaseVersionManagerDirectories(platform, homePath)
   ]
@@ -193,6 +213,14 @@ export function resolveCliCommands(
   for (const commandName of new Set(commandNames)) {
     const executableNames = getExecutableNames(platform, commandName)
     const pathCandidate = findFirstExecutable(platform, pathDirectories, executableNames)
+    const installDirectories = [
+      ...versionManagerDirectories,
+      ...getMacAppBundledDirectories(
+        platform,
+        commandName,
+        options.macApplicationsPath ?? '/Applications'
+      )
+    ]
     const installCandidate =
       pathCandidate ?? findFirstExecutable(platform, installDirectories, executableNames)
     resolved.set(commandName, installCandidate ?? commandName)
