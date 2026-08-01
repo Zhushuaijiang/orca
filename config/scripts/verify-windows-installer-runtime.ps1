@@ -14,16 +14,20 @@ if ($install.ExitCode -ne 0) {
   throw "NSIS installer exited with code $($install.ExitCode)."
 }
 
-$roots = @(
-  (Join-Path $env:LOCALAPPDATA 'Programs'),
-  $env:ProgramFiles,
-  ${env:ProgramFiles(x86)}
-) | Where-Object { $_ -and (Test-Path $_) }
-$orca = $roots |
-  ForEach-Object { Get-ChildItem $_ -Recurse -Filter 'Orca.exe' -File -ErrorAction SilentlyContinue } |
-  Where-Object { $_.FullName -notlike '*WindowsApps*' } |
-  Sort-Object LastWriteTime -Descending |
+$programs = Join-Path $env:LOCALAPPDATA 'Programs'
+$directCandidates = @(
+  (Join-Path $programs 'orca\Orca.exe'),
+  (Join-Path $programs 'Orca\Orca.exe')
+)
+$orca = $directCandidates |
+  Where-Object { Test-Path $_ -PathType Leaf } |
+  ForEach-Object { Get-Item $_ } |
   Select-Object -First 1
+if ($null -eq $orca -and (Test-Path $programs)) {
+  $orca = Get-ChildItem $programs -Recurse -Filter 'Orca.exe' -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+}
 if ($null -eq $orca) {
   throw 'Installed Orca.exe was not found under the Windows program directories.'
 }
