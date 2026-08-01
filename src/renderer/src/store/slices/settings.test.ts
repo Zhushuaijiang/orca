@@ -210,13 +210,30 @@ describe('createSettingsSlice checked persistence', () => {
       consoleError.mockRestore()
     }
   })
+
+  it('normalizes malformed mobile pairing addresses before renderer IPC', async () => {
+    const store = createTestStore()
+    store.setState({
+      settings: { notifications: {} } as unknown as AppState['settings']
+    })
+
+    await store.getState().updateSettingsOrThrow({
+      mobilePairingCustomAddress: 'host:99999' as never,
+      mobilePairingCustomAddresses: [' first.example:6768 ', 'host:99999', 'first.example:6768']
+    })
+
+    expect(settingsSet).toHaveBeenCalledWith({
+      mobilePairingCustomAddress: null,
+      mobilePairingCustomAddresses: ['first.example:6768']
+    })
+  })
 })
 
 describe('createSettingsSlice runtime switching', () => {
   it('repairs drifted task provider settings before sending updates', async () => {
     settingsSet.mockResolvedValueOnce({
-      visibleTaskProviders: ['gitlab', 'yunxiao', 'code-merge'],
-      defaultTaskSource: 'gitlab'
+      visibleTaskProviders: ['github', 'linear'],
+      defaultTaskSource: 'github'
     })
     const store = createTestStore()
     store.setState({
@@ -231,8 +248,8 @@ describe('createSettingsSlice runtime switching', () => {
     })
 
     expect(settingsSet).toHaveBeenCalledWith({
-      visibleTaskProviders: ['gitlab', 'yunxiao', 'code-merge'],
-      defaultTaskSource: 'gitlab',
+      visibleTaskProviders: ['github', 'linear'],
+      defaultTaskSource: 'github',
       visibleTaskProvidersDefaultedForYunxiao: true,
       visibleTaskProvidersDefaultedForCodeMerge: true
     })

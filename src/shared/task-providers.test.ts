@@ -10,7 +10,8 @@ import {
 describe('task providers', () => {
   it('normalizes provider lists while preserving supported order', () => {
     expect(normalizeVisibleTaskProviders(['gitlab', 'unknown', 'gitlab', 'linear'])).toEqual([
-      'gitlab'
+      'gitlab',
+      'linear'
     ])
   })
 
@@ -18,15 +19,15 @@ describe('task providers', () => {
     expect(normalizeVisibleTaskProviders([])).toEqual(['gitlab', 'yunxiao', 'code-merge'])
   })
 
-  it('drops saved defaults that are no longer task source picker entries', () => {
+  it('repairs drifted saved defaults by restoring them to the visible list', () => {
     expect(
       normalizeTaskProviderSettings({
         visibleTaskProviders: ['linear'],
         defaultTaskSource: 'github'
       })
     ).toEqual({
-      defaultTaskSource: 'gitlab',
-      visibleTaskProviders: ['gitlab', 'yunxiao', 'code-merge']
+      defaultTaskSource: 'github',
+      visibleTaskProviders: ['github', 'linear']
     })
   })
 
@@ -55,19 +56,19 @@ describe('task providers', () => {
   })
 
   it('resolves hidden preferred providers to the first picker provider', () => {
-    expect(resolveVisibleTaskProvider('github', ['linear', 'yunxiao'])).toBe('yunxiao')
+    expect(resolveVisibleTaskProvider('github', ['linear', 'yunxiao'])).toBe('linear')
   })
 
-  it('filters non-picker providers even before runtime tooling is available', () => {
+  it('keeps local and connected providers available before optional tooling is ready', () => {
     expect(
       filterAvailableTaskProviders(['github', 'gitlab', 'linear'], {
         gitlabInstalled: false,
         linearConnected: true
       })
-    ).toEqual(['gitlab'])
+    ).toEqual(['github', 'gitlab', 'linear'])
   })
 
-  it('ignores saved defaults outside the task source picker', () => {
+  it('restores saved defaults that are currently hidden', () => {
     expect(
       restoreAvailableDefaultTaskProvider(
         ['linear'],
@@ -77,10 +78,10 @@ describe('task providers', () => {
         },
         'github'
       )
-    ).toEqual(['gitlab'])
+    ).toEqual(['github', 'linear'])
   })
 
-  it('falls back when an intentionally narrowed provider is outside the picker', () => {
+  it('keeps intentionally narrowed connected providers', () => {
     expect(
       restoreAvailableDefaultTaskProvider(
         ['linear'],
@@ -90,7 +91,7 @@ describe('task providers', () => {
         },
         'linear'
       )
-    ).toEqual(['gitlab'])
+    ).toEqual(['linear'])
   })
 
   it('restores GitLab as a saved default before runtime tooling is available', () => {
@@ -103,7 +104,7 @@ describe('task providers', () => {
         },
         'gitlab'
       )
-    ).toEqual(['gitlab'])
+    ).toEqual(['gitlab', 'linear'])
   })
 
   it('ignores invalid saved defaults while restoring visible GitLab providers', () => {

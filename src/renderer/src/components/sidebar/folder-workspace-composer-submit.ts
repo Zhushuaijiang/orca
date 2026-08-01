@@ -16,6 +16,7 @@ import { isWslUncPath } from '../../../../shared/wsl-paths'
 import { resolveLocalWindowsAgentStartupShell } from '../../../../shared/windows-terminal-shell'
 import type { LaunchSource } from '../../../../shared/telemetry-events'
 import type { SessionOptionValue } from '../../../../shared/native-chat-session-options'
+import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import { folderWorkspaceKey } from '../../../../shared/workspace-scope'
 import {
   getLinkedItemDisplayName,
@@ -36,6 +37,7 @@ type FolderWorkspaceCreateInput = {
   name: string
   connectionId?: string | null
   linkedTask: FolderWorkspace['linkedTask']
+  linkedTaskSourceContext?: TaskSourceContext | null
   createdWithAgent?: TuiAgent
   pendingFirstAgentMessageRename?: boolean
 }
@@ -46,6 +48,7 @@ type SubmitFolderWorkspaceCreateParams = {
   lastAutoName: string
   linkedWorkItem: LinkedWorkItemSummary | null
   promptSeed?: string
+  linkedTaskSourceContext?: TaskSourceContext | null
   note: string
   quickAgent: TuiAgent | null
   autoRenameBranchFromWork: boolean | undefined
@@ -100,6 +103,7 @@ export async function submitFolderWorkspaceCreate({
   lastAutoName,
   linkedWorkItem,
   promptSeed,
+  linkedTaskSourceContext,
   note,
   quickAgent,
   autoRenameBranchFromWork,
@@ -180,6 +184,7 @@ export async function submitFolderWorkspaceCreate({
     // focused runtime is local or another host.
     connectionId: projectGroup.connectionId ?? null,
     linkedTask: toFolderWorkspaceLinkedTask(linkedWorkItem),
+    ...(linkedTaskSourceContext ? { linkedTaskSourceContext } : {}),
     ...(quickAgent ? { createdWithAgent: quickAgent } : {}),
     ...(pendingFirstAgentMessageRename ? { pendingFirstAgentMessageRename: true } : {})
   })

@@ -23,6 +23,7 @@ import { buildAgentNotificationId } from '../../../../shared/agent-notification-
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import type { TaskSourceContext } from '../../../../shared/task-source-context'
 import { getSetupScriptPromptDismissalKey } from '../../lib/setup-script-prompt'
+import { getRepoHostIdentityForParts } from './repo-host-identity'
 
 const mocks = vi.hoisted(() => ({
   sendNotesToActiveAgentSession: vi.fn(),
@@ -860,7 +861,9 @@ describe('createUISlice hydratePersistedUI', () => {
 
   it('preserves persisted repo filters until repos are loaded', () => {
     const store = createUIStore()
-    const remoteDismissalKey = getSetupScriptPromptDismissalKey('remote-repo')
+    const remoteDismissalKey = getSetupScriptPromptDismissalKey(
+      getRepoHostIdentityForParts('remote-repo', 'runtime:env-1')
+    )
 
     store.getState().hydratePersistedUI(
       makePersistedUI({
@@ -882,8 +885,12 @@ describe('createUISlice hydratePersistedUI', () => {
 
   it('validates persisted repo filters when repos are already loaded', () => {
     const store = createUIStore()
-    const localDismissalKey = getSetupScriptPromptDismissalKey('local-repo')
-    const staleDismissalKey = getSetupScriptPromptDismissalKey('stale-repo')
+    const localDismissalKey = getSetupScriptPromptDismissalKey(
+      getRepoHostIdentityForParts('local-repo', 'local')
+    )
+    const staleDismissalKey = getSetupScriptPromptDismissalKey(
+      getRepoHostIdentityForParts('stale-repo', 'local')
+    )
     store.setState({
       repos: [
         { id: 'local-repo', path: '/local', displayName: 'Local', badgeColor: '#000', addedAt: 1 }
@@ -1920,14 +1927,13 @@ describe('createUISlice hydratePersistedUI', () => {
 })
 
 describe('createUISlice settings navigation', () => {
-  it('accepts the setup guide target emitted by Settings navigation metadata', () => {
+  it('accepts a host-qualified setup guide target', () => {
     const store = createUIStore()
-
-    store.getState().openSettingsTarget({ pane: 'setup-guide', repoId: null })
-
+    store.getState().openSettingsTarget({ pane: 'setup-guide', repoId: null, hostId: 'ssh:host-1' })
     expect(store.getState().settingsNavigationTarget).toEqual({
       pane: 'setup-guide',
-      repoId: null
+      repoId: null,
+      hostId: 'ssh:host-1'
     })
   })
 
@@ -1937,13 +1943,13 @@ describe('createUISlice settings navigation', () => {
       target: unknown
     ) => void
 
-    expect(() => openSettingsTarget({ page: 'orchestration' })).toThrowError(
-      'openSettingsTarget received an invalid navigation target'
-    )
+    expect(() =>
+      openSettingsTarget({ pane: 'repo', repoId: 'repo-1', hostId: 'invalid' })
+    ).toThrowError('openSettingsTarget received an invalid navigation target')
     expect(store.getState().settingsNavigationTarget).toBeNull()
   })
 
-  it('does not prefetch task sources outside the picker when settings drifted', () => {
+  it('prefetches the repaired default task source when settings drifted', () => {
     const store = createUIStore()
     const prefetchWorkItems = vi.fn()
     const prefetchLinearIssues = vi.fn()
@@ -1972,11 +1978,13 @@ describe('createUISlice settings navigation', () => {
 
     store.getState().openTaskPage()
 
-    expect(prefetchWorkItems).not.toHaveBeenCalled()
+    expect(prefetchWorkItems).toHaveBeenCalledWith('repo-1', '/repo', 36, 'is:issue is:open', {
+      sourceContext: null
+    })
     expect(prefetchLinearIssues).not.toHaveBeenCalled()
   })
 
-  it('does not prefetch direct GitHub task opens after GitHub leaves the picker', () => {
+  it('prefetches direct GitHub task opens from visible GitHub settings', () => {
     const store = createUIStore()
     const prefetchWorkItems = vi.fn()
     const workItem = makeGitHubWorkItem()
@@ -2016,10 +2024,12 @@ describe('createUISlice settings navigation', () => {
       openGitHubSourceContext: sourceContext
     })
 
-    expect(prefetchWorkItems).not.toHaveBeenCalled()
+    expect(prefetchWorkItems).toHaveBeenCalledWith('repo-1', '/repo', 36, 'is:issue is:open', {
+      sourceContext
+    })
   })
 
-  it('does not prefetch direct Linear task opens after Linear leaves the picker', () => {
+  it('prefetches direct Linear task opens from visible Linear settings', () => {
     const store = createUIStore()
     const prefetchLinearIssues = vi.fn()
     const linearIssue = makeLinearIssue()
@@ -2046,7 +2056,10 @@ describe('createUISlice settings navigation', () => {
       openLinearSourceContext: sourceContext
     })
 
-    expect(prefetchLinearIssues).not.toHaveBeenCalled()
+    expect(prefetchLinearIssues).toHaveBeenCalledWith(
+      { filter: 'all', kind: 'list', limit: 36 },
+      { sourceContext }
+    )
   })
 
   it('returns to the tasks page after visiting settings from an in-progress draft', () => {
@@ -2145,6 +2158,53 @@ describe('createUISlice new workspace draft', () => {
       number: 42,
       title: 'Legacy issue',
       url: 'https://github.com/acme/repo/issues/42'
+    })
+  })
+
+  it('preserves serializable Jira identity and bound source context in drafts', () => {
+    const store = createUIStore()
+    const linkedTaskSourceContext = {
+      kind: 'task-source' as const,
+      provider: 'jira' as const,
+      projectId: 'project-1',
+      hostId: 'runtime:env-1' as const,
+      providerIdentity: {
+        provider: 'jira' as const,
+        siteId: 'site-1',
+        siteUrl: 'https://company.atlassian.net',
+        projectKey: 'ORCA'
+      },
+      accountLabel: 'ada@example.com'
+    }
+
+    store.getState().setNewWorkspaceDraft({
+      repoId: 'repo-1',
+      name: 'orca-123-link-jira',
+      prompt: '',
+      note: '',
+      attachments: [],
+      linkedWorkItem: {
+        provider: 'jira',
+        type: 'issue',
+        number: 0,
+        title: 'ORCA-123 Link Jira',
+        url: 'https://company.atlassian.net/browse/ORCA-123',
+        jiraIdentifier: 'ORCA-123'
+      },
+      linkedTaskSourceContext,
+      agent: 'claude',
+      linkedIssue: '',
+      linkedPR: null,
+      linkedGitLabIssue: null,
+      linkedGitLabMR: null
+    })
+
+    expect(store.getState().newWorkspaceDraft).toMatchObject({
+      linkedWorkItem: {
+        provider: 'jira',
+        jiraIdentifier: 'ORCA-123'
+      },
+      linkedTaskSourceContext
     })
   })
 })

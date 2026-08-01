@@ -33,7 +33,7 @@ function ids(
 
 describe('settings navigation metadata', () => {
   it('puts AI capability panes at the top on desktop', () => {
-    expect(ids().slice(0, 10)).toEqual([
+    expect(ids().slice(0, 11)).toEqual([
       'agents',
       'accounts',
       'orchestration',
@@ -41,6 +41,7 @@ describe('settings navigation metadata', () => {
       'voice',
       'setup-guide',
       'general',
+      'dfhis-environment',
       'integrations',
       'mobile',
       'git'
@@ -80,12 +81,13 @@ describe('settings navigation metadata', () => {
   })
 
   it('puts web-safe AI capability panes at the top while hiding desktop-only panes', () => {
-    expect(ids({ isWebClient: true }).slice(0, 7)).toEqual([
+    expect(ids({ isWebClient: true }).slice(0, 8)).toEqual([
       'agents',
       'accounts',
       'orchestration',
       'setup-guide',
       'general',
+      'dfhis-environment',
       'integrations',
       'git'
     ])
@@ -100,6 +102,7 @@ describe('settings navigation metadata', () => {
     expect(webIds).not.toContain('computer-use')
     expect(webIds).not.toContain('voice')
     expect(webIds).not.toContain('advanced')
+    expect(webIds).toContain('dfhis-environment')
     expect(webIds).toContain('servers')
     expect(webIds).toContain('repo-repo-1')
   })
@@ -116,7 +119,7 @@ describe('settings navigation metadata', () => {
     expect(sections.find((section) => section.id === 'voice')?.badge).toBeUndefined()
   })
 
-  it('places per-workspace environments under Experimental instead of as a beta sidebar item', () => {
+  it('places Cloud VM under Experimental instead of as a beta sidebar item', () => {
     const sections = buildSettingsNavigationMetadata({
       isMac: false,
       isWindows: false,
@@ -125,7 +128,7 @@ describe('settings navigation metadata', () => {
     })
     const experimental = sections.find((section) => section.id === 'experimental')
     const entry = experimental?.searchEntries.find(
-      (searchEntry) => searchEntry.title === 'Per-Workspace Environments'
+      (searchEntry) => searchEntry.title === 'Cloud VM'
     )
 
     expect(sections.map((section) => section.id)).not.toContain('ephemeral-vms')

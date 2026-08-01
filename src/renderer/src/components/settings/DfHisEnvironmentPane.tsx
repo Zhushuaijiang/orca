@@ -28,7 +28,7 @@ import { translate } from '@/i18n/i18n'
 
 type LoadState = 'idle' | 'checking' | 'installing' | 'updating-skills'
 type DfHisEnvironmentApi = typeof window.api.dfhisEnvironment
-const DFHIS_PREREQUISITE_COUNT = 12
+const DFHIS_PREREQUISITE_COUNT = 15
 
 function getDfHisEnvironmentApi(): DfHisEnvironmentApi {
   const api = (window.api as { dfhisEnvironment?: DfHisEnvironmentApi }).dfhisEnvironment

@@ -47,4 +47,24 @@ describe('Yunxiao work item list parsing', () => {
       status: '新,待开发,待修复'
     })
   })
+
+  it('resolves assigned-to-me filters to the current Yunxiao user id', async () => {
+    vi.mocked(callOfficialYunxiaoTool).mockImplementation(async (name) => {
+      if (name === 'get_current_organization_info') {
+        return { text: '{"organizationId":"org-1","userId":"user-1"}' } as never
+      }
+      return { text: '{"data":[]}' } as never
+    })
+
+    await listYunxiaoWorkItems({
+      filters: { assigneeId: 'self' }
+    })
+
+    const searchCall = vi
+      .mocked(callOfficialYunxiaoTool)
+      .mock.calls.find(([name]) => name === 'search_workitems')
+    expect(searchCall?.[1]).toMatchObject({
+      assignedTo: 'user-1'
+    })
+  })
 })

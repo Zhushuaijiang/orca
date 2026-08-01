@@ -53,6 +53,34 @@ Before changing code, read the standards returned by `intake.standards`. At mini
 
 Do not add page-local style patches when the shared layout package or existing design-system classes can solve the issue. If code behavior changes the standard, update the relevant standard file in the same task.
 
+## Batch Intake Gate
+
+When splitting a large issue list into batches or Yunxiao work items:
+
+- Parse the original list into stable item IDs before grouping.
+- Verify every original issue and every "pending confirmation" item is represented exactly once or explicitly marked out of scope.
+- Add a short coverage note to the split document before creating Yunxiao items.
+- Keep a local delivery ledger for multi-ticket work and update it after pushes, package publishes, Jenkins runs, and Yunxiao comments.
+
+## Shared Package Release Gate
+
+For any frontend, layout, or shared-component work, do not infer package impact from memory. Before saying a shared package was not changed, inspect the actual merged commit range with `git diff --name-status` and check these roots:
+
+- `df-base/df-web-base/packages/ui/**` -> `@df/ui`
+- `df-base/df-web-base/packages/utils/**` -> `@df/utils`
+- Other `df-web-base/packages/<name>/**` roots -> the matching workspace package
+
+If a package root changed in source, exports, tokens, styles, docs that drive generated output, or package metadata:
+
+- Treat the package as requiring a version decision; default to a patch bump unless the repository standard says otherwise.
+- Build from the package workspace root and publish from the repository root when repo scripts expect root context.
+- Use temporary npm auth config only; never write tokens to the repo, logs, Yunxiao comments, or the skill.
+- Update every consuming YGT app and subapp dependency and lockfile that needs the new package version.
+- Rebuild each consumer, push only relevant dependency/package changes, then trigger the mapped Jenkins jobs.
+- Verify published versions with `npm view` and record package version, consumer commit, Jenkins build number, and result.
+
+If the primary app workspace has unrelated local commits or is behind/ahead, use a temporary worktree from the remote branch for dependency bumps so unrelated local work is not mixed into the release.
+
 ## Execution Rules
 
 - Use the harness commands as the workflow backbone.
@@ -62,3 +90,12 @@ Do not add page-local style patches when the shared layout package or existing d
 - For multi-project work, create a task manifest and use `claim` before committing.
 - Before claiming completion, run fresh verification or explain exactly what could not run.
 - If the request asks to commit or push, commit only the relevant changed files and do not include logs, `.DS_Store`, local env files, or unrelated user changes.
+
+## Release Evidence
+
+For Yunxiao completion and regression tasks:
+
+- Do not mark a regression task complete until all touched repos are pushed, required shared packages are published, consumer dependencies are updated, Jenkins is green, and smoke/doctor checks have run or have a concrete blocker.
+- Verify the work item type before updating structured fields; tasks may not have the same fields or status workflow as requirements.
+- In final comments, include the affected repos/branches/commits, shared package versions, Jenkins job names and build numbers, local build commands, smoke/doctor results, and any known unrelated workspace state.
+- If the user challenges a release answer, re-check from commits, package manifests, lockfiles, registry, and Jenkins before responding.

@@ -52,6 +52,7 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
   const yunxiaoSkill = '---\nname: yunxiao-requirement-archiver\n---\nremote yunxiao skill\n'
   const mergeSkill = '---\nname: his-release-merge\n---\nremote merge skill\n'
   const ygtSkill = '---\nname: ygt\n---\nremote ygt skill\n'
+  const environmentSkill = '---\nname: dfhis-company-environment\n---\nremote environment skill\n'
   const ygtHarness = '#!/usr/bin/env node\nconst ygtHarness = true\n'
   const ygtPluginManifest = '{"name":"ygt","skills":"./skills/"}\n'
   const ygtHarnessGuide = '# YGT 工作流 Harness\n'
@@ -78,6 +79,11 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
             path: 'ygt/SKILL.md',
             sha256: sha256(ygtSkill),
             content: ygtSkill
+          },
+          {
+            path: 'dfhis-company-environment/SKILL.md',
+            sha256: sha256(environmentSkill),
+            content: environmentSkill
           },
           {
             path: 'ygt/harness/scripts/harness/ygt-workflow.mjs',
@@ -165,6 +171,12 @@ describe('dfhis-environment', () => {
     await expect(
       readFile(path.join(homeDirectory, '.codex', 'skills', 'ygt', 'SKILL.md'), 'utf8')
     ).resolves.toContain('name: ygt')
+    await expect(
+      readFile(
+        path.join(homeDirectory, '.codex', 'skills', 'dfhis-company-environment', 'SKILL.md'),
+        'utf8'
+      )
+    ).resolves.toContain('name: dfhis-company-environment')
     await expect(
       readFile(
         path.join(

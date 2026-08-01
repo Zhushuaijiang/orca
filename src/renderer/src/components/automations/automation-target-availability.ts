@@ -261,6 +261,8 @@ function getAutomationSourceProviderLabel(provider: TaskSourceContext['provider'
       return 'Jira'
     case 'yunxiao':
       return 'Yunxiao'
+    case 'code-merge':
+      return 'Code merge'
   }
 }
 

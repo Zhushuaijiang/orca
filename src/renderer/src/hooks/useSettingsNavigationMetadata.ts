@@ -198,7 +198,7 @@ export function buildSettingsNavigationMetadata({
             title: translate('auto.hooks.useSettingsNavigationMetadata.linearTitle', 'Linear'),
             description: translate(
               'auto.hooks.useSettingsNavigationMetadata.linearDescription',
-              'Give agents the skill to read and update your linked Linear tickets.'
+              'How Linear works in Orca, setup checklist, agent skill, and example prompts.'
             ),
             icon: LinearIcon,
             searchEntries: getLinearAgentSkillPaneSearchEntries(),
@@ -276,24 +276,20 @@ export function buildSettingsNavigationMetadata({
       searchEntries: getGeneralPaneSearchEntries({ includeProjectRuntime: isLocalWindowsHost }),
       group: 'setup'
     },
-    ...(showDesktopOnlySettings
-      ? [
-          {
-            id: 'dfhis-environment',
-            title: translate(
-              'auto.hooks.useSettingsNavigationMetadata.dfhisEnvironmentTitle',
-              'DFHIS Setup'
-            ),
-            description: translate(
-              'auto.hooks.useSettingsNavigationMetadata.dfhisEnvironmentDescription',
-              'Check GitLab, Yunxiao MCP, HIS MCP, local HIS paths, and the DFHIS workflow pack before team workflows start.'
-            ),
-            icon: ShieldCheck,
-            searchEntries: getDfHisEnvironmentPaneSearchEntries(),
-            group: 'setup'
-          }
-        ]
-      : []),
+    {
+      id: 'dfhis-environment',
+      title: translate(
+        'auto.hooks.useSettingsNavigationMetadata.dfhisEnvironmentTitle',
+        'DFHIS Setup'
+      ),
+      description: translate(
+        'auto.hooks.useSettingsNavigationMetadata.dfhisEnvironmentDescription',
+        'Check GitLab, Yunxiao MCP, HIS MCP, local HIS paths, and the DFHIS workflow pack before team workflows start.'
+      ),
+      icon: ShieldCheck,
+      searchEntries: getDfHisEnvironmentPaneSearchEntries(),
+      group: 'setup'
+    },
     {
       id: 'integrations',
       title: translate('auto.hooks.useSettingsNavigationMetadata.2b043783ef', 'Integrations'),
@@ -344,8 +340,8 @@ export function buildSettingsNavigationMetadata({
       id: 'tasks',
       title: translate('auto.hooks.useSettingsNavigationMetadata.85f4fd7710', 'Task Sources'),
       description: translate(
-        'auto.hooks.useSettingsNavigationMetadata.5235c215ca',
-        'Choose which task providers appear in the Tasks page and sidebar.'
+        'auto.hooks.useSettingsNavigationMetadata.tasksDescription',
+        'Connect providers, install the Linear skill, and choose what appears in Tasks.'
       ),
       icon: ListChecks,
       searchEntries: getTasksPaneSearchEntries(),

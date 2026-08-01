@@ -9,6 +9,7 @@ import type {
   HostedReviewProvider
 } from '../shared/hosted-review'
 import type { NativeFileDropPayload } from '../shared/native-file-drop'
+import type { BrowserFindSource } from '../shared/browser-find-source'
 import type { DashboardSnapshot, DashboardRevealAgentArgs } from '../shared/dashboard-snapshot'
 import type {
   TerminalPreviewConnectResult,
@@ -27,6 +28,7 @@ import type {
 } from '../shared/local-log-tail-types'
 import type { ReadClipboardTextOptions } from '../shared/clipboard-text'
 import type { AppIdentity } from '../shared/app-identity'
+import type { ReleaseChannel } from '../shared/release-channel'
 import type {
   HostQualifiedDetectedWorktreeResult,
   LegacyDetectedWorktreeRequest,
@@ -47,6 +49,8 @@ import type {
 } from '../shared/terminal-render-desync-evidence'
 import type { MobileRelayStatus } from '../shared/mobile-relay-status'
 import type { MobilePairingConnectionMode } from '../shared/mobile-pairing-connection-mode'
+import type { MobileRelayMintFailure } from '../shared/mobile-relay-mint-failure'
+import type { VerifyAndAddRuntimeEnvironmentResult } from '../shared/remote-pairing-verification'
 import type {
   SshMutationExpectation,
   SshConnectionState,
@@ -261,6 +265,7 @@ import type {
   StatsSummary,
   MemorySnapshot,
   TuiAgent,
+  ReleaseBuildListResult,
   UpdateCheckOptions,
   UpdateStatus,
   Worktree,
@@ -1206,6 +1211,7 @@ export type PreloadApi = {
     }) => Promise<{ status: 'applied' | 'rejected' }>
     update: (args: {
       repoId: string
+      hostId?: ExecutionHostId
       updates: Partial<
         Pick<
           Repo,
@@ -1675,7 +1681,10 @@ export type PreloadApi = {
       submitAnonymously?: boolean
       githubLogin: string | null
       githubEmail: string | null
-    }) => Promise<{ ok: true } | { ok: false; status: number | null; error: string }>
+      images?: { contentType: string; data: Uint8Array }[]
+    }) => Promise<
+      { ok: true; imagesDelivered?: boolean } | { ok: false; status: number | null; error: string }
+    >
   }
   crashReports: {
     getLatestPending: () => Promise<CrashReportRecord | null>
@@ -2248,6 +2257,7 @@ export type PreloadApi = {
     disconnect: (args?: { siteId?: string }) => Promise<void>
     selectSite: (args: { siteId: JiraSiteSelection }) => Promise<JiraConnectionStatus>
     status: () => Promise<JiraConnectionStatus>
+    readStatus: () => Promise<JiraConnectionStatus>
     testConnection: (args?: {
       siteId?: string
     }) => Promise<{ ok: true; viewer: JiraViewer } | { ok: false; error: string }>
@@ -2255,13 +2265,21 @@ export type PreloadApi = {
       jql: string
       limit?: number
       siteId?: JiraSiteSelection
+      requestId?: string
     }) => Promise<JiraIssue[]>
+    cancelSearchIssues: (args: { requestId: string }) => Promise<void>
     listIssues: (args?: {
       filter?: JiraIssueFilter
       limit?: number
       siteId?: JiraSiteSelection
     }) => Promise<JiraIssue[]>
     getIssue: (args: { key: string; siteId?: string }) => Promise<JiraIssue | null>
+    lookupIssueSummary: (args: {
+      key: string
+      siteId: string
+      requestId?: string
+    }) => Promise<JiraIssue | null>
+    cancelIssueSummary: (args: { requestId: string }) => Promise<void>
     createIssue: (
       args: JiraCreateIssueArgs
     ) => Promise<{ ok: true; id: string; key: string; url: string } | { ok: false; error: string }>
@@ -2387,10 +2405,14 @@ export type PreloadApi = {
       wslDistro?: string | null
     }) => Promise<CodexRateLimitAccountsState>
     /** Live PTYs whose baked CODEX_HOME still points at a deselected account. */
-    listStalePanes: (args: {
-      ptyIds: string[]
-    }) => Promise<
-      { ptyId: string; launchAccountId: string | null; activeAccountId: string | null }[]
+    listStalePanes: (args: { ptyIds: string[] }) => Promise<
+      {
+        ptyId: string
+        launchAccountId: string | null
+        activeAccountId: string | null
+        /** Optional for compatibility with a pre-reason main process. */
+        reason?: 'account-change' | 'home-route-change'
+      }[]
     >
     /** The selection lane each PTY launched from, keyed by pty id; unrecorded panes are absent. */
     listRecordedPaneLanes: (args: { ptyIds: string[] }) => Promise<Record<string, string>>
@@ -2561,7 +2583,10 @@ export type PreloadApi = {
       hooks: OrcaHooks | null
       mayNeedUpdate: boolean
     }>
-    inspectSetupScriptImports: (args: { repoId: string }) => Promise<SetupScriptImportCandidate[]>
+    inspectSetupScriptImports: (args: {
+      repoId: string
+      hostId?: ExecutionHostId
+    }) => Promise<SetupScriptImportCandidate[]>
     createIssueCommandRunner: (args: {
       repoId: string
       worktreePath: string
@@ -2687,6 +2712,7 @@ export type PreloadApi = {
     quitAndInstall: () => Promise<void>
     dismissNudge: () => Promise<void>
     dismissAvailableUpdate: () => Promise<void>
+    listBuilds: (channel: ReleaseChannel) => Promise<ReleaseBuildListResult>
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
     onClearDismissal: (callback: () => void) => () => void
   }
@@ -3129,7 +3155,7 @@ export type PreloadApi = {
     replyTabClose: (reply: { requestId: string; error?: string }) => void
     onNewTerminalTab: (callback: () => void) => () => void
     onFocusBrowserAddressBar: (callback: () => void) => () => void
-    onFindInBrowserPage: (callback: () => void) => () => void
+    onFindInBrowserPage: (source: BrowserFindSource, callback: () => void) => () => void
     onReloadBrowserPage: (callback: () => void) => () => void
     onBrowserHistoryNavigate: (callback: (direction: 'back' | 'forward') => void) => () => void
     onZoomBrowserPage: (callback: (direction: 'in' | 'out' | 'reset') => void) => () => void
@@ -3174,6 +3200,7 @@ export type PreloadApi = {
         activate?: boolean
         focus?: boolean
         presentation?: RuntimeTerminalPresentation
+        surfaceOwner?: false
         tabId?: string
         leafId?: string
         splitFromLeafId?: string
@@ -3322,6 +3349,9 @@ export type PreloadApi = {
     onTerminalDriverChanged: (
       callback: (event: { ptyId: string; driver: RuntimeTerminalDriverState }) => void
     ) => () => void
+    onNativeChatLaunchDraftResolved?: (
+      callback: (event: { tabId: string; text: string; createdAt: number }) => void
+    ) => () => void
     onBrowserDriverChanged: (
       callback: (event: { browserPageId: string; driver: RuntimeBrowserDriverState }) => void
     ) => () => void
@@ -3332,11 +3362,20 @@ export type PreloadApi = {
       name: string
       pairingCode: string
     }) => Promise<{ environment: PublicKnownRuntimeEnvironment }>
+    verifyAndAddFromPairingCode: (args: {
+      name: string
+      pairingCode: string
+      allowLoopback?: boolean
+    }) => Promise<VerifyAndAddRuntimeEnvironmentResult>
     resolve: (args: { selector: string }) => Promise<PublicKnownRuntimeEnvironment>
     remove: (args: { selector: string }) => Promise<{ removed: PublicKnownRuntimeEnvironment }>
     disconnect: (args: {
       selector: string
     }) => Promise<{ disconnected: PublicKnownRuntimeEnvironment }>
+    connect: (args: {
+      selector: string
+      timeoutMs?: number
+    }) => Promise<RuntimeRpcResponse<RuntimeStatus>>
     getStatus: (args: {
       selector: string
       timeoutMs?: number
@@ -3580,7 +3619,12 @@ export type PreloadApi = {
       connectionMode?: MobilePairingConnectionMode
       rotate?: boolean
     }) => Promise<
-      | { available: false }
+      | {
+          available: false
+          reason?: string
+          guidance?: string
+          relayFailure?: MobileRelayMintFailure
+        }
       | {
           available: true
           qrDataUrl: string | null
@@ -3588,7 +3632,7 @@ export type PreloadApi = {
           pairingUrl: string
           endpoint: string
           deviceId: string
-          /** Mode the QR actually encodes; 'local-only' when Relay could not be attached. */
+          /** Mode the QR actually encodes. */
           connectionMode: MobilePairingConnectionMode
         }
     >

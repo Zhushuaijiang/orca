@@ -5278,6 +5278,27 @@ describe('Store', () => {
     expect(store.getRepo('r1')!.displayName).toBe('renamed')
   })
 
+  it('updateRepo targets one host when repo ids collide', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo({ id: 'shared', path: '/local/repo' }))
+    store.addRepo(
+      makeRepo({
+        id: 'shared',
+        path: '/remote/repo',
+        connectionId: 'server',
+        executionHostId: 'ssh:server'
+      })
+    )
+
+    const updated = store.updateRepo('shared', { displayName: 'Remote renamed' }, 'ssh:server')
+
+    expect(updated?.path).toBe('/remote/repo')
+    expect(store.getRepos().filter((repo) => repo.id === 'shared')).toMatchObject([
+      { path: '/local/repo', displayName: 'test' },
+      { path: '/remote/repo', displayName: 'Remote renamed' }
+    ])
+  })
+
   it('updateRepo keeps project host setup compatibility records in sync', async () => {
     const store = await createStore()
     store.addRepo(makeRepo({ worktreeBasePath: '../worktrees' }))
@@ -5898,6 +5919,146 @@ describe('Store', () => {
     )
   })
 
+  it('persists paired Jira linked-item metadata and drops mismatched source context', async () => {
+    const store = await createStore()
+    const linkedWorkItem = {
+      provider: 'jira' as const,
+      type: 'issue' as const,
+      number: 0,
+      title: 'ORCA-123 Link Jira',
+      url: 'https://company.atlassian.net/browse/ORCA-123',
+      jiraIdentifier: 'ORCA-123'
+    }
+    const linkedTaskSourceContext = {
+      kind: 'task-source' as const,
+      provider: 'jira' as const,
+      projectId: 'project-1',
+      hostId: 'runtime:env-1' as const,
+      providerIdentity: {
+        provider: 'jira' as const,
+        siteId: 'site-1',
+        siteUrl: 'https://company.atlassian.net',
+        projectKey: 'ORCA'
+      },
+      accountLabel: 'ada@example.com'
+    }
+
+    store.setWorktreeMeta('wt-jira', { linkedWorkItem, linkedTaskSourceContext })
+    store.flush()
+    const restored = await createStore()
+
+    expect(restored.getWorktreeMeta('wt-jira')).toMatchObject({
+      linkedWorkItem,
+      linkedTaskSourceContext
+    })
+    expect(
+      restored.setWorktreeMeta('wt-jira', {
+        linkedTaskSourceContext: { ...linkedTaskSourceContext, provider: 'linear' }
+      }).linkedTaskSourceContext
+    ).toBeNull()
+    expect(
+      restored.setWorktreeMeta('wt-jira', {
+        linkedTaskSourceContext: {
+          ...linkedTaskSourceContext,
+          providerIdentity: {
+            ...linkedTaskSourceContext.providerIdentity,
+            projectKey: 'OTHER'
+          }
+        }
+      }).linkedTaskSourceContext
+    ).toBeNull()
+  })
+
+  it('discards malformed persisted task-source metadata without aborting store load', async () => {
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeMeta: {
+        'wt-malformed': {
+          linkedWorkItem: {
+            provider: 'jira',
+            type: 'issue',
+            number: 0,
+            title: 'ORCA-123 Link Jira',
+            url: 'https://company.atlassian.net/browse/ORCA-123',
+            jiraIdentifier: 'ORCA-123'
+          },
+          linkedTaskSourceContext: {
+            kind: 'task-source',
+            provider: 'jira',
+            projectId: 'project-1',
+            hostId: 'local',
+            accountLabel: 44,
+            providerIdentity: {
+              provider: 'jira',
+              siteId: 'site-1',
+              siteUrl: 'https://company.atlassian.net',
+              projectKey: 'ORCA'
+            }
+          }
+        }
+      }
+    })
+
+    const store = await createStore()
+
+    expect(store.getWorktreeMeta('wt-malformed')?.linkedWorkItem?.jiraIdentifier).toBe('ORCA-123')
+    expect(store.getWorktreeMeta('wt-malformed')?.linkedTaskSourceContext).toBeNull()
+  })
+
+  it('drops corrupt worktreeMeta entries while still normalizing valid siblings', async () => {
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeLineageById: { 'r1::/tmp/wt': { parentWorktreeId: 'wt-sibling' } },
+      workspaceLineageByChildKey: {
+        'worktree:r1::/tmp/wt': { parentWorkspaceKey: 'worktree:wt-sibling' }
+      },
+      worktreeMeta: {
+        'r1::/tmp/wt': null,
+        'r1::/tmp/scalar': 5,
+        'wt-sibling': {
+          linkedWorkItem: {
+            provider: 'jira',
+            type: 'issue',
+            number: 0,
+            title: 'ORCA-123 Link Jira',
+            url: 'https://company.atlassian.net/browse/ORCA-123',
+            jiraIdentifier: 'ORCA-123'
+          },
+          linkedTaskSourceContext: {
+            kind: 'task-source',
+            provider: 'jira',
+            projectId: 'project-1',
+            hostId: 'local',
+            accountLabel: 44,
+            providerIdentity: {
+              provider: 'jira',
+              siteId: 'site-1',
+              siteUrl: 'https://company.atlassian.net',
+              projectKey: 'ORCA'
+            }
+          }
+        }
+      }
+    })
+
+    const store = await createStore()
+
+    expect(store.getWorktreeMeta('wt-sibling')?.linkedWorkItem?.jiraIdentifier).toBe('ORCA-123')
+    expect(store.getWorktreeMeta('wt-sibling')?.linkedTaskSourceContext).toBeNull()
+    // Corrupt entries must not survive: gcStaleWorktreeMeta keeps timestamp-less keys, and downstream
+    // consumers deref worktreeMeta values unguarded (also keeps a rollback to an older build loadable).
+    expect(store.getAllWorktreeMeta()).not.toHaveProperty('r1::/tmp/wt')
+    expect(store.getAllWorktreeMeta()).not.toHaveProperty('r1::/tmp/scalar')
+    expect(store.getWorktreeLineage('r1::/tmp/wt')).toBeUndefined()
+    store.flush()
+    const persisted = readDataFile() as PersistedState
+    expect(persisted.worktreeMeta).not.toHaveProperty('r1::/tmp/wt')
+    expect(persisted.worktreeMeta).not.toHaveProperty('r1::/tmp/scalar')
+    expect(persisted.workspaceLineageByChildKey).not.toHaveProperty('worktree:r1::/tmp/wt')
+  })
+
   it('creates and updates folder workspaces from folder-backed project groups', async () => {
     const store = await createStore()
     const group = store.createProjectGroup({
@@ -5937,6 +6098,53 @@ describe('Store', () => {
       lastActivityAt: 123
     })
     expect(store.getFolderWorkspaces()).toHaveLength(1)
+  })
+
+  it('round-trips Jira item and source context for repo-less folder workspaces', async () => {
+    const store = await createStore()
+    const group = store.createProjectGroup({
+      name: 'Platform',
+      parentPath: '/workspace/platform',
+      createdFrom: 'folder-scan'
+    })
+    const linkedTask = {
+      provider: 'jira' as const,
+      type: 'issue' as const,
+      number: 0,
+      title: 'ORCA-123 Link Jira',
+      url: 'https://company.atlassian.net/browse/ORCA-123',
+      jiraIdentifier: 'ORCA-123'
+    }
+    const linkedTaskSourceContext = {
+      kind: 'task-source' as const,
+      provider: 'jira' as const,
+      projectId: group.id,
+      hostId: 'runtime:folder-env' as const,
+      repoId: null,
+      providerIdentity: {
+        provider: 'jira' as const,
+        siteId: 'site-1',
+        siteUrl: 'https://company.atlassian.net',
+        projectKey: 'ORCA'
+      },
+      accountLabel: 'ada@example.com'
+    }
+
+    const workspace = store.createFolderWorkspace({
+      projectGroupId: group.id,
+      linkedTask,
+      linkedTaskSourceContext
+    })
+    store.flush()
+    const restored = await createStore()
+
+    expect(restored.getFolderWorkspaces()).toContainEqual(
+      expect.objectContaining({
+        id: workspace.id,
+        linkedTask,
+        linkedTaskSourceContext: expect.objectContaining(linkedTaskSourceContext)
+      })
+    )
   })
 
   it('rejects folder workspace creation for non-folder-backed project groups', async () => {
@@ -6255,6 +6463,59 @@ describe('Store', () => {
     expect(updated.prBotAuthorOverrides).toHaveLength(500)
     expect(updated.prBotAuthorOverrides[0]).toBe('bot-0000')
     expect(updated.prBotAuthorOverrides[499]).toBe('bot-0499')
+  })
+
+  it('normalizes custom mobile pairing addresses on load and every settings write', async () => {
+    writeDataFile({
+      settings: {
+        mobilePairingCustomAddress: 'host:99999',
+        mobilePairingCustomAddresses: [' first.example:6768 ', 'host:99999', 'first.example:6768']
+      }
+    })
+    const store = await createStore()
+
+    expect(store.getSettings().mobilePairingCustomAddress).toBeNull()
+    expect(store.getSettings().mobilePairingCustomAddresses).toEqual(['first.example:6768'])
+    store.flush()
+    expect(
+      (readDataFile() as { settings?: GlobalSettings }).settings?.mobilePairingCustomAddress
+    ).toBeNull()
+
+    const updated = store.updateSettings({
+      mobilePairingCustomAddress: ' 100.126.117.25:6768 '
+    })
+    expect(updated.mobilePairingCustomAddress).toBe('100.126.117.25:6768')
+    expect(updated.mobilePairingCustomAddresses).toEqual([
+      'first.example:6768',
+      '100.126.117.25:6768'
+    ])
+    store.flush()
+    expect(
+      (readDataFile() as { settings?: GlobalSettings }).settings?.mobilePairingCustomAddress
+    ).toBe('100.126.117.25:6768')
+
+    expect(
+      store.updateSettings({ mobilePairingCustomAddress: 42 as never }).mobilePairingCustomAddress
+    ).toBeNull()
+
+    expect(
+      store.updateSettings({
+        mobilePairingCustomAddresses: [' second.example ', 'host:99999', 'second.example']
+      }).mobilePairingCustomAddresses
+    ).toEqual(['second.example'])
+
+    expect(
+      store.updateSettings({
+        mobilePairingCustomAddress: 'active.example:6768',
+        mobilePairingCustomAddresses: ['second.example']
+      }).mobilePairingCustomAddresses
+    ).toEqual(['second.example', 'active.example:6768'])
+
+    expect(
+      store.updateSettings({
+        mobilePairingCustomAddresses: ['third.example']
+      }).mobilePairingCustomAddresses
+    ).toEqual(['third.example', 'active.example:6768'])
   })
 
   it('notifies settings listeners with changed keys only', async () => {
@@ -6967,10 +7228,12 @@ describe('Store', () => {
     })
   })
 
-  it('tolerates a null worktreeMeta map in the durable file', async () => {
-    writeDataFile({ worktreeMeta: null })
+  it.each([null, [], 5])('repairs a corrupt worktreeMeta map (%#)', async (worktreeMeta) => {
+    writeDataFile({ worktreeMeta })
     const store = await createStore()
     expect(store.getAllWorktreeMeta()).toEqual({})
+    store.flush()
+    expect((readDataFile() as PersistedState).worktreeMeta).toEqual({})
   })
 
   // ── GitHub cache sidecar ───────────────────────────────────────────
@@ -7706,6 +7969,46 @@ describe('Store', () => {
     expect(store.getUI().syncTaskStatusFromWorkspaceBoard).toBe(true)
   })
 
+  it('preserves workflows above 20 statuses across load, write, and restart', async () => {
+    const imported = Array.from({ length: 21 }, (_, index) => ({
+      id: `state-${index + 1}`,
+      label: `State ${index + 1}`
+    })).toReversed()
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeMeta: {},
+      settings: {},
+      ui: { workspaceStatuses: imported },
+      githubCache: { pr: {}, issue: {} },
+      workspaceSession: {}
+    })
+
+    const store = await createStore()
+    expect(store.getUI().workspaceStatuses?.map((status) => status.id)).toEqual(
+      imported.map((status) => status.id)
+    )
+
+    const authored = Array.from({ length: 64 }, (_, index) => ({
+      id: `final-${String(index + 1).padStart(3, '0')}`,
+      label: `Final ${index + 1}`
+    })).toReversed()
+    store.updateUI({ workspaceStatuses: authored })
+    store.flush()
+
+    expect(store.getUI().workspaceStatuses?.map((status) => status.id)).toEqual(
+      authored.map((status) => status.id)
+    )
+    expect(
+      (readDataFile() as PersistedState).ui.workspaceStatuses?.map((status) => status.id)
+    ).toEqual(authored.map((status) => status.id))
+
+    const restarted = await createStore()
+    expect(restarted.getUI().workspaceStatuses?.map((status) => status.id)).toEqual(
+      authored.map((status) => status.id)
+    )
+  })
+
   it('repairs the known-bad reordered default workspace statuses once on load', async () => {
     writeDataFile({
       schemaVersion: 1,
@@ -8117,6 +8420,7 @@ describe('Store', () => {
       'ci',
       'issue',
       'linear-issue',
+      'jira-issue',
       'pr',
       'comment',
       'ports',
@@ -8153,6 +8457,7 @@ describe('Store', () => {
       'ci',
       'issue',
       'linear-issue',
+      'jira-issue',
       'pr',
       'comment',
       'ports',
@@ -8180,6 +8485,7 @@ describe('Store', () => {
       'unread',
       'issue',
       'linear-issue',
+      'jira-issue',
       'pr',
       'automation',
       'cli',
@@ -8212,6 +8518,7 @@ describe('Store', () => {
       'ci',
       'issue',
       'linear-issue',
+      'jira-issue',
       'pr',
       'ports',
       'inline-agents'
@@ -8228,7 +8535,8 @@ describe('Store', () => {
       ui: {
         worktreeCardProperties: ['status', 'pr'],
         _inlineAgentsDefaultedForAllUsers: true,
-        _expandedWorktreeCardPropertiesDefaulted: true
+        _expandedWorktreeCardPropertiesDefaulted: true,
+        _jiraIssueWorktreeCardPropertyDefaulted: true
       },
       githubCache: { pr: {}, issue: {} },
       workspaceSession: {}
@@ -8287,7 +8595,8 @@ describe('Store', () => {
           'ports'
         ],
         _inlineAgentsDefaultedForAllUsers: true,
-        _expandedWorktreeCardPropertiesDefaulted: true
+        _expandedWorktreeCardPropertiesDefaulted: true,
+        _jiraIssueWorktreeCardPropertyDefaulted: true
       },
       githubCache: { pr: {}, issue: {} },
       workspaceSession: {}
@@ -8306,6 +8615,107 @@ describe('Store', () => {
     ])
     expect(store.getUI().worktreeCardProperties).not.toContain('branch')
     expect(store.getUI().worktreeCardProperties).not.toContain('inline-agents')
+  })
+
+  it('backfills jira-issue once for profiles stamped before it joined the defaults', async () => {
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeMeta: {},
+      settings: { compactWorktreeCards: false },
+      ui: {
+        worktreeCardProperties: [
+          'status',
+          'unread',
+          'issue',
+          'linear-issue',
+          'pr',
+          'ports',
+          'inline-agents'
+        ],
+        _inlineAgentsDefaultedForAllUsers: true,
+        _expandedWorktreeCardPropertiesDefaulted: true
+      },
+      githubCache: { pr: {}, issue: {} },
+      workspaceSession: {}
+    })
+    const store = await createStore()
+
+    expect(store.getUI().worktreeCardProperties).toEqual([
+      'status',
+      'unread',
+      'issue',
+      'linear-issue',
+      'jira-issue',
+      'pr',
+      'ports',
+      'inline-agents'
+    ])
+    expect(
+      store.getUI().worktreeCardProperties?.filter((property) => property === 'jira-issue')
+    ).toHaveLength(1)
+    expect(store.getUI()._jiraIssueWorktreeCardPropertyDefaulted).toBe(true)
+  })
+
+  it('preserves a deliberate jira-issue removal after the backfill has run', async () => {
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeMeta: {},
+      settings: { compactWorktreeCards: false },
+      ui: {
+        worktreeCardProperties: ['status', 'unread', 'issue', 'linear-issue', 'pr'],
+        _inlineAgentsDefaultedForAllUsers: true,
+        _expandedWorktreeCardPropertiesDefaulted: true,
+        _jiraIssueWorktreeCardPropertyDefaulted: true
+      },
+      githubCache: { pr: {}, issue: {} },
+      workspaceSession: {}
+    })
+    const store = await createStore()
+
+    expect(store.getUI().worktreeCardProperties).toEqual([
+      'status',
+      'unread',
+      'issue',
+      'linear-issue',
+      'pr'
+    ])
+    expect(store.getUI().worktreeCardProperties).not.toContain('jira-issue')
+  })
+
+  it('leaves fresh default profiles with a single jira-issue entry', async () => {
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeMeta: {},
+      settings: {},
+      ui: {},
+      githubCache: { pr: {}, issue: {} },
+      workspaceSession: {}
+    })
+    const store = await createStore()
+
+    expect(
+      store.getUI().worktreeCardProperties?.filter((property) => property === 'jira-issue')
+    ).toHaveLength(1)
+    expect(store.getUI()._jiraIssueWorktreeCardPropertyDefaulted).toBe(true)
+  })
+
+  it('skips the jira-issue backfill when card properties are malformed', async () => {
+    writeDataFile({
+      schemaVersion: 1,
+      repos: [],
+      worktreeMeta: {},
+      settings: { compactWorktreeCards: false },
+      ui: { worktreeCardProperties: 'not-an-array' },
+      githubCache: { pr: {}, issue: {} },
+      workspaceSession: {}
+    })
+    const store = await createStore()
+
+    expect(store.getUI().worktreeCardProperties).not.toContain('jira-issue')
+    expect(store.getUI()._jiraIssueWorktreeCardPropertyDefaulted).toBe(true)
   })
 
   it('uses the compact preset when card properties are missing in compact mode', async () => {

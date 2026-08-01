@@ -17,7 +17,7 @@ export const DEFAULT_VISIBLE_TASK_PROVIDERS: readonly TaskProvider[] = [
   'code-merge'
 ]
 
-export const TASK_SOURCE_PICKER_PROVIDERS: readonly TaskProvider[] = DEFAULT_VISIBLE_TASK_PROVIDERS
+export const TASK_SOURCE_PICKER_PROVIDERS: readonly TaskProvider[] = TASK_PROVIDERS
 
 const TASK_PROVIDER_SET = new Set<TaskProvider>(TASK_PROVIDERS)
 const TASK_SOURCE_PICKER_PROVIDER_SET = new Set<TaskProvider>(TASK_SOURCE_PICKER_PROVIDERS)
@@ -35,7 +35,7 @@ export function normalizeTaskProviderSettings(value: {
   defaultTaskSource: unknown
 }): { visibleTaskProviders: TaskProvider[]; defaultTaskSource: TaskProvider } {
   const visibleTaskProviders = normalizeVisibleTaskProviders(value.visibleTaskProviders)
-  const defaultTaskSource = isTaskSourcePickerProvider(value.defaultTaskSource)
+  const defaultTaskSource = isTaskProvider(value.defaultTaskSource)
     ? value.defaultTaskSource
     : resolveVisibleTaskProvider(DEFAULT_TASK_SOURCE, visibleTaskProviders)
 

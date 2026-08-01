@@ -7,6 +7,8 @@ import type {
   NativeChatAppendedMessages
 } from '../../../preload/api-types'
 import type { RuntimeRpcResponse } from '../../../shared/runtime-rpc-envelope'
+import { parseHostAccessLink } from '../../../shared/remote-pairing-address'
+import { verifyRemotePairingRuntimeStatus } from '../../../shared/remote-pairing-verification'
 import type { AiVaultListArgs, AiVaultListResult } from '../../../shared/ai-vault-types'
 import type {
   AiVaultPrepareSessionResumeArgs,
@@ -38,6 +40,12 @@ import type {
 import type { SkillDiscoveryResult } from '../../../shared/skills'
 import type { SkillFreshnessInventory } from '../../../shared/skill-freshness'
 import type { SshConnectionState, SshTarget } from '../../../shared/ssh-types'
+import type {
+  DfHisEnvironmentCheckResult,
+  DfHisEnvironmentConfigInput,
+  DfHisEnvironmentConfigSnapshot,
+  DfHisEnvironmentInstallResult
+} from '../../../shared/dfhis-environment-types'
 import {
   getDefaultOnboardingState,
   getDefaultSettings,
@@ -82,6 +90,7 @@ import {
   osc52ClipboardDefaultOnOverridesPersistedOff
 } from '../../../shared/osc52-clipboard-settings'
 import { normalizeTerminalCustomThemes } from '../../../shared/terminal-custom-themes'
+import { normalizeTaskProviderSettings } from '../../../shared/task-providers'
 import { normalizeUiLanguage } from '../../../shared/ui-language'
 import { normalizeUsagePercentageDisplay } from '../../../shared/usage-percentage-display'
 import { normalizeStatusBarUsageMode } from '../../../shared/status-bar-usage-mode'
@@ -113,6 +122,7 @@ import {
 import { parseWebPairingInput } from './web-pairing'
 import { copyClipboardTextViaExecCommand } from './web-clipboard-copy-fallback'
 import { WebRuntimeClient } from './web-runtime-client'
+import { isWebRuntimeUnauthorizedError } from './web-runtime-client-error'
 import { RuntimeRpcCallQueuePool } from '../../../shared/runtime-rpc-call-queue'
 import {
   assertClipboardTextWriteWithinLimitWithYield,
@@ -135,6 +145,7 @@ import {
 } from '../../../shared/feature-interactions'
 import { normalizeContextualTourIds, type ContextualTourId } from '../../../shared/contextual-tours'
 import { translate } from '@/i18n/i18n'
+import { translateHostAccessLinkError } from '@/lib/remote-pairing-copy'
 import { getDefaultCreateProjectParent } from '@/components/sidebar/create-project-defaults'
 import {
   parseRuntimeNativeChatReadSessionResult,
@@ -148,6 +159,14 @@ const SESSION_STORAGE_KEY = 'orca.web.workspaceSession.v1'
 const ONBOARDING_STORAGE_KEY = 'orca.web.onboarding.v1'
 const GITHUB_CACHE_STORAGE_KEY = 'orca.web.githubCache.v1'
 const KEYBINDINGS_STORAGE_KEY = 'orca.web.keybindings.v1'
+// Why: paired web clients lack Electron env/preload state; the E2E build gate keeps URL overrides out of releases.
+const webE2EExposeStore = String(import.meta.env.VITE_EXPOSE_STORE) === 'true'
+const webE2EQuery = webE2EExposeStore ? new URLSearchParams(window.location.search) : null
+const webE2EConfig = createE2EConfig({
+  exposeStore: webE2EExposeStore,
+  terminalParkingDelayMs: Number(webE2EQuery?.get('orcaE2ETerminalParkingDelayMs')) || null,
+  terminalRetentionLimit: Number(webE2EQuery?.get('orcaE2ETerminalRetentionLimit')) || null
+})
 // Why: paired clients need parity for large dev sessions; the runtime default stays capped for lower-level RPC callers.
 const WEB_RUNTIME_WORKTREE_LIST_LIMIT = 10_000
 const MAX_CLIPBOARD_IMAGE_BASE64_CHARS = CLIPBOARD_IMAGE_MAX_BASE64_CHARS
@@ -160,6 +179,7 @@ const CLIPBOARD_IMAGE_SAVE_TIMEOUT_MS = 30_000
 let activeEnvironment: StoredWebRuntimeEnvironment | null = readStoredWebRuntimeEnvironment()
 let activeClient: WebRuntimeClient | null = null
 let activeClientEnvironmentId: string | null = null
+const manuallyDisconnectedEnvironmentIds = new Set<string>()
 let cachedWorktrees: { loadedAt: number; worktrees: Worktree[] } | null = null
 let cachedDetectedWorktrees: { loadedAt: number; worktrees: Worktree[] } | null = null
 const runtimeCallQueuePool = new RuntimeRpcCallQueuePool()
@@ -397,6 +417,24 @@ type WebGitLabRuntimeMethod =
   | 'gitlab.jobTrace'
   | 'gitlab.retryJob'
   | 'gitlab.workItemByPath'
+type WebYunxiaoApi = NonNullable<PreloadApi['yunxiao']>
+type WebYunxiaoResult<K extends keyof WebYunxiaoApi> = Awaited<ReturnType<WebYunxiaoApi[K]>>
+type WebYunxiaoRouteKey =
+  | 'listWorkItems'
+  | 'createRequirement'
+  | 'archiveRequirement'
+  | 'listTodoPool'
+  | 'addTodoPoolItems'
+  | 'updateTodoPoolItem'
+  | 'removeTodoPoolItem'
+type WebYunxiaoRuntimeMethod =
+  | 'yunxiao.listWorkItems'
+  | 'yunxiao.createRequirement'
+  | 'yunxiao.archiveRequirement'
+  | 'yunxiao.listTodoPool'
+  | 'yunxiao.addTodoPoolItems'
+  | 'yunxiao.updateTodoPoolItem'
+  | 'yunxiao.removeTodoPoolItem'
 type WebKeybindingDocument = {
   version: 1
   keybindings: KeybindingOverrides
@@ -477,6 +515,16 @@ export const GITLAB_WEB_RPC_METHODS = {
   retryJob: 'gitlab.retryJob',
   workItemByPath: 'gitlab.workItemByPath'
 } as const satisfies Record<WebGitLabRouteKey, WebGitLabRuntimeMethod>
+
+export const YUNXIAO_WEB_RPC_METHODS = {
+  listWorkItems: 'yunxiao.listWorkItems',
+  createRequirement: 'yunxiao.createRequirement',
+  archiveRequirement: 'yunxiao.archiveRequirement',
+  listTodoPool: 'yunxiao.listTodoPool',
+  addTodoPoolItems: 'yunxiao.addTodoPoolItems',
+  updateTodoPoolItem: 'yunxiao.updateTodoPoolItem',
+  removeTodoPoolItem: 'yunxiao.removeTodoPoolItem'
+} as const satisfies Record<WebYunxiaoRouteKey, WebYunxiaoRuntimeMethod>
 
 const WEB_KEYBINDING_PLATFORMS: readonly KeybindingPlatform[] = ['darwin', 'linux', 'win32']
 const webKeybindingListeners = new Set<(snapshot: KeybindingFileSnapshot) => void>()
@@ -648,7 +696,7 @@ function createWebPreloadApi(): Partial<PreloadApi> {
       orgMemberRemove: async () => ({ status: 'unconfigured' })
     },
     e2e: {
-      getConfig: () => createE2EConfig({})
+      getConfig: () => webE2EConfig
     },
     settings: {
       get: async () => getRuntimeBackedStoredSettings(),
@@ -779,6 +827,7 @@ function createWebPreloadApi(): Partial<PreloadApi> {
     emulator: createEmulatorApi(),
     gh: createGitHubApi(),
     gl: createGitLabApi(),
+    yunxiao: createYunxiaoApi(),
     hostedReview: createRuntimeNamespaceApi('hostedReview'),
     linear: createRuntimeNamespaceApi('linear'),
     hooks: createHooksApi(),
@@ -816,6 +865,7 @@ function createWebPreloadApi(): Partial<PreloadApi> {
     updater: createUpdaterApi(),
     shell: createShellApi(),
     skills: createSkillsApi(),
+    dfhisEnvironment: createDfHisEnvironmentApi(),
     pty: createPtyApi(),
     ssh: createSshApi(),
     wsl: {
@@ -1330,6 +1380,7 @@ function createRuntimeApi(): NonNullable<Partial<PreloadApi>['runtime']> {
     reclaimBrowserForDesktop: () => Promise.resolve({ reclaimed: false }),
     onTerminalFitOverrideChanged: () => noopUnsubscribe,
     onTerminalDriverChanged: () => noopUnsubscribe,
+    onNativeChatLaunchDraftResolved: () => noopUnsubscribe,
     onBrowserDriverChanged: () => noopUnsubscribe
   }
 }
@@ -1348,24 +1399,137 @@ function createRuntimeEnvironmentsApi(): NonNullable<Partial<PreloadApi>['runtim
       const previousEnvironment = activeEnvironment
       closeActiveRuntimeClients()
       activeEnvironment = createStoredWebRuntimeEnvironment({ name, offer, previousEnvironment })
+      manuallyDisconnectedEnvironmentIds.clear()
       saveStoredWebRuntimeEnvironment(activeEnvironment)
       return { environment: redactStoredWebRuntimeEnvironment(activeEnvironment) }
+    },
+    verifyAndAddFromPairingCode: async ({ name, pairingCode, allowLoopback }) => {
+      const parsed = parseHostAccessLink(pairingCode)
+      if (!parsed.ok) {
+        return {
+          ok: false,
+          kind: 'access-link-invalid',
+          message: translateHostAccessLinkError(parsed.kind)
+        }
+      }
+      if (parsed.value.endpointKind === 'loopback' && !allowLoopback) {
+        return {
+          ok: false,
+          kind: 'host-unreachable',
+          message: translate(
+            'auto.web.webPreloadApi.loopbackPairingBlocked',
+            'This access link points back to this device.'
+          )
+        }
+      }
+      let client: WebRuntimeClient | null = null
+      let runtimeStatus: RuntimeStatus
+      try {
+        client = new WebRuntimeClient(parsed.value.pairing)
+        const response = (await client.call('status.get', undefined, {
+          timeoutMs: 15_000
+        })) as RuntimeRpcResponse<RuntimeStatus>
+        if (!response.ok) {
+          return {
+            ok: false,
+            kind: 'connection-interrupted',
+            message: response.error.message
+          }
+        }
+        const statusVerification = verifyRemotePairingRuntimeStatus(response.result)
+        if (!statusVerification.ok) {
+          return statusVerification
+        }
+        runtimeStatus = statusVerification.runtimeStatus
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('Invalid public key')) {
+          return {
+            ok: false,
+            kind: 'access-link-invalid',
+            message: translate(
+              'auto.web.webPreloadApi.remotePairingInvalidDetails',
+              'This access link contains invalid connection details.'
+            )
+          }
+        }
+        if (
+          isWebRuntimeUnauthorizedError(error) ||
+          (error instanceof Error && error.message.startsWith('Unauthorized.'))
+        ) {
+          return {
+            ok: false,
+            kind: 'access-link-invalid',
+            message: error.message
+          }
+        }
+        return {
+          ok: false,
+          kind: 'host-unreachable',
+          message: translate(
+            'auto.web.webPreloadApi.remotePairingUnreachable',
+            'Cannot reach Orca at {{endpoint}}.',
+            { endpoint: parsed.value.displayEndpoint }
+          )
+        }
+      } finally {
+        client?.close()
+      }
+      const usesSshTunnel = parsed.value.endpointKind === 'loopback' && allowLoopback === true
+      const nextEnvironment = createStoredWebRuntimeEnvironment({
+        name,
+        offer: parsed.value.pairing,
+        previousEnvironment: activeEnvironment,
+        ...(usesSshTunnel ? { connectionDependency: 'ssh-tunnel' as const } : {})
+      })
+      // Why: a browser storage failure must leave the currently active host usable.
+      try {
+        saveStoredWebRuntimeEnvironment(nextEnvironment)
+      } catch {
+        return {
+          ok: false,
+          kind: 'environment-save-failed',
+          message: translate(
+            'auto.web.webPreloadApi.remotePairingSaveFailed',
+            'Orca verified the host but could not save it. Check browser storage and try again.'
+          )
+        }
+      }
+      manuallyDisconnectedEnvironmentIds.clear()
+      closeActiveRuntimeClients()
+      activeEnvironment = nextEnvironment
+      return {
+        ok: true,
+        environment: redactStoredWebRuntimeEnvironment(nextEnvironment),
+        runtimeStatus
+      }
     },
     resolve: async ({ selector }) =>
       redactStoredWebRuntimeEnvironment(resolveEnvironment(selector)),
     remove: async ({ selector }) => {
       const environment = resolveEnvironment(selector)
       if (activeEnvironment?.id === environment.id) {
-        disconnectActiveRuntimeEnvironment()
+        removeActiveRuntimeEnvironment()
       }
+      manuallyDisconnectedEnvironmentIds.delete(environment.id)
       return { removed: redactStoredWebRuntimeEnvironment(environment) }
     },
     disconnect: async ({ selector }) => {
       const environment = resolveEnvironment(selector)
       if (activeEnvironment?.id === environment.id) {
+        manuallyDisconnectedEnvironmentIds.add(environment.id)
         disconnectActiveRuntimeEnvironment()
       }
       return { disconnected: redactStoredWebRuntimeEnvironment(environment) }
+    },
+    connect: ({ selector, timeoutMs }) => {
+      const environment = resolveEnvironment(selector)
+      manuallyDisconnectedEnvironmentIds.delete(environment.id)
+      return callEnvironmentEnvelope<RuntimeStatus>(
+        environment.id,
+        'status.get',
+        undefined,
+        timeoutMs
+      )
     },
     getStatus: ({ selector, timeoutMs }) =>
       callEnvironmentEnvelope<RuntimeStatus>(selector, 'status.get', undefined, timeoutMs),
@@ -1374,7 +1538,12 @@ function createRuntimeEnvironmentsApi(): NonNullable<Partial<PreloadApi>['runtim
     subscribe: async ({ selector, method, params, timeoutMs }, callbacks) => {
       const environment = resolveEnvironment(selector)
       const client = getClientForEnvironment(environment)
-      return client.subscribe(method, params, callbacks, { timeoutMs })
+      const subscription = await client.subscribe(method, params, callbacks, { timeoutMs })
+      if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
+        subscription.unsubscribe()
+        throw new Error('runtime_manually_disconnected')
+      }
+      return subscription
     }
   }
 }
@@ -2391,6 +2560,34 @@ function createGitLabApi(): WebGitLabApi {
   return gitLabApi
 }
 
+function createYunxiaoApi(): WebYunxiaoApi {
+  const route = <Result>(method: WebYunxiaoRuntimeMethod, args?: unknown): Promise<Result> =>
+    callRuntimeResult<Result>(method, args)
+
+  return {
+    listWorkItems: (args) =>
+      route<WebYunxiaoResult<'listWorkItems'>>(YUNXIAO_WEB_RPC_METHODS.listWorkItems, args),
+    createRequirement: (args) =>
+      route<WebYunxiaoResult<'createRequirement'>>(YUNXIAO_WEB_RPC_METHODS.createRequirement, args),
+    archiveRequirement: (args) =>
+      route<WebYunxiaoResult<'archiveRequirement'>>(
+        YUNXIAO_WEB_RPC_METHODS.archiveRequirement,
+        args
+      ),
+    listTodoPool: () =>
+      route<WebYunxiaoResult<'listTodoPool'>>(YUNXIAO_WEB_RPC_METHODS.listTodoPool),
+    addTodoPoolItems: (args) =>
+      route<WebYunxiaoResult<'addTodoPoolItems'>>(YUNXIAO_WEB_RPC_METHODS.addTodoPoolItems, args),
+    updateTodoPoolItem: (args) =>
+      route<WebYunxiaoResult<'updateTodoPoolItem'>>(
+        YUNXIAO_WEB_RPC_METHODS.updateTodoPoolItem,
+        args
+      ),
+    removeTodoPoolItem: (id) =>
+      route<WebYunxiaoResult<'removeTodoPoolItem'>>(YUNXIAO_WEB_RPC_METHODS.removeTodoPoolItem, id)
+  } satisfies WebYunxiaoApi
+}
+
 function createRuntimeNamespaceApi(prefix: string): never {
   return createFallbackProxy([prefix], (path, args) => {
     const method = `${prefix}.${path.at(-1) ?? ''}`
@@ -2838,6 +3035,43 @@ function createSkillsApi(): NonNullable<Partial<PreloadApi>['skills']> {
   }
 }
 
+function createDfHisEnvironmentApi(): NonNullable<Partial<PreloadApi>['dfhisEnvironment']> {
+  return {
+    getConfig: async () => {
+      const { config } = await callRuntimeResult<{ config: DfHisEnvironmentConfigSnapshot }>(
+        'dfhisEnvironment.getConfig',
+        undefined,
+        15_000
+      )
+      return config
+    },
+    check: async () => {
+      const { check } = await callRuntimeResult<{ check: DfHisEnvironmentCheckResult }>(
+        'dfhisEnvironment.check',
+        undefined,
+        120_000
+      )
+      return check
+    },
+    install: async (config?: DfHisEnvironmentConfigInput) => {
+      const { result } = await callRuntimeResult<{ result: DfHisEnvironmentInstallResult }>(
+        'dfhisEnvironment.install',
+        config,
+        600_000
+      )
+      return result
+    },
+    updateWorkflowPack: async (config?: DfHisEnvironmentConfigInput) => {
+      const { result } = await callRuntimeResult<{ result: DfHisEnvironmentInstallResult }>(
+        'dfhisEnvironment.updateWorkflowPack',
+        config,
+        600_000
+      )
+      return result
+    }
+  }
+}
+
 function createNotificationsApi(): NonNullable<Partial<PreloadApi>['notifications']> {
   return {
     dispatch: () => Promise.resolve({ delivered: false, reason: 'not-supported' }),
@@ -2938,6 +3172,17 @@ function createUpdaterApi(): NonNullable<Partial<PreloadApi>['updater']> {
     quitAndInstall: () => Promise.resolve(),
     dismissNudge: () => Promise.resolve(),
     dismissAvailableUpdate: () => Promise.resolve(),
+    // Why: the web client cannot install a desktop build, so channel switching
+    // reports unavailable rather than an empty list that looks like a fetch miss.
+    listBuilds: (channel) =>
+      Promise.resolve({
+        ok: false,
+        channel,
+        message: translate(
+          'auto.components.settings.ReleaseChannelSection.webUnavailable',
+          'Switching builds is only available in the desktop app.'
+        )
+      }),
     onStatus: () => noopUnsubscribe,
     onClearDismissal: () => noopUnsubscribe
   }
@@ -3139,9 +3384,18 @@ async function callRuntimeEnvelope<TResult = unknown>(
   timeoutMs?: number
 ): Promise<RuntimeRpcResponse<TResult>> {
   const environment = requireActiveEnvironment()
-  const response = await runtimeCallQueuePool.enqueue(environment.id, method, () =>
-    getClientForEnvironment(environment).call(method, params, { timeoutMs })
-  )
+  if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
+    return manuallyDisconnectedResponse(environment)
+  }
+  const response = await runtimeCallQueuePool.enqueue(environment.id, method, () => {
+    if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
+      return Promise.resolve(manuallyDisconnectedResponse(environment))
+    }
+    return getClientForEnvironment(environment).call(method, params, { timeoutMs })
+  })
+  if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
+    return manuallyDisconnectedResponse(environment)
+  }
   updateEnvironmentFromResponse(environment, response)
   return response as RuntimeRpcResponse<TResult>
 }
@@ -3153,9 +3407,18 @@ async function callEnvironmentEnvelope<TResult = unknown>(
   timeoutMs?: number
 ): Promise<RuntimeRpcResponse<TResult>> {
   const environment = resolveEnvironment(selector)
-  const response = await runtimeCallQueuePool.enqueue(environment.id, method, () =>
-    getClientForEnvironment(environment).call(method, params, { timeoutMs })
-  )
+  if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
+    return manuallyDisconnectedResponse(environment)
+  }
+  const response = await runtimeCallQueuePool.enqueue(environment.id, method, () => {
+    if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
+      return Promise.resolve(manuallyDisconnectedResponse(environment))
+    }
+    return getClientForEnvironment(environment).call(method, params, { timeoutMs })
+  })
+  if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
+    return manuallyDisconnectedResponse(environment)
+  }
   updateEnvironmentFromResponse(environment, response)
   return response as RuntimeRpcResponse<TResult>
 }
@@ -3332,6 +3595,9 @@ async function getRemoteRuntimeStatus(): Promise<RuntimeStatus> {
 }
 
 function getClientForEnvironment(environment: StoredWebRuntimeEnvironment): WebRuntimeClient {
+  if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
+    throw new Error('runtime_manually_disconnected')
+  }
   if (!activeClient || activeClientEnvironmentId !== environment.id) {
     activeClient?.close()
     activeClient = new WebRuntimeClient(getPreferredWebPairingOffer(environment))
@@ -3349,8 +3615,29 @@ function closeActiveRuntimeClients(): void {
 
 function disconnectActiveRuntimeEnvironment(): void {
   closeActiveRuntimeClients()
+}
+
+function removeActiveRuntimeEnvironment(): void {
+  disconnectActiveRuntimeEnvironment()
   clearStoredWebRuntimeEnvironment()
   activeEnvironment = null
+}
+
+function manuallyDisconnectedResponse(
+  environment: StoredWebRuntimeEnvironment
+): RuntimeRpcResponse<never> {
+  return {
+    id: 'runtime.manualDisconnect',
+    ok: false,
+    error: {
+      code: 'runtime_manually_disconnected',
+      message: translate(
+        'auto.web.webPreloadApi.runtimeEnvironmentManuallyDisconnected',
+        'Runtime environment is manually disconnected.'
+      )
+    },
+    _meta: { runtimeId: environment.runtimeId }
+  }
 }
 
 function resolveEnvironment(selector: string): StoredWebRuntimeEnvironment {
@@ -3499,6 +3786,17 @@ async function getRuntimeBackedStoredSettings(): Promise<GlobalSettings> {
         result.settings.prBotAuthorOverrides
       )
     }
+    if (
+      Array.isArray(result.settings.visibleTaskProviders) ||
+      typeof result.settings.defaultTaskSource === 'string'
+    ) {
+      const taskProviderSettings = normalizeTaskProviderSettings({
+        visibleTaskProviders: result.settings.visibleTaskProviders ?? local.visibleTaskProviders,
+        defaultTaskSource: result.settings.defaultTaskSource ?? local.defaultTaskSource
+      })
+      runtimeSettings.defaultTaskSource = taskProviderSettings.defaultTaskSource
+      runtimeSettings.visibleTaskProviders = taskProviderSettings.visibleTaskProviders
+    }
     const next = mergeSettings(local, runtimeSettings)
     writeStoredSettings(next)
     return next
@@ -3532,6 +3830,14 @@ async function syncRuntimeBackedSettings(
     runtimeUpdates.prBotAuthorOverrides = normalizePRBotAuthorOverrides(
       updates.prBotAuthorOverrides
     )
+  }
+  if ('visibleTaskProviders' in updates || 'defaultTaskSource' in updates) {
+    const taskProviderSettings = normalizeTaskProviderSettings({
+      visibleTaskProviders: localNext.visibleTaskProviders,
+      defaultTaskSource: localNext.defaultTaskSource
+    })
+    runtimeUpdates.defaultTaskSource = taskProviderSettings.defaultTaskSource
+    runtimeUpdates.visibleTaskProviders = taskProviderSettings.visibleTaskProviders
   }
   if (Object.keys(runtimeUpdates).length === 0) {
     return localNext
@@ -3782,8 +4088,14 @@ function mergeSettings(
     ),
     uiLanguage: normalizeUiLanguage(updates.uiLanguage ?? base.uiLanguage)
   }
+  const taskProviderSettings = normalizeTaskProviderSettings({
+    visibleTaskProviders: merged.visibleTaskProviders,
+    defaultTaskSource: merged.defaultTaskSource
+  })
   return {
     ...merged,
+    defaultTaskSource: taskProviderSettings.defaultTaskSource,
+    visibleTaskProviders: taskProviderSettings.visibleTaskProviders,
     ...normalizeAutoRenameBranchFromWorkDefaultOn(merged, {
       preserveExplicitValue: options.preserveAutoRenameBranchFromWorkUpdate
     })

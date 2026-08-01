@@ -225,6 +225,10 @@ export async function listYunxiaoWorkItems(
     )
     const perPage = cleanPositiveInteger(filters.perPage, DEFAULT_YUNXIAO_WORK_ITEM_PAGE_SIZE, 200)
     const category = filters.category && filters.category !== 'all' ? filters.category : 'Req,Bug'
+    const assigneeId =
+      filters.assigneeId === 'self'
+        ? await resolveOfficialYunxiaoUserId()
+        : (filters.assigneeId ?? null)
     const participantId =
       filters.participantId === 'self'
         ? await resolveOfficialYunxiaoUserId()
@@ -238,7 +242,7 @@ export async function listYunxiaoWorkItems(
       ...(query ? { subjectDescription: query } : {}),
       ...(filters.statusIds?.length ? { status: filters.statusIds.join(',') } : {}),
       ...(filters.sprintId ? { sprint: filters.sprintId } : {}),
-      ...(filters.assigneeId ? { assignedTo: filters.assigneeId } : {}),
+      ...(assigneeId ? { assignedTo: assigneeId } : {}),
       includeDetails: true,
       orderBy: 'gmtModified',
       sort: 'desc'

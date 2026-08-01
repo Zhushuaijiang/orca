@@ -14,10 +14,20 @@ import {
   encodeTerminalStreamJson,
   encodeTerminalStreamText
 } from '../../../shared/terminal-stream-protocol'
-import { TERMINAL_MULTIPLEX_ACK_STREAM_INITIAL_WINDOW_BYTES } from '../../../shared/terminal-multiplex-flow-control'
+import {
+  TERMINAL_MULTIPLEX_ACK_STREAM_INITIAL_WINDOW_BYTES,
+  TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION,
+  TERMINAL_MULTIPLEX_MAX_PENDING_PTY_WAITS_PER_CONNECTION
+} from '../../../shared/terminal-multiplex-flow-control'
 import { SshPtyOutputIntake, type SshPtyOutputDataEvent } from '../../ipc/ssh-pty-output-intake'
 
+const SET_OUTPUT_PAUSED_OPCODE = 16 as TerminalStreamOpcode
+
 function stubRuntime(overrides: Partial<OrcaRuntimeService> = {}): OrcaRuntimeService {
+  const serializeAuthoritativeTerminalBuffer =
+    overrides.serializeAuthoritativeTerminalBuffer ??
+    ((ptyId: string, opts?: { scrollbackRows?: number }) =>
+      overrides.serializeTerminalBuffer?.(ptyId, opts))
   return {
     getRuntimeId: () => 'test-runtime',
     // Why: every multiplex stream registers as a remote view subscriber for
@@ -35,6 +45,7 @@ function stubRuntime(overrides: Partial<OrcaRuntimeService> = {}): OrcaRuntimeSe
     isPtyResizeDrivenRemotely: vi.fn().mockReturnValue(false),
     getRemoteDesktopFitHold: vi.fn().mockReturnValue({ mode: 'desktop-fit', cols: 120, rows: 40 }),
     isRemoteDesktopViewerOwner: vi.fn().mockReturnValue(false),
+    serializeAuthoritativeTerminalBuffer,
     getPtyOutputSequence: vi.fn().mockReturnValue(0),
     ...overrides
   } as OrcaRuntimeService
@@ -935,6 +946,11 @@ describe('terminal multiplex RPC', () => {
           cols: 120,
           rows: 40
         }),
+        serializeAuthoritativeTerminalBuffer: vi.fn().mockResolvedValue({
+          data: 'authoritative snapshot',
+          cols: 120,
+          rows: 40
+        }),
         getTerminalSize: vi.fn().mockReturnValue({ cols: 120, rows: 40 }),
         getMobileDisplayMode: vi.fn().mockReturnValue('auto'),
         getLayout: vi.fn().mockReturnValue({ seq: 1 }),
@@ -1225,7 +1241,10 @@ describe('terminal multiplex RPC', () => {
       ).toMatchObject({
         requestId: 7
       })
-      expect(runtime.serializeTerminalBuffer).toHaveBeenLastCalledWith('pty-1', {
+      expect(runtime.serializeTerminalBuffer).toHaveBeenCalledWith('pty-1', {
+        scrollbackRows: 0
+      })
+      expect(runtime.serializeAuthoritativeTerminalBuffer).toHaveBeenLastCalledWith('pty-1', {
         scrollbackRows: 5000
       })
       expect(
@@ -1233,7 +1252,7 @@ describe('terminal multiplex RPC', () => {
           .filter((frame) => frame?.opcode === TerminalStreamOpcode.SnapshotChunk)
           .map((frame) => (frame ? decodeTerminalStreamText(frame.payload) : ''))
           .join('')
-      ).toBe('snapshot')
+      ).toBe('authoritative snapshot')
 
       // A viewport-less stream is passive: it must neither register nor later
       // release the active stream's width floor when the connection closes.
@@ -1299,6 +1318,170 @@ describe('terminal multiplex RPC', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('withholds sustained output from multiple paused desktop streams', async () => {
+    const listeners: ((data: string, meta?: RuntimeTerminalDataMeta) => void)[] = []
+    const harness = startDesktopMultiplexSubscribe({
+      subscribeToTerminalData: vi.fn((_ptyId, listener) => {
+        listeners.push(listener)
+        return vi.fn()
+      }),
+      serializeAuthoritativeTerminalBuffer: vi.fn().mockResolvedValue({
+        data: 'authoritative hidden snapshot',
+        cols: 120,
+        rows: 40,
+        seq: 7,
+        source: 'headless'
+      })
+    })
+    await vi.waitFor(() => expect(harness.handlers.has(0)).toBe(true))
+
+    for (const streamId of [1, 2, 3]) {
+      harness.handlers.get(0)?.(
+        decodeTerminalStreamFrame(
+          encodeTerminalStreamFrame({
+            opcode: TerminalStreamOpcode.Subscribe,
+            streamId: 0,
+            seq: streamId,
+            payload: encodeTerminalStreamJson({
+              streamId,
+              terminal: `terminal-${streamId}`,
+              client: { id: `desktop-${streamId}`, type: 'desktop' },
+              capabilities: { ackOutput: 1, outputPause: 1 }
+            })
+          })
+        )!
+      )
+    }
+    await vi.waitFor(() =>
+      expect(
+        harness.messages.filter((message) => JSON.parse(message).result?.type === 'subscribed')
+      ).toHaveLength(3)
+    )
+    const pauseCapable = harness.messages
+      .map((message) => JSON.parse(message).result)
+      .filter((event) => event?.type === 'subscribed')
+      .every((event) => event.capabilities?.outputPause === 1)
+    if (pauseCapable) {
+      for (const streamId of [1, 2, 3]) {
+        harness.handlers.get(streamId)?.(
+          decodeTerminalStreamFrame(
+            encodeTerminalStreamFrame({
+              opcode: SET_OUTPUT_PAUSED_OPCODE,
+              streamId,
+              seq: 10,
+              payload: encodeTerminalStreamJson({ paused: true })
+            })
+          )!
+        )
+      }
+    }
+    harness.binaryFrames.splice(0)
+    const chunk = 'x'.repeat(64 * 1024)
+    for (let turn = 0; turn < 8; turn += 1) {
+      for (const listener of listeners) {
+        listener(chunk, { seq: (turn + 1) * chunk.length, rawLength: chunk.length })
+      }
+    }
+    expect(
+      harness.binaryFrames.some(
+        (bytes) => decodeTerminalStreamFrame(bytes)?.opcode === TerminalStreamOpcode.Output
+      )
+    ).toBe(false)
+    expect(pauseCapable).toBe(true)
+
+    harness.handlers.get(1)?.(
+      decodeTerminalStreamFrame(
+        encodeTerminalStreamFrame({
+          opcode: SET_OUTPUT_PAUSED_OPCODE,
+          streamId: 1,
+          seq: 11,
+          payload: encodeTerminalStreamJson({ paused: false })
+        })
+      )!
+    )
+    listeners[0]?.('VISIBLE_MARKER', { seq: 8 * chunk.length + 14, rawLength: 14 })
+    listeners[0]?.('y'.repeat(64 * 1024), {
+      seq: 9 * chunk.length + 14,
+      rawLength: 64 * 1024
+    })
+    expect(
+      harness.binaryFrames
+        .map(decodeTerminalStreamFrame)
+        .filter((frame) => frame?.opcode === TerminalStreamOpcode.Output)
+        .map((frame) => decodeTerminalStreamText(frame!.payload))
+        .join('')
+    ).toContain('VISIBLE_MARKER')
+
+    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    await harness.dispatchPromise
+    expect(harness.handlers.size).toBe(0)
+  })
+
+  it('keeps output flowing when an older client does not negotiate pause', async () => {
+    const listeners: ((data: string, meta?: RuntimeTerminalDataMeta) => void)[] = []
+    const harness = startDesktopMultiplexSubscribe({
+      subscribeToTerminalData: vi.fn((_ptyId, nextListener) => {
+        listeners.push(nextListener)
+        return vi.fn()
+      })
+    })
+    await vi.waitFor(() => expect(harness.handlers.has(0)).toBe(true))
+
+    harness.handlers.get(0)?.(
+      decodeTerminalStreamFrame(
+        encodeTerminalStreamFrame({
+          opcode: TerminalStreamOpcode.Subscribe,
+          streamId: 0,
+          seq: 1,
+          payload: encodeTerminalStreamJson({
+            streamId: 1,
+            terminal: 'terminal-legacy-client',
+            client: { id: 'desktop-legacy', type: 'desktop' },
+            capabilities: { ackOutput: 1 }
+          })
+        })
+      )!
+    )
+    await vi.waitFor(() =>
+      expect(
+        harness.messages
+          .map((message) => JSON.parse(message).result)
+          .find((event) => event?.type === 'subscribed' && event.streamId === 1)
+      ).toMatchObject({ type: 'subscribed', streamId: 1 })
+    )
+    const subscribed = harness.messages
+      .map((message) => JSON.parse(message).result)
+      .find((event) => event?.type === 'subscribed' && event.streamId === 1)
+    expect(subscribed.capabilities?.outputPause).toBeUndefined()
+
+    harness.handlers.get(1)?.(
+      decodeTerminalStreamFrame(
+        encodeTerminalStreamFrame({
+          opcode: SET_OUTPUT_PAUSED_OPCODE,
+          streamId: 1,
+          seq: 2,
+          payload: encodeTerminalStreamJson({ paused: true })
+        })
+      )!
+    )
+    harness.binaryFrames.splice(0)
+    listeners[0]?.('LEGACY_VISIBLE'.padEnd(64 * 1024, 'x'), {
+      seq: 64 * 1024,
+      rawLength: 64 * 1024
+    })
+
+    expect(
+      harness.binaryFrames
+        .map(decodeTerminalStreamFrame)
+        .filter((frame) => frame?.opcode === TerminalStreamOpcode.Output)
+        .map((frame) => decodeTerminalStreamText(frame!.payload))
+        .join('')
+    ).toContain('LEGACY_VISIBLE')
+
+    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    await harness.dispatchPromise
   })
 
   it('applies a viewer resize parked during a snapshot-request buffering window', async () => {
@@ -2894,7 +3077,7 @@ describe('terminal multiplex RPC', () => {
     await dispatchPromise
   })
 
-  it('marks multiplex fallback snapshots truncated when the uncursored read is limited', async () => {
+  it('keeps a limited retained-tail fallback usable for multiplex first paint', async () => {
     const messages: string[] = []
     const binaryFrames: Uint8Array<ArrayBufferLike>[] = []
     const handlers = new Map<
@@ -2977,7 +3160,7 @@ describe('terminal multiplex RPC', () => {
     expect(subscribed).toMatchObject({
       type: 'subscribed',
       streamId: 11,
-      truncated: true
+      truncated: false
     })
 
     const decodedFrames = binaryFrames.map((frame) => decodeTerminalStreamFrame(frame))
@@ -2985,7 +3168,7 @@ describe('terminal multiplex RPC', () => {
       (frame) => frame?.opcode === TerminalStreamOpcode.SnapshotStart && frame.streamId === 11
     )
     expect(snapshotStart && decodeTerminalStreamJson(snapshotStart.payload)).toMatchObject({
-      truncated: true
+      truncated: false
     })
     const snapshotData = decodedFrames
       .filter((frame) => frame?.opcode === TerminalStreamOpcode.SnapshotChunk)
@@ -2995,6 +3178,50 @@ describe('terminal multiplex RPC', () => {
 
     runtime.cleanupSubscription('terminal-multiplex:conn-multiplex-limited')
     await dispatchPromise
+  })
+
+  it('does not mark a serialized multiplex snapshot truncated from an overflowed read', async () => {
+    const harness = startDesktopMultiplexSubscribe({
+      readTerminal: vi.fn().mockResolvedValue({
+        tail: ['old retained line'],
+        truncated: true,
+        limited: true
+      }),
+      serializeTerminalBuffer: vi.fn().mockResolvedValue({
+        data: 'authoritative current screen\r\n',
+        cols: 120,
+        rows: 40
+      })
+    })
+
+    await vi.waitFor(() =>
+      expect(harness.messages.some((message) => JSON.parse(message).result?.type === 'ready')).toBe(
+        true
+      )
+    )
+    sendDesktopMultiplexSubscribe(harness.handlers)
+    await vi.waitFor(() =>
+      expect(
+        harness.messages.some((message) => JSON.parse(message).result?.type === 'subscribed')
+      ).toBe(true)
+    )
+
+    const snapshotStart = harness.binaryFrames
+      .map((bytes) => decodeTerminalStreamFrame(bytes))
+      .find((frame) => frame?.opcode === TerminalStreamOpcode.SnapshotStart && frame.streamId === 7)
+    expect(snapshotStart && decodeTerminalStreamJson(snapshotStart.payload)).toMatchObject({
+      truncated: false
+    })
+    expect(
+      harness.binaryFrames
+        .map((bytes) => decodeTerminalStreamFrame(bytes))
+        .filter((frame) => frame?.opcode === TerminalStreamOpcode.SnapshotChunk)
+        .map((frame) => (frame ? decodeTerminalStreamText(frame.payload) : ''))
+        .join('')
+    ).toBe('authoritative current screen\r\n')
+
+    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    await harness.dispatchPromise
   })
 
   it('falls back to smaller requested snapshots when serialized data exceeds the send budget', async () => {
@@ -4055,14 +4282,37 @@ describe('terminal multiplex RPC', () => {
     await harness.dispatchPromise
   })
 
-  it('caps multiplex stream slots so aggregate pending output stays bounded', async () => {
-    const harness = startDesktopMultiplexSubscribe()
+  it('admits 128 active streams, rejects the 129th, and reuses released capacity', async () => {
+    let dataSubscriberCount = 0
+    let viewSubscriberCount = 0
+    const harness = startDesktopMultiplexSubscribe({
+      subscribeToTerminalData: vi.fn(() => {
+        dataSubscriberCount += 1
+        let released = false
+        return () => {
+          if (!released) {
+            released = true
+            dataSubscriberCount -= 1
+          }
+        }
+      }),
+      registerRemoteTerminalViewSubscriber: vi.fn(() => {
+        viewSubscriberCount += 1
+        let released = false
+        return () => {
+          if (!released) {
+            released = true
+            viewSubscriberCount -= 1
+          }
+        }
+      })
+    })
     await vi.waitFor(() =>
       expect(harness.messages.some((message) => JSON.parse(message).result?.type === 'ready')).toBe(
         true
       )
     )
-    for (let streamId = 1; streamId <= 33; streamId += 1) {
+    const sendSubscribe = (streamId: number): void => {
       harness.handlers.get(0)?.(
         decodeTerminalStreamFrame(
           encodeTerminalStreamFrame({
@@ -4079,16 +4329,167 @@ describe('terminal multiplex RPC', () => {
         )!
       )
     }
+    expect(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION).toBe(128)
+    for (
+      let streamId = 1;
+      streamId <= TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION + 1;
+      streamId += 1
+    ) {
+      sendSubscribe(streamId)
+    }
 
     await vi.waitFor(() => {
       const results = harness.messages.map((message) => JSON.parse(message).result)
-      expect(results.filter((result) => result?.type === 'subscribed')).toHaveLength(32)
+      const subscribedStreamIds = results
+        .filter((result) => result?.type === 'subscribed')
+        .map((result) => result.streamId)
+      expect(subscribedStreamIds).toHaveLength(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION)
+      expect(subscribedStreamIds).toContain(44)
       expect(results).toContainEqual({
         type: 'error',
-        streamId: 33,
+        streamId: TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION + 1,
         message: 'terminal_stream_limit_exceeded'
       })
-      expect(results).toContainEqual({ type: 'end', streamId: 33 })
+      expect(results).toContainEqual({
+        type: 'end',
+        streamId: TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION + 1
+      })
+    })
+    expect(dataSubscriberCount).toBe(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION)
+    expect(viewSubscriberCount).toBe(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION)
+
+    harness.handlers.get(1)?.(
+      decodeTerminalStreamFrame(
+        encodeTerminalStreamFrame({
+          opcode: TerminalStreamOpcode.Unsubscribe,
+          streamId: 1,
+          seq: TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION + 2,
+          payload: new Uint8Array()
+        })
+      )!
+    )
+    await vi.waitFor(() => {
+      expect(dataSubscriberCount).toBe(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION - 1)
+      expect(viewSubscriberCount).toBe(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION - 1)
+      expect(harness.handlers.has(1)).toBe(false)
+    })
+
+    const retriedStreamId = TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION + 1
+    sendSubscribe(retriedStreamId)
+    await vi.waitFor(() => {
+      const subscribedStreamIds = harness.messages
+        .map((message) => JSON.parse(message).result)
+        .filter((result) => result?.type === 'subscribed')
+        .map((result) => result.streamId)
+      expect(subscribedStreamIds).toContain(retriedStreamId)
+      expect(
+        harness.binaryFrames.some((bytes) => {
+          const frame = decodeTerminalStreamFrame(bytes)
+          return (
+            frame?.streamId === retriedStreamId && frame.opcode === TerminalStreamOpcode.SnapshotEnd
+          )
+        })
+      ).toBe(true)
+    })
+    expect(dataSubscriberCount).toBe(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION)
+    expect(viewSubscriberCount).toBe(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION)
+
+    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    await harness.dispatchPromise
+    expect(dataSubscriberCount).toBe(0)
+    expect(viewSubscriberCount).toBe(0)
+  })
+
+  it('reserves PTY wait capacity independently from active streams', async () => {
+    const activeStreamCount = 44
+    const waitSignals: AbortSignal[] = []
+    const resolveWaits: ((ptyId: string) => void)[] = []
+    const runtime = stubRuntime({
+      resolveLiveLeafForHandle: vi.fn((terminal: string) =>
+        terminal.startsWith('pending-') ? { ptyId: null } : { ptyId: `pty-${terminal}` }
+      ),
+      waitForLeafPtyId: vi.fn(
+        (_handle: string, _timeoutMs?: number, signal?: AbortSignal) =>
+          new Promise<string>((resolve, reject) => {
+            if (signal) {
+              waitSignals.push(signal)
+            }
+            resolveWaits.push(resolve)
+            signal?.addEventListener('abort', () => reject(new Error('request_aborted')), {
+              once: true
+            })
+          })
+      )
+    })
+    const harness = startDesktopMultiplexSubscribe(runtime)
+    await vi.waitFor(() =>
+      expect(harness.messages.some((message) => JSON.parse(message).result?.type === 'ready')).toBe(
+        true
+      )
+    )
+    const sendSubscribe = (streamId: number, terminal: string): void => {
+      harness.handlers.get(0)?.(
+        decodeTerminalStreamFrame(
+          encodeTerminalStreamFrame({
+            opcode: TerminalStreamOpcode.Subscribe,
+            streamId: 0,
+            seq: streamId,
+            payload: encodeTerminalStreamJson({
+              streamId,
+              terminal,
+              client: { id: 'desktop-1', type: 'desktop' },
+              capabilities: { ackOutput: 1 }
+            })
+          })
+        )!
+      )
+    }
+
+    for (let streamId = 1; streamId <= activeStreamCount; streamId += 1) {
+      sendSubscribe(streamId, `active-${streamId}`)
+    }
+    await vi.waitFor(() =>
+      expect(
+        harness.messages.filter((message) => JSON.parse(message).result?.type === 'subscribed')
+      ).toHaveLength(activeStreamCount)
+    )
+
+    for (
+      let offset = 1;
+      offset <= TERMINAL_MULTIPLEX_MAX_PENDING_PTY_WAITS_PER_CONNECTION + 1;
+      offset += 1
+    ) {
+      sendSubscribe(activeStreamCount + offset, `pending-${offset}`)
+    }
+    await vi.waitFor(() =>
+      expect(waitSignals).toHaveLength(TERMINAL_MULTIPLEX_MAX_PENDING_PTY_WAITS_PER_CONNECTION)
+    )
+    const rejectedStreamId =
+      activeStreamCount + TERMINAL_MULTIPLEX_MAX_PENDING_PTY_WAITS_PER_CONNECTION + 1
+    await vi.waitFor(() => {
+      const results = harness.messages.map((message) => JSON.parse(message).result)
+      expect(results).toContainEqual({
+        type: 'error',
+        streamId: rejectedStreamId,
+        message: 'terminal_stream_limit_exceeded'
+      })
+      expect(results).toContainEqual({ type: 'end', streamId: rejectedStreamId })
+    })
+
+    for (const [index, resolve] of resolveWaits.entries()) {
+      resolve(`pty-pending-${index + 1}`)
+    }
+    await vi.waitFor(() => {
+      const results = harness.messages.map((message) => JSON.parse(message).result)
+      expect(results.filter((result) => result?.type === 'subscribed')).toHaveLength(
+        activeStreamCount + TERMINAL_MULTIPLEX_MAX_PENDING_PTY_WAITS_PER_CONNECTION
+      )
+      expect(
+        results.filter(
+          (result) =>
+            result?.type === 'error' && result.message === 'terminal_stream_limit_exceeded'
+        )
+      ).toHaveLength(1)
     })
 
     harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()

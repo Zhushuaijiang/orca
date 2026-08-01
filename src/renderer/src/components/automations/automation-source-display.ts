@@ -43,6 +43,8 @@ function getProviderLabel(provider: TaskSourceContext['provider']): string {
       return 'Jira'
     case 'yunxiao':
       return 'Yunxiao'
+    case 'code-merge':
+      return 'Code merge'
   }
 }
 

@@ -15,7 +15,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@renderer': resolve('src/renderer/src'),
-      '@': resolve('src/renderer/src')
+      '@': resolve('src/renderer/src'),
+      diagnostics_channel: resolve('src/renderer/src/browser-polyfills/diagnostics-channel.ts'),
+      'node:diagnostics_channel': resolve(
+        'src/renderer/src/browser-polyfills/diagnostics-channel.ts'
+      )
     }
   },
   build: {

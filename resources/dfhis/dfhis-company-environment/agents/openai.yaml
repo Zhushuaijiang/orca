@@ -1,0 +1,4 @@
+interface:
+  display_name: "DFHIS 公司环境"
+  short_description: "使用 HIS/医共体内网环境和 Node 工具链规则做数据库、中间件、Jenkins 与联调验证"
+  default_prompt: "Use $dfhis-company-environment to choose the right DFHIS company environment and verify this HIS change."

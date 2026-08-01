@@ -7,7 +7,8 @@ import type {
 export const DFHIS_WORKFLOW_PACK_NAMES = [
   'yunxiao-requirement-archiver',
   'his-release-merge',
-  'ygt'
+  'ygt',
+  'dfhis-company-environment'
 ] as const
 export const BUNDLED_DFHIS_WORKFLOW_PACK_RELATIVE_PATH = 'dfhis'
 export const MANIFEST_FILE_NAME = '.orca-dfhis-workflow-pack.json'
