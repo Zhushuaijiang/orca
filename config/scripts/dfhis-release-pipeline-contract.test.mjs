@@ -18,8 +18,10 @@ describe('DFHIS release pipeline contract', () => {
     expect(source).toContain('sha256sum "$TMP/orca-windows-setup.exe"')
     expect(source).toContain('sha256sum "$TMP/dfhis-skill-pack.json"')
     expect(source).toContain('sha256sum "$TMP/dfhis-skill-pack.zip"')
-    expect(source).toContain('mv "$SKILL_JSON_TMP" "$SKILL_ROOT/dfhis-skill-pack.json"')
-    expect(source).toContain('mv "$SKILL_ZIP_TMP" "$SKILL_ROOT/dfhis-skill-pack.zip"')
+    expect(source).toContain('mv -f "$SKILL_JSON_TMP" "$SKILL_ROOT/dfhis-skill-pack.json"')
+    expect(source).toContain('mv -f "$SKILL_ZIP_TMP" "$SKILL_ROOT/dfhis-skill-pack.zip"')
+    expect(source).toContain('sha256sum "$SKILL_ROOT/dfhis-skill-pack.json"')
+    expect(source).toContain('sha256sum "$SKILL_ROOT/dfhis-skill-pack.zip"')
   })
 
   it('installs and launches the Windows artifact before signing publication', () => {

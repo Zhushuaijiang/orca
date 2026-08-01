@@ -331,10 +331,12 @@ test "$(sha256sum "$TMP/dfhis-skill-pack.zip" | awk '{print $1}')" = ${JSON.stri
 mkdir -p "$SKILL_ROOT"
 SKILL_JSON_TMP="$SKILL_ROOT/.dfhis-skill-pack-$VERSION-$$.json.tmp"
 SKILL_ZIP_TMP="$SKILL_ROOT/.dfhis-skill-pack-$VERSION-$$.zip.tmp"
-mv "$TMP/dfhis-skill-pack.json" "$SKILL_JSON_TMP"
-mv "$TMP/dfhis-skill-pack.zip" "$SKILL_ZIP_TMP"
-mv "$SKILL_JSON_TMP" "$SKILL_ROOT/dfhis-skill-pack.json"
-mv "$SKILL_ZIP_TMP" "$SKILL_ROOT/dfhis-skill-pack.zip"`
+mv -f "$TMP/dfhis-skill-pack.json" "$SKILL_JSON_TMP"
+mv -f "$TMP/dfhis-skill-pack.zip" "$SKILL_ZIP_TMP"
+mv -f "$SKILL_JSON_TMP" "$SKILL_ROOT/dfhis-skill-pack.json"
+mv -f "$SKILL_ZIP_TMP" "$SKILL_ROOT/dfhis-skill-pack.zip"
+test "$(sha256sum "$SKILL_ROOT/dfhis-skill-pack.json" | awk '{print $1}')" = ${JSON.stringify(expectedSkillJsonSha)}
+test "$(sha256sum "$SKILL_ROOT/dfhis-skill-pack.zip" | awk '{print $1}')" = ${JSON.stringify(expectedSkillZipSha)}`
     : ''
 }
 rmdir "$TMP"
