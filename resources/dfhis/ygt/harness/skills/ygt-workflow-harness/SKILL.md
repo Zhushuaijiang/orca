@@ -1,6 +1,6 @@
 ---
 name: ygt-workflow-harness
-description: Use when handling YGT platform requirements, bugs, layout issues, deployment requests, Jenkins rollout checks, or multi-project agent work in df-ygt-main and related df-ygt business repos.
+description: Use when handling YGT platform requirements, bugs, repository sync, layout issues, visual/E2E verification, deployment requests, Jenkins rollout checks, or multi-project agent work in df-ygt-main and related df-ygt business repos.
 ---
 
 # YGT Workflow Harness
@@ -25,6 +25,8 @@ The explicit command is equivalent:
 node scripts/harness/ygt-workflow.mjs intake --request "<user request>" --project auto --json
 ```
 
+The harness auto-resolves YGT credentials from existing environment variables, ignored local env files, and the installed `dfhis-company-environment` reference when present. Do not ask the user to manually configure environment variables on a new machine unless all automatic sources are missing or an override is required.
+
 Read the JSON and follow:
 
 - `primarySkill`: the Superpowers skill mindset to apply first.
@@ -44,6 +46,28 @@ Before code edits, read the standards returned by `intake.standards`.
 - Layout/spacing/search/actions/popup/table tasks: `../../df-base/df-web-base/packages/ui/src/layouts/README.md` and `../../df-base/df-web-base/packages/ui/src/layouts/STYLE_CONSTRAINTS.md`.
 
 Do not fix layout consistency with page-local style piles when shared layout primitives or constraints cover the case. If an implementation changes the standard, update the relevant standard file in the same task.
+
+## Project Routing Gate
+
+Treat `intake.projects` as a starting hypothesis. If a screenshot, URL, route, API prefix, or searched code points to a different subapp or service, verify with route/API searches and work in the actual owning repo. Record the mismatch in the final evidence.
+
+For concrete business routes, search the business app before editing `df-ygt-main` shell code. Shell edits are for auth, permissions, menu registration, qiankun loading, shared context, and portal aggregation.
+
+## Repository Sync Gate
+
+For pull/sync requests, enumerate nested repos and inspect each repo for dirty files, unresolved conflicts, and ahead/behind divergence before pulling. Pull only clean repos with `git pull --ff-only`; skip conflicted or diverged repos and report their exact status.
+
+## Visual E2E Gate
+
+For DevExtreme popup, dropdown, datebox, tagbox, or HtmlEditor toolbar issues, inspect existing project patterns and DevExtreme types/source when option behavior is unclear. Inside dialogs, attach overlay dropdowns to the current popup container and close select-like toolbar controls after selection or focus loss when stale dropdowns reproduce. Avoid z-index-only fixes.
+
+When the user asks for automatic page opening, screenshots, or visual interaction regression coverage, prefer deterministic Playwright E2E in the affected frontend. Mock backend APIs and login-dependent data, auto-start the local dev server, keep screenshots/reports in ignored artifact directories, expose a harness-discoverable script such as `e2e`, and verify with E2E plus lint/test/build and harness `verify`/`review`.
+
+For interaction bugs, encode the exact user path, including initial state and negative expectations. Cover "nothing should open", "opening should remain stable", and "click outside should close" separately when they are distinct behaviors. Inspect saved screenshots after automation.
+
+For DevExtreme HtmlEditor toolbar controls under qiankun, do not rely on global `DevExpress`, forced DOM removal, or position-only workarounds. Prefer recording the actual component instance during initialization or using stable component options/events. Validate both standalone local mode and the integrated main-app route when focus, overlays, or shared runtime behavior are involved.
+
+Do not accept a workaround that changes the user's interaction shape unless the user explicitly wants that behavior. If the user says the behavior is still wrong, reproduce their exact click coordinates/sequence before changing code again.
 
 ## Superpowers Mapping
 
@@ -141,11 +165,16 @@ node scripts/harness/ygt-workflow.mjs commit --project <project> \
 Before saying work is complete, run fresh verification and read the output:
 
 ```bash
+node scripts/harness/ygt-workflow.mjs verify --project <project> --profile standard --changed-only
 node scripts/harness/ygt-workflow.mjs review --project <project>
 node scripts/harness/ygt-workflow.mjs smoke --project <project>
 ```
 
-For harness/plugin changes, `selftest` is the minimum completion gate in addition to `review`.
+For harness/plugin changes, `selftest` plus syntax checks are the minimum completion gate in addition to `review`. For code changes, a successful compile/build must be followed by the applicable automated tests before claiming completion.
+
+For frontend subapp release, backend/service Jenkins success is not enough. Trigger the frontend static-resource job for the owning subapp when one exists, then roll out or refresh the main frontend host serving `/subapps/<app>/`. Verify the online `index.html` asset hash/marker and run a real browser login-route-screenshot flow; HTTP smoke only proves reachability.
+
+If `verify --changed-only` runs after commit/push and skips because the tree is clean, report the pre-commit local evidence plus online evidence instead of treating the skip as validation.
 
 For rollout or runtime failures:
 

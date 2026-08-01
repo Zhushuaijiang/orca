@@ -1,6 +1,6 @@
 ---
 name: ygt
-description: Use when the user starts a request with /ygt, says to use the YGT harness, or asks to handle YGT platform bugs, requirements, layout issues, Jenkins rollout, smoke checks, or multi-project df-ygt work. This skill routes natural-language requests through df-ygt-main/scripts/harness/ygt-workflow.mjs before implementation.
+description: Use when the user starts a request with /ygt, says to use the YGT harness, or asks to handle YGT platform bugs, requirements, repository sync, layout issues, visual/E2E verification, Jenkins rollout, smoke checks, or multi-project df-ygt work. This skill routes natural-language requests through df-ygt-main/scripts/harness/ygt-workflow.mjs before implementation.
 ---
 
 # YGT Harness
@@ -13,17 +13,13 @@ Find the YGT workspace. Prefer the current workspace if it contains `df-ygt-main
 
 Treat all text after `/ygt` or `$ygt` as the request and run from `df-ygt-main`.
 
-On Windows/PowerShell, the harness auto-bootstraps `scripts/harness/ygt-env.company-dev.ps1`, which in turn loads the ignored local override `scripts/harness/ygt-env.company-dev.local.ps1` when present. You can still dot-source it explicitly when running several commands in one shell:
+Run the harness directly:
 
-```powershell
-. .\scripts\harness\ygt-env.company-dev.ps1; node scripts/harness/ygt-workflow.mjs /ygt "<request>" --project auto --json
-```
-
-For non-PowerShell shells or environments that already have YGT variables:
-
-```bash
+```sh
 node scripts/harness/ygt-workflow.mjs /ygt "<request>" --project auto --json
 ```
+
+The harness auto-resolves YGT credentials from existing environment variables, ignored local env files, and the installed `dfhis-company-environment` reference when present. Do not ask the user to manually configure environment variables on a new machine unless all automatic sources are missing or an override is required.
 
 Read the JSON before broad exploration:
 
@@ -42,6 +38,12 @@ node scripts/harness/ygt-workflow.mjs selftest --project main --json
 
 before completion.
 
+## Project Routing Gate
+
+Treat `intake.projects` as a starting hypothesis, not final truth. If a screenshot, URL, route, API prefix, or searched code points to a different subapp or service, verify with route/API searches and work in the actual owning repo. Note the mismatch in the final evidence.
+
+For concrete business routes, search the business app first before editing `df-ygt-main` shell code. Only touch the shell when the task concerns auth, permissions, menu registration, qiankun loading, shared context, or portal aggregation.
+
 ## Standards Gate
 
 Before changing code, read the standards returned by `intake.standards`. At minimum:
@@ -52,6 +54,22 @@ Before changing code, read the standards returned by `intake.standards`. At mini
 - Layout/spacing/search/actions/popup/table consistency tasks: `df-base/df-web-base/packages/ui/src/layouts/README.md` and `df-base/df-web-base/packages/ui/src/layouts/STYLE_CONSTRAINTS.md`.
 
 Do not add page-local style patches when the shared layout package or existing design-system classes can solve the issue. If code behavior changes the standard, update the relevant standard file in the same task.
+
+## Repository Sync Gate
+
+For pull/sync requests, enumerate nested repos and inspect each repo for dirty files, unresolved conflicts, and ahead/behind divergence before pulling. Pull only clean repos with `git pull --ff-only`; skip conflicted or diverged repos and report their exact status. Do not treat the folder workspace root as the only Git repo when it merely contains the real df-ygt repos.
+
+## Frontend Overlay and E2E Gate
+
+For DevExtreme popup, dropdown, datebox, tagbox, or HtmlEditor toolbar issues, inspect existing project patterns and DevExtreme types/source when option behavior is unclear. Inside dialogs, attach overlay dropdowns to the current popup container and close select-like toolbar controls after selection or focus loss when stale dropdowns reproduce. Avoid z-index-only fixes.
+
+When the user asks for automatic page opening, screenshots, or visual interaction regression coverage, prefer a deterministic Playwright E2E in the affected frontend. Mock backend APIs and login-dependent data, auto-start the local dev server, write screenshots/reports only to ignored artifact directories, add a generic script such as `e2e` when the harness can discover it, and verify with E2E plus lint/test/build and harness `verify`/`review`.
+
+For interaction bugs, encode the exact user path, including the initial state and negative expectations. Cover "nothing should open", "opening should remain stable", and "click outside should close" separately when they are distinct behaviors. Inspect saved screenshots after automation; do not treat a passing assertion as enough when the user is reporting a visual interaction.
+
+For DevExtreme HtmlEditor toolbar controls under qiankun, do not rely on global `DevExpress`, forced DOM removal, or position-only workarounds. Prefer recording the actual component instance during initialization or using the component's own stable options/events. Validate both standalone local mode and the integrated main-app route when the bug depends on focus, overlays, or shared runtime behavior.
+
+Do not accept a workaround that changes the user's interaction shape, such as moving a dropdown away from its expected anchor, unless the user explicitly wants that behavior. If the user says the behavior is still wrong, reproduce their exact click coordinates/sequence before changing code again.
 
 ## Batch Intake Gate
 
@@ -84,8 +102,8 @@ If the primary app workspace has unrelated local commits or is behind/ahead, use
 ## Execution Rules
 
 - Use the harness commands as the workflow backbone.
-- Credentials must come from local environment variables; never write secrets to the repo.
-- Harness commands auto-load `scripts/harness/ygt-env.company-dev.ps1` and its local override before reading credentials. In PowerShell, you may still dot-source it from `df-ygt-main` when you want the same credentials available to manual commands in that shell.
+- Credentials must be resolved automatically from existing environment variables, ignored local env files, or the installed `dfhis-company-environment` reference; never write secrets to the repo.
+- Harness commands auto-load `scripts/harness/ygt-env.company-dev.ps1`, its local override, and the company-environment reference before reading credentials. In PowerShell, dot-source only when manual commands in that shell need the same credentials.
 - For harness/plugin changes, run `selftest` and include the result in the final evidence.
 - For multi-project work, create a task manifest and use `claim` before committing.
 - Before claiming completion, run fresh verification or explain exactly what could not run.
@@ -96,6 +114,9 @@ If the primary app workspace has unrelated local commits or is behind/ahead, use
 For Yunxiao completion and regression tasks:
 
 - Do not mark a regression task complete until all touched repos are pushed, required shared packages are published, consumer dependencies are updated, Jenkins is green, and smoke/doctor checks have run or have a concrete blocker.
+- For frontend subapp changes, backend/service Jenkins success is not enough. Trigger the frontend static-resource job for the owning subapp when one exists, then roll out or refresh the main frontend host that serves `/subapps/<app>/`.
+- Verify deployed frontend code by fetching the online subapp `index.html`, checking the actual asset hash/marker served by the main host, and running a real browser login-route-screenshot flow. HTTP smoke only proves reachability, not that the new bundle is live.
+- If harness `verify --changed-only` runs after commit/push and skips because the tree is clean, preserve and report the pre-commit local evidence (`lint`, `test`, `build`, E2E) plus online evidence instead of treating the skip as validation.
 - Verify the work item type before updating structured fields; tasks may not have the same fields or status workflow as requirements.
 - In final comments, include the affected repos/branches/commits, shared package versions, Jenkins job names and build numbers, local build commands, smoke/doctor results, and any known unrelated workspace state.
 - If the user challenges a release answer, re-check from commits, package manifests, lockfiles, registry, and Jenkins before responding.

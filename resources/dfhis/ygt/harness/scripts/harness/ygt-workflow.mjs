@@ -17,6 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
 
 bootstrapLocalPowerShellEnv();
+bootstrapCompanyEnvironmentReference();
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_JENKINS_POLL_MS = 2000;
@@ -938,7 +939,7 @@ Common options:
   --skip-doctor
   --skip-rollout
 
-Credentials are read from environment variables. See scripts/harness/ygt-env.example.ps1.
+Credentials are read from environment variables, ignored local env files, or the installed dfhis-company-environment reference when present. See scripts/harness/ygt-env.example.ps1.
 `);
 }
 
@@ -955,6 +956,11 @@ function printEnv(project) {
     ...envDefaults,
     hasJenkinsUser: Boolean(process.env.YGT_JENKINS_USER),
     hasJenkinsToken: Boolean(process.env.YGT_JENKINS_TOKEN || process.env.YGT_JENKINS_PASSWORD),
+    hasMainPassword: Boolean(process.env.YGT_MAIN_PASSWORD),
+    hasDorisPassword: Boolean(process.env.YGT_DORIS_PASSWORD),
+    hasNacosPassword: Boolean(process.env.YGT_NACOS_PASSWORD),
+    hasGatewayPassword: Boolean(process.env.YGT_GATEWAY_PASSWORD),
+    companyReferenceLoaded: Boolean(process.env.YGT_COMPANY_REFERENCE_PATH),
   };
   console.log(JSON.stringify(resolved, null, 2));
 }
@@ -1320,6 +1326,7 @@ async function getLocalHarnessChecks(project) {
 
   const workflowScript = readTextIfExists(resolve(repoRoot, 'scripts', 'harness', 'ygt-workflow.mjs'));
   checks.push(check('workflow bootstraps local env', /bootstrapLocalPowerShellEnv\(\)/.test(workflowScript ?? '') && /ygt-env\.company-dev\.ps1/.test(workflowScript ?? ''), 'harness loads PowerShell env defaults'));
+  checks.push(check('workflow auto-discovers company env reference', /bootstrapCompanyEnvironmentReference\(\)/.test(workflowScript ?? '') && /findCompanyEnvironmentReference\(\)/.test(workflowScript ?? ''), 'harness can read installed dfhis-company-environment reference'));
 
   const gitignore = readTextIfExists(resolve(repoRoot, '.gitignore'));
   checks.push(check('gitignore excludes company local env', /ygt-env\.company-dev\.local\.ps1/.test(gitignore ?? '') || /ygt-env\.\*\.local\.ps1/.test(gitignore ?? ''), '.gitignore'));
@@ -1937,6 +1944,83 @@ function bootstrapLocalPowerShellEnv() {
   } catch {
     // Keep harness commands usable even when local PowerShell env output is malformed.
   }
+}
+
+function bootstrapCompanyEnvironmentReference() {
+  if (process.env.YGT_HARNESS_SKIP_COMPANY_REFERENCE === '1') return;
+
+  const referencePath = findCompanyEnvironmentReference();
+  if (!referencePath) return;
+
+  const discovered = parseYgtCompanyEnvironmentReference(readTextIfExists(referencePath) ?? '');
+  for (const [name, value] of Object.entries(discovered)) {
+    if (value && !process.env[name]) {
+      process.env[name] = value;
+    }
+  }
+
+  if (Object.keys(discovered).length > 0 && !process.env.YGT_COMPANY_REFERENCE_PATH) {
+    process.env.YGT_COMPANY_REFERENCE_PATH = referencePath;
+  }
+}
+
+function findCompanyEnvironmentReference() {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const referenceParts = ['dfhis-company-environment', 'references', 'company-environment', '医共体公司开发环境信息.md'];
+  const candidates = [
+    home ? resolve(home, '.agents', 'skills', ...referenceParts) : null,
+    home ? resolve(home, '.codex', 'skills', ...referenceParts) : null,
+    resolve(repoRoot, '..', '..', '..', '.agents', 'skills', ...referenceParts),
+    resolve(repoRoot, '..', '..', '..', '.codex', 'skills', ...referenceParts),
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+function parseYgtCompanyEnvironmentReference(text) {
+  const normalized = text.replace(/\r/g, '').replace(/\u00a0/g, ' ').replace(/\\_/g, '_');
+  const values = {};
+
+  setSlashCredential(values, 'YGT_MAIN_USER', 'YGT_MAIN_PASSWORD', sectionFor(normalized, '主应用'));
+  setLineCredentials(values, 'YGT_GATEWAY_USER', 'YGT_GATEWAY_PASSWORD', sectionFor(normalized, '公司开发环境网关管理'));
+  setLineCredentials(values, 'YGT_NACOS_USER', 'YGT_NACOS_PASSWORD', sectionFor(normalized, '公司开发环境nacos信息'));
+  setSlashCredential(values, 'YGT_DORIS_USER', 'YGT_DORIS_PASSWORD', sectionFor(normalized, '公司开发环境数据库doris信息'));
+  setSlashCredential(values, 'YGT_JENKINS_USER', 'YGT_JENKINS_PASSWORD', sectionFor(normalized, '公司开发环境jekins') || sectionFor(normalized, '公司开发环境jenkins'));
+
+  return Object.fromEntries(Object.entries(values).filter(([, value]) => value && !/[<>]/.test(value)));
+}
+
+function sectionFor(text, heading) {
+  const start = text.toLowerCase().indexOf(heading.toLowerCase());
+  if (start === -1) return '';
+  const rest = text.slice(start);
+  const next = rest.slice(1).search(/\n\s*\*\*/);
+  return next === -1 ? rest : rest.slice(0, next + 1);
+}
+
+function setSlashCredential(values, userKey, passwordKey, section) {
+  const line = credentialLines(section).find((entry) => /^[^/\s]+\/[^/\s]+$/.test(entry));
+  if (!line) return;
+  const [user, password] = line.split('/');
+  values[userKey] = user;
+  values[passwordKey] = password;
+}
+
+function setLineCredentials(values, userKey, passwordKey, section) {
+  const lines = credentialLines(section).filter((line) => !line.includes(':'));
+  if (lines.length < 2) return;
+  values[userKey] = lines[0];
+  values[passwordKey] = lines[1];
+}
+
+function credentialLines(section) {
+  return section
+    .split(/\n+/)
+    .map((line) => line.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*/g, '').trim())
+    .filter((line) => line && !/^#+\s*/.test(line))
+    .filter((line) => !/^[-*]\s*$/.test(line))
+    .filter((line) => !/^https?:\/\//i.test(line) && !/https?:\/\//i.test(line))
+    .filter((line) => !line.startsWith('$') && !/^mvn\b/i.test(line));
 }
 
 function toPowerShellSingleQuotedString(value) {
