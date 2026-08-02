@@ -16,7 +16,7 @@ function run(command, args, cwd) {
 }
 
 function parseVersion(version) {
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$/.exec(version)
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([a-z][a-z0-9]*)(?:\.(\d+))?)?$/i.exec(version)
   if (!match) {
     return null
   }
@@ -24,7 +24,8 @@ function parseVersion(version) {
     major: Number(match[1]),
     minor: Number(match[2]),
     patch: Number(match[3]),
-    rc: match[4] === undefined ? null : Number(match[4]),
+    tag: match[4] === undefined ? null : match[4].toLowerCase(),
+    num: match[5] === undefined ? null : Number(match[5]),
     version
   }
 }
@@ -42,27 +43,29 @@ function compareVersion(a, b) {
   if (core !== 0) {
     return core
   }
-  if (a.rc === b.rc) {
-    return 0
+  if (a.tag === b.tag) {
+    return (a.num ?? -1) - (b.num ?? -1)
   }
-  if (a.rc === null) {
+  if (a.tag === null) {
     return 1
   }
-  if (b.rc === null) {
+  if (b.tag === null) {
     return -1
   }
-  return a.rc - b.rc
+  return a.tag < b.tag ? -1 : 1
 }
 
-function nextRcVersion(versions) {
+function nextTaggedVersion(versions, tag) {
   const parsed = versions.map(parseVersion).filter(Boolean)
   if (parsed.length === 0) {
     throw new Error('No valid release version found.')
   }
   const latestCore = parsed.toSorted(compareCore).at(-1)
-  const sameCore = parsed.filter((version) => compareCore(version, latestCore) === 0)
-  const maxRc = Math.max(-1, ...sameCore.map((version) => version.rc ?? -1))
-  return `${coreKey(latestCore)}-rc.${maxRc + 1}`
+  const sameCore = parsed.filter(
+    (version) => compareCore(version, latestCore) === 0 && version.tag === tag
+  )
+  const maxNum = Math.max(-1, ...sameCore.map((version) => version.num ?? -1))
+  return `${coreKey(latestCore)}-${tag}.${maxNum + 1}`
 }
 
 async function readJson(filePath) {
@@ -92,8 +95,11 @@ export async function prepareNextReleaseVersion(repoRoot, remoteLatestVersion, o
     }
   }
   const mappingVersions = (mapping.releases ?? []).map((release) => release.appVersion)
-  const nextVersion = nextRcVersion(
-    [currentVersion, remoteLatestVersion, ...mappingVersions].filter(Boolean)
+  const currentParsed = parseVersion(currentVersion)
+  const tag = currentParsed?.tag ?? 'rc'
+  const nextVersion = nextTaggedVersion(
+    [currentVersion, remoteLatestVersion, ...mappingVersions].filter(Boolean),
+    tag
   )
   if (nextVersion === currentVersion) {
     return { currentVersion, nextVersion, changed: false, output: 'Version is already current.' }

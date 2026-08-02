@@ -302,12 +302,35 @@ async function getStatus(repoRootInput, options = {}) {
     selectedMacAppPath: newestReady(macCandidates)?.path,
     selectedWindowsExePath: newestReady(windows)?.path,
     remoteLatest: latest,
+    autoRelease: readAutoRelease(repoRoot),
     warnings
   }
 }
 
 function sha256(filePath) {
   return createHash('sha256').update(readFileSync(filePath)).digest('hex')
+}
+
+function readAutoRelease(repoRoot) {
+  const statusPath = path.join(repoRoot, 'out', 'dfhis-auto-release-status.json')
+  const logPath = path.join(repoRoot, 'out', 'dfhis-auto-release.log')
+  let status = null
+  try {
+    status = JSON.parse(readFileSync(statusPath, 'utf8'))
+  } catch {
+    // no auto-release run yet
+  }
+  let logTail = ''
+  try {
+    const content = readFileSync(logPath, 'utf8')
+    logTail = content.split('\n').slice(-30).join('\n')
+  } catch {
+    // no log yet
+  }
+  if (!status && !logTail) {
+    return null
+  }
+  return { ...status, logTail }
 }
 
 function buildMacApp(repoRoot) {
@@ -482,6 +505,26 @@ async function triggerWindowsCi(args) {
   return { branch, output: `${prepareOutput.output}\n${output}` }
 }
 
+function startAutoRelease(args) {
+  const repoRoot = resolveRepoRoot(args.repoRoot)
+  const lockDir = path.join(repoRoot, 'out', 'dfhis-auto-release.lock')
+  if (existsSync(lockDir)) {
+    throw new Error('自动发布流水线正在运行中，请等待当前运行结束。')
+  }
+  const env = { ...process.env }
+  if (args.sshPassword) {
+    env.ORCA_RELEASE_SSH_PASSWORD = args.sshPassword
+  }
+  const child = spawn(process.execPath, ['config/scripts/dfhis-auto-release.mjs'], {
+    cwd: repoRoot,
+    detached: true,
+    stdio: 'ignore',
+    env
+  })
+  child.unref()
+  return { started: true, pid: child.pid, autoRelease: readAutoRelease(repoRoot) }
+}
+
 async function handleApi(req, res, pathname) {
   try {
     if (req.method === 'GET' && pathname === '/api/status') {
@@ -509,6 +552,10 @@ async function handleApi(req, res, pathname) {
     }
     if (req.method === 'POST' && pathname === '/api/trigger-windows-ci') {
       jsonResponse(res, 200, await triggerWindowsCi(await readBody(req)))
+      return
+    }
+    if (req.method === 'POST' && pathname === '/api/release-all') {
+      jsonResponse(res, 200, startAutoRelease(await readBody(req)))
       return
     }
     if (req.method === 'POST' && pathname === '/api/publish') {

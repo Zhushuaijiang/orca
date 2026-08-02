@@ -48,8 +48,15 @@ export function pageHtml() {
       <button id="buildMac">构建 macOS app</button>
       <button id="triggerWin">触发 Windows CI</button>
       <button id="publish" class="primary">发布到服务器</button>
+      <button id="releaseAll" class="primary">一键全流程发布</button>
       <span id="busy" class="muted"></span>
     </div>
+  </section>
+
+  <section id="autoReleaseSection" style="display:none">
+    <h3>自动发布流水线</h3>
+    <div id="autoReleaseSummary" class="row"></div>
+    <pre id="autoReleaseLog"></pre>
   </section>
 
   <section>
@@ -76,7 +83,7 @@ export function pageHtml() {
 <script>
 let status = null
 const el = (id) => document.getElementById(id)
-const setBusy = (text) => { el('busy').textContent = text; for (const id of ['refresh','prepare','buildMac','triggerWin','publish']) el(id).disabled = Boolean(text) }
+const setBusy = (text) => { el('busy').textContent = text; for (const id of ['refresh','prepare','buildMac','triggerWin','publish','releaseAll']) el(id).disabled = Boolean(text) }
 const post = async (url, body) => {
   const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   const json = await response.json()
@@ -85,6 +92,27 @@ const post = async (url, body) => {
 }
 const fmt = (size) => size ? ((size / 1024 / 1024).toFixed(size > 100 * 1024 * 1024 ? 0 : 1) + ' MB') : ''
 const artifactHtml = (a) => '<div class="artifact"><span class="pill">' + a.status + '</span> <span class="muted">' + (a.version || '') + ' ' + fmt(a.size) + '</span><br><code>' + a.path + '</code></div>'
+let autoPollTimer = null
+function renderAutoRelease(auto) {
+  const section = el('autoReleaseSection')
+  if (!auto) { section.style.display = 'none'; return }
+  section.style.display = ''
+  el('autoReleaseSummary').innerHTML =
+    '<span class="pill">' + (auto.state || 'unknown') + '</span>' +
+    (auto.step ? '<span class="pill">' + auto.step + '</span>' : '') +
+    (auto.version ? '<span class="muted">' + auto.version + '</span>' : '') +
+    (auto.windowsRunId ? '<span class="muted">CI run ' + auto.windowsRunId + '</span>' : '') +
+    (auto.reason ? '<span class="muted">' + auto.reason + '</span>' : '') +
+    (auto.error ? '<span class="warn">' + auto.error + '</span>' : '') +
+    (auto.updatedAt ? '<span class="muted">' + auto.updatedAt + '</span>' : '')
+  el('autoReleaseLog').textContent = auto.logTail || ''
+  if (auto.state === 'running' && !autoPollTimer) {
+    autoPollTimer = setInterval(() => { if (!el('busy').textContent) refresh() }, 30000)
+  } else if (auto.state !== 'running' && autoPollTimer) {
+    clearInterval(autoPollTimer)
+    autoPollTimer = null
+  }
+}
 async function refresh() {
   setBusy('刷新中...')
   try {
@@ -101,6 +129,7 @@ async function refresh() {
     el('warnings').innerHTML = status.warnings.map((w) => '<p class="warn">' + w + '</p>').join('')
     el('macCandidates').innerHTML = status.macCandidates.map(artifactHtml).join('')
     el('windowsCandidates').innerHTML = status.windowsCandidates.map(artifactHtml).join('')
+    renderAutoRelease(status.autoRelease)
   } catch (error) {
     el('output').textContent = error.message
   } finally {
@@ -157,6 +186,17 @@ el('publish').onclick = async () => {
     })
     status = result.status
     el('output').textContent = result.output + '\\nmacOS: ' + result.macosUrl + '\\nWindows: ' + result.windowsUrl
+    await refresh()
+  } catch (error) { el('output').textContent = error.message } finally { setBusy('') }
+}
+el('releaseAll').onclick = async () => {
+  setBusy('启动全流程自动发布...')
+  try {
+    const result = await post('/api/release-all', {
+      repoRoot: el('repoRoot').value,
+      sshPassword: el('sshPassword').value
+    })
+    el('output').textContent = '自动发布流水线已启动 (pid ' + result.pid + ')，进度见下方"自动发布流水线"面板。'
     await refresh()
   } catch (error) { el('output').textContent = error.message } finally { setBusy('') }
 }

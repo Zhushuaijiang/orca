@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Auto DFHIS desktop release after each commit (background, non-blocking).
+# Disable with ORCA_AUTO_RELEASE_DISABLED=1.
+[ "${ORCA_AUTO_RELEASE_DISABLED:-0}" = "1" ] && exit 0
+command -v node >/dev/null 2>&1 || exit 0
+[ -f config/scripts/dfhis-auto-release.mjs ] || exit 0
+(nohup node config/scripts/dfhis-auto-release.mjs --from-hook >/dev/null 2>&1 &)
+exit 0
