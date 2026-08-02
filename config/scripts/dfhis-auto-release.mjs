@@ -340,6 +340,13 @@ async function main() {
   try {
     let chainIndex = 0
     let releasedSha = null
+    await writeStatus({
+      state: 'running',
+      step: 'prepare',
+      reason: undefined,
+      error: undefined,
+      releasedSha: undefined
+    })
     while (chainIndex < MAX_CHAIN_RUNS) {
       const result = await releaseOnce(chainIndex)
       releasedSha = result.sha
