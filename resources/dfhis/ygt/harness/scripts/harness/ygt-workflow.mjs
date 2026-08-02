@@ -1290,6 +1290,7 @@ async function getLocalHarnessChecks(project) {
     'scripts/harness/install-ygt-codex-plugin.mjs',
     'scripts/harness/install-ygt-codex-plugin.cmd',
     'scripts/harness/install-ygt-codex-plugin.command',
+    'scripts/harness/ygt-qiankun-e2e.mjs',
     'scripts/harness/ygt-env.example.ps1',
     'scripts/harness/ygt-env.company-dev.ps1',
     'plugins/ygt/.codex-plugin/plugin.json',

@@ -65,6 +65,21 @@ For DevExtreme popup, dropdown, datebox, tagbox, or HtmlEditor toolbar issues, i
 
 When the user asks for automatic page opening, screenshots, or visual interaction regression coverage, prefer a deterministic Playwright E2E in the affected frontend. Mock backend APIs and login-dependent data, auto-start the local dev server, write screenshots/reports only to ignored artifact directories, add a generic script such as `e2e` when the harness can discover it, and verify with E2E plus lint/test/build and harness `verify`/`review`.
 
+For YGT qiankun subapp changes, prefer the online/company shell from `YGT_MAIN_URL` plus the changed local subapp. Derive `subapp-name`, dev port, `activeRule`, target route, and expected text from the current subapp and shell `src/micro/apps.ts`; do not reuse values from another subapp. If no integrated screenshot E2E exists, scaffold one:
+
+```bash
+node scripts/harness/ygt-qiankun-e2e.mjs scaffold \
+  --repo /path/to/<df-web-ygt-subapp> \
+  --subapp-name <micro-app-name> \
+  --subapp-entry http://localhost:<dev-port> \
+  --active-rule /<active-rule> \
+  --route /<active-rule>/<target-page-route> \
+  --expect-text <target-page-visible-text> \
+  --update-package-script
+```
+
+The generated spec seeds `sessionStorage.devDebug='test'` and `sessionStorage[<subapp-name>] = <local-entry>`, launches persistent Chrome with cross-origin flags on macOS/Windows, opens the target route or menu, screenshots the shell and mounted page, and fails unless `#micro-container` is visible, local subapp index/assets respond successfully, target route/text match, and qiankun/bootstrap/mount/CORS errors are absent. Use environment variables only as overrides for selectors or credentials; the harness should resolve company defaults from the installed environment reference.
+
 For interaction bugs, encode the exact user path, including the initial state and negative expectations. Cover "nothing should open", "opening should remain stable", and "click outside should close" separately when they are distinct behaviors. Inspect saved screenshots after automation; do not treat a passing assertion as enough when the user is reporting a visual interaction.
 
 For DevExtreme HtmlEditor toolbar controls under qiankun, do not rely on global `DevExpress`, forced DOM removal, or position-only workarounds. Prefer recording the actual component instance during initialization or using the component's own stable options/events. Validate both standalone local mode and the integrated main-app route when the bug depends on focus, overlays, or shared runtime behavior.
