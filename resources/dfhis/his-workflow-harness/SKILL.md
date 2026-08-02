@@ -160,6 +160,12 @@ Convert report evidence into `requirementContract.methodologyGate.verificationEv
 
 Do not replace a required stage with `git diff --check`. If a catalog mapping is absent, record the exact missing service/environment field and stop that stage.
 
+For UI and micro-frontend work, attach provenance to each evidence item: evidence type, pass/superseded status, capture time, environment, execution surface, source, target commit/package, observation, and limitations. A shell reachability check does not prove that the child app mounted or that the final asset contains the change.
+
+After every material UI edit, run the bounded loop `implement -> focused self-test -> build/runtime refresh -> screenshot + DOM measurement -> visual inspection -> compare with the contract`. If the screenshot or measurement disagrees, record the defect, edit, and repeat; only evidence captured from the final diff can pass the gate.
+
+When a command is blocked, classify the exact failure and consult the environment/access references for a safe fallback. Keep an attempt ledger: do not repeat the same deterministic command unchanged; change the hypothesis, tool, route, or evidence target. Stop after three materially different safe approaches and report the exact remaining owner/action.
+
 ## Safety
 
 - Run code changes in the Yunxiao requirement worktree created by `yunxiao-requirement-archiver`.
@@ -169,6 +175,8 @@ Do not replace a required stage with `git diff --check`. If a catalog mapping is
 - A Jenkins job with `branchMode: fixed` must match the current branch. A job with `branchMode: unknown` is blocked unless a supervised run explicitly passes `--allow-unverified-jenkins-branch`.
 - Interrupted Jenkins monitoring resumes from its persisted queue/build URL. Interrupted deployment requires `deployCheckCommand`; post-deployment smoke exhaustion invokes `rollbackCommand` when configured and otherwise leaves an explicit rollback-required gate.
 - Use `his-release-merge` before this harness when the task is a release-branch cherry-pick batch.
+- For login gates, prove system/tenant/site selection, required fields, account response, and active application before retrying. Do not guess passwords or manufacture only a token; use the approved environment lookup or an existing authorized session.
+- Clean up temporary browsers, test shims, servers, and occupied ports after verification. Do not leave a passing screenshot backed by a stale process or package.
 - Run `selftest` after changing this skill:
 
 ```bash

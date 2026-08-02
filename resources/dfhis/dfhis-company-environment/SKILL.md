@@ -22,6 +22,8 @@ Use this skill when a DFHIS task needs real company environment details for veri
 - Do not print passwords, tokens, or full connection strings in chat, Yunxiao comments, commits, PR descriptions, or logs unless the user explicitly asks for the exact value.
 - Record verification evidence by environment name, query purpose, command category, and result summary instead of echoing credentials.
 - If an environment cannot be reached, report the exact host/service category and error, then try the next relevant validation route only when it is safe.
+- Before retrying a login, verify the selected system, tenant/site, required fields, account response, and active application. Keep attempts bounded and record whether the failure is credential, permission, routing, mount, or stale-package related.
+- If the expected database CLI, Docker, or driver is unavailable, use an approved existing read-only driver or temporary isolated runtime outside the product repository. Do not add dependencies or commit credential files just to make a check run.
 
 ## HIS Test Account Password Lookup
 

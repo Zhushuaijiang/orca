@@ -98,6 +98,13 @@ Keep delivery progress separate from final business acceptance. Do not turn an e
 - If code, SQL, attachments, Yunxiao comment, and structured fields are done but post-release UI evidence is missing, update Yunxiao to `待测试` when appropriate and state “交付已流转，最终验收待发布后验证”; do not report the whole workflow as blocked unless the user asked for final production acceptance.
 - Never ask the user why a deployed package lacks a change when the branch has not yet been pushed or released. First check local commits, remote branches, Yunxiao fields, and release status.
 
+## Contract Revision And Evidence Invalidation
+
+- Treat any clarification that changes behavior, geometry, data, workflow, runtime entry, or acceptance criteria as a new contract revision. Update the top contract, acceptance checks, risks, and implementation plan before continuing.
+- Mark evidence from the superseded contract as `superseded`; do not use an old screenshot, build, or review as proof for the revised behavior.
+- Any material edit invalidates the previous build, runtime, screenshot, measurement, and review evidence. Repeat focused self-test, build/runtime refresh, DOM inspection, screenshot, and visual inspection from the final diff before push or Yunxiao closeout.
+- For UI acceptance, separate position, width/right edge, row/column alignment, and input-area geometry. Record numeric measurements and the exact selector or visible text used to observe each claim.
+
 ## Archive Workflow
 
 1. Extract Yunxiao work-item targets from the user request. Accept `DFHIS-12345` style IDs and `devops.aliyun.com` work-item links.
@@ -317,6 +324,8 @@ When the user asks to fix a DFHIS requirement:
 15. Report branch name, commit id, pushed remote, Yunxiao comment status/action id, Yunxiao attachment id/status when relevant, Yunxiao field update status, changed files, validation result, local archive path, PRD/code-analysis document path, and any dependency/test blockers.
 
 ## DFHIS Micro-Frontend Release Verification
+
+For runtime, UI, workflow, authentication, or deployed-package requirements, read [verification-and-evidence.md](references/verification-and-evidence.md). When a gate is blocked, read [access-and-runtime-unblocking.md](references/access-and-runtime-unblocking.md) before retrying. Use the iterative loop in those references; a successful build or one screenshot is not final UI proof.
 
 When validating a deployed DFHIS frontend, prove which bundle is actually serving the page. Do not rely only on the main shell's default child-app `entry` or on a connection failure to a configured host.
 
