@@ -7,6 +7,7 @@ function parseArgs(argv) {
   const args = {
     out: path.join('tests', 'e2e', 'his-qiankun-gray.spec.js'),
     route: null,
+    expectText: null,
     screenshotDir: path.join('test-results', 'his-qiankun-gray'),
     updatePackageScript: false
   }
@@ -26,6 +27,8 @@ function parseArgs(argv) {
       args.xiTongId = argv[++index]
     } else if (arg === '--route') {
       args.route = argv[++index]
+    } else if (arg === '--expect-text') {
+      args.expectText = argv[++index]
     } else if (arg === '--out') {
       args.out = argv[++index]
     } else if (arg === '--screenshot-dir') {
@@ -43,10 +46,12 @@ function usage() {
   return `Usage:
 node scripts/his-qiankun-e2e.mjs scaffold \\
   --repo /path/to/subapp \\
-  --main-url http://localhost:9000 \\
-  --subapp-name df-web-menzhenysz \\
-  --subapp-entry //localhost:8022 \\
-  --xi-tong-id 04 \\
+  --main-url <online-or-local-shell-url> \\
+  --subapp-name <package-json-name> \\
+  --subapp-entry //localhost:<dev-port> \\
+  --xi-tong-id <xiTongId> \\
+  --route /apps/<xiTongId>/<target-page-route> \\
+  --expect-text <target-page-visible-text> \\
   --update-package-script`
 }
 
@@ -68,6 +73,7 @@ const SUBAPP_NAME = process.env.HIS_SUBAPP_NAME || ${JSON.stringify(args.subappN
 const SUBAPP_ENTRY = process.env.HIS_SUBAPP_ENTRY || ${JSON.stringify(args.subappEntry)}
 const XI_TONG_ID = process.env.HIS_XI_TONG_ID || ${JSON.stringify(args.xiTongId)}
 const TARGET_ROUTE = process.env.HIS_TARGET_ROUTE || ${JSON.stringify(route)}
+const EXPECT_TEXT = process.env.HIS_E2E_EXPECT_TEXT || ${JSON.stringify(args.expectText ?? '')}
 const SCREENSHOT_DIR = process.env.HIS_E2E_SCREENSHOT_DIR || ${JSON.stringify(args.screenshotDir)}
 const PROFILE_DIR = process.env.HIS_CORS_PROFILE || path.join(os.tmpdir(), 'chrome-cors')
 const CHROME_PATH = process.env.HIS_CHROME_PATH || defaultChromePath()
@@ -108,9 +114,21 @@ async function login(page) {
   const usernameSelector = process.env.HIS_E2E_USERNAME_SELECTOR
   const passwordSelector = process.env.HIS_E2E_PASSWORD_SELECTOR
   const submitSelector = process.env.HIS_E2E_SUBMIT_SELECTOR
+  const systemSelector = process.env.HIS_E2E_SYSTEM_SELECTOR
+  const systemText = process.env.HIS_E2E_SYSTEM_TEXT
   if (username && password && usernameSelector && passwordSelector && submitSelector) {
     await page.locator(usernameSelector).fill(username)
     await page.locator(passwordSelector).fill(password)
+    if (systemSelector) {
+      await page.locator(systemSelector).click()
+      if (systemText) {
+        await page.getByText(systemText).first().click()
+      }
+      await page.waitForFunction((selector) => {
+        const element = document.querySelector(selector)
+        return !element || element.value || element.textContent.trim()
+      }, systemSelector, { timeout: 15000 }).catch(() => undefined)
+    }
     await Promise.all([
       page.waitForLoadState('networkidle').catch(() => undefined),
       page.locator(submitSelector).click()
@@ -127,6 +145,9 @@ async function login(page) {
 }
 
 async function openRequirementFlow(page) {
+  if (process.env.HIS_E2E_MENU_OPEN_SELECTOR) {
+    await page.locator(process.env.HIS_E2E_MENU_OPEN_SELECTOR).click()
+  }
   if (process.env.HIS_E2E_MENU_SELECTOR) {
     await page.locator(process.env.HIS_E2E_MENU_SELECTOR).click()
     return
@@ -134,9 +155,28 @@ async function openRequirementFlow(page) {
   await page.goto(normalizeUrl(TARGET_ROUTE).toString(), { waitUntil: 'domcontentloaded' })
 }
 
+async function assertMountedTarget(page, containerSelector) {
+  await page.waitForFunction((selector) => {
+    const element = document.querySelector(selector)
+    if (!element) return false
+    const style = getComputedStyle(element)
+    const visible = style.display !== 'none' && style.visibility !== 'hidden'
+    const hasContent = element.childElementCount > 0 || element.textContent.trim().length > 0
+    return visible && hasContent && Boolean(element.querySelector('#micro-app') || element.querySelector('[data-qiankun]') || hasContent)
+  }, containerSelector, { timeout: 60000 })
+  if (EXPECT_TEXT) {
+    await expect(page.getByText(EXPECT_TEXT).first()).toBeVisible({ timeout: 30000 })
+  }
+  const targetPath = normalizeUrl(TARGET_ROUTE).pathname
+  if (targetPath && targetPath !== '/' && !targetPath.endsWith('/home')) {
+    await expect.poll(async () => new URL(page.url()).pathname, { timeout: 30000 }).toContain(targetPath)
+  }
+}
+
 test('HIS qiankun gray sub-app E2E with screenshots', async () => {
   const subappHost = normalizeUrl(SUBAPP_ENTRY).host
   const grayRequests = []
+  const grayResponses = []
   const browserErrors = []
   const launchOptions = {
     headless: process.env.HIS_E2E_HEADLESS === '1',
@@ -163,6 +203,14 @@ test('HIS qiankun gray sub-app E2E with screenshots', async () => {
       browserErrors.push(message.text())
     }
   })
+  page.on('requestfinished', async (request) => {
+    try {
+      if (new URL(request.url()).host === subappHost) {
+        const response = await request.response()
+        grayResponses.push({ url: request.url(), status: response?.status() })
+      }
+    } catch {}
+  })
   page.on('pageerror', (error) => browserErrors.push(error.message))
 
   try {
@@ -180,13 +228,18 @@ test('HIS qiankun gray sub-app E2E with screenshots', async () => {
 
     await openRequirementFlow(page)
     const containerSelector = \`#apps-\${XI_TONG_ID}\`
-    await page.waitForFunction((selector) => {
-      const element = document.querySelector(selector)
-      return Boolean(element && (element.childElementCount > 0 || element.textContent.trim()))
-    }, containerSelector, { timeout: 60000 })
+    await assertMountedTarget(page, containerSelector)
     await screenshot(page, '02-qiankun-subapp-mounted.png')
 
     expect(grayRequests, \`Expected local gray sub-app requests to \${subappHost}\`).not.toHaveLength(0)
+    expect(
+      grayResponses.filter(({ status }) => status && status >= 200 && status < 400),
+      \`Expected successful local gray sub-app responses from \${subappHost}\`
+    ).not.toHaveLength(0)
+    expect(
+      grayResponses.some(({ url }) => /config\\.json|\\.js(\\?|$)|\\.css(\\?|$)/.test(url)),
+      \`Expected local gray sub-app config/assets from \${subappHost}\`
+    ).toBe(true)
     expect(browserErrors.filter((message) => /qiankun|bootstrap|mount|script|cors/i.test(message))).toEqual([])
   } finally {
     await context.close()

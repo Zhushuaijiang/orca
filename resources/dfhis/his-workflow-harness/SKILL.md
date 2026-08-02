@@ -35,7 +35,7 @@ node scripts/his-workflow.mjs deploy --repo <repo> --catalog <catalog> --service
 node scripts/his-workflow.mjs smoke --repo <repo> --catalog <catalog> --service <id> --json
 node scripts/his-workflow.mjs full --repo <repo> --catalog <catalog> --service <id> --allow-mutations --report-dir <dir> --json
 node scripts/his-workflow.mjs resume --state-file <dir>/run-state.json --catalog <catalog> --allow-mutations --json
-node scripts/his-qiankun-e2e.mjs scaffold --repo <subapp-repo> --main-url http://localhost:9000 --subapp-name <name> --subapp-entry //<host>:<port> --xi-tong-id <id> --update-package-script
+node scripts/his-qiankun-e2e.mjs scaffold --repo <subapp-repo> --main-url <shell-url> --subapp-name <name> --subapp-entry //<host>:<port> --xi-tong-id <id> --route <target-route> --expect-text <target-page-text> --update-package-script
 ```
 
 For a named company environment and an ad hoc Jenkins job, resolve the Chinese alias directly:
@@ -77,7 +77,7 @@ Use this decision order:
 2. If the requirement has a concrete browser path but no E2E script exists, add a focused Playwright/Cypress spec in the requirement worktree, wire a stable script such as `e2e`, and run it after build and automated tests.
 3. If E2E cannot run because environment data, browser dependencies, or test accounts are missing, record that exact blocker and compensate with the strongest available evidence: unit/integration tests, build, read-only database checks, Jenkins, deployment, and online smoke.
 
-Do not treat Jenkins compilation, package build, `git diff --check`, or HTTP smoke as E2E evidence. Smoke only proves a mapped endpoint is reachable. A successful build must be followed by the applicable automated tests before claiming a HIS requirement is complete.
+Do not treat Jenkins compilation, package build, `git diff --check`, or HTTP smoke as E2E evidence. Smoke only proves a mapped endpoint is reachable. A successful build must be followed immediately by the applicable automated tests before claiming a HIS requirement is complete. For frontend work, do not repeat implementation loops after a successful build without first running the available unit, integration, screenshot, or E2E test surface and using the failure evidence to guide the next edit.
 
 For E2E artifacts, write screenshots, traces, videos, and reports under the requirement evidence directory or another ignored artifact directory. Never commit generated artifacts or secrets. Prefer deterministic selectors and seeded/mocked data; use real company environments only when the requirement explicitly needs deployed integration evidence.
 
@@ -85,22 +85,23 @@ For E2E artifacts, write screenshots, traces, videos, and reports under the requ
 
 Most DFHIS Vue frontends are qiankun main-app/sub-app systems. For these repositories, do not treat standalone sub-app startup as sufficient E2E for a HIS requirement. Use the integrated workflow unless the changed page is proven to be standalone-only:
 
-1. Identify the shell repository, target sub-app repository, `xiTongId`, sub-app `name`, dev port, route/menu path, and environment proxy target from code. In typical Vue 2 HIS apps, `df-web-main` runs the shell and registers sub-apps through qiankun, while `sessionStorage.devDebug === 'test'` allows local gray entry overrides by sub-app name.
-2. Prefer the online/company shell when the change is isolated to a sub-app and the shell itself is not being modified. Start only the changed sub-app locally on its declared dev port with qiankun UMD output and CORS headers, then gray-route the online shell to that local entry. Use a local shell only when the requirement changes shell code, online shell access is unavailable, or the target environment cannot be safely used. Example: online shell `http://192.168.1.151:8015` plus outpatient doctor station `df-web-menzhenysz` on `8022`; local fallback is main app on `9000` plus sub-app on `8022`.
-3. If the repository has no screenshot E2E yet, scaffold a Playwright spec and package script, then customize the generated login/menu selectors for the concrete requirement:
+1. Identify the shell repository, target sub-app repository, `xiTongId`, sub-app `name`, dev port, route/menu path, expected page text, and environment proxy target from code for the current sub-app. Do not reuse values from a previous sub-app. In typical Vue 2 HIS apps, `package.json#name`, `package.json#appId`, `vue.config.js#devServer.port`, `public/config.json#xiTongId`, shell `src/config/apps/*`, and menu/backend responses together determine the correct values.
+2. Prefer the online/company shell when the change is isolated to a sub-app and the shell itself is not being modified. Start only the changed sub-app locally on its declared dev port with qiankun UMD output and CORS headers, then gray-route the online shell to that local entry. Use a local shell only when the requirement changes shell code, online shell access is unavailable, or the target environment cannot be safely used.
+3. If the repository has no screenshot E2E yet, scaffold a Playwright spec and package script, then customize the generated login/system/menu selectors for the concrete requirement:
 
 ```bash
 node scripts/his-qiankun-e2e.mjs scaffold \
-  --repo /path/to/df-web-menzhenysz \
-  --main-url http://localhost:9000 \
-  --subapp-name df-web-menzhenysz \
-  --subapp-entry //localhost:8022 \
-  --xi-tong-id 04 \
-  --route /apps/04/home \
+  --repo /path/to/<df-web-subapp> \
+  --main-url <online-or-local-shell-url> \
+  --subapp-name <package-json-name> \
+  --subapp-entry //localhost:<dev-port> \
+  --xi-tong-id <xiTongId> \
+  --route /apps/<xiTongId>/<target-page-route> \
+  --expect-text <target-page-visible-text> \
   --update-package-script
 ```
 
-The scaffolded spec launches persistent Chrome with cross-origin flags, injects `devDebug`, captures screenshots, asserts the qiankun container mounted, and fails if no network request hits the local gray sub-app entry. The generated `login(page)` and `openRequirementFlow(page)` hooks must be filled with real selectors or driven by environment variables before claiming automated E2E evidence.
+The scaffolded spec launches persistent Chrome with cross-origin flags, injects `devDebug`, captures screenshots, asserts the qiankun container is visible and mounted, checks target route/text when configured, and fails if no successful network request hits the local gray sub-app entry/config/assets. The generated `login(page)` and `openRequirementFlow(page)` hooks must be filled with real selectors or driven by environment variables before claiming automated E2E evidence.
 
 4. Run the browser in cross-origin debug mode for integrated local E2E. The scaffolded Playwright spec works on macOS and Windows: it uses `HIS_CHROME_PATH` when set, otherwise auto-detects Google Chrome on macOS and the normal Windows install locations under `Program Files`, `Program Files (x86)`, or `LocalAppData`, then falls back to Playwright's `chrome` channel.
 
@@ -128,13 +129,14 @@ Playwright specs for this mode must launch persistent Chrome with equivalent arg
 
 ```js
 sessionStorage.setItem('devDebug', 'test')
-sessionStorage.setItem('df-web-menzhenysz', '//localhost:8022')
+sessionStorage.setItem('<package-json-name>', '//localhost:<dev-port>')
 ```
 
-6. Login through the shell with a real test account for the selected company environment. If the login password is unknown, use `dfhis-company-environment` to read the matching environment file and query `df_zhushuju.gy_canshu` for the internal public password parameter such as `公用_万能密码`; use the value only as local E2E input and do not echo it in reports. Do not fake only `token` for integrated E2E; the shell also builds menus, tabs, active app state, user context, department/campus data, and qiankun mount props from backend responses.
-7. Open the flow through the shell UI, menu, tab, or patient workflow that creates the expected `viewList` entry. Directly visiting `/apps/<xiTongId>/...` may not mount the sub-app if the shell has not prepared the matching tab/menu state.
-8. Prove the local gray sub-app was really used: record network evidence for the local sub-app entry/config/assets, assert the qiankun container such as `#apps-<xiTongId>` mounted content, and fail on qiankun global errors, blank containers, loading loops, or console errors related to sub-app bootstrap/mount.
-9. After Jenkins/package/deployment, repeat online verification through the deployed shell and verify the served sub-app entry/version/hash. Deployment smoke is not a substitute for the integrated local E2E above.
+6. Login through the shell with a real test account for the selected company environment. If the login password is unknown, use `dfhis-company-environment` to read the matching environment file and query `df_zhushuju.gy_canshu` for the internal public password parameter such as `公用_万能密码`; use the value only as local E2E input and do not echo it in reports. Do not fake only `token` for integrated E2E; the shell also builds menus, tabs, active app state, user context, department/campus data, and qiankun mount props from backend responses. After selecting a system, assert the system input or active application state is actually set before clicking the real submit button; broad text clicks such as `getByText(/登录/)` can hit the login tab instead of the button.
+7. Open the flow through the shell UI, menu, tab, or patient workflow that creates the expected `viewList` entry. Directly visiting `/apps/<xiTongId>/...` may not mount the sub-app if the shell has not prepared the matching tab/menu state. A shell home page, application dashboard, or menu overview is not enough; open a concrete target menu/page and assert the URL, tab title, or page text matches that page. If the shell uses a menu panel, first click the menu opener, then click a leaf menu item and wait for the routed page.
+8. Prove the local gray sub-app was really used: record network evidence for the local sub-app entry, `config.json`, JS/CSS assets, and at least one route/page chunk when a concrete page is tested. Assert the qiankun container such as `#apps-<xiTongId>` exists, is visible (`display` is not `none`), has mounted content, and contains the expected micro-app root such as `#micro-app`. A hidden container or an empty mounted shell is a failed E2E even if `#apps-<xiTongId>` exists.
+9. Inspect screenshots before reporting success. The final screenshot must show the target business page or required workflow state, not only the login page, shell home page, or menu list. Record residual console errors separately: fail on qiankun/bootstrap/mount/CORS/asset errors for the changed sub-app; document unrelated pre-existing shell errors without treating them as sub-app proof.
+10. After Jenkins/package/deployment, repeat online verification through the deployed shell and verify the served sub-app entry/version/hash. Deployment smoke is not a substitute for the integrated local E2E above.
 
 If the account, menu permission, patient/order data, cross-origin browser, or environment proxy is missing, stop and report that blocker precisely. Do not replace this gate with build success, HTTP smoke, or standalone sub-app screenshots.
 
