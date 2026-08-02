@@ -20,6 +20,10 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { seedFreshProfile } from './onboarding-profile.mjs'
+import {
+  capturePackagedProcessOutput,
+  persistPackagedLaunchDiagnostics
+} from './packaged-launch-diagnostics.mjs'
 
 const NEW_TAB_BUTTON = { role: 'button', name: 'New tab' }
 const NEW_TERMINAL_ITEM = /New Terminal/i
@@ -90,12 +94,15 @@ export async function launchInstalledApp({
       // (logs/daemon/terminal-history) under a controlled dir.
       ...extraEnv,
       ORCA_E2E_USER_DATA_DIR: userDataDir,
+      ORCA_STARTUP_DIAGNOSTICS: 'trace',
+      ORCA_STARTUP_DIAGNOSTICS_FILE: path.join(userDataDir, 'startup-diagnostics.log'),
       HOME: isolatedHome,
       USERPROFILE: isolatedHome,
       ORCA_E2E_HOME_DIR: isolatedHome,
       ORCA_CODEX_SYSTEM_DEFAULT_REAL_HOME: '0'
     }
   })
+  const processOutput = capturePackagedProcessOutput(app.process())
   // If firstWindow times out (the launched main never shows a window), the
   // Electron process is still running — force-kill its tree before rethrowing so
   // a driving failure never leaks an orphaned main to the CI job timeout.
@@ -112,6 +119,12 @@ export async function launchInstalledApp({
         /* already gone */
       }
     }
+    persistPackagedLaunchDiagnostics({
+      error: err,
+      childProcess: app.process(),
+      processOutput,
+      userDataDir
+    })
     throw err
   }
   return { app, page }
