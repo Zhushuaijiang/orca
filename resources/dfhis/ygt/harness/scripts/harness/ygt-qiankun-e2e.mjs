@@ -120,9 +120,13 @@ async function screenshot(page, name) {
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, name), fullPage: true })
 }
 
-async function seedGrayEntry(page) {
+async function applyGrayEntry(page) {
   await page.addInitScript(({ name, entry }) => {
-    sessionStorage.setItem('devDebug', 'test')
+    sessionStorage.setItem('microDebug', 'test')
+    sessionStorage.setItem(name, entry)
+  }, { name: SUBAPP_NAME, entry: SUBAPP_ENTRY })
+  await page.evaluate(({ name, entry }) => {
+    sessionStorage.setItem('microDebug', 'test')
     sessionStorage.setItem(name, entry)
   }, { name: SUBAPP_NAME, entry: SUBAPP_ENTRY })
 }
@@ -148,6 +152,14 @@ async function loginIfNeeded(page) {
   }
 }
 
+async function assertAuthenticated(page) {
+  const current = new URL(page.url())
+  const bodyText = await page.locator('body').innerText({ timeout: 10000 }).catch(() => '')
+  if (current.pathname === '/login' || /欢迎登录|请使用账号信息登录平台/.test(bodyText)) {
+    throw new Error('Online shell is still on the login page. Real-login menu and permission state were not established.')
+  }
+}
+
 async function openTargetFlow(page) {
   if (process.env.YGT_E2E_MENU_OPEN_SELECTOR) {
     await page.locator(process.env.YGT_E2E_MENU_OPEN_SELECTOR).click()
@@ -159,15 +171,32 @@ async function openTargetFlow(page) {
   await page.goto(normalizeUrl(TARGET_ROUTE).toString(), { waitUntil: 'domcontentloaded' })
 }
 
+async function assertRouteAllowed(page) {
+  const current = new URL(page.url())
+  const bodyText = await page.locator('body').innerText({ timeout: 10000 }).catch(() => '')
+  if (current.pathname === '/403' || /没有权限访问|受限路径|\\b403\\b/.test(bodyText)) {
+    throw new Error(
+      \`Target route is forbidden after login: \${page.url()}. Use an account/menu path with access, or validate this page through online debugging instead of gray E2E.\`
+    )
+  }
+}
+
 async function assertMountedTarget(page) {
-  await page.waitForFunction(() => {
-    const container = document.querySelector('#micro-container')
+  await assertRouteAllowed(page)
+  await page.waitForFunction((name) => {
+    const selectors = [
+      \`#micro-container-\${name}\`,
+      \`[data-qiankun="\${name}"]\`,
+      '#micro-container'
+    ]
+    const container = selectors.map((selector) => document.querySelector(selector)).find(Boolean)
     if (!container) return false
     const style = getComputedStyle(container)
     const visible = style.display !== 'none' && style.visibility !== 'hidden'
     const hasContent = container.childElementCount > 0 || container.textContent.trim().length > 0
     return visible && hasContent
-  }, null, { timeout: 60000 })
+  }, SUBAPP_NAME, { timeout: 60000 })
+  await assertRouteAllowed(page)
   if (EXPECT_TEXT) {
     await expect(page.getByText(EXPECT_TEXT).first()).toBeVisible({ timeout: 30000 })
   }
@@ -214,10 +243,11 @@ test('YGT qiankun gray sub-app E2E with screenshots', async () => {
   page.on('pageerror', (error) => browserErrors.push(error.message))
 
   try {
-    await seedGrayEntry(page)
     await page.goto(normalizeUrl('/').toString(), { waitUntil: 'domcontentloaded' })
     await loginIfNeeded(page)
     await page.waitForLoadState('networkidle').catch(() => undefined)
+    await assertAuthenticated(page)
+    await applyGrayEntry(page)
     await screenshot(page, '01-shell-ready.png')
 
     await openTargetFlow(page)
@@ -230,7 +260,7 @@ test('YGT qiankun gray sub-app E2E with screenshots', async () => {
       \`Expected successful local gray sub-app responses from \${subappHost}\`
     ).not.toHaveLength(0)
     expect(
-      grayResponses.some(({ url }) => /index\\.html|config\\.json|\\.js(\\?|$)|\\.css(\\?|$)/.test(url)),
+      grayResponses.some(({ url }) => /index\\.html|config\\.json|\\/src\\/|\\/node_modules\\/|@vite|\\.js(\\?|$)|\\.css(\\?|$)/.test(url)),
       \`Expected local gray sub-app index/config/assets from \${subappHost}\`
     ).toBe(true)
     expect(browserErrors.filter((message) => /qiankun|bootstrap|mount|script|cors/i.test(message))).toEqual([])
