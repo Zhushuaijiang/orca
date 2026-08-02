@@ -3792,7 +3792,7 @@ describe('updater', () => {
     })
   })
 
-  it('does not check public releases when the packaged release feed is disabled', async () => {
+  it('checks the DFHIS download server when the packaged release feed is disabled', async () => {
     vi.stubEnv('ORCA_RELEASE_FEED_MODE', 'disabled')
     const send = vi.fn()
     const { setupAutoUpdater, checkForUpdates, checkForUpdatesFromMenu } = await import('./updater')
@@ -3813,8 +3813,9 @@ describe('updater', () => {
     checkForUpdatesFromMenu()
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
     expect(send).toHaveBeenCalledWith('updater:status', {
-      state: 'not-available',
-      userInitiated: true
+      state: 'checking',
+      userInitiated: true,
+      source: 'dfhis'
     })
   })
 })

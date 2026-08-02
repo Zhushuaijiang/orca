@@ -2020,6 +2020,8 @@
       },
       "UpdateCard": {
         "68b235d264": "重启即可更新",
+        "dfhisInstallReady": "Orca v{{value0}} 已下载，可以安装。",
+        "dfhisInstallAction": "安装更新",
         "6714206e5a": "Orca v{{value0}} 已下载。准备好后请重新启动。",
         "93794ea932": "Orca v{{value0}} 正在下载。",
         "8acbdd3961": "最小化到状态栏",

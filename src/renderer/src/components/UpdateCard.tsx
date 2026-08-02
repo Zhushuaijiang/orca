@@ -132,6 +132,7 @@ export function UpdateCard() {
   const [exiting, setExiting] = useState(false)
   const changelog: ChangelogData | null = storeChangelog
   const isLocalBuild = status.source === 'local'
+  const isDfhis = status.source === 'dfhis'
 
   // Why: the 'error' variant carries no version, but the card needs it for the fallback URL and dismiss; cache from states that have it.
   const versionRef = useRef<string | null>(null)
@@ -558,6 +559,7 @@ export function UpdateCard() {
       return (
         <ReadyToInstallContent
           version={status.version}
+          dfhis={isDfhis}
           onRestart={handleInstallRetry}
           onClose={handleCollapseWithAnimation}
         />
@@ -578,7 +580,7 @@ export function UpdateCard() {
           onMediaError={() => setMediaFailed(true)}
           onMediaLoad={() => setMediaLoaded(true)}
           onCollapse={handleCollapseWithAnimation}
-          showReleaseNotes={!isLocalBuild}
+          showReleaseNotes={!isLocalBuild && !isDfhis}
         />
       )
     }
@@ -589,10 +591,11 @@ export function UpdateCard() {
       return null
     }
 
-    const releaseUrl = isLocalBuild
-      ? undefined
-      : (('releaseUrl' in status ? status.releaseUrl : undefined) ??
-        getReleaseNotesUrlForVersion(status.version))
+    const releaseUrl =
+      isLocalBuild || isDfhis
+        ? undefined
+        : (('releaseUrl' in status ? status.releaseUrl : undefined) ??
+          getReleaseNotesUrlForVersion(status.version))
 
     if (isRichMode && changelog) {
       return (
@@ -1065,10 +1068,12 @@ function ErrorCardContent({
 
 function ReadyToInstallContent({
   version,
+  dfhis = false,
   onRestart,
   onClose
 }: {
   version: string
+  dfhis?: boolean
   onRestart: () => void
   onClose: () => void
 }) {
@@ -1090,15 +1095,23 @@ function ReadyToInstallContent({
       </div>
 
       <p className="text-sm text-muted-foreground">
-        {translate(
-          'auto.components.UpdateCard.6714206e5a',
-          "Orca v{{value0}} is downloaded. Restart when you're ready.",
-          { value0: version }
-        )}
+        {dfhis
+          ? translate(
+              'auto.components.UpdateCard.dfhisInstallReady',
+              'Orca v{{value0}} is downloaded and ready to install.',
+              { value0: version }
+            )
+          : translate(
+              'auto.components.UpdateCard.6714206e5a',
+              "Orca v{{value0}} is downloaded. Restart when you're ready.",
+              { value0: version }
+            )}
       </p>
 
       <Button variant="default" size="sm" onClick={onRestart} className="w-full">
-        {translate('auto.components.UpdateCard.68b235d264', 'Restart to Update')}
+        {dfhis
+          ? translate('auto.components.UpdateCard.dfhisInstallAction', 'Install Update')
+          : translate('auto.components.UpdateCard.68b235d264', 'Restart to Update')}
       </Button>
     </div>
   )

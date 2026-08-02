@@ -2432,7 +2432,7 @@ export type UpdateCheckOptions = {
   targetTag?: string
 }
 
-export type UpdateSource = 'local' | 'hourly'
+export type UpdateSource = 'local' | 'hourly' | 'dfhis'
 
 export type UpdateStatus = (
   | { state: 'idle' }

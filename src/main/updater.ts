@@ -10,6 +10,12 @@ import type {
 } from '../shared/remote-server-update'
 import { isWindowsSignatureCheckUnavailableFailure } from '../shared/updater-windows-signature-check'
 import { killAllPty } from './ipc/pty'
+import {
+  checkDfhisUpdate,
+  downloadDfhisUpdate,
+  initDfhisUpdater,
+  installDfhisUpdate
+} from './dfhis-updater'
 import { withUpdaterSpan } from './observability/instrumentation'
 import { loadElectronAutoUpdater, type ElectronAutoUpdater } from './electron-updater-loader'
 import { writeMainThreadDiagnosticMarker } from './diagnostics/main-thread-churn-probe'
@@ -152,7 +158,7 @@ let downloadInFlight = false
 /** Guards the macOS `activate` handler from reopening the old version while ShipIt replaces the .app bundle. */
 let quittingForUpdate = false
 let autoUpdater: ElectronAutoUpdater | null = null
-let activeUpdateSource: 'release' | 'local' | 'hourly' = 'release'
+let activeUpdateSource: 'release' | 'local' | 'hourly' | 'dfhis' = 'release'
 let activeLocalBuildFeed: LocalBuildFeed | null = null
 let localBuildSelectionInProgress = false
 let releaseFeedConfig: ReleaseFeedConfig = resolveReleaseFeedConfig()
@@ -1339,8 +1345,15 @@ function runBackgroundUpdateCheck(
 ): boolean {
   // Why: a pinned dev jump owns the feed until it settles; a background check
   // would repoint it mid-flight and download the wrong build.
+  if (isReleaseFeedDisabled()) {
+    // Why: DFHIS builds poll their own download server silently on the same cadence.
+    if (app.isPackaged && !is.dev) {
+      activeUpdateSource = 'dfhis'
+      void checkDfhisUpdate({ userInitiated: false })
+    }
+    return false
+  }
   if (
-    isReleaseFeedDisabled() ||
     activeUpdateSource !== 'release' ||
     isPinnedBuildActive ||
     localBuildSelectionInProgress ||
@@ -1433,8 +1446,12 @@ export function checkForUpdatesFromMenu(options?: UpdateCheckOptions): void {
     return
   }
   if (isReleaseFeedDisabled()) {
-    restoreReleaseUpdateSource()
-    sendStatus({ state: 'not-available', userInitiated: true })
+    // Why: DFHIS builds ship with the GitHub feed disabled; check the DFHIS
+    // download server's latest.json instead of reporting "no updates".
+    closeLocalBuildFeed()
+    activeUpdateSource = 'dfhis'
+    sendStatus({ state: 'checking', userInitiated: true })
+    void checkDfhisUpdate({ userInitiated: true })
     return
   }
   restoreReleaseUpdateSource()
@@ -1635,6 +1652,10 @@ export function isQuittingForUpdate(): boolean {
 }
 
 export function quitAndInstall(): void {
+  if (activeUpdateSource === 'dfhis') {
+    void installDfhisUpdate()
+    return
+  }
   if (
     localBuildSelectionInProgress ||
     pinnedBuildSelectionInProgress ||
@@ -1771,6 +1792,7 @@ export function setupAutoUpdater(
 ): void {
   releaseFeedConfig = resolveReleaseFeedConfig(getPackageJsonPath())
   mainWindowRef = mainWindow
+  initDfhisUpdater(sendStatus)
   onBeforeQuitCleanup = opts?.onBeforeQuit ?? null
   persistLastUpdateCheckAt = opts?.setLastUpdateCheckAt ?? null
   _getLastUpdateCheckAt = opts?.getLastUpdateCheckAt ?? null
@@ -1885,6 +1907,10 @@ export function setupAutoUpdater(
   }
 
   if (isReleaseFeedDisabled()) {
+    // Why: DFHIS builds poll their own download server instead of the GitHub
+    // feed; runBackgroundUpdateCheck routes disabled-feed checks there.
+    runBackgroundUpdateCheck()
+    scheduleAutomaticUpdateCheck(AUTO_UPDATE_CHECK_INTERVAL_MS)
     return
   }
 
@@ -1921,6 +1947,10 @@ export function setupAutoUpdater(
 }
 
 export function downloadUpdate(): void {
+  if (activeUpdateSource === 'dfhis') {
+    void downloadDfhisUpdate()
+    return
+  }
   if (localBuildSelectionInProgress || pinnedBuildSelectionInProgress || downloadInFlight) {
     return
   }
