@@ -16,13 +16,15 @@ const execFileAsync = promisify(execFile)
 
 // Why: the DFHIS release feed is a plain static server; latest.json is the
 // single manifest the publish pipeline keeps current (see
-// config/scripts/publish-orca-desktop-release.mjs). The public domain fronts
-// the same static root; the intranet address stays as fallback.
+// config/scripts/publish-orca-desktop-release.mjs). The intranet address is
+// ~50x faster on the company LAN, so it goes first with a short probe
+// timeout; off-site clients fall through to the public domain.
 const DEFAULT_MANIFEST_URLS = [
-  'https://bot-direct.zhushuaijiang.cn/static/downloads/orca/latest.json',
-  'http://192.168.1.10:18800/static/downloads/orca/latest.json'
+  'http://192.168.1.10:18800/static/downloads/orca/latest.json',
+  'https://bot-direct.zhushuaijiang.cn/static/downloads/orca/latest.json'
 ]
 const MANIFEST_TIMEOUT_MS = 10_000
+const INTRANET_PROBE_TIMEOUT_MS = 4_000
 
 export type DfhisUpdateDownload = {
   path: string
@@ -130,10 +132,13 @@ async function fetchManifest(
   urls: string[]
 ): Promise<{ manifest: DfhisUpdateManifest; manifestUrl: string }> {
   let lastError: unknown = null
-  for (const url of urls) {
+  for (const [index, url] of urls.entries()) {
     try {
+      // Why: the first (intranet) probe must fail fast so off-site clients
+      // reach the public domain quickly; later URLs get the full timeout.
+      const timeoutMs = index === 0 ? INTRANET_PROBE_TIMEOUT_MS : MANIFEST_TIMEOUT_MS
       const response = await fetchImpl(url, {
-        signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS)
+        signal: AbortSignal.timeout(timeoutMs)
       })
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)

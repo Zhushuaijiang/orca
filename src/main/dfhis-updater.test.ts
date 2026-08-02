@@ -144,10 +144,10 @@ describe('checkDfhisUpdate', () => {
     expect(statuses).toEqual([{ state: 'not-available', userInitiated: true }])
   })
 
-  it('falls back to the intranet manifest URL', async () => {
+  it('falls back to the public domain when the intranet is unreachable', async () => {
     delete process.env.ORCA_DFHIS_UPDATE_MANIFEST_URL
     const fetchImpl = vi.fn(async (url: string) => {
-      if (url.startsWith('https://bot-direct.')) {
+      if (url.startsWith('http://192.168.')) {
         throw new Error('boom')
       }
       return jsonResponse(manifest)
