@@ -22,95 +22,14 @@ function repo(overrides: Partial<Repo> & Pick<Repo, 'id'>): Repo {
 }
 
 describe('getTaskEligibleRepos', () => {
-  it('keeps only Git repos with a resolvable remote identity', () => {
-    const eligible = getTaskEligibleRepos([
+  it('returns all workspace repos including folders and remote-less repos', () => {
+    const list = [
       repo({ id: 'github-upstream', upstream: { owner: 'stablyai', repo: 'orca' } }),
-      repo({
-        id: 'github-icon',
-        repoIcon: {
-          type: 'image',
-          src: 'https://github.com/stablyai.png?size=64',
-          source: 'github',
-          label: 'stablyai/orca'
-        }
-      }),
-      repo({
-        id: 'gitlab-remote',
-        gitRemoteIdentity: {
-          canonicalKey: 'gitlab.example.com/team/orca',
-          remoteName: 'origin',
-          remoteUrl: 'git@gitlab.example.com:team/orca.git'
-        }
-      }),
       repo({ id: 'settled-no-remote', gitRemoteIdentity: null }),
-      repo({
-        id: 'incomplete-remote',
-        gitRemoteIdentity: {
-          canonicalKey: 'gitlab.example.com/team/incomplete',
-          remoteName: '',
-          remoteUrl: 'git@gitlab.example.com:team/incomplete.git'
-        }
-      }),
-      repo({
-        id: 'folder-with-remote',
-        kind: 'folder',
-        upstream: { owner: 'stablyai', repo: 'docs' }
-      })
-    ])
-
-    expect(eligible.map((candidate) => candidate.id)).toEqual([
-      'github-upstream',
-      'github-icon',
-      'gitlab-remote'
-    ])
-  })
-
-  it('keeps a repo visible while its remote identity probe has not answered', () => {
-    const eligible = getTaskEligibleRepos([
-      repo({ id: 'probe-pending' }),
-      repo({ id: 'ssh-probe-pending', connectionId: 'builder' }),
-      repo({ id: 'settled-no-remote', gitRemoteIdentity: null })
-    ])
-
-    expect(eligible.map((candidate) => candidate.id)).toEqual([
-      'probe-pending',
-      'ssh-probe-pending'
-    ])
-  })
-
-  it('excludes folders and settled remote-less repos even while others are pending', () => {
-    const eligible = getTaskEligibleRepos([
-      repo({ id: 'folder-pending', kind: 'folder' }),
-      repo({ id: 'folder-settled', kind: 'folder', gitRemoteIdentity: null }),
-      repo({ id: 'git-pending' })
-    ])
-
-    expect(eligible.map((candidate) => candidate.id)).toEqual(['git-pending'])
-  })
-
-  it('treats a partially resolved remote identity as settled, not pending', () => {
-    const eligible = getTaskEligibleRepos([
-      repo({
-        id: 'gitlab-ssh-partial',
-        connectionId: 'builder',
-        gitRemoteIdentity: {
-          canonicalKey: 'gitlab.example.com/team/orca',
-          remoteName: 'origin',
-          remoteUrl: ''
-        }
-      }),
-      repo({
-        id: 'gitlab-ssh-complete',
-        connectionId: 'builder',
-        gitRemoteIdentity: {
-          canonicalKey: 'gitlab.example.com/team/orca',
-          remoteName: 'origin',
-          remoteUrl: 'git@gitlab.example.com:team/orca.git'
-        }
-      })
-    ])
-
-    expect(eligible.map((candidate) => candidate.id)).toEqual(['gitlab-ssh-complete'])
+      repo({ id: 'folder-workspace', kind: 'folder' })
+    ]
+    const eligible = getTaskEligibleRepos(list)
+    expect(eligible).toEqual(list)
   })
 })
 

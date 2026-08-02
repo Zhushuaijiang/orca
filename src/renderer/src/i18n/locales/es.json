@@ -1714,6 +1714,7 @@
         "cba2a2b7fb": "Al proyecto Linear le falta el contexto del espacio de trabajo.",
         "f4374519ae": "Tu fuente de issues preferida (upstream) ya no está configurada para {{value0}}. Se usará origin.",
         "e9139db03f": "No se pudo ocultar {{value0}}.",
+        "4f6c2a9b1d": "Ocultar {{value0}}",
         "b73717af92": "Siguiente",
         "0c8df28045": "Página siguiente",
         "ae859c816b": "Página {{value0}}",

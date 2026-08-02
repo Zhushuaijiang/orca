@@ -8491,6 +8491,30 @@ export default function TaskPage(): React.JSX.Element {
                             >
                               <source.Icon className="size-3.5" />
                               <span>{source.label}</span>
+                              {visibleSourceOptions.length > 1 && (
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  title={translate(
+                                    'auto.components.TaskPage.4f6c2a9b1d',
+                                    'Hide {{value0}}',
+                                    { value0: source.label }
+                                  )}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    hideTaskSource(source.id, source.label)
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.stopPropagation()
+                                      hideTaskSource(source.id, source.label)
+                                    }
+                                  }}
+                                  className="ml-0.5 inline-flex size-4 items-center justify-center rounded-sm opacity-0 transition-opacity hover:bg-muted-foreground/20 hover:text-foreground group-hover:opacity-100"
+                                >
+                                  <X className="size-3" />
+                                </span>
+                              )}
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="bottom" sideOffset={6}>

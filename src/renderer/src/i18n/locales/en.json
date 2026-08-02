@@ -1750,6 +1750,7 @@
         "cba2a2b7fb": "Linear project is missing workspace context.",
         "f4374519ae": "Your preferred issue source (upstream) is no longer configured for {{value0}}. Using origin.",
         "e9139db03f": "Failed to hide {{value0}}.",
+        "4f6c2a9b1d": "Hide {{value0}}",
         "b73717af92": "Next",
         "0c8df28045": "Next page",
         "ae859c816b": "Page {{value0}}",
