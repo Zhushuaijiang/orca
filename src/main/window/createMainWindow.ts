@@ -10,7 +10,6 @@ import {
   screen
 } from 'electron'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { is } from '@electron-toolkit/utils'
 import type { Store } from '../persistence'
 import { getAppIconPath } from '../app-icon'
@@ -19,7 +18,6 @@ import { browserSessionRegistry } from '../browser/browser-session-registry'
 import { translateMain } from '../i18n/main-i18n'
 import { normalizeBrowserNavigationUrl } from '../../shared/browser-url'
 import { ORCA_BROWSER_GUEST_WEB_PREFERENCES } from '../../shared/browser-guest-web-preferences'
-import { BROWSER_WINDOW_CLOSE_ALLOWED_PRELOAD } from '../../shared/browser-window-close-policy'
 import { isCrashReportReason } from '../../shared/crash-reporting'
 import {
   DEFAULT_RENDERER_RECOVERY_MAX_RECOVERIES,
@@ -52,6 +50,7 @@ import { closeDashboardPopout } from './dashboard-popout-window'
 import { installPrivilegedWindowNavigationPolicy } from './privileged-window-navigation'
 import { isMacosTahoeOrNewer } from './macos-tahoe-release'
 import { registerPluginPanelNavigationGuard } from '../plugins/plugin-panel-navigation-guard'
+import { isBrowserWindowCloseAllowedPreload } from './browser-window-close-preload'
 
 // Why: show/restore/resume can overlap before the size nudge resets; never capture the temporary width as the next baseline.
 const activeRepaintJiggles = new WeakSet<BrowserWindow>()
@@ -441,7 +440,6 @@ export function createMainWindow(
   registerPluginPanelNavigationGuard(mainWindow.webContents)
 
   const browserWindowClosePreload = join(__dirname, 'browser-window-close-preload.js')
-  const browserWindowCloseAllowedPreloadPath = fileURLToPath(BROWSER_WINDOW_CLOSE_ALLOWED_PRELOAD)
   mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
     const src = typeof params.src === 'string' ? params.src : ''
     const normalizedSrc = normalizeBrowserNavigationUrl(src)
@@ -453,10 +451,8 @@ export function createMainWindow(
       return
     }
 
-    const allowWindowClose = [params.preload, webPreferences.preload].some(
-      (preload) =>
-        preload === BROWSER_WINDOW_CLOSE_ALLOWED_PRELOAD ||
-        preload === browserWindowCloseAllowedPreloadPath
+    const allowWindowClose = [params.preload, webPreferences.preload].some((preload) =>
+      isBrowserWindowCloseAllowedPreload(preload)
     )
     delete params.preload
     if (allowWindowClose) {
