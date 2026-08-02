@@ -86,7 +86,7 @@ For E2E artifacts, write screenshots, traces, videos, and reports under the requ
 Most DFHIS Vue frontends are qiankun main-app/sub-app systems. For these repositories, do not treat standalone sub-app startup as sufficient E2E for a HIS requirement. Use the integrated workflow unless the changed page is proven to be standalone-only:
 
 1. Identify the shell repository, target sub-app repository, `xiTongId`, sub-app `name`, dev port, route/menu path, and environment proxy target from code. In typical Vue 2 HIS apps, `df-web-main` runs the shell and registers sub-apps through qiankun, while `sessionStorage.devDebug === 'test'` allows local gray entry overrides by sub-app name.
-2. Start the shell first against the selected company environment, then start the changed sub-app locally on its declared dev port with its qiankun UMD output and CORS headers. Example: main app on `9000`, outpatient doctor station `df-web-menzhenysz` on `8022`.
+2. Prefer the online/company shell when the change is isolated to a sub-app and the shell itself is not being modified. Start only the changed sub-app locally on its declared dev port with qiankun UMD output and CORS headers, then gray-route the online shell to that local entry. Use a local shell only when the requirement changes shell code, online shell access is unavailable, or the target environment cannot be safely used. Example: online shell `http://192.168.1.151:8015` plus outpatient doctor station `df-web-menzhenysz` on `8022`; local fallback is main app on `9000` plus sub-app on `8022`.
 3. If the repository has no screenshot E2E yet, scaffold a Playwright spec and package script, then customize the generated login/menu selectors for the concrete requirement:
 
 ```bash
