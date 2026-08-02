@@ -44,7 +44,7 @@ node scripts/his-workflow.mjs jenkins --repo <repo> --catalog <catalog> --enviro
 ```
 
 - `doctor` records Git state and actual runtime versions.
-- `verify` runs repository or catalog build/test commands with the selected Node directory first on `PATH`.
+- `verify` runs repository or catalog build/test/E2E commands with the selected Node directory first on `PATH`. For package repositories, automatic detection prefers `build`, then `test`, then the first available E2E script from `e2e`, `test:e2e`, `playwright`, `test:playwright`, `cypress:run`, or `cy:run`.
 - `database` rejects non-read-only SQL and never prints connection secrets.
 - `jenkins` triggers the mapped job and waits for a terminal result.
 - `build` runs doctor, local verification, and Jenkins compilation/publish as one durable run.
@@ -66,6 +66,20 @@ node scripts/his-service-catalog.mjs validate --catalog references/company-envir
 
 Add `--allow-mutations` to `discover` only when the reviewed unique mappings should be written. Ambiguous jobs are never written. Use `references/service-catalog.example.json` as the catalog contract. The company-only skill pack may include local plaintext credentials when the environment owner explicitly permits it; never echo them into workflow reports, command evidence, logs, or Yunxiao comments.
 
+## Requirement E2E Gate
+
+HIS E2E testing is possible and required when a requirement changes a user-visible frontend flow, permissions/menu behavior, login-dependent interaction, cross-page workflow, or frontend-backend integration that cannot be proven by unit tests alone.
+
+Use this decision order:
+
+1. If the repository already exposes `e2e`, `test:e2e`, `playwright`, `test:playwright`, `cypress:run`, or `cy:run`, run it through `verify` and keep the artifact path or report summary.
+2. If the requirement has a concrete browser path but no E2E script exists, add a focused Playwright/Cypress spec in the requirement worktree, wire a stable script such as `e2e`, and run it after build and automated tests.
+3. If E2E cannot run because environment data, browser dependencies, or test accounts are missing, record that exact blocker and compensate with the strongest available evidence: unit/integration tests, build, read-only database checks, Jenkins, deployment, and online smoke.
+
+Do not treat Jenkins compilation, package build, `git diff --check`, or HTTP smoke as E2E evidence. Smoke only proves a mapped endpoint is reachable. A successful build must be followed by the applicable automated tests before claiming a HIS requirement is complete.
+
+For E2E artifacts, write screenshots, traces, videos, and reports under the requirement evidence directory or another ignored artifact directory. Never commit generated artifacts or secrets. Prefer deterministic selectors and seeded/mocked data; use real company environments only when the requirement explicitly needs deployed integration evidence.
+
 ## Evidence Gate
 
 Put the report under the requirement directory, for example:
@@ -78,6 +92,7 @@ Convert report evidence into `requirementContract.methodologyGate.verificationEv
 
 - `runtime`: selected Node/JDK/package manager.
 - `passing_test` and `build`: local verification.
+- `e2e`: browser-level requirement flow, when applicable.
 - `database`: read-only business-data verification.
 - `jenkins`: remote compile/package result and build URL.
 - `deployment`: deployment or rollout result.

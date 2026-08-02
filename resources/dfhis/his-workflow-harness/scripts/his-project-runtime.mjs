@@ -97,11 +97,16 @@ export function detectVerifyCommands(repo, runtime) {
     const packageJson = packageJsonAt(repo)
     const manager = runtime.packageManager.name === 'unknown' ? 'npm' : runtime.packageManager.name
     const commands = []
+    if (packageJson?.scripts?.build) {
+      commands.push([manager, manager === 'npm' ? 'run' : 'run', 'build'])
+    }
     if (packageJson?.scripts?.test && !/no test specified/i.test(packageJson.scripts.test)) {
       commands.push([manager, manager === 'npm' ? 'test' : 'test'])
     }
-    if (packageJson?.scripts?.build) {
-      commands.push([manager, manager === 'npm' ? 'run' : 'run', 'build'])
+    const e2eScript = ['e2e', 'test:e2e', 'playwright', 'test:playwright', 'cypress:run', 'cy:run']
+      .find((scriptName) => packageJson?.scripts?.[scriptName])
+    if (e2eScript) {
+      commands.push([manager, manager === 'npm' ? 'run' : 'run', e2eScript])
     }
     return commands
   }

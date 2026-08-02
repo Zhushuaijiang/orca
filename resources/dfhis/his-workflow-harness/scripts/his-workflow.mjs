@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -201,7 +201,12 @@ async function verify(context) {
   if (commands.length === 0) {throw new Error('No verification command was detected or configured.')}
   const results = []
   for (const argv of commands) {
-    const type = argv.includes('build') ? 'build' : 'passing_test'
+    const command = commandText(argv)
+    const type = /\b(?:e2e|playwright|cypress|cy:run|test:e2e|test:playwright)\b/i.test(command)
+      ? 'e2e'
+      : argv.includes('build')
+        ? 'build'
+        : 'passing_test'
     results.push(
       await commandEvidence(
         argv,
@@ -417,6 +422,23 @@ async function selftest() {
   const runtime = resolveProjectRuntime(path.join(tmpdir(), 'df-web-example'))
   if (runtime.family !== 'his' || runtime.nodeMajor !== 18)
     {throw new Error('HIS runtime fallback failed.')}
+  const e2eRepo = await mkdtemp(path.join(tmpdir(), 'df-web-e2e-'))
+  await writeFile(
+    path.join(e2eRepo, 'package.json'),
+    JSON.stringify({
+      name: 'df-web-e2e-example',
+      packageManager: 'pnpm@9.0.0',
+      scripts: {
+        build: 'vite build',
+        test: 'vitest run',
+        e2e: 'playwright test'
+      }
+    })
+  )
+  const e2eCommands = detectVerifyCommands(e2eRepo, resolveProjectRuntime(e2eRepo))
+    .map(commandText)
+  if (e2eCommands.join(' && ') !== 'pnpm run build && pnpm test && pnpm run e2e')
+    {throw new Error(`E2E verify command detection failed: ${e2eCommands.join(' && ')}`)}
   const environment = selectEnvironment(
     { environments: { local152: { aliases: ['本地152开发环境'] } } },
     '本地152开发环境'
