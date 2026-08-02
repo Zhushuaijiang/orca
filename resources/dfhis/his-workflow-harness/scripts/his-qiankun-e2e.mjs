@@ -70,11 +70,25 @@ const XI_TONG_ID = process.env.HIS_XI_TONG_ID || ${JSON.stringify(args.xiTongId)
 const TARGET_ROUTE = process.env.HIS_TARGET_ROUTE || ${JSON.stringify(route)}
 const SCREENSHOT_DIR = process.env.HIS_E2E_SCREENSHOT_DIR || ${JSON.stringify(args.screenshotDir)}
 const PROFILE_DIR = process.env.HIS_CORS_PROFILE || path.join(os.tmpdir(), 'chrome-cors')
-const CHROME_PATH = process.env.HIS_CHROME_PATH || (
-  process.platform === 'darwin'
-    ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-    : undefined
-)
+const CHROME_PATH = process.env.HIS_CHROME_PATH || defaultChromePath()
+
+function firstExistingPath(paths) {
+  return paths.find((candidate) => candidate && fs.existsSync(candidate))
+}
+
+function defaultChromePath() {
+  if (process.platform === 'darwin') {
+    return firstExistingPath(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'])
+  }
+  if (process.platform === 'win32') {
+    return firstExistingPath([
+      process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      process.env['PROGRAMFILES(X86)'] && path.join(process.env['PROGRAMFILES(X86)'], 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe')
+    ])
+  }
+  return undefined
+}
 
 function normalizeUrl(value, baseUrl = MAIN_URL) {
   if (value.startsWith('//')) {
@@ -124,13 +138,18 @@ test('HIS qiankun gray sub-app E2E with screenshots', async () => {
   const subappHost = normalizeUrl(SUBAPP_ENTRY).host
   const grayRequests = []
   const browserErrors = []
-  const context = await chromium.launchPersistentContext(PROFILE_DIR, {
-    executablePath: CHROME_PATH,
+  const launchOptions = {
     headless: process.env.HIS_E2E_HEADLESS === '1',
     viewport: { width: 1440, height: 900 },
     recordVideo: process.env.HIS_E2E_RECORD_VIDEO === '1' ? { dir: SCREENSHOT_DIR } : undefined,
     args: ['--disable-web-security', '--disable-site-isolation-trials']
-  })
+  }
+  if (CHROME_PATH) {
+    launchOptions.executablePath = CHROME_PATH
+  } else {
+    launchOptions.channel = process.env.HIS_CHROME_CHANNEL || 'chrome'
+  }
+  const context = await chromium.launchPersistentContext(PROFILE_DIR, launchOptions)
   const page = await context.newPage()
   page.on('request', (request) => {
     try {

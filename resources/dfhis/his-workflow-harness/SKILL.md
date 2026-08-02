@@ -102,13 +102,24 @@ node scripts/his-qiankun-e2e.mjs scaffold \
 
 The scaffolded spec launches persistent Chrome with cross-origin flags, injects `devDebug`, captures screenshots, asserts the qiankun container mounted, and fails if no network request hits the local gray sub-app entry. The generated `login(page)` and `openRequirementFlow(page)` hooks must be filled with real selectors or driven by environment variables before claiming automated E2E evidence.
 
-4. Run the browser in cross-origin debug mode for integrated local E2E. On macOS, launch an isolated Chrome profile like:
+4. Run the browser in cross-origin debug mode for integrated local E2E. The scaffolded Playwright spec works on macOS and Windows: it uses `HIS_CHROME_PATH` when set, otherwise auto-detects Google Chrome on macOS and the normal Windows install locations under `Program Files`, `Program Files (x86)`, or `LocalAppData`, then falls back to Playwright's `chrome` channel.
+
+On macOS, launch an isolated Chrome profile like:
 
 ```bash
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --disable-web-security \
   --disable-site-isolation-trials \
   --user-data-dir="/tmp/chrome-cors"
+```
+
+On Windows, the equivalent manual command is:
+
+```cmd
+"%ProgramFiles%\Google\Chrome\Application\chrome.exe" ^
+  --disable-web-security ^
+  --disable-site-isolation-trials ^
+  --user-data-dir="%TEMP%\chrome-cors"
 ```
 
 Playwright specs for this mode must launch persistent Chrome with equivalent arguments, or connect to a Chrome instance launched with these flags. A normal browser context is not valid evidence for local qiankun gray E2E when the shell loads `localhost` sub-app assets from another origin.
