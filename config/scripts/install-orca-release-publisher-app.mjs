@@ -84,4 +84,15 @@ setPlistValue('CFBundleDisplayName', 'string', '"Orca Release Publisher"')
 setPlistValue('CFBundleShortVersionString', 'string', '1.0.0')
 setPlistValue('CFBundleVersion', 'string', '1')
 
+// Why: renaming the executable and rewriting Info.plist break the copied
+// Electron.app seal; without a fresh ad-hoc signature Finder reports the app
+// as damaged and refuses to open it.
+const signResult = spawnSync('codesign', ['--force', '--deep', '--sign', '-', appPath], {
+  encoding: 'utf8'
+})
+if (signResult.status !== 0) {
+  throw new Error(signResult.stderr || 'codesign failed')
+}
+spawnSync('xattr', ['-dr', 'com.apple.quarantine', appPath], { encoding: 'utf8' })
+
 console.log(appPath)
