@@ -9,9 +9,9 @@
 // ORCA_AUTO_RELEASE_DISABLED=1; override the branch with ORCA_AUTO_RELEASE_BRANCH.
 
 import { existsSync } from 'node:fs'
-import { appendFile, mkdir, readFile, rmdir, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import {
   commitAndPushReleaseVersion,
   prepareNextReleaseVersion
@@ -31,6 +31,7 @@ const REMOTE_DIR =
   '/opt/workspace/github/hermes-agent-260623/bot_manager/static/downloads/orca'
 const OUT_DIR = path.join(REPO_ROOT, 'out')
 const LOCK_DIR = path.join(OUT_DIR, 'dfhis-auto-release.lock')
+const PENDING_FILE = path.join(OUT_DIR, 'dfhis-auto-release.pending')
 const STATUS_FILE = path.join(OUT_DIR, 'dfhis-auto-release-status.json')
 const LOG_FILE = path.join(OUT_DIR, 'dfhis-auto-release.log')
 const CI_APPEAR_TIMEOUT_MS = 10 * 60 * 1000
@@ -333,13 +334,16 @@ async function main() {
   try {
     await mkdir(LOCK_DIR)
   } catch {
-    await logLine('skip: another auto-release run holds the lock')
+    // Why: hook fires while a run holds the lock would lose this commit, so
+    // queue a pending marker; the active run re-spawns for it when done.
+    await writeFile(PENDING_FILE, `${new Date().toISOString()}\n`).catch(() => {})
+    await logLine('skip: another auto-release run holds the lock (queued as pending)')
     return
   }
 
+  let releasedSha = null
   try {
     let chainIndex = 0
-    let releasedSha = null
     await writeStatus({
       state: 'running',
       step: 'prepare',
@@ -384,6 +388,21 @@ async function main() {
     }
   } finally {
     await rmdir(LOCK_DIR).catch(() => {})
+  }
+
+  // Why: chain count is capped, so commits beyond the cap rely on the pending
+  // marker left by their hook runs; hand off to a fresh process for them.
+  const headAfter = runText('git', ['rev-parse', 'HEAD'])
+  if (!dryRun && existsSync(PENDING_FILE) && headAfter && headAfter !== releasedSha) {
+    await rm(PENDING_FILE, { force: true }).catch(() => {})
+    const child = spawn(process.execPath, [import.meta.filename, '--from-hook'], {
+      cwd: REPO_ROOT,
+      detached: true,
+      stdio: 'ignore',
+      env: process.env
+    })
+    child.unref()
+    await logLine('pending commits found; handed off to a follow-up run')
   }
 }
 

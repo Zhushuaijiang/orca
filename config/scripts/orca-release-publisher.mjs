@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, rename } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { pageHtml } from './orca-release-publisher-page.mjs'
+import { readAutoRelease, startAutoRelease } from './orca-release-publisher-auto-release.mjs'
 import {
   commitAndPushReleaseVersion,
   prepareNextReleaseVersion,
@@ -311,28 +312,6 @@ function sha256(filePath) {
   return createHash('sha256').update(readFileSync(filePath)).digest('hex')
 }
 
-function readAutoRelease(repoRoot) {
-  const statusPath = path.join(repoRoot, 'out', 'dfhis-auto-release-status.json')
-  const logPath = path.join(repoRoot, 'out', 'dfhis-auto-release.log')
-  let status = null
-  try {
-    status = JSON.parse(readFileSync(statusPath, 'utf8'))
-  } catch {
-    // no auto-release run yet
-  }
-  let logTail = ''
-  try {
-    const content = readFileSync(logPath, 'utf8')
-    logTail = content.split('\n').slice(-30).join('\n')
-  } catch {
-    // no log yet
-  }
-  if (!status && !logTail) {
-    return null
-  }
-  return { ...status, logTail }
-}
-
 function buildMacApp(repoRoot) {
   if (platform() !== 'darwin') {
     throw new Error('macOS app 只能在 macOS 上构建。')
@@ -505,26 +484,6 @@ async function triggerWindowsCi(args) {
   return { branch, output: `${prepareOutput.output}\n${output}` }
 }
 
-function startAutoRelease(args) {
-  const repoRoot = resolveRepoRoot(args.repoRoot)
-  const lockDir = path.join(repoRoot, 'out', 'dfhis-auto-release.lock')
-  if (existsSync(lockDir)) {
-    throw new Error('自动发布流水线正在运行中，请等待当前运行结束。')
-  }
-  const env = { ...process.env }
-  if (args.sshPassword) {
-    env.ORCA_RELEASE_SSH_PASSWORD = args.sshPassword
-  }
-  const child = spawn(process.execPath, ['config/scripts/dfhis-auto-release.mjs'], {
-    cwd: repoRoot,
-    detached: true,
-    stdio: 'ignore',
-    env
-  })
-  child.unref()
-  return { started: true, pid: child.pid, autoRelease: readAutoRelease(repoRoot) }
-}
-
 async function handleApi(req, res, pathname) {
   try {
     if (req.method === 'GET' && pathname === '/api/status') {
@@ -555,7 +514,15 @@ async function handleApi(req, res, pathname) {
       return
     }
     if (req.method === 'POST' && pathname === '/api/release-all') {
-      jsonResponse(res, 200, startAutoRelease(await readBody(req)))
+      const body = await readBody(req)
+      jsonResponse(
+        res,
+        200,
+        startAutoRelease({
+          repoRoot: resolveRepoRoot(body.repoRoot),
+          sshPassword: body.sshPassword
+        })
+      )
       return
     }
     if (req.method === 'POST' && pathname === '/api/publish') {
@@ -578,16 +545,33 @@ const server = createServer((req, res) => {
 })
 
 function startServer() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject)
     server.listen(PORT, HOST, () => {
       resolve(`http://${HOST}:${PORT}`)
     })
   })
 }
 
+let mainWindow = null
+
 async function openElectronWindow(url) {
   const { app, BrowserWindow } = await import('electron')
   app.setName('Orca Release Publisher')
+  // Why: the server binds a fixed port, so a second launch would crash with
+  // EADDRINUSE. Single-instance: re-launching just focuses the open window.
+  if (!app.requestSingleInstanceLock()) {
+    app.quit()
+    return
+  }
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+      mainWindow.focus()
+    }
+  })
   await app.whenReady()
   const window = new BrowserWindow({
     width: 1180,
@@ -601,6 +585,7 @@ async function openElectronWindow(url) {
       sandbox: true
     }
   })
+  mainWindow = window
   await window.loadURL(url)
   window.setTitle('Orca Release Publisher')
   window.webContents.on('page-title-updated', (event) => {
@@ -608,6 +593,7 @@ async function openElectronWindow(url) {
     window.setTitle('Orca Release Publisher')
   })
   window.on('closed', () => {
+    mainWindow = null
     server.close()
   })
   app.on('window-all-closed', () => {
@@ -621,8 +607,18 @@ async function main() {
     return
   }
 
-  const url = await startServer()
-  console.log(`Orca Release Publisher: ${url}`)
+  let url = `http://${HOST}:${PORT}`
+  try {
+    url = await startServer()
+    console.log(`Orca Release Publisher: ${url}`)
+  } catch (error) {
+    // Why: a leftover publisher process may already hold the port; reuse it
+    // instead of crashing with an EADDRINUSE dialog.
+    if (!String(error).includes('EADDRINUSE')) {
+      throw error
+    }
+    console.log(`Orca Release Publisher already running: ${url}`)
+  }
   if (isElectronProcess()) {
     await openElectronWindow(url)
   }
