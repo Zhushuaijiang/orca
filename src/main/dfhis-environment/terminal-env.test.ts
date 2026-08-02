@@ -1,9 +1,16 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FolderWorkspace } from '../../shared/types'
 import { buildYunxiaoTerminalEnv } from './terminal-env'
+
+vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
+    getPath: () => '/tmp/orca-terminal-env-test-user-data'
+  }
+}))
 
 let userDataDirectory: string
 let previousUserDataPath: string | undefined
@@ -120,5 +127,22 @@ describe('Yunxiao terminal environment', () => {
     })
 
     expect(env.HIS_MCP_TOKEN).toBe('shell-token')
+  })
+
+  it('injects YGT company credentials from the installed reference document', () => {
+    const env = buildYunxiaoTerminalEnv(folderWorkspace('yunxiao'), {})
+
+    expect(env.YGT_JENKINS_USER).toBe('admin')
+    expect(env.YGT_JENKINS_PASSWORD).toEqual(expect.any(String))
+    expect(env.YGT_JENKINS_PASSWORD?.length).toBeGreaterThan(0)
+    expect(env.YGT_COMPANY_REFERENCE_PATH).toEqual(expect.any(String))
+  })
+
+  it('does not override explicit YGT credentials from the shell', () => {
+    const env = buildYunxiaoTerminalEnv(folderWorkspace('yunxiao'), {
+      YGT_JENKINS_PASSWORD: 'shell-jenkins-password'
+    })
+
+    expect(env.YGT_JENKINS_PASSWORD).toBe('shell-jenkins-password')
   })
 })

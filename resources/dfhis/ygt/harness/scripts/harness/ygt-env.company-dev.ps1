@@ -95,7 +95,9 @@ function Set-YgtSlashCredential {
         [Parameter(Mandatory = $true)][string]$Section
     )
 
-    $line = Get-YgtCredentialLines $Section | Where-Object { $_ -match "^[^/\s]+/[^/\s]+$" } | Select-Object -First 1
+    # The user segment must be colon-free so JDBC-style `host:port/db` lines are
+    # not mistaken for `user/password` credentials.
+    $line = Get-YgtCredentialLines $Section | Where-Object { $_ -match "^[^/\s:]+/[^/\s]+$" } | Select-Object -First 1
     if (-not $line) {
         return
     }
@@ -112,7 +114,9 @@ function Set-YgtLineCredentials {
         [Parameter(Mandatory = $true)][string]$Section
     )
 
-    $lines = @(Get-YgtCredentialLines $Section | Where-Object { $_ -notmatch ":" })
+    # Exclude both colon widths so section headings like `网关管理：` are not
+    # picked up as a username line.
+    $lines = @(Get-YgtCredentialLines $Section | Where-Object { $_ -notmatch ":" -and $_ -notmatch "：" })
     if ($lines.Count -lt 2) {
         return
     }

@@ -2,6 +2,7 @@ import path from 'node:path'
 import type { FolderWorkspace } from '../../shared/types'
 import { readDfHisEnvironmentConfigSync } from './config'
 import { resolveDfHisProjectRuntime } from './project-runtime'
+import { getYgtCompanyEnvironment } from './ygt-company-environment'
 
 function addIfMissing(
   env: Record<string, string>,
@@ -56,6 +57,12 @@ export function buildYunxiaoTerminalEnv(
   addIfMissing(env, 'HIS_MCP_URL', config.hisMcpUrl)
   addIfMissing(env, 'HIS_WORKFLOW_CATALOG', config.hisWorkflowCatalogPath)
   addIfMissing(env, 'YUNXIAO_ARCHIVE_WORKSPACE', config.archiveWorkspacePath)
+  const ygtCompanyEnvironment = getYgtCompanyEnvironment()
+  if (ygtCompanyEnvironment) {
+    for (const [key, value] of Object.entries(ygtCompanyEnvironment.variables)) {
+      addIfMissing(env, key, value)
+    }
+  }
   const codeWorkspaceRoot = options.codeWorkspaceRoot || config.hisCodeRoot
   const runtime = resolveDfHisProjectRuntime(codeWorkspaceRoot)
   addIfMissing(env, 'DFHIS_PROJECT_FAMILY', runtime.family)

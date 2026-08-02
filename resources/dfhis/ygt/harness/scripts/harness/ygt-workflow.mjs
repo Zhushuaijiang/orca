@@ -1971,8 +1971,10 @@ function findCompanyEnvironmentReference() {
   const candidates = [
     home ? resolve(home, '.agents', 'skills', ...referenceParts) : null,
     home ? resolve(home, '.codex', 'skills', ...referenceParts) : null,
+    home ? resolve(home, '.claude', 'skills', ...referenceParts) : null,
     resolve(repoRoot, '..', '..', '..', '.agents', 'skills', ...referenceParts),
     resolve(repoRoot, '..', '..', '..', '.codex', 'skills', ...referenceParts),
+    resolve(repoRoot, '..', '..', '..', '.claude', 'skills', ...referenceParts),
   ].filter(Boolean);
 
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
@@ -2000,7 +2002,9 @@ function sectionFor(text, heading) {
 }
 
 function setSlashCredential(values, userKey, passwordKey, section) {
-  const line = credentialLines(section).find((entry) => /^[^/\s]+\/[^/\s]+$/.test(entry));
+  // Why: the user segment must be colon-free so JDBC-style `host:port/db` lines
+  // are not mistaken for `user/password` credentials.
+  const line = credentialLines(section).find((entry) => /^[^/\s:]+\/[^/\s]+$/.test(entry));
   if (!line) return;
   const [user, password] = line.split('/');
   values[userKey] = user;
@@ -2008,7 +2012,9 @@ function setSlashCredential(values, userKey, passwordKey, section) {
 }
 
 function setLineCredentials(values, userKey, passwordKey, section) {
-  const lines = credentialLines(section).filter((line) => !line.includes(':'));
+  // Why: exclude both colon widths so section headings like `网关管理：` are not
+  // picked up as a username line.
+  const lines = credentialLines(section).filter((line) => !line.includes(':') && !line.includes('：'));
   if (lines.length < 2) return;
   values[userKey] = lines[0];
   values[passwordKey] = lines[1];

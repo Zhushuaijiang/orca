@@ -35,6 +35,7 @@ import {
   checkHisMcpToolsPrerequisite,
   checkYunxiaoMcpToolsPrerequisite
 } from '../dfhis-environment/mcp-tool-prerequisites'
+import { describeYgtCompanyEnvironmentStatus } from '../dfhis-environment/ygt-company-environment'
 
 export {
   checkArchiveWorkspacePrerequisite,
@@ -220,6 +221,7 @@ export async function installDfHisEnvironment(
     ...(await ensureDfHisCliPrerequisitesInstalled()),
     await installGitLabAccess(config),
     ...(await pullAndEnsureDfHisWorkflowPack(config.dfhisSkillPackUrl)),
+    describeYgtCompanyEnvironmentStatus(),
     await ensureArchiveWorkspace(config)
   ]
   return {
