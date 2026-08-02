@@ -1,3 +1,11 @@
+import type { TuiAgent } from './types'
+
+/** Why: one workflow-pack row per supported agent home; keyed off TuiAgent so
+ * newly supported agents join the checklist without another type edit. */
+export type DfHisWorkflowPackPrerequisiteId =
+  | 'dfhis-workflow-pack-agent-skills'
+  | `dfhis-workflow-pack-${TuiAgent}`
+
 export type DfHisEnvironmentPrerequisiteId =
   | 'git'
   | 'python'
@@ -6,9 +14,7 @@ export type DfHisEnvironmentPrerequisiteId =
   | 'his-mcp'
   | 'yunxiao-mcp-tools'
   | 'his-mcp-tools'
-  | 'dfhis-workflow-pack-agent-skills'
-  | 'dfhis-workflow-pack-codex'
-  | 'dfhis-workflow-pack-claude'
+  | DfHisWorkflowPackPrerequisiteId
   | 'his-code-root'
   | 'his-workflow-catalog'
   | 'archive-workspace'

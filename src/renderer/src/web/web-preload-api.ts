@@ -3067,14 +3067,6 @@ function createDfHisEnvironmentApi(): NonNullable<Partial<PreloadApi>['dfhisEnvi
         600_000
       )
       return result
-    },
-    updateWorkflowPack: async (config?: DfHisEnvironmentConfigInput) => {
-      const { result } = await callRuntimeResult<{ result: DfHisEnvironmentInstallResult }>(
-        'dfhisEnvironment.updateWorkflowPack',
-        config,
-        600_000
-      )
-      return result
     }
   }
 }

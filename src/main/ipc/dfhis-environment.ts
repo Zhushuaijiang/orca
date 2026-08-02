@@ -20,7 +20,8 @@ import {
 } from '../dfhis-environment/dfhis-workspace-prerequisites'
 import {
   checkDfHisWorkflowPackPrerequisites,
-  ensureDfHisWorkflowPackInstalled
+  ensureDfHisWorkflowPackInstalled,
+  pullAndEnsureDfHisWorkflowPack
 } from '../dfhis-environment/dfhis-workflow-pack-installer'
 import {
   checkGitPrerequisite,
@@ -34,7 +35,6 @@ import {
   checkHisMcpToolsPrerequisite,
   checkYunxiaoMcpToolsPrerequisite
 } from '../dfhis-environment/mcp-tool-prerequisites'
-import { installRemoteDfHisWorkflowPack } from '../dfhis-environment/remote-workflow-pack-installer'
 
 export {
   checkArchiveWorkspacePrerequisite,
@@ -219,30 +219,13 @@ export async function installDfHisEnvironment(
     configInput ? 'Saved DFHIS setup configuration.' : 'Using saved DFHIS setup configuration.',
     ...(await ensureDfHisCliPrerequisitesInstalled()),
     await installGitLabAccess(config),
-    ...(await ensureDfHisWorkflowPackInstalled()),
+    ...(await pullAndEnsureDfHisWorkflowPack(config.dfhisSkillPackUrl)),
     await ensureArchiveWorkspace(config)
   ]
   return {
     installed: messages.every(
       (message) => !message.includes('failed') && !message.includes('not installed')
     ),
-    messages,
-    check: await checkDfHisEnvironment()
-  }
-}
-
-export async function updateDfHisWorkflowPackFromRemote(
-  configInput?: DfHisEnvironmentConfigInput
-): Promise<DfHisEnvironmentInstallResult> {
-  const config = configInput
-    ? await saveDfHisEnvironmentConfig(configInput)
-    : readDfHisEnvironmentConfigSync()
-  const messages = [
-    configInput ? 'Saved DFHIS setup configuration.' : 'Using saved DFHIS setup configuration.',
-    ...(await installRemoteDfHisWorkflowPack(config.dfhisSkillPackUrl))
-  ]
-  return {
-    installed: true,
     messages,
     check: await checkDfHisEnvironment()
   }
@@ -263,16 +246,6 @@ export function registerDfHisEnvironmentHandlers(): void {
       configInput?: DfHisEnvironmentConfigInput
     ): Promise<DfHisEnvironmentInstallResult> => {
       return installDfHisEnvironment(configInput)
-    }
-  )
-
-  ipcMain.handle(
-    'dfhisEnvironment:updateWorkflowPack',
-    async (
-      _event,
-      configInput?: DfHisEnvironmentConfigInput
-    ): Promise<DfHisEnvironmentInstallResult> => {
-      return updateDfHisWorkflowPackFromRemote(configInput)
     }
   )
 }

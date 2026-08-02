@@ -9,7 +9,13 @@ import type {
 } from '../../shared/skills'
 import type { AgentType } from '../../shared/agent-status-types'
 import type { Repo } from '../../shared/types'
+import type { TuiAgent } from '../../shared/types'
 import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../shared/execution-host'
+import {
+  AGENT_SKILL_HOME_DIRECTORIES,
+  UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
+} from '../../shared/agent-skill-home-directories'
+import { TUI_AGENT_DISPLAY_NAMES } from '../../shared/tui-agent-display-names'
 
 export type SkillScanRoot = Omit<SkillDiscoverySource, 'exists' | 'skippedReason'>
 type SkillDiscoveryPathApi = Pick<typeof posix, 'basename' | 'join'>
@@ -84,7 +90,7 @@ export function buildSkillDiscoverySources(
     source(
       'home-agents',
       'Agent skills home',
-      pathApi.join(home, '.agents', 'skills'),
+      pathApi.join(home, ...UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY),
       'home',
       ['agent-skills'],
       null
@@ -107,62 +113,19 @@ export function buildSkillDiscoverySources(
     ),
     // Why: `npx skills add --global` writes into each agent's own home skills
     // directory, so coverage misses them unless we scan every provider root.
-    source(
-      'home-grok',
-      'Grok home',
-      pathApi.join(home, '.grok', 'skills'),
-      'home',
-      ['agent-skills'],
-      'grok'
-    ),
-    source(
-      'home-opencode',
-      'OpenCode home',
-      pathApi.join(home, '.config', 'opencode', 'skills'),
-      'home',
-      ['agent-skills'],
-      'opencode'
-    ),
-    source(
-      'home-pi',
-      'Pi home',
-      pathApi.join(home, '.pi', 'agent', 'skills'),
-      'home',
-      ['agent-skills'],
-      'pi'
-    ),
-    source(
-      'home-omp',
-      'OMP home',
-      pathApi.join(home, '.omp', 'agent', 'skills'),
-      'home',
-      ['agent-skills'],
-      'omp'
-    ),
-    source(
-      'home-gemini',
-      'Gemini home',
-      pathApi.join(home, '.gemini', 'skills'),
-      'home',
-      ['agent-skills'],
-      'gemini'
-    ),
-    source(
-      'home-antigravity',
-      'Antigravity home',
-      pathApi.join(home, '.gemini', 'antigravity', 'skills'),
-      'home',
-      ['agent-skills'],
-      'antigravity'
-    ),
-    source(
-      'home-cursor',
-      'Cursor home',
-      pathApi.join(home, '.cursor', 'skills'),
-      'home',
-      ['agent-skills'],
-      'cursor'
-    )
+    // Codex/Claude above keep their dedicated providers and scan order.
+    ...(Object.entries(AGENT_SKILL_HOME_DIRECTORIES) as [TuiAgent, readonly string[]][])
+      .filter(([agent]) => agent !== 'codex' && agent !== 'claude')
+      .map(([agent, relativeDirectory]) =>
+        source(
+          `home-${agent}`,
+          `${TUI_AGENT_DISPLAY_NAMES[agent]} home`,
+          pathApi.join(home, ...relativeDirectory),
+          'home',
+          ['agent-skills'],
+          agent
+        )
+      )
   ]
 
   const projectPaths = new Set<string>()

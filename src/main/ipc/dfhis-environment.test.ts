@@ -19,6 +19,12 @@ import {
   snapshotDfHisEnvironmentConfig
 } from '../dfhis-environment/config'
 import { installRemoteDfHisWorkflowPack } from '../dfhis-environment/remote-workflow-pack-installer'
+import { pullAndEnsureDfHisWorkflowPack } from '../dfhis-environment/dfhis-workflow-pack-installer'
+import {
+  AGENT_SKILL_HOME_DIRECTORIES,
+  UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
+} from '../../shared/agent-skill-home-directories'
+import type { TuiAgent } from '../../shared/types'
 
 vi.mock('electron', () => ({
   app: {
@@ -281,6 +287,95 @@ describe('dfhis-environment', () => {
         'utf8'
       )
     ).resolves.toContain('"providerTarget": "agent-skills"')
+  })
+
+  it('covers every supported agent home with one prerequisite row each', async () => {
+    const homeDirectory = await createTemporaryHome()
+
+    const missing = await checkDfHisWorkflowPackPrerequisites(homeDirectory)
+    const expectedIds = [
+      'dfhis-workflow-pack-agent-skills',
+      ...(Object.keys(AGENT_SKILL_HOME_DIRECTORIES) as TuiAgent[]).map(
+        (agent) => `dfhis-workflow-pack-${agent}`
+      )
+    ]
+    expect(
+      missing
+        .map((result) => result.id)
+        .slice()
+        .sort()
+    ).toEqual(expectedIds.slice().sort())
+    // Why: the three original rows keep their long-standing order.
+    expect(missing.map((result) => result.id).slice(0, 3)).toEqual([
+      'dfhis-workflow-pack-agent-skills',
+      'dfhis-workflow-pack-codex',
+      'dfhis-workflow-pack-claude'
+    ])
+    expect(missing.every((result) => result.status === 'missing')).toBe(true)
+
+    await ensureDfHisWorkflowPackInstalled(homeDirectory)
+
+    const installed = await checkDfHisWorkflowPackPrerequisites(homeDirectory)
+    expect(installed.every((result) => result.status === 'ok')).toBe(true)
+    for (const relativeDirectory of [
+      UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY,
+      ...Object.values(AGENT_SKILL_HOME_DIRECTORIES)
+    ]) {
+      await expect(
+        readFile(
+          path.join(
+            homeDirectory,
+            ...relativeDirectory,
+            'yunxiao-requirement-archiver',
+            'SKILL.md'
+          ),
+          'utf8'
+        )
+      ).resolves.toContain('name: yunxiao-requirement-archiver')
+    }
+  })
+
+  it('pulls the remote pack during one-click install and falls back to the bundled pack', async () => {
+    const homeDirectory = await createTemporaryHome()
+    const userDataDirectory = await createTemporaryHome()
+    process.env.ORCA_USER_DATA_PATH = userDataDirectory
+    const manifestPath = await writeRemoteSkillPackManifest(userDataDirectory)
+
+    await expect(pullAndEnsureDfHisWorkflowPack(manifestPath, homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Downloaded DFHIS workflow pack test-pack'),
+        expect.stringContaining('DFHIS workflow pack for OpenCode')
+      ])
+    )
+    await expect(
+      readFile(
+        path.join(
+          homeDirectory,
+          '.config',
+          'opencode',
+          'skills',
+          'yunxiao-requirement-archiver',
+          'SKILL.md'
+        ),
+        'utf8'
+      )
+    ).resolves.toContain('remote yunxiao skill')
+
+    const unreachableUrl = path.join(userDataDirectory, 'missing-skill-pack.json')
+    await expect(pullAndEnsureDfHisWorkflowPack(unreachableUrl, homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('DFHIS skill pack pull failed'),
+        expect.stringContaining('DFHIS workflow pack for Qwen Code')
+      ])
+    )
+    // Why: the failed pull leaves the previously cached remote pack in place.
+    await expect(
+      readFile(path.join(homeDirectory, '.qwen', 'skills', 'ygt', 'SKILL.md'), 'utf8')
+    ).resolves.toContain('remote ygt skill')
+
+    await expect(pullAndEnsureDfHisWorkflowPack('', homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([expect.stringContaining('DFHIS workflow pack for Antigravity')])
+    )
   })
 
   it('refreshes bundled DFHIS workflow pack files without deleting extra files', async () => {

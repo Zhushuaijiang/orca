@@ -2566,9 +2566,6 @@ export type PreloadApi = {
     getConfig: () => Promise<DfHisEnvironmentConfigSnapshot>
     check: () => Promise<DfHisEnvironmentCheckResult>
     install: (config?: DfHisEnvironmentConfigInput) => Promise<DfHisEnvironmentInstallResult>
-    updateWorkflowPack: (
-      config?: DfHisEnvironmentConfigInput
-    ) => Promise<DfHisEnvironmentInstallResult>
   }
   pet: {
     import: () => Promise<CustomPet | null>

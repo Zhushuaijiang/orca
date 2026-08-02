@@ -1,4 +1,10 @@
 import type { DfHisEnvironmentPrerequisiteId } from '../../shared/dfhis-environment-types'
+import type { TuiAgent } from '../../shared/types'
+import {
+  AGENT_SKILL_HOME_DIRECTORIES,
+  UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
+} from '../../shared/agent-skill-home-directories'
+import { TUI_AGENT_DISPLAY_NAMES } from '../../shared/tui-agent-display-names'
 import type {
   BundledSkillPackDefinition,
   BundledSkillPackTarget
@@ -18,34 +24,50 @@ export type DfHisWorkflowPackName = (typeof DFHIS_WORKFLOW_PACK_NAMES)[number]
 
 export type DfHisWorkflowPackTarget = BundledSkillPackTarget<
   DfHisEnvironmentPrerequisiteId,
-  'agent-skills' | 'codex' | 'claude'
+  'agent-skills' | TuiAgent
 >
 
-type WorkflowPackTargetDefinition = readonly [
-  DfHisEnvironmentPrerequisiteId,
-  DfHisWorkflowPackTarget['providerTarget'],
-  string,
-  readonly string[]
-]
+function agentWorkflowPackTarget(
+  agent: TuiAgent,
+  relativeDirectory: readonly string[]
+): DfHisWorkflowPackTarget {
+  return {
+    id: `dfhis-workflow-pack-${agent}`,
+    providerTarget: agent,
+    label: `DFHIS workflow pack for ${TUI_AGENT_DISPLAY_NAMES[agent]}`,
+    relativeDirectory
+  }
+}
 
-const WORKFLOW_PACK_TARGET_DEFINITIONS: readonly WorkflowPackTargetDefinition[] = [
-  [
-    'dfhis-workflow-pack-agent-skills',
-    'agent-skills',
-    'DFHIS workflow pack for universal agent skills',
-    ['.agents', 'skills']
-  ],
-  ['dfhis-workflow-pack-codex', 'codex', 'DFHIS workflow pack for Codex', ['.codex', 'skills']],
-  ['dfhis-workflow-pack-claude', 'claude', 'DFHIS workflow pack for Claude', ['.claude', 'skills']]
-]
+// Why: the original three rows keep their long-standing order; every other
+// supported agent home follows, sorted by display name.
+const PINNED_PROVIDER_TARGETS: readonly TuiAgent[] = ['codex', 'claude']
 
-export const WORKFLOW_PACK_TARGETS: readonly DfHisWorkflowPackTarget[] =
-  WORKFLOW_PACK_TARGET_DEFINITIONS.map(([id, providerTarget, label, directory]) => ({
-    id,
-    providerTarget,
-    label,
-    relativeDirectory: [...directory]
-  }))
+const agentWorkflowPackTargets = (
+  Object.entries(AGENT_SKILL_HOME_DIRECTORIES) as [TuiAgent, readonly string[]][]
+)
+  .map(([agent, relativeDirectory]) => agentWorkflowPackTarget(agent, relativeDirectory))
+  .sort((left, right) => {
+    const leftRank = PINNED_PROVIDER_TARGETS.indexOf(left.providerTarget as TuiAgent)
+    const rightRank = PINNED_PROVIDER_TARGETS.indexOf(right.providerTarget as TuiAgent)
+    if (leftRank !== rightRank) {
+      return (
+        (leftRank === -1 ? PINNED_PROVIDER_TARGETS.length : leftRank) -
+        (rightRank === -1 ? PINNED_PROVIDER_TARGETS.length : rightRank)
+      )
+    }
+    return left.label.localeCompare(right.label)
+  })
+
+export const WORKFLOW_PACK_TARGETS: readonly DfHisWorkflowPackTarget[] = [
+  {
+    id: 'dfhis-workflow-pack-agent-skills',
+    providerTarget: 'agent-skills',
+    label: 'DFHIS workflow pack for universal agent skills',
+    relativeDirectory: UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
+  },
+  ...agentWorkflowPackTargets
+]
 
 export const DFHIS_BUNDLED_SKILL_PACK = {
   id: 'dfhis',

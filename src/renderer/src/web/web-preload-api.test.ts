@@ -2766,14 +2766,10 @@ describe('web UI preload API', () => {
     await expect(
       globals.window.api.dfhisEnvironment.install({ gitlabHost: '192.168.1.206' })
     ).resolves.toEqual(installResult)
-    await expect(globals.window.api.dfhisEnvironment.updateWorkflowPack()).resolves.toEqual(
-      installResult
-    )
     expect(calls).toEqual([
       { method: 'dfhisEnvironment.getConfig', params: undefined },
       { method: 'dfhisEnvironment.check', params: undefined },
-      { method: 'dfhisEnvironment.install', params: { gitlabHost: '192.168.1.206' } },
-      { method: 'dfhisEnvironment.updateWorkflowPack', params: undefined }
+      { method: 'dfhisEnvironment.install', params: { gitlabHost: '192.168.1.206' } }
     ])
   })
 

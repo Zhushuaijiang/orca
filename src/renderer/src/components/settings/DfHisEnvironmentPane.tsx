@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   CircleDashed,
   Clipboard,
-  Download,
   Loader2,
   RefreshCw,
   Wrench
@@ -16,6 +15,7 @@ import type {
   DfHisEnvironmentPrerequisiteResult,
   DfHisEnvironmentPrerequisiteStatus
 } from '../../../../shared/dfhis-environment-types'
+import { AGENT_SKILL_HOME_DIRECTORIES } from '../../../../shared/agent-skill-home-directories'
 import { Button } from '../ui/button'
 import { SettingsBadge } from './SettingsFormControls'
 import {
@@ -26,9 +26,10 @@ import {
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 
-type LoadState = 'idle' | 'checking' | 'installing' | 'updating-skills'
+type LoadState = 'idle' | 'checking' | 'installing'
 type DfHisEnvironmentApi = typeof window.api.dfhisEnvironment
-const DFHIS_PREREQUISITE_COUNT = 13
+// Why: 10 non-pack checks plus the universal root and one row per agent home.
+const DFHIS_PREREQUISITE_COUNT = 11 + Object.keys(AGENT_SKILL_HOME_DIRECTORIES).length
 
 function getDfHisEnvironmentApi(): DfHisEnvironmentApi {
   const api = (window.api as { dfhisEnvironment?: DfHisEnvironmentApi }).dfhisEnvironment
@@ -236,27 +237,6 @@ export function DfHisEnvironmentPane(): JSX.Element {
     }
   }, [configForm, hydrateConfigForm])
 
-  const updateWorkflowPack = useCallback(async () => {
-    setLoadState('updating-skills')
-    try {
-      const result = await getDfHisEnvironmentApi().updateWorkflowPack(configForm)
-      setMessages(result.messages)
-      setCheckResult(result.check)
-      hydrateConfigForm(result.check.config)
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : translate(
-              'auto.components.settings.DfHisEnvironmentPane.updateSkillsFailed',
-              'DFHIS skill update failed.'
-            )
-      )
-    } finally {
-      setLoadState('idle')
-    }
-  }, [configForm, hydrateConfigForm])
-
   const copyCommand = useCallback(async (command: string) => {
     await navigator.clipboard.writeText(command)
     toast.success(
@@ -297,16 +277,6 @@ export function DfHisEnvironmentPane(): JSX.Element {
               'auto.components.settings.DfHisEnvironmentPane.installRepair',
               'Save & install'
             )}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={updateWorkflowPack}
-            disabled={isBusy}
-          >
-            {loadState === 'updating-skills' ? <Loader2 className="animate-spin" /> : <Download />}
-            {translate('auto.components.settings.DfHisEnvironmentPane.pullSkills', 'Pull skills')}
           </Button>
         </div>
       </div>

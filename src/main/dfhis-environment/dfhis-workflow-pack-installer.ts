@@ -10,7 +10,10 @@ import {
   type DfHisWorkflowPackName,
   type DfHisWorkflowPackTarget
 } from './dfhis-workflow-pack-targets'
-import { getCachedDfHisWorkflowPackPathIfPresent } from './remote-workflow-pack-installer'
+import {
+  getCachedDfHisWorkflowPackPathIfPresent,
+  installRemoteDfHisWorkflowPack
+} from './remote-workflow-pack-installer'
 
 export function getDfHisWorkflowPackPath(
   providerTarget: DfHisWorkflowPackTarget['providerTarget'] = 'codex',
@@ -47,4 +50,26 @@ export async function ensureDfHisWorkflowPackInstalled(
     homeDirectory,
     (await getCachedDfHisWorkflowPackPathIfPresent()) ?? undefined
   )
+}
+
+/** One-click setup step: pull the team pack when a URL is configured, then
+ * install everywhere; a failed pull falls back to the bundled/cached pack so
+ * agents never end up without skills. */
+export async function pullAndEnsureDfHisWorkflowPack(
+  skillPackUrl: string,
+  homeDirectory = homedir()
+): Promise<string[]> {
+  const trimmedUrl = skillPackUrl.trim()
+  if (!trimmedUrl) {
+    return ensureDfHisWorkflowPackInstalled(homeDirectory)
+  }
+  try {
+    return await installRemoteDfHisWorkflowPack(trimmedUrl, homeDirectory)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    return [
+      `DFHIS skill pack pull failed: ${reason}`,
+      ...(await ensureDfHisWorkflowPackInstalled(homeDirectory))
+    ]
+  }
 }
