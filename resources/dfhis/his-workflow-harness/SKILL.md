@@ -131,7 +131,7 @@ sessionStorage.setItem('devDebug', 'test')
 sessionStorage.setItem('df-web-menzhenysz', '//localhost:8022')
 ```
 
-6. Login through the shell with a real test account for the selected company environment. Do not fake only `token` for integrated E2E; the shell also builds menus, tabs, active app state, user context, department/campus data, and qiankun mount props from backend responses.
+6. Login through the shell with a real test account for the selected company environment. If the login password is unknown, use `dfhis-company-environment` to read the matching environment file and query `df_zhushuju.gy_canshu` for the internal public password parameter such as `公用_万能密码`; use the value only as local E2E input and do not echo it in reports. Do not fake only `token` for integrated E2E; the shell also builds menus, tabs, active app state, user context, department/campus data, and qiankun mount props from backend responses.
 7. Open the flow through the shell UI, menu, tab, or patient workflow that creates the expected `viewList` entry. Directly visiting `/apps/<xiTongId>/...` may not mount the sub-app if the shell has not prepared the matching tab/menu state.
 8. Prove the local gray sub-app was really used: record network evidence for the local sub-app entry/config/assets, assert the qiankun container such as `#apps-<xiTongId>` mounted content, and fail on qiankun global errors, blank containers, loading loops, or console errors related to sub-app bootstrap/mount.
 9. After Jenkins/package/deployment, repeat online verification through the deployed shell and verify the served sub-app entry/version/hash. Deployment smoke is not a substitute for the integrated local E2E above.

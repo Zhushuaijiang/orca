@@ -23,6 +23,18 @@ Use this skill when a DFHIS task needs real company environment details for veri
 - Record verification evidence by environment name, query purpose, command category, and result summary instead of echoing credentials.
 - If an environment cannot be reached, report the exact host/service category and error, then try the next relevant validation route only when it is safe.
 
+## HIS Test Account Password Lookup
+
+When HIS integrated E2E needs a login password and the task targets a real company environment, do not guess or block on memory. Load the matching environment file and query the target PostgreSQL database read-only for the public internal password parameter:
+
+```sql
+select canshuid, canshums, canshuzhi
+from df_zhushuju.gy_canshu
+where canshuid like '%万能密码%';
+```
+
+For reports and chat, record only that the password parameter exists and is non-empty. Do not echo `canshuzhi` unless the user explicitly asks for the exact value. Use the retrieved value only inside the local E2E process, environment variables, or an ignored credential file.
+
 ## Common Use
 
 1. Load `references/environment-index.md`.
