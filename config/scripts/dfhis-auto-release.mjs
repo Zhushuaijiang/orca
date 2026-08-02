@@ -310,26 +310,8 @@ async function main() {
   await loadLocalEnvFile()
   await logLine(`auto-release triggered (hook=${fromHook}, dryRun=${dryRun})`)
 
-  if (process.platform !== 'darwin') {
-    await logLine('skip: macOS build requires darwin')
-    return
-  }
-  const expectedBranch = process.env.ORCA_AUTO_RELEASE_BRANCH || DEFAULT_BRANCH
-  if (expectedBranch !== 'any' && currentBranch() !== expectedBranch) {
-    await logLine(`skip: branch ${currentBranch() || 'detached'} != ${expectedBranch}`)
-    await writeStatus({ state: 'skipped', reason: `branch != ${expectedBranch}` })
-    return
-  }
-  const headSubject = runText('git', ['log', '-1', '--format=%s'])
-  if (RELEASE_COMMIT_PATTERN.test(headSubject)) {
-    await logLine(`skip: release commit "${headSubject}"`)
-    await writeStatus({ state: 'skipped', reason: `release commit: ${headSubject}` })
-    return
-  }
-  if (!process.env.ORCA_RELEASE_SSH_PASSWORD) {
-    await logLine('skip: ORCA_RELEASE_SSH_PASSWORD is not set')
-    await writeStatus({ state: 'skipped', reason: 'missing ssh password' })
-    return
+  const unlock = async () => {
+    await rmdir(LOCK_DIR).catch(() => {})
   }
   try {
     await mkdir(LOCK_DIR)
@@ -338,6 +320,32 @@ async function main() {
     // queue a pending marker; the active run re-spawns for it when done.
     await writeFile(PENDING_FILE, `${new Date().toISOString()}\n`).catch(() => {})
     await logLine('skip: another auto-release run holds the lock (queued as pending)')
+    return
+  }
+  // Why: guards run only after the lock is held, so a skipped run can never
+  // clobber the status file of an active pipeline.
+  const skip = async (reason) => {
+    await logLine(`skip: ${reason}`)
+    await writeStatus({ state: 'skipped', reason })
+    await unlock()
+  }
+
+  if (process.platform !== 'darwin') {
+    await skip('macOS build requires darwin')
+    return
+  }
+  const expectedBranch = process.env.ORCA_AUTO_RELEASE_BRANCH || DEFAULT_BRANCH
+  if (expectedBranch !== 'any' && currentBranch() !== expectedBranch) {
+    await skip(`branch ${currentBranch() || 'detached'} != ${expectedBranch}`)
+    return
+  }
+  const headSubject = runText('git', ['log', '-1', '--format=%s'])
+  if (RELEASE_COMMIT_PATTERN.test(headSubject)) {
+    await skip(`release commit "${headSubject}"`)
+    return
+  }
+  if (!process.env.ORCA_RELEASE_SSH_PASSWORD) {
+    await skip('ORCA_RELEASE_SSH_PASSWORD is not set')
     return
   }
 
@@ -387,7 +395,7 @@ async function main() {
       process.exitCode = 1
     }
   } finally {
-    await rmdir(LOCK_DIR).catch(() => {})
+    await unlock()
   }
 
   // Why: chain count is capped, so commits beyond the cap rely on the pending
