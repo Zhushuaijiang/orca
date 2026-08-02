@@ -35,6 +35,7 @@ node scripts/his-workflow.mjs deploy --repo <repo> --catalog <catalog> --service
 node scripts/his-workflow.mjs smoke --repo <repo> --catalog <catalog> --service <id> --json
 node scripts/his-workflow.mjs full --repo <repo> --catalog <catalog> --service <id> --allow-mutations --report-dir <dir> --json
 node scripts/his-workflow.mjs resume --state-file <dir>/run-state.json --catalog <catalog> --allow-mutations --json
+node scripts/his-qiankun-e2e.mjs scaffold --repo <subapp-repo> --main-url http://localhost:9000 --subapp-name <name> --subapp-entry //<host>:<port> --xi-tong-id <id> --update-package-script
 ```
 
 For a named company environment and an ad hoc Jenkins job, resolve the Chinese alias directly:
@@ -44,7 +45,7 @@ node scripts/his-workflow.mjs jenkins --repo <repo> --catalog <catalog> --enviro
 ```
 
 - `doctor` records Git state and actual runtime versions.
-- `verify` runs repository or catalog build/test/E2E commands with the selected Node directory first on `PATH`. For package repositories, automatic detection prefers `build`, then `test`, then the first available E2E script from `e2e`, `test:e2e`, `playwright`, `test:playwright`, `cypress:run`, or `cy:run`. This detection is only a convenience; qiankun HIS flows still require integrated main-app plus local sub-app E2E when the requirement changes a mounted sub-application path.
+- `verify` runs repository or catalog build/test/E2E commands with the selected Node directory first on `PATH`. For package repositories, automatic detection prefers `build`, then `test`, then the first available E2E or screenshot script from `e2e`, `test:e2e`, `e2e:screenshot`, `test:e2e:screenshot`, `screenshot`, `test:screenshot`, `visual`, `test:visual`, `playwright`, `test:playwright`, `cypress:run`, or `cy:run`. This detection is only a convenience; qiankun HIS flows still require integrated main-app plus local sub-app E2E when the requirement changes a mounted sub-application path.
 - `database` rejects non-read-only SQL and never prints connection secrets.
 - `jenkins` triggers the mapped job and waits for a terminal result.
 - `build` runs doctor, local verification, and Jenkins compilation/publish as one durable run.
@@ -86,7 +87,22 @@ Most DFHIS Vue frontends are qiankun main-app/sub-app systems. For these reposit
 
 1. Identify the shell repository, target sub-app repository, `xiTongId`, sub-app `name`, dev port, route/menu path, and environment proxy target from code. In typical Vue 2 HIS apps, `df-web-main` runs the shell and registers sub-apps through qiankun, while `sessionStorage.devDebug === 'test'` allows local gray entry overrides by sub-app name.
 2. Start the shell first against the selected company environment, then start the changed sub-app locally on its declared dev port with its qiankun UMD output and CORS headers. Example: main app on `9000`, outpatient doctor station `df-web-menzhenysz` on `8022`.
-3. Run the browser in cross-origin debug mode for integrated local E2E. On macOS, launch an isolated Chrome profile like:
+3. If the repository has no screenshot E2E yet, scaffold a Playwright spec and package script, then customize the generated login/menu selectors for the concrete requirement:
+
+```bash
+node scripts/his-qiankun-e2e.mjs scaffold \
+  --repo /path/to/df-web-menzhenysz \
+  --main-url http://localhost:9000 \
+  --subapp-name df-web-menzhenysz \
+  --subapp-entry //localhost:8022 \
+  --xi-tong-id 04 \
+  --route /apps/04/home \
+  --update-package-script
+```
+
+The scaffolded spec launches persistent Chrome with cross-origin flags, injects `devDebug`, captures screenshots, asserts the qiankun container mounted, and fails if no network request hits the local gray sub-app entry. The generated `login(page)` and `openRequirementFlow(page)` hooks must be filled with real selectors or driven by environment variables before claiming automated E2E evidence.
+
+4. Run the browser in cross-origin debug mode for integrated local E2E. On macOS, launch an isolated Chrome profile like:
 
 ```bash
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
@@ -97,17 +113,17 @@ Most DFHIS Vue frontends are qiankun main-app/sub-app systems. For these reposit
 
 Playwright specs for this mode must launch persistent Chrome with equivalent arguments, or connect to a Chrome instance launched with these flags. A normal browser context is not valid evidence for local qiankun gray E2E when the shell loads `localhost` sub-app assets from another origin.
 
-4. Before login or before the shell builds its app list, seed the shell origin storage for the local gray sub-app entry. Use the actual app `name` key from the shell app config, for example:
+5. Before login or before the shell builds its app list, seed the shell origin storage for the local gray sub-app entry. Use the actual app `name` key from the shell app config, for example:
 
 ```js
 sessionStorage.setItem('devDebug', 'test')
 sessionStorage.setItem('df-web-menzhenysz', '//localhost:8022')
 ```
 
-5. Login through the shell with a real test account for the selected company environment. Do not fake only `token` for integrated E2E; the shell also builds menus, tabs, active app state, user context, department/campus data, and qiankun mount props from backend responses.
-6. Open the flow through the shell UI, menu, tab, or patient workflow that creates the expected `viewList` entry. Directly visiting `/apps/<xiTongId>/...` may not mount the sub-app if the shell has not prepared the matching tab/menu state.
-7. Prove the local gray sub-app was really used: record network evidence for the local sub-app entry/config/assets, assert the qiankun container such as `#apps-<xiTongId>` mounted content, and fail on qiankun global errors, blank containers, loading loops, or console errors related to sub-app bootstrap/mount.
-8. After Jenkins/package/deployment, repeat online verification through the deployed shell and verify the served sub-app entry/version/hash. Deployment smoke is not a substitute for the integrated local E2E above.
+6. Login through the shell with a real test account for the selected company environment. Do not fake only `token` for integrated E2E; the shell also builds menus, tabs, active app state, user context, department/campus data, and qiankun mount props from backend responses.
+7. Open the flow through the shell UI, menu, tab, or patient workflow that creates the expected `viewList` entry. Directly visiting `/apps/<xiTongId>/...` may not mount the sub-app if the shell has not prepared the matching tab/menu state.
+8. Prove the local gray sub-app was really used: record network evidence for the local sub-app entry/config/assets, assert the qiankun container such as `#apps-<xiTongId>` mounted content, and fail on qiankun global errors, blank containers, loading loops, or console errors related to sub-app bootstrap/mount.
+9. After Jenkins/package/deployment, repeat online verification through the deployed shell and verify the served sub-app entry/version/hash. Deployment smoke is not a substitute for the integrated local E2E above.
 
 If the account, menu permission, patient/order data, cross-origin browser, or environment proxy is missing, stop and report that blocker precisely. Do not replace this gate with build success, HTTP smoke, or standalone sub-app screenshots.
 

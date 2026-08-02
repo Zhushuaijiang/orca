@@ -202,7 +202,7 @@ async function verify(context) {
   const results = []
   for (const argv of commands) {
     const command = commandText(argv)
-    const type = /\b(?:e2e|playwright|cypress|cy:run|test:e2e|test:playwright)\b/i.test(command)
+    const type = /\b(?:e2e|playwright|cypress|cy:run|test:e2e|test:playwright|screenshot|visual)\b/i.test(command)
       ? 'e2e'
       : argv.includes('build')
         ? 'build'
@@ -431,13 +431,13 @@ async function selftest() {
       scripts: {
         build: 'vite build',
         test: 'vitest run',
-        e2e: 'playwright test'
+        'e2e:screenshot': 'playwright test tests/e2e/his-qiankun-gray.spec.js'
       }
     })
   )
   const e2eCommands = detectVerifyCommands(e2eRepo, resolveProjectRuntime(e2eRepo))
     .map(commandText)
-  if (e2eCommands.join(' && ') !== 'pnpm run build && pnpm test && pnpm run e2e')
+  if (e2eCommands.join(' && ') !== 'pnpm run build && pnpm test && pnpm run e2e:screenshot')
     {throw new Error(`E2E verify command detection failed: ${e2eCommands.join(' && ')}`)}
   const environment = selectEnvironment(
     { environments: { local152: { aliases: ['本地152开发环境'] } } },
