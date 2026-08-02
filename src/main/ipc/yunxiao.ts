@@ -9,6 +9,7 @@ import type {
 } from '../../shared/yunxiao-types'
 import type { Store } from '../persistence'
 import { archiveYunxiaoRequirement, createYunxiaoRequirement } from '../yunxiao/client'
+import { listYunxiaoRequirementFieldOptions } from '../yunxiao/requirement-field-options'
 import { listYunxiaoWorkItems } from '../yunxiao/work-item-list'
 
 function normalizeStringArray(value: unknown): string[] | undefined {
@@ -56,12 +57,18 @@ export function registerYunxiaoHandlers(store: Store): void {
         title: args.title,
         description: typeof args.description === 'string' ? args.description : undefined,
         priority: args.priority,
+        businessPriority:
+          typeof args.businessPriority === 'string' ? args.businessPriority : undefined,
+        system: typeof args.system === 'string' ? args.system : undefined,
+        customer: typeof args.customer === 'string' ? args.customer : undefined,
         labels: normalizeStringArray(args.labels),
         assignee: typeof args.assignee === 'string' ? args.assignee : null,
         archiveAfterCreate: Boolean(args.archiveAfterCreate)
       })
     }
   )
+
+  ipcMain.handle('yunxiao:listRequirementFieldOptions', () => listYunxiaoRequirementFieldOptions())
 
   ipcMain.handle(
     'yunxiao:archiveRequirement',

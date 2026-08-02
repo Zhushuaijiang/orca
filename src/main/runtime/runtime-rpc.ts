@@ -300,6 +300,7 @@ const MOBILE_RPC_METHOD_ALLOWLIST = new Set([
   'gitlab.workItemDetails',
   'yunxiao.listWorkItems',
   'yunxiao.createRequirement',
+  'yunxiao.listRequirementFieldOptions',
   'yunxiao.archiveRequirement',
   'yunxiao.listTodoPool',
   'yunxiao.addTodoPoolItems',

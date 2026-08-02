@@ -2018,6 +2018,8 @@ export type {
   YunxiaoCreateRequirementArgs,
   YunxiaoListWorkItemsArgs,
   YunxiaoListWorkItemsResult,
+  YunxiaoRequirementFieldOption,
+  YunxiaoRequirementFieldOptionsResult,
   YunxiaoRequirementPriority,
   YunxiaoRequirementContractDecision,
   YunxiaoRequirementContractOwner,

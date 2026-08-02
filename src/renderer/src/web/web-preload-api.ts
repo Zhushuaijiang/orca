@@ -422,6 +422,7 @@ type WebYunxiaoResult<K extends keyof WebYunxiaoApi> = Awaited<ReturnType<WebYun
 type WebYunxiaoRouteKey =
   | 'listWorkItems'
   | 'createRequirement'
+  | 'listRequirementFieldOptions'
   | 'archiveRequirement'
   | 'listTodoPool'
   | 'addTodoPoolItems'
@@ -430,6 +431,7 @@ type WebYunxiaoRouteKey =
 type WebYunxiaoRuntimeMethod =
   | 'yunxiao.listWorkItems'
   | 'yunxiao.createRequirement'
+  | 'yunxiao.listRequirementFieldOptions'
   | 'yunxiao.archiveRequirement'
   | 'yunxiao.listTodoPool'
   | 'yunxiao.addTodoPoolItems'
@@ -519,6 +521,7 @@ export const GITLAB_WEB_RPC_METHODS = {
 export const YUNXIAO_WEB_RPC_METHODS = {
   listWorkItems: 'yunxiao.listWorkItems',
   createRequirement: 'yunxiao.createRequirement',
+  listRequirementFieldOptions: 'yunxiao.listRequirementFieldOptions',
   archiveRequirement: 'yunxiao.archiveRequirement',
   listTodoPool: 'yunxiao.listTodoPool',
   addTodoPoolItems: 'yunxiao.addTodoPoolItems',
@@ -2569,6 +2572,10 @@ function createYunxiaoApi(): WebYunxiaoApi {
       route<WebYunxiaoResult<'listWorkItems'>>(YUNXIAO_WEB_RPC_METHODS.listWorkItems, args),
     createRequirement: (args) =>
       route<WebYunxiaoResult<'createRequirement'>>(YUNXIAO_WEB_RPC_METHODS.createRequirement, args),
+    listRequirementFieldOptions: () =>
+      route<WebYunxiaoResult<'listRequirementFieldOptions'>>(
+        YUNXIAO_WEB_RPC_METHODS.listRequirementFieldOptions
+      ),
     archiveRequirement: (args) =>
       route<WebYunxiaoResult<'archiveRequirement'>>(
         YUNXIAO_WEB_RPC_METHODS.archiveRequirement,

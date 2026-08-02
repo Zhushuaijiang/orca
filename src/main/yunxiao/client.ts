@@ -13,7 +13,7 @@ import {
   DEFAULT_YUNXIAO_ORGANIZATION_ID,
   DEFAULT_YUNXIAO_PROJECT_ID,
   DEFAULT_YUNXIAO_REQUIREMENT_TYPE_ID,
-  getDefaultCustomFieldValues
+  getCustomFieldValues
 } from './requirement-defaults'
 import {
   extractWorkItemId,
@@ -32,6 +32,9 @@ function buildCreateRequirementMessage(args: YunxiaoCreateRequirementArgs): stri
     `标题：${args.title.trim()}`,
     args.description?.trim() ? `描述：\n${args.description.trim()}` : '',
     args.priority ? `优先级：${args.priority}` : '',
+    args.businessPriority?.trim() ? `事务优先级：${args.businessPriority.trim()}` : '',
+    args.system?.trim() ? `系统：${args.system.trim()}` : '',
+    args.customer?.trim() ? `客户：${args.customer.trim()}` : '',
     args.labels?.length ? `标签：${args.labels.join(', ')}` : '',
     args.assignee?.trim() ? `负责人：${args.assignee.trim()}` : '',
     '创建完成后请返回需求编号、云效链接和简要状态。'
@@ -153,7 +156,7 @@ async function createOfficialYunxiaoRequirement(
 
   const labelIds = parseCsv(process.env.YUNXIAO_LABEL_IDS) ?? args.labels
   const customFieldValues = {
-    ...getDefaultCustomFieldValues(args.priority),
+    ...getCustomFieldValues(args),
     ...parseOptionalJsonRecord(process.env.YUNXIAO_CUSTOM_FIELD_VALUES_JSON)
   }
   const result = await callOfficialYunxiaoTool(

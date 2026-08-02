@@ -4,10 +4,34 @@ export type YunxiaoCreateRequirementArgs = {
   title: string
   description?: string
   priority?: YunxiaoRequirementPriority
+  businessPriority?: string
+  system?: string
+  customer?: string
   labels?: string[]
   assignee?: string | null
   archiveAfterCreate?: boolean
 }
+
+export type YunxiaoRequirementFieldOption = {
+  value: string
+  label: string
+}
+
+export type YunxiaoRequirementFieldOptionsResult =
+  | {
+      ok: true
+      priorities: YunxiaoRequirementFieldOption[]
+      businessPriorities: YunxiaoRequirementFieldOption[]
+      systems: YunxiaoRequirementFieldOption[]
+      customers: YunxiaoRequirementFieldOption[]
+      defaults: {
+        priority: YunxiaoRequirementPriority
+        businessPriority: string | null
+        system: string | null
+        customer: string | null
+      }
+    }
+  | { ok: false; error: string }
 
 export type YunxiaoArchiveRequirementArgs = {
   workItemIdOrUrl: string

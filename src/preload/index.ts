@@ -101,6 +101,7 @@ import type {
   YunxiaoCreateRequirementArgs,
   YunxiaoListWorkItemsArgs,
   YunxiaoListWorkItemsResult,
+  YunxiaoRequirementFieldOptionsResult,
   YunxiaoRequirementResult,
   YunxiaoTodoPoolAddArgs,
   YunxiaoTodoPoolItem,
@@ -1934,6 +1935,8 @@ const api = {
       ipcRenderer.invoke('yunxiao:listWorkItems', args),
     createRequirement: (args: YunxiaoCreateRequirementArgs): Promise<YunxiaoRequirementResult> =>
       ipcRenderer.invoke('yunxiao:createRequirement', args),
+    listRequirementFieldOptions: (): Promise<YunxiaoRequirementFieldOptionsResult> =>
+      ipcRenderer.invoke('yunxiao:listRequirementFieldOptions'),
     archiveRequirement: (
       args: YunxiaoArchiveRequirementArgs
     ): Promise<YunxiaoArchiveRequirementResult> =>

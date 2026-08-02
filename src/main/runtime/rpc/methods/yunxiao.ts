@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { YunxiaoTodoPoolUpdateArgs, YunxiaoWorkItem } from '../../../../shared/yunxiao-types'
 import { archiveYunxiaoRequirement, createYunxiaoRequirement } from '../../../yunxiao/client'
+import { listYunxiaoRequirementFieldOptions } from '../../../yunxiao/requirement-field-options'
 import { listYunxiaoWorkItems } from '../../../yunxiao/work-item-list'
 import { defineMethod, type RpcMethod } from '../core'
 import { OptionalBoolean, OptionalFiniteNumber, OptionalString, requiredString } from '../schemas'
@@ -32,6 +33,9 @@ const YunxiaoCreateRequirement = z.object({
   title: requiredString('Title is required.'),
   description: OptionalString,
   priority: YunxiaoPriority,
+  businessPriority: OptionalString,
+  system: OptionalString,
+  customer: OptionalString,
   labels: z.array(z.string()).optional(),
   assignee: YunxiaoRelationId,
   archiveAfterCreate: OptionalBoolean
@@ -83,6 +87,11 @@ export const YUNXIAO_METHODS: RpcMethod[] = [
     name: 'yunxiao.createRequirement',
     params: YunxiaoCreateRequirement,
     handler: (params) => createYunxiaoRequirement(params)
+  }),
+  defineMethod({
+    name: 'yunxiao.listRequirementFieldOptions',
+    params: null,
+    handler: () => listYunxiaoRequirementFieldOptions()
   }),
   defineMethod({
     name: 'yunxiao.archiveRequirement',

@@ -174,6 +174,7 @@ import type {
   YunxiaoCreateRequirementArgs,
   YunxiaoListWorkItemsArgs,
   YunxiaoListWorkItemsResult,
+  YunxiaoRequirementFieldOptionsResult,
   YunxiaoRequirementResult,
   YunxiaoTodoPoolAddArgs,
   YunxiaoTodoPoolItem,
@@ -2316,6 +2317,7 @@ export type PreloadApi = {
   yunxiao: {
     listWorkItems: (args: YunxiaoListWorkItemsArgs) => Promise<YunxiaoListWorkItemsResult>
     createRequirement: (args: YunxiaoCreateRequirementArgs) => Promise<YunxiaoRequirementResult>
+    listRequirementFieldOptions: () => Promise<YunxiaoRequirementFieldOptionsResult>
     archiveRequirement: (
       args: YunxiaoArchiveRequirementArgs
     ) => Promise<YunxiaoArchiveRequirementResult>

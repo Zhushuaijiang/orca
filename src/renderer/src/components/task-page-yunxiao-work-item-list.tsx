@@ -9,6 +9,7 @@ import type {
   YunxiaoWorkItem,
   YunxiaoWorkItemCategory
 } from '../../../shared/types'
+import { TaskPageYunxiaoCreateRequirementDialog } from './task-page-yunxiao-create-requirement-dialog'
 import { TaskPageYunxiaoRequirementDecisionDialog } from './task-page-yunxiao-requirement-decision-dialog'
 import { TaskPageYunxiaoWorkItemTable } from './task-page-yunxiao-work-item-table'
 import { TaskPageYunxiaoWorkItemToolbar } from './task-page-yunxiao-work-item-toolbar'
@@ -60,6 +61,7 @@ export function TaskPageYunxiaoWorkItemList({
   const [loading, setLoading] = useState(false)
   const [todoPoolLoading, setTodoPoolLoading] = useState(false)
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
   const [answerTarget, setAnswerTarget] = useState<YunxiaoTodoPoolItem | null>(null)
   const [selectedWorkItemIds, setSelectedWorkItemIds] = useState<Set<string>>(() => new Set())
   const handleRequirementDecisionAnswer = useYunxiaoRequirementDecisionAnswer({
@@ -301,6 +303,7 @@ export function TaskPageYunxiaoWorkItemList({
           setPage(1)
         }}
         onConfigureTodoPoolAutomation={() => void configureTodoPoolAutomation()}
+        onCreateRequirement={() => setCreateOpen(true)}
         onQueryInputChange={setQueryInput}
         onQuerySubmit={() => {
           setAppliedQuery(queryInput.trim())
@@ -371,6 +374,11 @@ export function TaskPageYunxiaoWorkItemList({
         todoPoolItems={visibleTodoPoolItems}
         todoPoolLoading={todoPoolLoading}
         view={view}
+      />
+      <TaskPageYunxiaoCreateRequirementDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={() => setRefreshNonce((value) => value + 1)}
       />
       <TaskPageYunxiaoRequirementDecisionDialog
         item={answerTarget}
