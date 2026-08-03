@@ -104,7 +104,7 @@ import type {
   TaskSourceAvailabilityNotice,
   TaskSourceHostAvailability
 } from './task-source-context-summary'
-import { useConfirmationDialog } from '@/components/confirmation-dialog'
+import { useConfirmationDialog } from '@/components/confirmation-dialog-context'
 import {
   getGitHubPRPrimaryReviewer,
   getGitHubPRReviewerRows,
@@ -215,7 +215,12 @@ import {
 } from '@/components/task-page-cache-selectors'
 import { shouldHideTaskPageListChrome } from '@/components/task-page-list-chrome-visibility'
 import {
+  applyEmptyPageClamp,
+  applyWindowPageLimit,
+  buildSelectedReposKey,
+  deriveAdvertisedTotalPages,
   getTaskPagePerRepoLimit,
+  resolveEmptyPageOutcome,
   taskPageToGitHubApiPage
 } from '@/components/task-page-work-item-pagination'
 import { sortWorkItemsByNumber } from '../../../shared/work-items'
@@ -244,6 +249,13 @@ import {
   resolveUserRepoSwitchReset,
   resolveVanishedNewIssueRepoReset
 } from '@/components/task-page-new-issue-draft'
+import {
+  isTaskCreationDraftContentful,
+  type NewJiraIssueDraft,
+  type NewLinearIssueDraft,
+  type NewLinearProjectDraft
+} from '@/store/slices/task-creation-drafts'
+import { useTaskCreationDraftRetention } from '@/components/use-task-creation-draft-retention'
 import { findTaskPageJiraIssue } from '@/components/task-page-jira-cache-selectors'
 import { getRepoBackedTaskEmptyState } from '@/components/task-page-empty-state'
 import {
@@ -3192,6 +3204,33 @@ const hasUpstreamCandidateDivergence = (
   !!s.sources.upstreamCandidate &&
   !sameGitHubOwnerRepo(s.sources.originCandidate, s.sources.upstreamCandidate)
 
+function writeNewLinearProjectDraft(draft: NewLinearProjectDraft | null): void {
+  const state = useAppStore.getState()
+  if (draft && isTaskCreationDraftContentful(draft)) {
+    state.setNewLinearProjectDraft(draft)
+  } else {
+    state.clearNewLinearProjectDraft()
+  }
+}
+
+function writeNewLinearIssueDraft(draft: NewLinearIssueDraft | null): void {
+  const state = useAppStore.getState()
+  if (draft && isTaskCreationDraftContentful(draft)) {
+    state.setNewLinearIssueDraft(draft)
+  } else {
+    state.clearNewLinearIssueDraft()
+  }
+}
+
+function writeNewJiraIssueDraft(draft: NewJiraIssueDraft | null): void {
+  const state = useAppStore.getState()
+  if (draft && isTaskCreationDraftContentful(draft)) {
+    state.setNewJiraIssueDraft(draft)
+  } else {
+    state.clearNewJiraIssueDraft()
+  }
+}
+
 export default function TaskPage(): React.JSX.Element {
   useTranslation()
   const settings = useAppStore((s) => s.settings)
@@ -3329,6 +3368,18 @@ export default function TaskPage(): React.JSX.Element {
   const selectedWorkspaceRepos = useMemo(
     () => taskPickerRepos.filter((repo) => repoSelection.has(repo.id)),
     [repoSelection, taskPickerRepos]
+  )
+
+  // Why: see buildSelectedReposKey — array-identity deps re-fire on every
+  // repos:changed even when the selection is unchanged. The context part is
+  // resolved as GitHub, but every provider-independent field (projectId,
+  // hostId, projectHostSetupId, repoId) is identical across providers, so the
+  // GitLab effect can key off this too — it passes no gitlabProjectRef, so its
+  // context carries no providerIdentity of its own. Thread a projectRef into
+  // that call and this key needs a GitLab-scoped part.
+  const selectedReposKey = useMemo(
+    () => buildSelectedReposKey(selectedRepos, (r) => getTaskPageRepoSourceContext(r, 'github')),
+    [selectedRepos]
   )
 
   // Why: many affordances need *a* repo; use the first selected as default, while cross-repo dialogs still let the user override per-action.
@@ -3969,14 +4020,34 @@ export default function TaskPage(): React.JSX.Element {
   const [paginationLoading, setPaginationLoading] = useState(false)
   const [loadingTargetPage, setLoadingTargetPage] = useState<number | null>(null)
   const [countedTotalPages, setCountedTotalPages] = useState<number | null>(null)
+  // Proven window-422 page limit — separate from the count so a late count
+  // can't resurrect proven-unreachable pages, nor be pinned by a speculative
+  // withdrawal (see deriveAdvertisedTotalPages).
+  const [provenPageLimit, setProvenPageLimit] = useState<number | null>(null)
+  // Why: synchronous mirror of countedTotalPages — the empty-page branch needs
+  // the committed value, not a click-time closure, and refs update immediately.
+  const countedTotalPagesRef = useRef<number | null>(null)
   const fetchWorkItemsNextPage = useAppStore((s) => s.fetchWorkItemsNextPage)
   const countWorkItemsAcrossRepos = useAppStore((s) => s.countWorkItemsAcrossRepos)
 
+  // Why: keyed on selectedReposKey, not the selectedRepos array — a background
+  // repos:changed refresh mid-flight would otherwise bump the generation and
+  // silently discard the user's page navigation (#11485). Mirrors every dep of
+  // the fetch effect that resets page state, so a reset always invalidates
+  // in-flight page requests.
   useEffect(() => {
     paginationGenerationRef.current += 1
     setPaginationLoading(false)
     setLoadingTargetPage(null)
-  }, [selectedRepos, appliedTaskSearch, workItemsInvalidationNonce])
+  }, [
+    selectedReposKey,
+    appliedTaskSearch,
+    workItemsInvalidationNonce,
+    taskRefreshNonce,
+    taskSource,
+    githubMode,
+    taskResumeApplied
+  ])
 
   // Why: the dialog's "Use" button routes through the same direct-launch flow as the row-level "Use" CTA so behavior is consistent regardless of entry point.
   const githubTaskDrawerWorkItem = useAppStore((s) => s.githubTaskDrawerWorkItem)
@@ -5035,15 +5106,6 @@ export default function TaskPage(): React.JSX.Element {
     jiraTaskSourceContext
   ])
 
-  // Why: stable string key for selectedRepos so the GitLab effect doesn't re-run on every parent render from a new array ref.
-  const selectedReposKey = useMemo(
-    () =>
-      selectedRepos
-        .map((r) => `${r.id}|${r.path}|${r.connectionId ?? ''}|${r.executionHostId ?? ''}`)
-        .join(','),
-    [selectedRepos]
-  )
-
   // Why: fetch GitLab Issues and MRs separately so errors stay isolated per tab (mirrors GitHub's split endpoints).
   useEffect(() => {
     if (taskSource !== 'gitlab') {
@@ -5158,7 +5220,7 @@ export default function TaskPage(): React.JSX.Element {
     return () => {
       stale = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedReposKey encodes the only selectedRepos fields read above; keying off the array ref would re-run on every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedReposKey covers every selectedRepos field read above (see its GitHub-scoped-context note); keying off the array ref would re-run on every parent render.
   }, [taskSource, gitlabView, activeGitlabFilter, gitlabRefreshNonce, selectedReposKey])
 
   // Why: Todos fetch has its own effect — different trigger (no chip filter) and data path (gl.todos is user-scoped, not repo-scoped).
@@ -5858,6 +5920,16 @@ export default function TaskPage(): React.JSX.Element {
     setNewLinearProjectLabelIds([])
   }, [newLinearProjectTargetTeam?.id, newLinearProjectTargetTeam?.workspaceId])
 
+  const discardNewLinearProjectDraft = useTaskCreationDraftRetention({
+    open: newLinearProjectOpen,
+    draft: {
+      name: newLinearProjectName,
+      description: newLinearProjectDescription,
+      content: newLinearProjectContent
+    },
+    writeDraft: writeNewLinearProjectDraft
+  })
+
   // New Linear issue dialog state
   const [newLinearIssueOpen, setNewLinearIssueOpen] = useState(false)
   const [newLinearIssueTitle, setNewLinearIssueTitle] = useState('')
@@ -5870,6 +5942,12 @@ export default function TaskPage(): React.JSX.Element {
   const [newLinearIssuePriority, setNewLinearIssuePriority] = useState<number>(0)
   const [newLinearIssueProjectId, setNewLinearIssueProjectId] = useState<string | null>(null)
   const [newLinearIssueLabelIds, setNewLinearIssueLabelIds] = useState<string[]>([])
+
+  const discardNewLinearIssueDraft = useTaskCreationDraftRetention({
+    open: newLinearIssueOpen,
+    draft: { title: newLinearIssueTitle, body: newLinearIssueBody },
+    writeDraft: writeNewLinearIssueDraft
+  })
 
   const newLinearIssueTargetTeam = useMemo(
     () => availableTeams.find((t) => t.id === newLinearIssueTeamId) ?? availableTeams[0] ?? null,
@@ -6008,6 +6086,12 @@ export default function TaskPage(): React.JSX.Element {
   const [newJiraIssueCustomFieldValues, setNewJiraIssueCustomFieldValues] = useState<
     Record<string, string>
   >({})
+
+  const discardNewJiraIssueDraft = useTaskCreationDraftRetention({
+    open: newJiraIssueOpen,
+    draft: { title: newJiraIssueTitle, body: newJiraIssueBody },
+    writeDraft: writeNewJiraIssueDraft
+  })
   const includeJiraSiteNameInProjectLabel = selectedJiraSiteId === 'all'
   const previousProviderRuntimeContextKeyRef = useRef(providerRuntimeContextKey)
 
@@ -6359,10 +6443,12 @@ export default function TaskPage(): React.JSX.Element {
   const fallbackTotalPages = lastLoadedPageFull
     ? Math.max(pages.length, lastLoadedPageIndex + 2)
     : Math.max(1, pages.length)
-  const totalPages =
-    countedTotalPages && countedTotalPages > 0
-      ? Math.max(pages.length, countedTotalPages)
-      : fallbackTotalPages
+  const totalPages = deriveAdvertisedTotalPages({
+    loadedPages: pages.length,
+    countedTotalPages,
+    fallbackTotalPages,
+    provenPageLimit
+  })
 
   // Why: load only the clicked page so a high-page jump doesn't exhaust GitHub's Search API rate bucket.
   const handleLoadNextPage = useCallback(
@@ -6383,7 +6469,7 @@ export default function TaskPage(): React.JSX.Element {
       setPaginationLoading(true)
       setLoadingTargetPage(target)
       try {
-        const { items } = await fetchWorkItemsNextPage(
+        const { items, failedCount, errorTypes } = await fetchWorkItemsNextPage(
           repoArgs,
           githubPerRepoPageLimit,
           githubPageSize,
@@ -6394,6 +6480,55 @@ export default function TaskPage(): React.JSX.Element {
           return
         }
         if (items.length === 0) {
+          // Why: see resolveEmptyPageOutcome — a dead click needs feedback only
+          // when something actually failed; a clean empty probe is end-of-data.
+          // The reason never depends on the count, so it's safe to derive here;
+          // the clamp is not (see applyEmptyPageClamp) and runs in the updater.
+          const { reason } = resolveEmptyPageOutcome({
+            target,
+            failedCount,
+            errorTypes,
+            countedTotalPages: null
+          })
+          if (reason === 'window-unreachable') {
+            toast.error(
+              translate(
+                'auto.components.TaskPage.loadPageUnreachable',
+                'Page {{value0}} is beyond what GitHub search can return.',
+                { value0: String(target + 1) }
+              ),
+              { id: 'work-items-page-unreachable' }
+            )
+            setProvenPageLimit((previous) => applyWindowPageLimit(previous, target))
+          } else if (reason === 'load-failed') {
+            toast.error(
+              translate(
+                'auto.components.TaskPage.loadPageFailed',
+                'Page {{value0}} could not be loaded from GitHub.',
+                { value0: String(target + 1) }
+              ),
+              { id: 'work-items-page-load-failed' }
+            )
+          } else {
+            // Why: with a real count the clamp is refused, so without feedback
+            // the click would look dead — the count over-advertised; nothing
+            // failed, so the copy stays neutral. The ref carries the committed
+            // count, immune to the click-time closure race.
+            const committedCount = countedTotalPagesRef.current
+            if (committedCount !== null && committedCount > 0) {
+              toast(
+                translate(
+                  'auto.components.TaskPage.loadPageNoMoreResults',
+                  'No more results on page {{value0}}.',
+                  { value0: String(target + 1) }
+                ),
+                { id: 'work-items-page-no-more-results' }
+              )
+            }
+            const next = applyEmptyPageClamp(committedCount, { target, failedCount, errorTypes })
+            countedTotalPagesRef.current = next
+            setCountedTotalPages(next)
+          }
           return
         }
         setPages((previous) => {
@@ -6501,6 +6636,8 @@ export default function TaskPage(): React.JSX.Element {
     setPages([page0])
     setCurrentPage(0)
     setCountedTotalPages(null)
+    countedTotalPagesRef.current = null
+    setProvenPageLimit(null)
     setTasksError(null)
     setFailedCount(0) // reset so a prior failure banner doesn't linger
     setGithubUnavailable(false)
@@ -6605,6 +6742,10 @@ export default function TaskPage(): React.JSX.Element {
       githubPerRepoPageLimit
     ).then(({ totalPages: countedPages }) => {
       if (!cancelled) {
+        // Why: the count overwrites unconditionally — proven window limits live
+        // in provenPageLimit, so a late count can't be pinned by a speculative
+        // end-of-data withdrawal, and can't resurrect proven-dead pages either.
+        countedTotalPagesRef.current = countedPages
         setCountedTotalPages(countedPages)
       }
     })
@@ -6613,9 +6754,13 @@ export default function TaskPage(): React.JSX.Element {
       cancelled = true
     }
     // Why: store selectors are stable (omit from deps); workItemsInvalidationNonce included so a preference flip re-dispatches.
+    // selectedReposKey stands in for selectedRepos — the array gets a fresh
+    // identity on every repos:changed event, and re-running this effect then
+    // resets pagination mid-click (#11485). The key covers every repo field the
+    // requests read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    selectedRepos,
+    selectedReposKey,
     appliedTaskSearch,
     taskRefreshNonce,
     taskSource,
@@ -7286,6 +7431,7 @@ export default function TaskPage(): React.JSX.Element {
             : undefined
         }
       )
+      discardNewLinearProjectDraft()
       setNewLinearProjectOpen(false)
       setNewLinearProjectName('')
       setNewLinearProjectDescription('')
@@ -7328,7 +7474,8 @@ export default function TaskPage(): React.JSX.Element {
     newLinearProjectTargetTeam,
     openLinearProjectContext,
     linearTaskSourceContext,
-    settings
+    settings,
+    discardNewLinearProjectDraft
   ])
 
   const handleCreateNewLinearIssue = useCallback(async (): Promise<void> => {
@@ -7389,6 +7536,7 @@ export default function TaskPage(): React.JSX.Element {
             : undefined
         }
       )
+      discardNewLinearIssueDraft()
       setNewLinearIssueOpen(false)
       setNewLinearIssueTitle('')
       setNewLinearIssueBody('')
@@ -7434,7 +7582,8 @@ export default function TaskPage(): React.JSX.Element {
     selectedLinearProject,
     setSelectedLinearIssue,
     linearTaskSourceContext,
-    settings
+    settings,
+    discardNewLinearIssueDraft
   ])
 
   const handleCreateNewJiraIssue = useCallback(async (): Promise<void> => {
@@ -7483,6 +7632,7 @@ export default function TaskPage(): React.JSX.Element {
             : undefined
         }
       )
+      discardNewJiraIssueDraft()
       setNewJiraIssueOpen(false)
       setNewJiraIssueTitle('')
       setNewJiraIssueBody('')
@@ -7523,7 +7673,8 @@ export default function TaskPage(): React.JSX.Element {
     jiraTaskSourceContext,
     settings,
     setSelectedJiraIssue,
-    visibleJiraCreateFields
+    visibleJiraCreateFields,
+    discardNewJiraIssueDraft
   ])
 
   const githubTasksBusy = tasksLoading || tasksRefreshing || tasksFiltering
@@ -9022,9 +9173,11 @@ export default function TaskPage(): React.JSX.Element {
                               size="icon"
                               onClick={() => {
                                 if (linearMode === 'projects' && !selectedLinearProject) {
-                                  setNewLinearProjectName('')
-                                  setNewLinearProjectDescription('')
-                                  setNewLinearProjectContent('')
+                                  // Why: restore dismissed typed text (accidental dismissal recoverable); pickers keep their fresh open-time defaults.
+                                  const draft = useAppStore.getState().newLinearProjectDraft
+                                  setNewLinearProjectName(draft?.name ?? '')
+                                  setNewLinearProjectDescription(draft?.description ?? '')
+                                  setNewLinearProjectContent(draft?.content ?? '')
                                   setNewLinearProjectTeamId(availableTeams[0]?.id ?? null)
                                   setNewLinearProjectLeadId(null)
                                   setNewLinearProjectMemberIds([])
@@ -9035,8 +9188,10 @@ export default function TaskPage(): React.JSX.Element {
                                   setNewLinearProjectOpen(true)
                                   return
                                 }
-                                setNewLinearIssueTitle('')
-                                setNewLinearIssueBody('')
+                                // Why: restore dismissed typed text (accidental dismissal recoverable); pickers keep their fresh open-time defaults.
+                                const issueDraft = useAppStore.getState().newLinearIssueDraft
+                                setNewLinearIssueTitle(issueDraft?.title ?? '')
+                                setNewLinearIssueBody(issueDraft?.body ?? '')
                                 const projectTeamId =
                                   selectedLinearProject?.teams?.[0]?.id ??
                                   availableTeams.find(
@@ -9253,8 +9408,10 @@ export default function TaskPage(): React.JSX.Element {
                               variant="outline"
                               size="icon"
                               onClick={() => {
-                                setNewJiraIssueTitle('')
-                                setNewJiraIssueBody('')
+                                // Why: restore dismissed typed text (accidental dismissal recoverable); pickers keep their fresh open-time defaults.
+                                const draft = useAppStore.getState().newJiraIssueDraft
+                                setNewJiraIssueTitle(draft?.title ?? '')
+                                setNewJiraIssueBody(draft?.body ?? '')
                                 setNewJiraIssueProjectId(
                                   sortedAvailableJiraProjects[0]
                                     ? getJiraProjectSelectionKey(sortedAvailableJiraProjects[0])

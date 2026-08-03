@@ -451,16 +451,12 @@ export function createMainWindow(
       return
     }
 
-    const allowWindowClose = [params.preload, webPreferences.preload].some((preload) =>
+    const _allowWindowClose = [params.preload, webPreferences.preload].some((preload) =>
       isBrowserWindowCloseAllowedPreload(preload)
     )
     delete params.preload
-    if (allowWindowClose) {
-      delete webPreferences.preload
-    } else {
-      // Why: preload runs in the page's main world before inline scripts can call window.close().
-      webPreferences.preload = browserWindowClosePreload
-    }
+    // Why: preload runs in the page's main world before inline scripts can call window.close().
+    webPreferences.preload = browserWindowClosePreload
     // Why: older Electron builds expose preloadURL alongside preload; delete both so the guest can't inherit the main preload bridge.
     delete (webPreferences as Record<string, unknown>).preloadURL
     webPreferences.nodeIntegration = false

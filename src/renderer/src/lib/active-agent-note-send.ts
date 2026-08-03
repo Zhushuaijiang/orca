@@ -28,7 +28,6 @@ export {
   getActiveAgentRuntimeProbeDescriptor,
   getActiveTerminalNoteTarget,
   probeActiveAgentNoteTarget,
-  useCanSendNotesToActiveTerminal,
   type ActiveTerminalNoteTarget
 } from './active-agent-note-target'
 export {
