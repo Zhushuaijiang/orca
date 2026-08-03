@@ -167,7 +167,7 @@ Useful options:
 - `--json` prints a machine-readable wrapper with `work_item_id`, `output_dir`, `rows`, and `message`.
 - `run_mcp_archive.py`, `download_mcp_archive.py`, and `comment_mcp_yunxiao.py` remain available for legacy HIS MCP fallback only.
 - `update_yunxiao_completion_fields.py` uses Yunxiao MCP/OpenAPI directly. It reads `raw.json`, resolves the current organization, finds the work item workflow and field config, updates status to `待测试`, adds participants, writes `客户端变更`/`服务端变更`/`数据变更`, then reads the work item back and fails if verification does not match.
-- `upload_yunxiao_attachment.py` uploads the exact bytes of a local file as a Yunxiao attachment and verifies by reading `list_workitem_attachments` back. Use it for SQL/data/config scripts; do not fake a file name by uploading PRD/comment text.
+- `upload_yunxiao_attachment.py` uploads the exact bytes of a local file as a Yunxiao attachment and verifies by reading `list_workitem_attachments` back. It returns `attachmentId` and an `embedMarkdown` image link for use inside comments. Use it for SQL/data/config scripts and frontend self-test screenshots; do not fake a file name by uploading PRD/comment text.
 
 ## Post-Push Yunxiao Completion Harness
 
@@ -210,6 +210,23 @@ For DFHIS frontend repositories:
 - Install only inside `{需求目录}/code/<repo>` or another approved isolated worktree, never in the original selected code root. Use frozen/locked installs such as `corepack yarn install --frozen-lockfile --force`; avoid changing `package.json`, lock files, or dependency definitions to make validation pass.
 - After install/build scripts, run `git status --short` and revert only generated side effects you created, such as version stamping in `public/config.json`; leave ignored `node_modules/` or `dist/` as local artifacts.
 - If full lint is blocked by unrelated historical files, run focused lint or syntax checks on the requirement's changed/affected files, then run the closest build script. Record both the full-lint blocker and the focused/build evidence in `PRD_AND_CODE_ANALYSIS.md`.
+
+## Frontend Screenshot Self-Test Gate
+
+When any frontend/client code changed, self-test screenshots of the modified page are mandatory delivery evidence, not optional polish. Testers rely on these images; a frontend change delivered with build-only evidence is incomplete.
+
+- Never close a frontend change with "sub-app cannot render locally" as a non-blocking limitation. Stand up the local rendering stack and capture real screenshots; the concrete recipe is in [verification-and-evidence.md](references/verification-and-evidence.md).
+- Screenshot the modified business page in each acceptance state (for example collapsed/expanded, before/after values), never only the login page, shell home, or a menu. Inspect every image visually before uploading.
+- Store final images under `{需求目录}/evidence/screenshots/` with descriptive names that include the DFHIS id.
+- Compress before upload; the Yunxiao MCP rejects large payloads with `HTTP 413 Payload Too Large`:
+
+  ```bash
+  sips -Z 1100 -s format jpeg -s formatOptions 45 shot.png --out shot.jpg
+  ```
+
+  Use `-Z`; combining `-s pixelsWide` with `-s format` silently produces no file.
+- Upload each image with `scripts/upload_yunxiao_attachment.py --requirement-dir {需求目录} --file {截图}`, then embed the returned `embedMarkdown` into a comment posted with `scripts/comment_yunxiao.py` so the images render inline on the work item.
+- Record the screenshot attachment ids in `PRD_AND_CODE_ANALYSIS.md` and the final summary. Any later material edit invalidates the images: mark them `superseded` and recapture from the final diff.
 
 ## Executable HIS Workflow Gate
 
@@ -318,7 +335,7 @@ When the user asks to fix a DFHIS requirement:
 9. Implement the smallest code change that matches the evidence and the handoff document. Do not modify unrelated repositories or formatting. Do not modify `build.gradle`/`settings.gradle`/`pom.xml`/dependency lock files, switch to `compile project(...)`, or touch project-local `*-api` / API modules as the only contract change. If API contract changes are required, update the matching `df-his-api` module and include API jar/release dependency plus downstream compile verification in the handoff; if that path is unclear, stop and update the contract as `needs_clarification` or `blocked`.
 10. Verify locally. Prefer `lint`, `build`, or syntax checks from the repo scripts. For frontend repositories, follow the DFHIS frontend verification environment gate above before declaring dependency/tooling blockers. If private dependencies still block verification after the correct Node/package-manager attempt, record the exact blocker in both the chat summary and the handoff document.
 11. Commit and push the branch from the local machine. If this requirement came from an Orca Yunxiao todo pool claim, the git commit message must be exactly the full Yunxiao URL from the claim's `提交信息` or `链接` field, and nothing else. Do not replace it with only `DFHIS-12345`, the title, a summary, or a conventional commit message. Push explicitly to the requirement branch, for example `git push -u origin feature-DFHIS-12345`, then verify `git status -sb` so the local branch tracks the pushed feature/hotfix branch rather than the RC base. Do not upload patches to `192.168.1.10` for server-side pushing.
-12. After every successful push, comment on the Yunxiao work item with `scripts/comment_yunxiao.py`. The comment must include repository, branch, commit id, changed files, concise fix summary, validation result, handoff document path, and any dependency/test blockers. If commenting fails, treat the workflow as incomplete and report the exact failure.
+12. After every successful push, comment on the Yunxiao work item with `scripts/comment_yunxiao.py`. The comment must include repository, branch, commit id, changed files, concise fix summary, validation result, handoff document path, and any dependency/test blockers. When any frontend/client code changed, first capture and upload self-test screenshots of the modified page and embed them in this comment (see Frontend Screenshot Self-Test Gate). If commenting fails, treat the workflow as incomplete and report the exact failure.
 13. If a SQL/data/config script changed, upload the exact script file with `scripts/upload_yunxiao_attachment.py` and verify the attachment list before updating structured fields. If upload or verification fails, treat the workflow as incomplete.
 14. After the comment and any required attachment upload, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. The script must update status to `待测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
 15. Report branch name, commit id, pushed remote, Yunxiao comment status/action id, Yunxiao attachment id/status when relevant, Yunxiao field update status, changed files, validation result, local archive path, PRD/code-analysis document path, and any dependency/test blockers.

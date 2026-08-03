@@ -34,6 +34,26 @@ implement
 
 Build success with a wrong screenshot is a UI failure. A final verification must use the same final diff that will be reviewed, committed, pushed, or released.
 
+## Local screenshot capture recipe
+
+For DFHIS qiankun frontends, do not conclude "the sub-app cannot render locally". Stand up the local stack against the 152 environment:
+
+- Run three dev servers together: the main portal `df-web-main` (default `:9000`, proxying the 152 gateway `192.168.1.151:9000`), the target sub-app (for example `df-web-zhushujugl` on `:8033`; in dev mode the portal's `src/config/apps/apps.dev.js` loads the child from localhost), and the shared module `df-web-bui` (`:8034`). Without `df-web-bui` the portal bootstrap fails and pages stay blank.
+- Legacy webpack frontends need Node 18 with `export NODE_OPTIONS=--openssl-legacy-provider`.
+- Capture with `playwright-core` installed under `{需求目录}/e2e/` (never in the product repo): `chromium.launch({ channel: 'chrome', headless: true })` reuses the installed Chrome, so no browser download is needed. Orca computer-use is an alternative only when `orca computer permissions --json` shows Accessibility and Screen Recording granted; otherwise do not loop on `permission_denied`.
+- Login with the 152 万能密码 obtained through the approved read-only parameter lookup (see `dfhis-company-environment`), kept in an ignored local credential file and never echoed. The login account must be the employee 工号 (for example `DBA`, resolved from `gy_zhigongxx`); Chinese display names fail.
+- Playwright pitfalls seen in practice: remove blocking overlays (`.df-utils-message-wrapper`, `.el-message`, `.v-modal`) via injected JS before clicking; add explicit waits for slow system-list drawers and qiankun mounts; pass strings instead of closures into `page.evaluate`; if row click/dblclick does not open an edit drawer, open the same dialog component through the `新增` button.
+
+## Screenshot upload and Yunxiao comment
+
+Self-test screenshots are delivery evidence and must reach the work item:
+
+1. Copy final images to `{需求目录}/evidence/screenshots/` with DFHIS-id-prefixed descriptive names.
+2. Compress each image; the Yunxiao MCP rejects large request bodies with `HTTP 413 Payload Too Large`. Use `sips -Z 1100 -s format jpeg -s formatOptions 45 in.png --out out.jpg` (`-s pixelsWide` combined with `-s format` silently writes nothing).
+3. Upload with `scripts/upload_yunxiao_attachment.py --requirement-dir {需求目录} --file {image}`; it returns `attachmentId` and an `embedMarkdown` image link.
+4. Post a comment whose body embeds those `embedMarkdown` links via `scripts/comment_yunxiao.py`, so the images render inline on the work item, and record the attachment/comment ids in the handoff document.
+
+
 ## Authentication and environment evidence
 
 - Prove the login contract: account, system/tenant/site, required fields, login response, active application, and menu permission. Do not replace integrated login with a token-only stub.

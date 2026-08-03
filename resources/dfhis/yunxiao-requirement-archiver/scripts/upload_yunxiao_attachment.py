@@ -127,6 +127,23 @@ def attachment_size(item: dict) -> int:
         return -1
 
 
+def attachment_id(item: dict) -> str:
+    if not isinstance(item, dict):
+        return ""
+    for key in ("id", "fileIdentifier", "identifier", "fileId"):
+        value = item.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def embed_markdown(file_name: str, item: dict) -> str:
+    ident = attachment_id(item)
+    if not ident:
+        return ""
+    return f"![{file_name}](https://devops.aliyun.com/projex/api/workitem/file/url?fileIdentifier={ident})"
+
+
 def main() -> int:
     args = build_parser().parse_args()
     requirement_dir = Path(args.requirement_dir).expanduser().resolve()
@@ -202,10 +219,16 @@ def main() -> int:
             {"organizationId": organization_id, "workItemId": work_item_id},
             5,
         )
-        verified = any(
-            isinstance(item, dict) and attachment_name(item) == file_name and attachment_size(item) == file_size
-            for item in after or []
+        verified_item = next(
+            (
+                item
+                for item in after or []
+                if isinstance(item, dict) and attachment_name(item) == file_name and attachment_size(item) == file_size
+            ),
+            None,
         )
+        verified = verified_item is not None
+        embed = embed_markdown(file_name, verified_item or attachment)
         print(
             json.dumps(
                 {
@@ -215,6 +238,8 @@ def main() -> int:
                     "organizationId": organization_id,
                     "fileName": file_name,
                     "size": file_size,
+                    "attachmentId": attachment_id(verified_item or attachment),
+                    "embedMarkdown": embed,
                     "attachment": attachment,
                     "uploadResult": upload_result,
                 },
