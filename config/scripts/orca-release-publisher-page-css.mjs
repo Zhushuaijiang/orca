@@ -89,7 +89,7 @@ export function pageCss() {
     .pill.ready, .pill.published { background: var(--success-soft); color: var(--success); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
     .pill.running { background: var(--info-soft); color: var(--info); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
     .pill.failed, .pill.version-mismatch { background: color-mix(in srgb, var(--destructive) 9%, var(--card)); color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 30%, transparent); }
-    .pill.skipped, .pill.dry-run { background: var(--warning-soft); color: var(--warning); border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
+    .pill.skipped, .pill.dry-run, .pill.interrupted { background: var(--warning-soft); color: var(--warning); border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
 
     .steps { display: flex; align-items: flex-start; margin: 4px 0 12px; }
     .step { flex: 1; display: grid; justify-items: center; gap: 6px; position: relative; text-align: center; }

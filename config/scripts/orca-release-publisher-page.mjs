@@ -215,7 +215,9 @@ el('releaseAll').onclick = async () => {
       repoRoot: el('repoRoot').value,
       sshPassword: el('sshPassword').value
     })
-    el('output').textContent = '自动发布流水线已启动 (pid ' + result.pid + ')，进度见"自动发布流水线"面板。'
+    el('output').textContent = result.alreadyRunning
+      ? '自动发布流水线已在运行中，进度见"自动发布流水线"面板。'
+      : '自动发布流水线已启动 (pid ' + result.pid + ')，进度见"自动发布流水线"面板。'
     await refresh()
   } catch (error) { el('output').textContent = error.message } finally { setBusy('') }
 }

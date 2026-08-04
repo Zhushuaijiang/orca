@@ -9,13 +9,14 @@
 // ORCA_AUTO_RELEASE_DISABLED=1; override the branch with ORCA_AUTO_RELEASE_BRANCH.
 
 import { existsSync } from 'node:fs'
-import { appendFile, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import {
   commitAndPushReleaseVersion,
   prepareNextReleaseVersion
 } from './orca-release-versioning.mjs'
+import { clearStaleLock, isLockProcessAlive, writeLockInfo } from './dfhis-auto-release-lock.mjs'
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..')
 const DEFAULT_BRANCH = 'codex/windows-dfhis-setup-rc5'
@@ -311,17 +312,34 @@ async function main() {
   await logLine(`auto-release triggered (hook=${fromHook}, dryRun=${dryRun})`)
 
   const unlock = async () => {
-    await rmdir(LOCK_DIR).catch(() => {})
+    await rm(LOCK_DIR, { recursive: true, force: true }).catch(() => {})
   }
+  let lockAcquired = false
   try {
     await mkdir(LOCK_DIR)
+    lockAcquired = true
   } catch {
+    // Why: a crashed or killed run leaves the lock dir behind; without a
+    // liveness check every later trigger would queue pending forever.
+    if (!isLockProcessAlive(LOCK_DIR)) {
+      await logLine('clearing stale auto-release lock (no live pipeline process)')
+      clearStaleLock(LOCK_DIR)
+      try {
+        await mkdir(LOCK_DIR)
+        lockAcquired = true
+      } catch {
+        // lost the race to another starter; fall through to pending queue
+      }
+    }
+  }
+  if (!lockAcquired) {
     // Why: hook fires while a run holds the lock would lose this commit, so
     // queue a pending marker; the active run re-spawns for it when done.
     await writeFile(PENDING_FILE, `${new Date().toISOString()}\n`).catch(() => {})
     await logLine('skip: another auto-release run holds the lock (queued as pending)')
     return
   }
+  writeLockInfo(LOCK_DIR, process.pid)
   // Why: guards run only after the lock is held, so a skipped run can never
   // clobber the status file of an active pipeline.
   const skip = async (reason) => {
