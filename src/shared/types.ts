@@ -8,7 +8,7 @@ import type {
 } from './ssh-types'
 import type { Automation, AutomationExecutionTargetType, AutomationRun } from './automations-types'
 import type { WorkspaceSource } from './workspace-source'
-import type { ReleaseBuild, ReleaseChannel } from './release-channel'
+import type { DedicatedRepoChannel, ReleaseBuild, ReleaseChannel } from './release-channel'
 import type { GitHubProjectSettings } from './github-project-types'
 import type {
   AgentStatusState,
@@ -2433,7 +2433,7 @@ export type UpdateCheckOptions = {
   targetTag?: string
 }
 
-export type UpdateSource = 'local' | 'hourly' | 'dfhis'
+export type UpdateSource = 'local' | DedicatedRepoChannel | 'dfhis'
 
 /** Root-package Linux install formats whose update installs need privilege escalation. */
 export type LinuxRootPackageType = 'deb' | 'rpm'

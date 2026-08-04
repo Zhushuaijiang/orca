@@ -50,7 +50,6 @@ import { closeDashboardPopout } from './dashboard-popout-window'
 import { installPrivilegedWindowNavigationPolicy } from './privileged-window-navigation'
 import { isMacosTahoeOrNewer } from './macos-tahoe-release'
 import { registerPluginPanelNavigationGuard } from '../plugins/plugin-panel-navigation-guard'
-import { isBrowserWindowCloseAllowedPreload } from './browser-window-close-preload'
 
 // Why: show/restore/resume can overlap before the size nudge resets; never capture the temporary width as the next baseline.
 const activeRepaintJiggles = new WeakSet<BrowserWindow>()
@@ -451,9 +450,6 @@ export function createMainWindow(
       return
     }
 
-    const _allowWindowClose = [params.preload, webPreferences.preload].some((preload) =>
-      isBrowserWindowCloseAllowedPreload(preload)
-    )
     delete params.preload
     // Why: preload runs in the page's main world before inline scripts can call window.close().
     webPreferences.preload = browserWindowClosePreload
