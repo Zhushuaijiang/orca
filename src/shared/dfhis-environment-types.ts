@@ -18,6 +18,8 @@ export type DfHisEnvironmentPrerequisiteId =
   | 'his-code-root'
   | 'his-workflow-catalog'
   | 'archive-workspace'
+  | 'kimi-cli'
+  | 'relay-exec-model'
 
 export type DfHisEnvironmentPrerequisiteStatus = 'ok' | 'missing' | 'invalid'
 
@@ -48,6 +50,8 @@ export type DfHisEnvironmentConfigInput = {
   hisWorkflowCatalogPath?: string
   archiveWorkspacePath?: string
   dfhisSkillPackUrl?: string
+  relayExecModel?: string
+  relayExecApiKey?: string
 }
 
 export type DfHisEnvironmentConfigSnapshot = {
@@ -64,6 +68,9 @@ export type DfHisEnvironmentConfigSnapshot = {
   hisWorkflowCatalogPath: string
   archiveWorkspacePath: string
   dfhisSkillPackUrl: string
+  relayExecModel: string
+  relayExecApiKey: string
+  hasRelayExecApiKey: boolean
 }
 
 export type DfHisEnvironmentInstallResult = {

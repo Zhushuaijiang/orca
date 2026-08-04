@@ -36,6 +36,11 @@ import {
   checkHisMcpToolsPrerequisite,
   checkYunxiaoMcpToolsPrerequisite
 } from '../../../dfhis-environment/mcp-tool-prerequisites'
+import {
+  checkKimiCliPrerequisite,
+  checkRelayExecModelPrerequisite,
+  ensureKimiRelayInstalled
+} from '../../../dfhis-environment/kimi-relay-prerequisites'
 import { describeYgtCompanyEnvironmentStatus } from '../../../dfhis-environment/ygt-company-environment'
 
 const DfHisEnvironmentConfigInputSchema = z
@@ -49,7 +54,9 @@ const DfHisEnvironmentConfigInputSchema = z
     hisCodeRoot: OptionalPlainString,
     hisWorkflowCatalogPath: OptionalPlainString,
     archiveWorkspacePath: OptionalPlainString,
-    dfhisSkillPackUrl: OptionalPlainString
+    dfhisSkillPackUrl: OptionalPlainString,
+    relayExecModel: OptionalPlainString,
+    relayExecApiKey: OptionalPlainString
   })
   .optional()
   .nullable()
@@ -149,6 +156,7 @@ async function checkGitLabPrerequisite(): Promise<DfHisEnvironmentPrerequisiteRe
 
 async function checkDfHisEnvironment() {
   await ensureDfHisWorkflowPackInstalled()
+  const config = readDfHisEnvironmentConfigSync()
   const [
     git,
     python,
@@ -158,7 +166,9 @@ async function checkDfHisEnvironment() {
     dfhisWorkflowPack,
     hisCodeRoot,
     hisWorkflowCatalog,
-    archiveWorkspace
+    archiveWorkspace,
+    kimiCli,
+    relayExecModel
   ] = await Promise.all([
     checkGitPrerequisite(),
     checkPythonPrerequisite(),
@@ -168,7 +178,9 @@ async function checkDfHisEnvironment() {
     checkDfHisWorkflowPackPrerequisites(),
     checkHisCodeRootPrerequisite(),
     checkHisWorkflowCatalogPrerequisite(),
-    checkArchiveWorkspacePrerequisite()
+    checkArchiveWorkspacePrerequisite(),
+    checkKimiCliPrerequisite(),
+    checkRelayExecModelPrerequisite(config)
   ])
   return {
     checkedAt: new Date().toISOString(),
@@ -183,7 +195,9 @@ async function checkDfHisEnvironment() {
       ...dfhisWorkflowPack,
       hisCodeRoot,
       hisWorkflowCatalog,
-      archiveWorkspace
+      archiveWorkspace,
+      kimiCli,
+      relayExecModel
     ],
     config: snapshotDfHisEnvironmentConfig()
   }
@@ -220,7 +234,8 @@ async function installDfHisEnvironment(
     await installGitLabAccess(config),
     ...(await pullAndEnsureDfHisWorkflowPack(config.dfhisSkillPackUrl)),
     describeYgtCompanyEnvironmentStatus(),
-    await ensureArchiveWorkspace(config)
+    await ensureArchiveWorkspace(config),
+    ...(await ensureKimiRelayInstalled(config))
   ]
   return {
     installed: messages.every(

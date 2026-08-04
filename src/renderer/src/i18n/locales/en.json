@@ -10319,7 +10319,9 @@
           "willSwitch": "{{value0}} → {{value1}}",
           "webUnavailable": "Switching builds is only available in the desktop app.",
           "hourlyMacOnlyAria": "Hourly (macOS only)",
-          "hourlyMacOnly": "Hourly builds are produced only for macOS. Linux and Windows stay on Stable or RC."
+          "hourlyMacOnly": "Hourly builds are produced only for macOS. Linux and Windows stay on Stable or RC.",
+          "devChannelMacOnlyAria": "{{value0}} (macOS only)",
+          "devChannelMacOnly": "{{value0}} builds are produced only for macOS. Linux and Windows stay on Stable or RC."
         },
         "DfHisEnvironmentPane": {
           "statusReady": "Ready",
@@ -10363,7 +10365,15 @@
           "yunxiaoTokenPlaceholder": "YUNXIAO_ACCESS_TOKEN",
           "hisTokenPlaceholder": "HIS_MCP_TOKEN",
           "hisCodeRootPlaceholder": "~/workspace/<project>/code",
-          "archiveWorkspacePathPlaceholder": "~/workspace/yunxiao"
+          "archiveWorkspacePathPlaceholder": "~/workspace/yunxiao",
+          "hisWorkflowCatalogPath": "HIS workflow service catalog",
+          "hisWorkflowCatalogPathPlaceholder": "~/workspace/his-workflow-catalog.json",
+          "relayExecModel": "Relay exec model (kimi alias)",
+          "relayExecModelPlaceholder": "deepseek/deepseek-v4-flash",
+          "relayExecApiKey": "Relay exec model API key (optional)",
+          "relayExecApiKeyPlaceholder": "sk-... (empty = relay uses k3 only)",
+          "dfhisSkillPackUrl": "DFHIS skill pack URL",
+          "dfhisSkillPackUrlPlaceholder": "https://.../dfhis-skill-pack.json"
         },
         "VoiceMicrophoneSetting": {
           "systemDefault": "System default",

@@ -185,7 +185,9 @@ export function DfHisEnvironmentPane(): JSX.Element {
       hisCodeRoot: current.hisCodeRoot || snapshot.hisCodeRoot,
       hisWorkflowCatalogPath: current.hisWorkflowCatalogPath || snapshot.hisWorkflowCatalogPath,
       archiveWorkspacePath: current.archiveWorkspacePath || snapshot.archiveWorkspacePath,
-      dfhisSkillPackUrl: current.dfhisSkillPackUrl || snapshot.dfhisSkillPackUrl
+      dfhisSkillPackUrl: current.dfhisSkillPackUrl || snapshot.dfhisSkillPackUrl,
+      relayExecModel: current.relayExecModel || snapshot.relayExecModel,
+      relayExecApiKey: current.relayExecApiKey || snapshot.relayExecApiKey
     }))
   }, [])
 

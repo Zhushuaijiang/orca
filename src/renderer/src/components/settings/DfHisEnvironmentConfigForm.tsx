@@ -19,7 +19,9 @@ export function createEmptyDfHisEnvironmentConfigForm(): DfHisEnvironmentConfigF
     hisCodeRoot: '',
     hisWorkflowCatalogPath: '',
     archiveWorkspacePath: '',
-    dfhisSkillPackUrl: ''
+    dfhisSkillPackUrl: '',
+    relayExecModel: '',
+    relayExecApiKey: ''
   }
 }
 
@@ -170,6 +172,40 @@ export function DfHisEnvironmentConfigForm({
             placeholder={translate(
               'auto.components.settings.DfHisEnvironmentPane.archiveWorkspacePathPlaceholder',
               '~/workspace/yunxiao'
+            )}
+            disabled={disabled}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-foreground">
+            {translate(
+              'auto.components.settings.DfHisEnvironmentPane.relayExecModel',
+              'Relay exec model (kimi alias)'
+            )}
+          </span>
+          <Input
+            value={value.relayExecModel}
+            onChange={(event) => onChange('relayExecModel', event.target.value)}
+            placeholder={translate(
+              'auto.components.settings.DfHisEnvironmentPane.relayExecModelPlaceholder',
+              'deepseek/deepseek-v4-flash'
+            )}
+            disabled={disabled}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-foreground">
+            {translate(
+              'auto.components.settings.DfHisEnvironmentPane.relayExecApiKey',
+              'Relay exec model API key (optional)'
+            )}
+          </span>
+          <Input
+            value={value.relayExecApiKey}
+            onChange={(event) => onChange('relayExecApiKey', event.target.value)}
+            placeholder={translate(
+              'auto.components.settings.DfHisEnvironmentPane.relayExecApiKeyPlaceholder',
+              'sk-... (empty = relay uses k3 only)'
             )}
             disabled={disabled}
           />

@@ -198,6 +198,47 @@ When such a change is present:
 
 If a parameter/data change is discovered after the work item was already moved to `待测试`, reopen the handoff as a follow-up delivery: update the Requirement Contract, add the SQL/data patch, rerun fresh verification, upload the attachment, update `数据变更`, add a new Yunxiao comment, and only then restate completion.
 
+## Orca Model Relay (Multi-Model Staged Execution)
+
+When the user asks for model relay (`模型接龙`) or staged multi-model execution, drive the requirement through `scripts/orca_yunxiao_relay.py` instead of a single-model session. It creates an Orca orchestration Run, one Task per stage with deps, and pins each stage's worker by launching an agent terminal from the adapter table with an injected dispatch.
+
+Stages run in parallel whenever their deps allow it — the coordinator dispatches every dep-satisfied stage and waits on all in-flight dispatches concurrently. Default topology: `archive_prd → implement → review ∥ verify (speculative overlap) → screenshot → deliver (waits review+verify+screenshot)`. A blocking review verdict aborts immediately and stops in-flight stages; speculative verify evidence is then superseded. Multiple requirements can also run concurrently as separate Runs (the todo-pool use case).
+
+Worker profiles use `cli:model` form, resolved from `YX_RELAY_MODEL_*` env > `relayModels` in `dfhis-environment.json` > DFHIS Setup `relayExecModel` (bare kimi alias, exec role only) > built-in defaults. A bare alias without `cli:` means `kimi:` (backward compatible). DFHIS Setup saves `relayExecModel` / `relayExecApiKey` locally; its Install/repair writes the deepseek provider/model block into kimi `config.toml` when the alias is missing. Roles (user rule 2026-08-04):
+
+- `doc` (archive/analysis/PRD/contract) → `kimi:kimi-code/k3`
+- `visual` (screenshots/UI acceptance) → `kimi:kimi-code/k3`; must be image-capable, hard constraint
+- `review` (pre-commit independent review) → `kimi:kimi-code/k3`; a blocking verdict aborts the pipeline
+- `exec` (implementation, lint/build, git, Yunxiao comment + field writeback) → `kimi:deepseek/deepseek-v4-flash`
+
+Per-CLI differences live in the script's `ADAPTERS` table (code shipped via the skill pack), never in per-CLI user configuration. Verified end-to-end 2026-08-04 (Orca terminal launch → injected dispatch → `worker_done`):
+
+| cli | launch template | probe result |
+| --- | --- | --- |
+| kimi | `kimi --yolo -m {model}` | PASS (`deepseek/deepseek-v4-flash`) |
+| claude | `claude --model {model} --permission-mode bypassPermissions` | PASS (`glm-5.1`) |
+| codex | `codex --model {model} -a never -s danger-full-access` | PASS (`k3`); `--full-auto` is rejected by codex-cli ≥ 0.146, do not use it |
+| opencode | `opencode -m {model}` | PASS (`deepseek/deepseek-v4-flash`) |
+
+```bash
+python3 scripts/orca_yunxiao_relay.py DFHIS-12345                 # full pipeline
+python3 scripts/orca_yunxiao_relay.py DFHIS-12345 --from-stage review
+python3 scripts/orca_yunxiao_relay.py DFHIS-12345 --stages verify,deliver
+python3 scripts/orca_yunxiao_relay.py DFHIS-12345 --dry-run
+python3 scripts/orca_yunxiao_relay.py --check --probe             # new-machine bootstrap check
+python3 scripts/orca_yunxiao_relay.py --check --fix --api-key sk-...   # add deepseek provider to kimi config
+```
+
+Relay operating rules learned from DFHIS-31894 (`{需求目录}/RELAY.md` is the per-requirement ledger):
+
+- Workers must launch with auto-approve (`--yolo` / adapter equivalent); otherwise they stall on tool-approval prompts.
+- The deliver stage must run workflow steps 11-14 completely: a Yunxiao comment never replaces `update_yunxiao_completion_fields.py` field writeback and the `待测试` status transition.
+- A worker that hits an environmental block (e.g. missing OS permission) reports `worker_done --outcome failed`; dependent tasks stay pending until the coordinator verifies the blockage is real and overrides with `task-update --status completed` (only for stages marked `allow_env_block`, e.g. screenshot).
+- `check --wait` output contains `_keepalive` heartbeat lines and replays the oldest unacked delivery; ack each delivery before expecting the next.
+- A completed dispatch cannot be `retry-of` restarted; close the stalled terminal so it settles, then start a fresh worker.
+- If a task stays `pending` after its deps completed (readiness lag), nudge with `task-update --status ready` and retry `worker-start`.
+- Stages hand off through files (archive, `PRD_AND_CODE_ANALYSIS.md`, `RELAY.md`), not shared session memory; worker specs must name the stage's gates explicitly because execution models do not follow the skill's formal gates unprompted.
+
 ## DFHIS Frontend Verification Environment
 
 Do not stop at `vue-cli-service: command not found` or missing `node_modules` when the repository can be verified with its locked package manager in an isolated worktree.

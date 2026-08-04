@@ -24,6 +24,7 @@ const DEFAULT_HIS_WORKFLOW_CATALOG_PATH = path.join(
 )
 const DEFAULT_DFHIS_SKILL_PACK_URL =
   'http://192.168.1.10:18800/static/downloads/dfhis/dfhis-skill-pack.json'
+const DEFAULT_RELAY_EXEC_MODEL = 'deepseek/deepseek-v4-flash'
 
 export type DfHisEnvironmentConfig = {
   gitlabHost: string
@@ -36,6 +37,8 @@ export type DfHisEnvironmentConfig = {
   hisWorkflowCatalogPath: string
   archiveWorkspacePath: string
   dfhisSkillPackUrl: string
+  relayExecModel: string
+  relayExecApiKey: string
 }
 
 function userDataPath(): string {
@@ -88,7 +91,10 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
       DEFAULT_ARCHIVE_WORKSPACE_PATH,
     dfhisSkillPackUrl:
       cleanString((config as Record<string, unknown>).dfhisSkillPackUrl) ||
-      DEFAULT_DFHIS_SKILL_PACK_URL
+      DEFAULT_DFHIS_SKILL_PACK_URL,
+    relayExecModel:
+      cleanString((config as Record<string, unknown>).relayExecModel) || DEFAULT_RELAY_EXEC_MODEL,
+    relayExecApiKey: cleanString((config as Record<string, unknown>).relayExecApiKey)
   }
 }
 
@@ -121,7 +127,9 @@ function mergeConfigPatch(
     hisWorkflowCatalogPath:
       cleanPath(patch.hisWorkflowCatalogPath) || current.hisWorkflowCatalogPath,
     archiveWorkspacePath: cleanPath(patch.archiveWorkspacePath) || current.archiveWorkspacePath,
-    dfhisSkillPackUrl: cleanString(patch.dfhisSkillPackUrl) || current.dfhisSkillPackUrl
+    dfhisSkillPackUrl: cleanString(patch.dfhisSkillPackUrl) || current.dfhisSkillPackUrl,
+    relayExecModel: cleanString(patch.relayExecModel) || current.relayExecModel,
+    relayExecApiKey: cleanString(patch.relayExecApiKey) || current.relayExecApiKey
   })
 }
 
@@ -156,6 +164,9 @@ export function snapshotDfHisEnvironmentConfig(
     hisCodeRoot: config.hisCodeRoot,
     hisWorkflowCatalogPath: config.hisWorkflowCatalogPath,
     archiveWorkspacePath: config.archiveWorkspacePath,
-    dfhisSkillPackUrl: config.dfhisSkillPackUrl
+    dfhisSkillPackUrl: config.dfhisSkillPackUrl,
+    relayExecModel: config.relayExecModel,
+    relayExecApiKey: config.relayExecApiKey,
+    hasRelayExecApiKey: config.relayExecApiKey.length > 0
   }
 }
