@@ -140,6 +140,25 @@ sessionStorage.setItem('<package-json-name>', '//localhost:<dev-port>')
 
 If the account, menu permission, patient/order data, cross-origin browser, or environment proxy is missing, stop and report that blocker precisely. Do not replace this gate with build success, HTTP smoke, or standalone sub-app screenshots.
 
+## UI 规范门禁（HIS 前端）
+
+HIS 前端代码（非医共体/YGT）改动在宣布完成前，必须先过 UI 规范门禁。规范共 28 条，详见 `ui-spec-review` 技能的 `references/ui-specs.md`。
+
+```bash
+node scripts/his-workflow.mjs ui-review --repo <repo> --json
+```
+
+等价于直接调用 `ui-spec-review` 技能扫描：
+
+```bash
+node /path/to/ui-spec-review/scripts/ui-spec-review.mjs --repo <repo> --changed-only --json
+```
+
+- 门禁判定：扫描出的 `violations` 非空即门禁不通过。每条违规必须逐一处理——修复，或给出可复核的理由（如功能色、贴边容器、弹窗小尺寸等规范允许的例外），理由记录到 evidence。
+- 推荐对改动文件运行：`ui-review` 支持 `--changed-only`，只扫描相对 HEAD 的改动文件，适合每次提交前快检；全量扫描用于整页/整模块交付复核。
+- 违规证据写入 `requirementContract.methodologyGate.verificationEvidence`（evidence type: `ui`），与 `runtime`/`build`/`e2e` 等并列，不能以 `git diff --check` 代替。
+- 门禁只在 HIS 前端仓库启用；后端仓库跳过，医共体/YGT 走 ygt 自身规范。
+
 ## Evidence Gate
 
 Put the report under the requirement directory, for example:
@@ -162,7 +181,7 @@ Do not replace a required stage with `git diff --check`. If a catalog mapping is
 
 For UI and micro-frontend work, attach provenance to each evidence item: evidence type, pass/superseded status, capture time, environment, execution surface, source, target commit/package, observation, and limitations. A shell reachability check does not prove that the child app mounted or that the final asset contains the change.
 
-After every material UI edit, run the bounded loop `implement -> focused self-test -> build/runtime refresh -> screenshot + DOM measurement -> visual inspection -> compare with the contract`. If the screenshot or measurement disagrees, record the defect, edit, and repeat; only evidence captured from the final diff can pass the gate.
+After every material UI edit, run the bounded loop `implement -> focused self-test -> ui-review (UI 规范门禁) -> build/runtime refresh -> screenshot + DOM measurement -> visual inspection -> compare with the contract`. If the screenshot, measurement, or UI spec review disagrees, record the defect, edit, and repeat; only evidence captured from the final diff can pass the gate.
 
 When a command is blocked, classify the exact failure and consult the environment/access references for a safe fallback. Keep an attempt ledger: do not repeat the same deterministic command unchanged; change the hypothesis, tool, route, or evidence target. Stop after three materially different safe approaches and report the exact remaining owner/action.
 

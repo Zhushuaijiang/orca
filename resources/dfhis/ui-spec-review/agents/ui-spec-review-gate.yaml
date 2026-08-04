@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Spec Review Gate"
+  short_description: "Gate HIS frontend changes against the 28 UI specifications"
+  default_prompt: "Use $ui-spec-review to review the changed HIS frontend code against the UI specifications and block the change on violations."

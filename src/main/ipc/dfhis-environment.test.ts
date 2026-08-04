@@ -61,6 +61,7 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
   const mergeSkill = '---\nname: his-release-merge\n---\nremote merge skill\n'
   const ygtSkill = '---\nname: ygt\n---\nremote ygt skill\n'
   const environmentSkill = '---\nname: dfhis-company-environment\n---\nremote environment skill\n'
+  const uiSpecReviewSkill = '---\nname: ui-spec-review\n---\nremote ui spec review skill\n'
   const ygtHarness = '#!/usr/bin/env node\nconst ygtHarness = true\n'
   const ygtPluginManifest = '{"name":"ygt","skills":"./skills/"}\n'
   const ygtHarnessGuide = '# YGT 工作流 Harness\n'
@@ -97,6 +98,11 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
             path: 'dfhis-company-environment/SKILL.md',
             sha256: sha256(environmentSkill),
             content: environmentSkill
+          },
+          {
+            path: 'ui-spec-review/SKILL.md',
+            sha256: sha256(uiSpecReviewSkill),
+            content: uiSpecReviewSkill
           },
           {
             path: 'ygt/harness/scripts/harness/ygt-workflow.mjs',

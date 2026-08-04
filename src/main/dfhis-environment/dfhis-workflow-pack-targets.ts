@@ -14,6 +14,7 @@ export const DFHIS_WORKFLOW_PACK_NAMES = [
   'yunxiao-requirement-archiver',
   'his-workflow-harness',
   'his-release-merge',
+  'ui-spec-review',
   'ygt',
   'dfhis-company-environment'
 ] as const

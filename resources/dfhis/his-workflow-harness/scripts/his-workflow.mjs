@@ -118,6 +118,10 @@ function selectedEnv(runtime, environment) {
   return env
 }
 
+function uiReviewScriptPath() {
+  return path.resolve(import.meta.dirname, '../../ui-spec-review/scripts/ui-spec-review.mjs')
+}
+
 function evidence(type, result, summary, command = null, artifactPath = null) {
   return {
     id: `VE-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -219,6 +223,40 @@ async function verify(context) {
     )
   }
   return results
+}
+
+async function uiReview(context) {
+  const scanner = uiReviewScriptPath()
+  if (!existsSync(scanner)) {
+    throw new Error(`UI spec review scanner is missing: ${scanner}`)
+  }
+  const argv = ['node', scanner, '--repo', context.repo, '--json']
+  if (context.options.changedOnly) {argv.push('--changed-only')}
+  const result = await runCommand(argv, { cwd: context.repo, env: process.env, capture: true })
+  let report = null
+  if (result.stdout) {
+    try {report = JSON.parse(result.stdout)} catch {report = null}
+  }
+  if (!report) {
+    throw new Error(
+      `UI spec review failed to run (${commandText(argv)}): ${result.stderr.trim() || result.error || `exit ${result.code}`}`
+    )
+  }
+  const violationCount = report.violations?.length ?? 0
+  if (violationCount > 0) {
+    const first = report.violations[0]
+    throw new Error(
+      `UI spec review gate blocked: ${violationCount} violation(s), e.g. [规范 ${first.specId}/${first.category}] ${first.file}:${first.line} ${first.detail}`
+    )
+  }
+  return [
+    evidence(
+      'ui',
+      'pass',
+      `UI spec review passed (${report.scannedFiles ?? 0} files scanned).`,
+      commandText(argv)
+    )
+  ]
 }
 
 async function database(context) {
@@ -446,6 +484,8 @@ async function selftest() {
   if (environment?.id !== 'local152') {throw new Error('Environment alias resolution failed.')}
   if (!isReadOnlySql('SELECT 1') || isReadOnlySql('WITH x AS (UPDATE t SET a = 1) SELECT * FROM x'))
     {throw new Error('Read-only SQL gate failed.')}
+  if (!existsSync(uiReviewScriptPath()))
+    {throw new Error('ui-spec-review scanner is missing from the skill pack.')}
   return [evidence('command', 'pass', 'Harness runtime and read-only SQL gates passed.')]
 }
 
@@ -477,6 +517,7 @@ async function runStage(stage, context) {
   if (stage === 'intake') {return [evidence('runtime', 'pass', 'Repository intake completed.')]}
   if (stage === 'doctor') {return doctor(context)}
   if (stage === 'verify') {return verify(context)}
+  if (stage === 'ui-review') {return uiReview(context)}
   if (stage === 'database') {return database(context)}
   if (stage === 'jenkins') {return jenkins(context)}
   if (stage === 'deploy') {return deploy(context)}
