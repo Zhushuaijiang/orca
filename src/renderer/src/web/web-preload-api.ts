@@ -1576,6 +1576,9 @@ function createAiVaultApi(): NonNullable<Partial<PreloadApi>['aiVault']> {
     listSubagentSessions: () => Promise.resolve({ sessions: [], issues: [] }),
     // Why: full first-prompt re-parse is local-FS only; web/runtime falls back to preview text.
     getFirstUserPrompt: () => Promise.resolve({ prompt: null }),
+    // Why: the requirement-id index lives in the desktop main process; the web
+    // client has no local transcript stores, so report empty like the subagent stub.
+    searchYunxiaoSessions: () => Promise.resolve({ sessions: [] }),
     onWindowFocused: () => noopUnsubscribe
   }
 }
