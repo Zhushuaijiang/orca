@@ -4397,7 +4397,8 @@
           "d396773ef0": "チェック中",
           "f8a2c91d4e": "マイルストーン",
           "b7e4d2a19c": "オンボーディング",
-          "c4f8e1b72a": "X"
+          "c4f8e1b72a": "X",
+          "version": "バージョン {{value0}}"
         },
         "SidebarToolbar": {
           "19e32d0e5f": "フォルダーピッカーを開いてプロジェクトを追加します",
@@ -11299,6 +11300,7 @@
             "resumePastSessions": "過去のセッションを再開",
             "refreshSessionHistory": "セッション履歴を更新",
             "searchSessions": "セッションを検索",
+            "searchByYunxiaoId": "Yunxiao ID で検索（例: DFHIS-31782）",
             "clearSearch": "Clear search",
             "remoteBrowseLocalHistory": "Remote workspaces can browse local history. Resume actions run from local workspaces.",
             "transcriptsSkipped": "{{count}} transcript skipped",
@@ -11347,7 +11349,9 @@
             "currentProjectLower": "現在のプロジェクト",
             "project": "プロジェクト",
             "hostScopeAriaLabel": "Session History host: {{value0}}",
-            "host": "ホスト"
+            "host": "ホスト",
+            "yunxiaoScope": "Yunxiao",
+            "yunxiaoSessionsLower": "Yunxiao セッション"
           },
           "AiVaultSessionDetails": {
             "updated": "更新日時",

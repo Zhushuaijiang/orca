@@ -26,7 +26,7 @@ export const AI_VAULT_AGENTS = [
 export const AI_VAULT_SCOPE_PATHS_MAX_COUNT = 64
 
 export type AiVaultAgent = (typeof AI_VAULT_AGENTS)[number]
-export type AiVaultScope = 'workspace' | 'project' | 'all'
+export type AiVaultScope = 'workspace' | 'project' | 'all' | 'yunxiao'
 export type AiVaultSort = 'updated' | 'created'
 export type AiVaultGroup = 'project' | 'folder' | 'agent'
 

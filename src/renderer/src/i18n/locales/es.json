@@ -4416,7 +4416,8 @@
           "d396773ef0": "comprobando",
           "f8a2c91d4e": "Milestones",
           "b7e4d2a19c": "Onboarding",
-          "c4f8e1b72a": "X"
+          "c4f8e1b72a": "X",
+          "version": "Version {{value0}}"
         },
         "SidebarToolbar": {
           "19e32d0e5f": "Abrir el selector de carpetas para agregar un proyecto",
@@ -11299,6 +11300,7 @@
             "resumePastSessions": "Reanudar sesiones anteriores",
             "refreshSessionHistory": "Actualizar historial de sesiones",
             "searchSessions": "Buscar sesiones",
+            "searchByYunxiaoId": "Buscar por ID de Yunxiao (p. ej., DFHIS-31782)",
             "clearSearch": "Limpiar búsqueda",
             "remoteBrowseLocalHistory": "Los espacios de trabajo remotos pueden explorar el historial local. Las acciones de reanudación se ejecutan desde espacios de trabajo locales.",
             "transcriptsSkipped": "{{count}} transcripciones omitidas",
@@ -11347,7 +11349,9 @@
             "currentProjectLower": "proyecto actual",
             "project": "Proyecto",
             "hostScopeAriaLabel": "Host del historial de sesiones: {{value0}}",
-            "host": "Host"
+            "host": "Host",
+            "yunxiaoScope": "Yunxiao",
+            "yunxiaoSessionsLower": "sesiones de Yunxiao"
           },
           "AiVaultSessionDetails": {
             "updated": "Actualizado",

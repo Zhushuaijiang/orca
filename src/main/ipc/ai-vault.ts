@@ -20,6 +20,7 @@ import type {
   AiVaultSubagentListResult
 } from '../../shared/ai-vault-types'
 import { handleAiVaultGetFirstUserPrompt } from '../ai-vault/session-first-user-prompt-read'
+import { registerAiVaultYunxiaoHandlers } from './ai-vault-yunxiao'
 import { registerAiVaultResumeHandler, type AiVaultResumeHandlerOptions } from './ai-vault-resume'
 import {
   LOCAL_EXECUTION_HOST_ID,
@@ -282,6 +283,7 @@ export function registerAiVaultHandlers(options: AiVaultHandlerOptions = {}): vo
   ipcMain.handle('aiVault:listSessions', (_event, args?: AiVaultListArgs) =>
     listAiVaultSessions(args)
   )
+  registerAiVaultYunxiaoHandlers()
   registerAiVaultResumeHandler(options)
   ipcMain.handle(
     'aiVault:listSubagentSessions',

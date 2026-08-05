@@ -502,6 +502,7 @@ import type {
   AiVaultFirstUserPromptResult,
   AiVaultListArgs,
   AiVaultListResult,
+  AiVaultSession,
   AiVaultSubagentListArgs,
   AiVaultSubagentListResult
 } from '../shared/ai-vault-types'
@@ -898,6 +899,8 @@ export type OpenCodeUsageApi = {
 
 export type AiVaultApi = {
   listSessions: (args?: AiVaultListArgs) => Promise<AiVaultListResult>
+  /** Requirement-id lookup over the incremental codex/kimi transcript index. */
+  searchYunxiaoSessions: (args: { yunxiaoId: string }) => Promise<{ sessions: AiVaultSession[] }>
   prepareSessionResume: (
     args: AiVaultPrepareSessionResumeArgs
   ) => Promise<AiVaultPrepareSessionResumeResult>

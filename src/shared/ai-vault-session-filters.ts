@@ -111,6 +111,11 @@ export function filterAiVaultSessions(
           return false
         }
       }
+      // Why: the Yunxiao tab is a global requirement-id lookup, so it skips the
+      // workspace/project narrowing and uses separator-tolerant id matching.
+      if (filters.scope === 'yunxiao') {
+        return matchesYunxiaoQuery(session, filters.query)
+      }
       return matchesQuery(session, parsedQuery, filters)
     })
     .sort((left, right) => compareSessions(left, right, filters.sort))
@@ -220,6 +225,40 @@ function matchesQuery(
   }
 
   return true
+}
+
+// Why: requirement ids like DFHIS-31782 surface in worktree dir names, titles and
+// prompts with varying case/separators, so compare both raw and compacted forms.
+const YUNXIAO_NON_ALNUM_PATTERN = /[^a-z0-9]+/g
+
+export function matchesYunxiaoQuery(session: AiVaultSession, query: string): boolean {
+  const base = query.trim().toLowerCase()
+  if (!base) {
+    return true
+  }
+  const raw = yunxiaoSearchableText(session).toLowerCase()
+  if (raw.includes(base)) {
+    return true
+  }
+  const compact = base.replace(YUNXIAO_NON_ALNUM_PATTERN, '')
+  if (!compact) {
+    return false
+  }
+  return raw.replace(YUNXIAO_NON_ALNUM_PATTERN, '').includes(compact)
+}
+
+function yunxiaoSearchableText(session: AiVaultSession): string {
+  return [
+    session.title,
+    session.sessionId,
+    session.cwd,
+    session.branch,
+    session.firstUserPrompt,
+    session.lastUserPrompt,
+    sessionPreviewSearchText(session)
+  ]
+    .filter(Boolean)
+    .join(' ')
 }
 
 function compareSessions(left: AiVaultSession, right: AiVaultSession, sort: AiVaultSort): number {

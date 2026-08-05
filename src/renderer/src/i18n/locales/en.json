@@ -4494,7 +4494,8 @@
           "d396773ef0": "checking",
           "f8a2c91d4e": "Milestones",
           "b7e4d2a19c": "Onboarding",
-          "c4f8e1b72a": "X"
+          "c4f8e1b72a": "X",
+          "version": "Version {{value0}}"
         },
         "SidebarToolbar": {
           "87d0064026": "Workspace board moved to the bottom bar",
@@ -11449,6 +11450,7 @@
             "resumePastSessions": "Resume past sessions",
             "refreshSessionHistory": "Refresh Session History",
             "searchSessions": "Search sessions",
+            "searchByYunxiaoId": "Search by Yunxiao ID (e.g. DFHIS-31782)",
             "clearSearch": "Clear search",
             "remoteBrowseLocalHistory": "Remote workspaces can browse local history. Resume actions run from local workspaces.",
             "transcriptsSkipped": "{{count}} transcript skipped",
@@ -11495,7 +11497,9 @@
             "currentProjectLower": "current project",
             "project": "Project",
             "hostScopeAriaLabel": "Session History host: {{value0}}",
-            "host": "Host"
+            "host": "Host",
+            "yunxiaoScope": "Yunxiao",
+            "yunxiaoSessionsLower": "yunxiao sessions"
           },
           "AiVaultSessionDetails": {
             "originalAsk": "Original ask",

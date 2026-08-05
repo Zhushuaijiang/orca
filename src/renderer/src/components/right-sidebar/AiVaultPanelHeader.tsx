@@ -8,7 +8,8 @@ import type {
   AiVaultSort
 } from '../../../../shared/ai-vault-types'
 import type { ExecutionHostScope } from '../../../../shared/execution-host'
-import { VaultHostScopeMenu, VaultScopeSwitch, VaultViewMenu } from './AiVaultPanelControls'
+import { VaultHostScopeMenu, VaultViewMenu } from './AiVaultPanelControls'
+import { VaultScopeSwitch } from './AiVaultScopeSwitch'
 import type { AiVaultHostScopeOption } from './ai-vault-host-scope'
 
 type AiVaultPanelHeaderProps = {
@@ -163,10 +164,17 @@ export function AiVaultPanelHeader({
         <input
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder={translate(
-            'auto.components.right.sidebar.AiVaultPanel.searchSessions',
-            'Search sessions'
-          )}
+          placeholder={
+            scope === 'yunxiao'
+              ? translate(
+                  'auto.components.right.sidebar.AiVaultPanel.searchByYunxiaoId',
+                  'Search by Yunxiao ID (e.g. DFHIS-31782)'
+                )
+              : translate(
+                  'auto.components.right.sidebar.AiVaultPanel.searchSessions',
+                  'Search sessions'
+                )
+          }
           className="min-w-0 flex-1 bg-transparent py-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
           spellCheck={false}
         />

@@ -41,6 +41,7 @@ import { translate } from '@/i18n/i18n'
 import { AiVaultPanelHeader } from './AiVaultPanelHeader'
 import { AiVaultSessionVirtualList } from './AiVaultSessionVirtualList'
 import { useAiVaultSessionRefresh } from './ai-vault-session-refresh'
+import { useYunxiaoSessionSearch } from './ai-vault-yunxiao-search'
 import {
   buildAiVaultHostScopeOptions,
   buildRuntimeAiVaultHostScopeOptions,
@@ -143,6 +144,8 @@ export default function AiVaultPanel(): React.JSX.Element {
     scopePaths,
     executionHostScope
   )
+  const yunxiaoSearchActive = scope === 'yunxiao' && query.trim().length > 0
+  const yunxiaoHits = useYunxiaoSessionSearch(yunxiaoSearchActive, query)
   // Deliberately blind to the active repo/worktree: rebuilding these ~500-entry
   // maps on every worktree switch is what made switching visibly slow (#10841 era).
   const sessionProjectById = useMemo(
@@ -208,32 +211,49 @@ export default function AiVaultPanel(): React.JSX.Element {
     }
   }, [activeProjectKey, activeWorktreePath, scope])
 
-  const filteredSessions = useMemo(
-    () =>
-      filterAiVaultSessions(sessions, {
-        query,
-        agents,
-        scope,
-        sort,
-        activeWorktreePaths,
-        activeProjectKey,
-        sessionProjectById,
-        projectLabelByKey,
-        hideEmptySessions
-      }),
-    [
-      activeProjectKey,
-      activeWorktreePaths,
-      agents,
-      hideEmptySessions,
-      projectLabelByKey,
+  const filteredSessions = useMemo(() => {
+    const base = filterAiVaultSessions(sessions, {
       query,
+      agents,
       scope,
+      sort,
+      activeWorktreePaths,
+      activeProjectKey,
       sessionProjectById,
-      sessions,
-      sort
-    ]
-  )
+      projectLabelByKey,
+      hideEmptySessions
+    })
+    if (!yunxiaoSearchActive) {
+      return base
+    }
+    // Index hits fall outside the recency-capped scan list; merge them (agent
+    // and empty filters still apply) and re-sort by the active sort order.
+    const shownIds = new Set(base.map((session) => session.id))
+    const extras = filterAiVaultSessions(yunxiaoHits, {
+      query: '',
+      agents,
+      scope: 'all',
+      sort,
+      activeWorktreePaths: [],
+      hideEmptySessions
+    }).filter((session) => !shownIds.has(session.id))
+    const time = (session: AiVaultSession): number =>
+      Date.parse((sort === 'created' ? session.createdAt : session.updatedAt) ?? session.modifiedAt)
+    return [...base, ...extras].sort((left, right) => time(right) - time(left))
+  }, [
+    activeProjectKey,
+    activeWorktreePaths,
+    agents,
+    hideEmptySessions,
+    projectLabelByKey,
+    query,
+    scope,
+    sessionProjectById,
+    sessions,
+    sort,
+    yunxiaoHits,
+    yunxiaoSearchActive
+  ])
 
   const groups = useMemo(
     () =>

@@ -4409,7 +4409,8 @@
           "d396773ef0": "检查中",
           "f8a2c91d4e": "里程碑",
           "b7e4d2a19c": "入门引导",
-          "c4f8e1b72a": "X"
+          "c4f8e1b72a": "X",
+          "version": "版本 {{value0}}"
         },
         "SidebarToolbar": {
           "19e32d0e5f": "打开文件夹选择器以添加项目",
@@ -11311,6 +11312,7 @@
             "resumePastSessions": "恢复过往会话",
             "refreshSessionHistory": "刷新会话历史",
             "searchSessions": "搜索会话",
+            "searchByYunxiaoId": "按云效 ID 查询，如 DFHIS-31782",
             "clearSearch": "清除搜索",
             "remoteBrowseLocalHistory": "远程工作区可以浏览本地历史。恢复操作从本地工作区运行。",
             "transcriptsSkipped": "跳过了 {{count}} 个记录",
@@ -11359,7 +11361,9 @@
             "currentProjectLower": "当前项目",
             "project": "项目",
             "hostScopeAriaLabel": "会话历史主机：{{value0}}",
-            "host": "主机"
+            "host": "主机",
+            "yunxiaoScope": "云效",
+            "yunxiaoSessionsLower": "云效会话"
           },
           "AiVaultSessionDetails": {
             "updated": "更新时间",

@@ -84,6 +84,33 @@ describe('/shared ai-vault-session-filters (lifted core)', () => {
     ).toEqual(['claude:1'])
   })
 
+  it('yunxiao scope matches requirement ids across case and separators', () => {
+    const yunxiaoSession: AiVaultSession = {
+      ...baseSession,
+      id: 'codex:yx',
+      agent: 'codex',
+      sessionId: 'session-yx',
+      title: '帮我找到 DFHIS-31782 这条需求的会话ID',
+      cwd: '/Users/ada/workspace/yunxiao/DFHIS-31782',
+      previewMessages: []
+    }
+    const filter = (query: string): string[] =>
+      filterAiVaultSessions([yunxiaoSession, otherSession], {
+        query,
+        agents: ['claude', 'codex'],
+        scope: 'yunxiao',
+        sort: 'updated',
+        activeWorktreePaths: [],
+        hideEmptySessions: false
+      }).map((session) => session.id)
+
+    expect(filter('DFHIS-31782')).toEqual(['codex:yx'])
+    expect(filter('dfhis31782')).toEqual(['codex:yx'])
+    expect(filter('31782')).toEqual(['codex:yx'])
+    expect(filter('DFHIS-99999')).toEqual([])
+    expect(filter('')).toEqual(['codex:yx', 'codex:2'])
+  })
+
   it('groups by folder', () => {
     const groups = groupAiVaultSessions([baseSession, otherSession], 'folder')
     expect(groups.map((group) => group.label).sort()).toEqual(['packages/ui', 'repo/app'])

@@ -4197,6 +4197,8 @@ const api = {
   aiVault: {
     listSessions: (args?: AiVaultListArgs): Promise<unknown> =>
       ipcRenderer.invoke('aiVault:listSessions', args),
+    searchYunxiaoSessions: (args: { yunxiaoId: string }): Promise<unknown> =>
+      ipcRenderer.invoke('aiVault:searchYunxiaoSessions', args),
     prepareSessionResume: (args: AiVaultPrepareSessionResumeArgs): Promise<unknown> =>
       ipcRenderer.invoke('aiVault:prepareSessionResume', args),
     listSubagentSessions: (args: AiVaultSubagentListArgs): Promise<unknown> =>
