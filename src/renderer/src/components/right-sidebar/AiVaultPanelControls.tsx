@@ -6,7 +6,6 @@ import {
   Clock3,
   FolderOpen,
   ListFilter,
-  LoaderCircle,
   PanelsTopLeft,
   Server
 } from 'lucide-react'
@@ -22,23 +21,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { AgentIcon } from '@/lib/agent-catalog'
 import { cn } from '@/lib/utils'
 import {
   AI_VAULT_AGENTS,
   type AiVaultAgent,
   type AiVaultGroup,
+  type AiVaultScope,
   type AiVaultSort
 } from '../../../../shared/ai-vault-types'
 import { getExecutionHostLabel, type ExecutionHostScope } from '../../../../shared/execution-host'
 import { agentLabel, type AiVaultSessionGroup } from './ai-vault-session-filters'
 import { translate } from '@/i18n/i18n'
 import type { AiVaultHostScopeOption } from './ai-vault-host-scope'
+import { AiVaultSessionLimitMenu } from './AiVaultSessionLimitMenu'
+import type { AiVaultSessionLimit } from './ai-vault-session-limit'
 
 const VAULT_HEADER_CONTROL_CLASS = 'size-6 shrink-0'
 
 const AGENT_BULK_ACTION_CLASS =
   'rounded-full px-2 py-0.5 text-[11px] font-normal text-muted-foreground focus:text-foreground'
+
+// Why: match ToggleGroup's spacing+outline qualifiers so selected edges out-specify its border-l-0 collapse.
+const VAULT_SCOPE_SELECTED_EDGE_CLASS =
+  'data-[spacing=0]:data-[variant=outline]:aria-[checked=true]:border-l data-[spacing=0]:data-[variant=outline]:data-[state=on]:border-l'
+
+const VAULT_SCOPE_TOGGLE_ITEM_CLASS = `h-7 min-h-7 min-w-0 flex-1 basis-0 shrink border border-transparent bg-transparent px-2.5 text-[11px] font-medium leading-none text-foreground shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-[checked=true]:border-foreground/20 aria-[checked=true]:bg-foreground/10 aria-[checked=true]:text-foreground aria-[checked=true]:shadow-xs aria-[checked=true]:hover:bg-foreground/15 aria-[checked=true]:hover:text-foreground data-[state=on]:border-foreground/20 data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:shadow-xs data-[state=on]:hover:bg-foreground/15 data-[state=on]:hover:text-foreground ${VAULT_SCOPE_SELECTED_EDGE_CLASS} @max-[300px]/ai-vault:px-1.5`
 
 export function VaultGroupHeader({
   group,
@@ -70,31 +79,78 @@ export function VaultGroupHeader({
   )
 }
 
-export function SessionLoadingState(): React.JSX.Element {
+export function VaultScopeSwitch({
+  scope,
+  workspaceAvailable,
+  projectAvailable,
+  onScopeChange
+}: {
+  scope: AiVaultScope
+  workspaceAvailable: boolean
+  projectAvailable: boolean
+  onScopeChange: (scope: AiVaultScope) => void
+}): React.JSX.Element {
+  const workspaceLabel = translate(
+    'auto.components.right.sidebar.AiVaultPanelControls.workspaceScope',
+    'Workspace'
+  )
+  const projectLabel = translate(
+    'auto.components.right.sidebar.AiVaultPanelControls.projectScope',
+    'Project'
+  )
+  const allLabel = translate('auto.components.right.sidebar.AiVaultPanelControls.allScope', 'All')
+
   return (
-    <div className="px-3 py-3" aria-busy="true">
-      <div className="mb-3 flex items-center gap-2 text-[11px] text-muted-foreground">
-        <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
-        <span>
-          {translate(
-            'auto.components.right.sidebar.AiVaultPanelControls.scanningSessions',
-            'Scanning sessions'
-          )}
-        </span>
-      </div>
-      <div className="space-y-3">
-        {Array.from({ length: 6 }, (_, index) => (
-          <div key={index} className="flex items-start gap-2">
-            <div className="mt-1 size-4 rounded-full bg-sidebar-accent" />
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <div className="h-3 w-4/5 rounded-sm bg-sidebar-accent" />
-              <div className="h-2.5 w-3/5 rounded-sm bg-sidebar-accent/75" />
-              <div className="h-2.5 w-2/5 rounded-sm bg-sidebar-accent/60" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <ToggleGroup
+      type="single"
+      value={scope}
+      onValueChange={(value) => {
+        if (value === 'workspace' || value === 'project' || value === 'all') {
+          onScopeChange(value)
+        }
+      }}
+      variant="outline"
+      className="h-7 w-full rounded-md border border-sidebar-border bg-sidebar-accent/35 shadow-xs"
+      aria-label={translate(
+        'auto.components.right.sidebar.AiVaultPanelControls.scopeAriaLabel',
+        'Session History scope: {{value0}}',
+        {
+          value0:
+            scope === 'workspace'
+              ? translate(
+                  'auto.components.right.sidebar.AiVaultPanelControls.currentWorkspaceLower',
+                  'current workspace'
+                )
+              : scope === 'project'
+                ? translate(
+                    'auto.components.right.sidebar.AiVaultPanelControls.currentProjectLower',
+                    'current project'
+                  )
+                : translate(
+                    'auto.components.right.sidebar.AiVaultPanelControls.allSessionsLower',
+                    'all sessions'
+                  )
+        }
+      )}
+    >
+      <ToggleGroupItem
+        value="workspace"
+        disabled={!workspaceAvailable}
+        className={VAULT_SCOPE_TOGGLE_ITEM_CLASS}
+      >
+        {workspaceLabel}
+      </ToggleGroupItem>
+      <ToggleGroupItem
+        value="project"
+        disabled={!projectAvailable}
+        className={VAULT_SCOPE_TOGGLE_ITEM_CLASS}
+      >
+        {projectLabel}
+      </ToggleGroupItem>
+      <ToggleGroupItem value="all" className={VAULT_SCOPE_TOGGLE_ITEM_CLASS}>
+        {allLabel}
+      </ToggleGroupItem>
+    </ToggleGroup>
   )
 }
 
@@ -152,24 +208,28 @@ export function VaultViewMenu({
   sort,
   group,
   hideEmptySessions,
+  sessionLimit,
   adjustmentCount,
   onAgentEnabledChange,
   onAllAgentsEnabledChange,
   onSortChange,
   onGroupChange,
   onHideEmptySessionsChange,
+  onSessionLimitChange,
   onReset
 }: {
   agents: readonly AiVaultAgent[]
   sort: AiVaultSort
   group: AiVaultGroup
   hideEmptySessions: boolean
+  sessionLimit: AiVaultSessionLimit
   adjustmentCount: number
   onAgentEnabledChange: (agent: AiVaultAgent, enabled: boolean) => void
   onAllAgentsEnabledChange: (enabled: boolean) => void
   onSortChange: (sort: AiVaultSort) => void
   onGroupChange: (group: AiVaultGroup) => void
   onHideEmptySessionsChange: (hideEmptySessions: boolean) => void
+  onSessionLimitChange: (limit: AiVaultSessionLimit) => void
   onReset: () => void
 }): React.JSX.Element {
   const allAgentsSelected = agents.length === AI_VAULT_AGENTS.length
@@ -305,6 +365,10 @@ export function VaultViewMenu({
             'Hide empty sessions'
           )}
         </DropdownMenuCheckboxItem>
+        <AiVaultSessionLimitMenu
+          sessionLimit={sessionLimit}
+          onSessionLimitChange={onSessionLimitChange}
+        />
         {adjustmentCount > 0 ? (
           <>
             <DropdownMenuSeparator />
@@ -318,14 +382,5 @@ export function VaultViewMenu({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
-
-export function EmptyState({ title }: { title: string }): React.JSX.Element {
-  return (
-    <div className="flex h-full flex-col items-center justify-center px-4 text-center text-muted-foreground">
-      <ArchiveRestore className="mb-3 size-7 opacity-50" />
-      <p className="text-sm font-medium">{title}</p>
-    </div>
   )
 }

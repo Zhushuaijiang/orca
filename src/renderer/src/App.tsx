@@ -206,6 +206,7 @@ import { showTerminalShortcutCaptureNotification } from '@/lib/terminal-shortcut
 import { resolveMountedLazyModalIds, type LazyModalId } from './lazy-modal-mount-state'
 import { translate } from '@/i18n/i18n'
 import PinnedTabCloseDialog from './components/terminal-pane/PinnedTabCloseDialog'
+import RunningTerminalCloseDialog from './components/terminal-pane/RunningTerminalCloseDialog'
 import WorktreeBaseFallbackDialog from './components/WorktreeBaseFallbackDialog'
 import { useOsc52ClipboardDefaultOnNotice } from './components/terminal-pane/osc52-clipboard-default-on-notice'
 import {
@@ -214,7 +215,7 @@ import {
 } from './components/terminal/background-terminal-worktree-mount'
 import {
   collectTerminalProviderSnapshotPtyIds,
-  synchronizeTerminalProviderSnapshotCapabilities
+  refreshTerminalProviderSnapshotCapabilities
 } from './components/terminal/terminal-provider-snapshot-capability'
 import { useRemoteRuntimeRecoveryTriggers } from './runtime/use-remote-runtime-recovery-triggers'
 
@@ -659,6 +660,7 @@ function App(): React.JSX.Element {
   const hideAutomationGeneratedWorkspaces = useAppStore((s) => s.hideAutomationGeneratedWorkspaces)
   const hideCliCreatedWorkspaces = useAppStore((s) => s.hideCliCreatedWorkspaces)
   const hideDetachedHeadWorkspaces = useAppStore((s) => s.hideDetachedHeadWorkspaces)
+  const alwaysShowDefaultBranchWorkspace = useAppStore((s) => s.alwaysShowDefaultBranchWorkspace)
   const showDotfilesByWorktree = useAppStore((s) => s.showDotfilesByWorktree)
   const filterRepoIds = useAppStore((s) => s.filterRepoIds)
   const acknowledgedAgentsByPaneKey = useAppStore((s) => s.acknowledgedAgentsByPaneKey)
@@ -1080,7 +1082,7 @@ function App(): React.JSX.Element {
             window.api.app.recoverLegacyWorkerTerminalsForRendererStartup()
           )
           await timeRendererStartupStep('terminal-provider-snapshot-capabilities', () => {
-            return synchronizeTerminalProviderSnapshotCapabilities(
+            return refreshTerminalProviderSnapshotCapabilities(
               collectTerminalProviderSnapshotPtyIds(useAppStore.getState())
             )
           })
@@ -1169,6 +1171,9 @@ function App(): React.JSX.Element {
             try {
               await window.api.app.awaitFirstWindowStartupServices()
               await window.api.app.recoverLegacyWorkerTerminalsForRendererStartup()
+              await refreshTerminalProviderSnapshotCapabilities(
+                collectTerminalProviderSnapshotPtyIds(useAppStore.getState())
+              )
               await actions.reconnectPersistedTerminals(abortController.signal)
               await window.api.app.recoverLegacyWorkerTerminalsForRendererStartup()
             } catch (reconnectErr) {
@@ -1386,6 +1391,7 @@ function App(): React.JSX.Element {
         hideAutomationGeneratedWorkspaces,
         hideCliCreatedWorkspaces,
         hideDetachedHeadWorkspaces,
+        alwaysShowDefaultBranchWorkspace,
         showDotfilesByWorktree,
         filterRepoIds,
         // Why (#9002): activeView is deliberately NOT included here. It used to
@@ -1419,6 +1425,7 @@ function App(): React.JSX.Element {
     hideAutomationGeneratedWorkspaces,
     hideCliCreatedWorkspaces,
     hideDetachedHeadWorkspaces,
+    alwaysShowDefaultBranchWorkspace,
     showDotfilesByWorktree,
     filterRepoIds,
     acknowledgedAgentsByPaneKey
@@ -2785,6 +2792,7 @@ function App(): React.JSX.Element {
       <SkillFreshnessNudge />
       <WorktreeBaseFallbackDialog />
       <PinnedTabCloseDialog />
+      <RunningTerminalCloseDialog />
       {/* Why: Electron's drag-region hit-test is DOM-order-based (ignores z-index); render last so WindowControls stay clickable. */}
       {hasCustomTitleBar && <WindowControls />}
     </div>
