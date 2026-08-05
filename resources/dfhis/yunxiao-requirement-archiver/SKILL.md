@@ -110,7 +110,7 @@ Keep delivery progress separate from final business acceptance. Do not turn an e
 1. Extract Yunxiao work-item targets from the user request. Accept `DFHIS-12345` style IDs and `devops.aliyun.com` work-item links.
 2. Preserve any explicit save directory from the user request. If none is provided, use DFHIS Setup `archiveWorkspacePath` / `YUNXIAO_ARCHIVE_WORKSPACE` and create `{archiveWorkspacePath}/{需求编号}` locally.
 3. Run `scripts/run_direct_archive.py DFHIS-12345 --json` from this skill. It creates the local requirement directory directly from official Yunxiao MCP evidence, without HIS MCP, Bot Manager, SSH, or server-side downloads.
-4. Use the generated local archive in `{archiveWorkspacePath}/{需求编号}` or the explicit `--output-dir`. This directory must contain `raw.json`, `requirement.md`, `description.md`, `context.txt`, `analysis_input.md`, `analysis.md`, `attachments_manifest.json`, and any downloaded files under `attachments/`.
+4. Use the generated local archive in `{archiveWorkspacePath}/{需求编号}` or the explicit `--output-dir`. This directory must contain `raw.json`, `requirement.md`, `description.md`, `context.txt`, `analysis_input.md`, `analysis.md`, `attachments_manifest.json`, `original_requirements.json`, and any downloaded files under `attachments/`. When the work item has a parent chain (for example a DFHIS 产品类需求 under an `ORIGIN-*` 原始诉求), the script also resolves each parent and downloads the parents' attachments under `original/{PARENT-ID}/`; requirements whose description says "接口文档见原始诉求附件" must be read together with those parent attachments.
 5. Use `scripts/run_mcp_archive.py` and `scripts/download_mcp_archive.py` only as legacy fallback when direct Yunxiao MCP is unavailable but HIS MCP credentials are configured.
 6. Generate `{需求编号}/PRD_AND_CODE_ANALYSIS.md` by combining the downloaded archive, attachment manifest, parent requirements, and local code evidence from the selected project workspace. Start it with the Requirement Contract. This document is required for any view/analyze/fix workflow, not only when code is changed.
 7. Return a concise chat summary and link to `PRD_AND_CODE_ANALYSIS.md`. Do not rely on chat-only analysis as the durable handoff.
@@ -452,11 +452,12 @@ The direct archive should generate:
 - `context.txt`
 - `attachments_raw.json` when ordinary attachment listing succeeds
 - `attachments_manifest.json`
-- `original_requirements.json`
+- `original_requirements.json` — resolved parent chain (up to 3 levels, e.g. `ORIGIN-xxxxx` 原始诉求), with each parent's serial, subject, description, and saved attachment files
 - `analysis_input.md`
 - `analysis.md`
 - `comments_raw.json` when comments are readable
 - downloaded files under `attachments/`
+- `original/{PARENT-ID}/` per resolved parent work item, containing `raw.json`, `description.md`, `attachments_manifest.json`, and its downloaded files under `attachments/`. This is mandatory evidence when the requirement description references 原始诉求附件 (for example "接口文档见原始诉求附件"); attachments usually live on the `ORIGIN-*` parent, not on the DFHIS item itself.
 
 The final Markdown must report archive status, target directory, file list, attachment counts, and failed downloads.
 

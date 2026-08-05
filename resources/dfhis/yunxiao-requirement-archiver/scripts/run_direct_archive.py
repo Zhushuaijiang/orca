@@ -306,6 +306,8 @@ def collect_attachment_candidates(raw_data: dict, attachments: list[dict], desc_
             }
         )
 
+    person_keys = ("creator", "assignedto", "modifier", "verifier", "participants", "owner", "operator", "tracker")
+
     def walk(node: object, path: str) -> None:
         if isinstance(node, dict):
             lower_path = path.lower()
@@ -315,6 +317,8 @@ def collect_attachment_candidates(raw_data: dict, attachments: list[dict], desc_
             ):
                 add(node, path)
             for key, child in node.items():
+                if key.lower() in person_keys:
+                    continue
                 walk(child, f"{path}.{key}" if path else str(key))
         elif isinstance(node, list):
             for index, child in enumerate(node[:500]):
@@ -443,14 +447,18 @@ def write_markdown_files(
     desc_text: str,
     manifest: list[dict],
     extracted_docs: list[dict],
+    original_requirements: list[dict] | None = None,
 ) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
+    original_requirements = original_requirements or []
     title = raw_data.get("subject") or raw_data.get("title") or ""
     (target_dir / "raw.json").write_text(json.dumps(raw_data, ensure_ascii=False, indent=2), encoding="utf-8")
     (target_dir / "description.md").write_text(desc_text or "", encoding="utf-8")
     (target_dir / "context.txt").write_text(context or "", encoding="utf-8")
     (target_dir / "attachments_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    (target_dir / "original_requirements.json").write_text("[]\n", encoding="utf-8")
+    (target_dir / "original_requirements.json").write_text(
+        json.dumps(original_requirements, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     requirement_md = [
         f"# {work_item_id} {title}".strip(),
         "",
@@ -471,6 +479,21 @@ def write_markdown_files(
         (context or "")[:30000],
         "```",
     ]
+    if original_requirements:
+        section = ["## Original Requirements", ""]
+        for item in original_requirements:
+            label = f"`{item.get('serialNumber') or item.get('id') or '?'}` {item.get('subject') or ''}".rstrip()
+            if item.get("error"):
+                section.append(f"- {label} (resolve failed: {item['error']})")
+                continue
+            section.append(f"- {label}")
+            if item.get("description"):
+                section.append(f"  - Description: {item['description'][:500]}")
+            for path in item.get("saved_files") or []:
+                section.append(f"  - Attachment: `{path}`")
+        section.append("")
+        insert_at = requirement_md.index("## Yunxiao Context")
+        requirement_md[insert_at:insert_at] = section
     (target_dir / "requirement.md").write_text("\n".join(requirement_md), encoding="utf-8")
     analysis_input = [
         f"# {work_item_id} Requirement Analysis Input",
@@ -487,8 +510,12 @@ def write_markdown_files(
         "",
         json.dumps(manifest, ensure_ascii=False, indent=2)[:20000],
         "",
-        "## Attachment Text",
     ]
+    if original_requirements:
+        analysis_input.extend(["## Original Requirements", ""])
+        for item in original_requirements:
+            analysis_input.extend([json.dumps(item, ensure_ascii=False, indent=2)[:10000], ""])
+    analysis_input.append("## Attachment Text")
     if extracted_docs:
         for doc in extracted_docs:
             text_path = Path(doc["text"])
@@ -507,6 +534,99 @@ def write_markdown_files(
         "Direct Yunxiao archive completed. Use analysis_input.md and the downloaded evidence for deep code review.\n",
         encoding="utf-8",
     )
+
+
+def download_attachment_candidates(
+    client: YunxiaoMcp,
+    organization_id: str,
+    internal_id: str,
+    candidates: list[dict],
+    attachments_dir: Path,
+    token: str,
+    timeout: int,
+    no_attachments: bool,
+    request_id_base: int,
+) -> tuple[list[dict], list[str], list[dict]]:
+    if attachments_dir.exists() and attachments_dir.is_dir():
+        shutil.rmtree(attachments_dir)
+    attachments_dir.mkdir(parents=True, exist_ok=True)
+    manifest: list[dict] = []
+    saved_files: list[str] = []
+    extracted_docs: list[dict] = []
+    for index, candidate in enumerate(candidates[:100], 1):
+        urls = list(candidate.get("urls") or [])
+        if not urls and candidate.get("id") and internal_id:
+            try:
+                file_result = client.call_tool(
+                    "get_workitem_file",
+                    {"organizationId": organization_id, "workitemId": internal_id, "id": str(candidate.get("id"))},
+                    request_id_base + index,
+                )
+                if isinstance(file_result, dict):
+                    urls.extend(str(file_result.get(key) or "").strip() for key in ("url", "downloadUrl", "signedUrl", "ossUrl"))
+                elif isinstance(file_result, str):
+                    urls.append(file_result)
+            except Exception:
+                pass
+        urls = [url for url in urls if url.startswith(("http://", "https://"))]
+        filename = safe_filename(candidate.get("name") or f"attachment-{index}", f"attachment-{index}")
+        if "." not in filename:
+            guessed = ""
+            for url in urls:
+                guessed = mimetypes.guess_extension(mimetypes.guess_type(url.split("?", 1)[0])[0] or "")
+                if guessed:
+                    break
+            filename += guessed or ".bin"
+        dest = attachments_dir / f"{index:02d}-{filename}"
+        item = {
+            "index": index,
+            "id": candidate.get("id") or "",
+            "name": candidate.get("name") or "",
+            "source_path": candidate.get("source_path") or "",
+            "url_count": len(urls),
+            "urls_redacted": [redacted_url(url) for url in urls],
+            "saved": False,
+            "path": str(dest),
+            "error": "",
+            "bytes": 0,
+        }
+        if urls and not no_attachments:
+            ok, error, byte_count = download_url(urls[0], dest, token, timeout)
+            item.update({"saved": ok, "error": error, "bytes": byte_count})
+            if ok:
+                saved_files.append(str(dest))
+                if dest.suffix.lower() == ".docx":
+                    text = extract_docx_text(dest)
+                    text_path = dest.with_suffix(dest.suffix + ".txt")
+                    text_path.write_text(text, encoding="utf-8")
+                    extracted_docs.append({"source": str(dest), "text": str(text_path), "chars": len(text)})
+        elif not urls:
+            item["error"] = "no downloadable url"
+        manifest.append(item)
+    return manifest, saved_files, extracted_docs
+
+
+def resolve_original_requirements(client: YunxiaoMcp, organization_id: str, raw_data: dict, max_depth: int = 3) -> list[dict]:
+    chain: list[dict] = []
+    current = raw_data if isinstance(raw_data, dict) else {}
+    for depth in range(max_depth):
+        parent_id = str(current.get("parentId") or "").strip()
+        if not parent_id:
+            break
+        try:
+            parent = client.call_tool(
+                "get_work_item",
+                {"organizationId": organization_id, "workItemId": parent_id},
+                200 + depth,
+            )
+        except Exception as exc:
+            chain.append({"id": parent_id, "error": str(exc)[:300]})
+            break
+        if not isinstance(parent, dict) or not parent:
+            break
+        chain.append(parent)
+        current = parent
+    return chain
 
 
 def archive_one(client: YunxiaoMcp, source: str, args: argparse.Namespace, config: dict, token: str) -> dict:
@@ -547,69 +667,82 @@ def archive_one(client: YunxiaoMcp, source: str, args: argparse.Namespace, confi
         comments = []
     context = build_context(raw_data, comments, attachment_items, desc_text)
     candidates = collect_attachment_candidates(raw_data, attachment_items, desc_images)
-    attachments_dir = target_dir / "attachments"
-    if attachments_dir.exists() and attachments_dir.is_dir():
-        shutil.rmtree(attachments_dir)
-    attachments_dir.mkdir(exist_ok=True)
-    manifest: list[dict] = []
-    saved_files: list[str] = []
-    extracted_docs: list[dict] = []
     internal_id = str(raw_data.get("id") or raw_data.get("identifier") or "").strip()
-    for index, candidate in enumerate(candidates[:100], 1):
-        urls = list(candidate.get("urls") or [])
-        if not urls and candidate.get("id") and internal_id:
+    manifest, saved_files, extracted_docs = download_attachment_candidates(
+        client, organization_id, internal_id, candidates, target_dir / "attachments", token, args.timeout, args.no_attachments, 100
+    )
+    originals = resolve_original_requirements(client, organization_id, raw_data)
+    originals_summary: list[dict] = []
+    all_extracted_docs = list(extracted_docs)
+    for index, parent_raw in enumerate(originals):
+        parent_id = str(parent_raw.get("id") or "").strip()
+        if parent_raw.get("error") or not parent_id:
+            originals_summary.append(dict(parent_raw))
+            continue
+        parent_serial = str(
+            parent_raw.get("serialNumber") or parent_raw.get("identifier") or parent_id or f"parent-{index + 1}"
+        ).strip()
+        parent_dir = target_dir / "original" / safe_filename(parent_serial, f"parent-{index + 1}")
+        parent_dir.mkdir(parents=True, exist_ok=True)
+        (parent_dir / "raw.json").write_text(json.dumps(parent_raw, ensure_ascii=False, indent=2), encoding="utf-8")
+        parent_desc = clean_text(parent_raw.get("description"))
+        (parent_dir / "description.md").write_text(parent_desc or "", encoding="utf-8")
+        parent_attachment_items: list[dict] = []
+        parent_attachment_error = ""
+        if not args.no_attachments:
             try:
-                file_result = client.call_tool(
-                    "get_workitem_file",
-                    {"organizationId": organization_id, "workitemId": internal_id, "id": str(candidate.get("id"))},
-                    100 + index,
+                parent_attachments_raw = client.call_tool(
+                    "list_workitem_attachments",
+                    {"organizationId": organization_id, "workItemId": parent_serial or parent_id},
+                    250 + index,
                 )
-                if isinstance(file_result, dict):
-                    urls.extend(str(file_result.get(key) or "").strip() for key in ("url", "downloadUrl", "signedUrl", "ossUrl"))
-                elif isinstance(file_result, str):
-                    urls.append(file_result)
-            except Exception:
-                pass
-        urls = [url for url in urls if url.startswith(("http://", "https://"))]
-        filename = safe_filename(candidate.get("name") or f"attachment-{index}", f"attachment-{index}")
-        if "." not in filename:
-            guessed = ""
-            for url in urls:
-                guessed = mimetypes.guess_extension(mimetypes.guess_type(url.split("?", 1)[0])[0] or "")
-                if guessed:
-                    break
-            filename += guessed or ".bin"
-        dest = attachments_dir / f"{index:02d}-{filename}"
-        item = {
-            "index": index,
-            "id": candidate.get("id") or "",
-            "name": candidate.get("name") or "",
-            "source_path": candidate.get("source_path") or "",
-            "url_count": len(urls),
-            "urls_redacted": [redacted_url(url) for url in urls],
-            "saved": False,
-            "path": str(dest),
-            "error": "",
-            "bytes": 0,
-        }
-        if urls and not args.no_attachments:
-            ok, error, byte_count = download_url(urls[0], dest, token, args.timeout)
-            item.update({"saved": ok, "error": error, "bytes": byte_count})
-            if ok:
-                saved_files.append(str(dest))
-                if dest.suffix.lower() == ".docx":
-                    text = extract_docx_text(dest)
-                    text_path = dest.with_suffix(dest.suffix + ".txt")
-                    text_path.write_text(text, encoding="utf-8")
-                    extracted_docs.append({"source": str(dest), "text": str(text_path), "chars": len(text)})
-        elif not urls:
-            item["error"] = "no downloadable url"
-        manifest.append(item)
-    write_markdown_files(target_dir, work_item_id, source, raw_data, context, desc_text, manifest, extracted_docs)
+                parent_attachment_items = normalize_list(parent_attachments_raw)
+            except Exception as exc:
+                parent_attachment_error = str(exc)[:500]
+        parent_candidates = collect_attachment_candidates(
+            parent_raw, parent_attachment_items, extract_images(parent_raw.get("description"))
+        )
+        parent_manifest, parent_saved, parent_docs = download_attachment_candidates(
+            client,
+            organization_id,
+            parent_id,
+            parent_candidates,
+            parent_dir / "attachments",
+            token,
+            args.timeout,
+            args.no_attachments,
+            300 + index * 100,
+        )
+        (parent_dir / "attachments_manifest.json").write_text(
+            json.dumps(parent_manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        all_extracted_docs.extend(parent_docs)
+        originals_summary.append(
+            {
+                "serialNumber": parent_serial,
+                "id": parent_id,
+                "subject": parent_raw.get("subject") or "",
+                "status": display_name(parent_raw.get("status")),
+                "dir": str(parent_dir),
+                "description": parent_desc[:2000],
+                "attachment_count": len(parent_manifest),
+                "saved_count": len(parent_saved),
+                "saved_files": parent_saved,
+                "attachment_error": parent_attachment_error,
+            }
+        )
+    write_markdown_files(
+        target_dir, work_item_id, source, raw_data, context, desc_text, manifest, extracted_docs, originals_summary
+    )
     files = [str(target_dir / name) for name in CORE_FILES if (target_dir / name).exists()]
     files.extend(saved_files)
-    files.extend(doc["text"] for doc in extracted_docs)
+    files.extend(doc["text"] for doc in all_extracted_docs)
+    files.extend(str(Path(item["dir"]) / "raw.json") for item in originals_summary if item.get("dir"))
+    files.extend(saved for item in originals_summary for saved in item.get("saved_files") or [])
     message = f"归档完成：{work_item_id}，目录：{target_dir}，附件候选 {len(manifest)} 个，成功下载 {len(saved_files)} 个"
+    if originals_summary:
+        parent_saved_total = sum(item.get("saved_count") or 0 for item in originals_summary)
+        message += f"，原始诉求 {len(originals_summary)} 个（附件下载 {parent_saved_total} 个）"
     if attachment_error:
         message += f"，附件列表读取失败：{attachment_error}"
     return {
@@ -620,6 +753,10 @@ def archive_one(client: YunxiaoMcp, source: str, args: argparse.Namespace, confi
         "files": files,
         "attachment_count": len(manifest),
         "saved_count": len(saved_files),
+        "original_requirements": [
+            {key: item.get(key) for key in ("serialNumber", "subject", "dir", "attachment_count", "saved_count", "error")}
+            for item in originals_summary
+        ],
     }
 
 
