@@ -12,6 +12,8 @@ export type YunxiaoListView = 'work-items' | 'todo-pool'
 export const YUNXIAO_PAGE_SIZE = 100
 export const YUNXIAO_GRID_CLASS =
   'grid-cols-[82px_110px_minmax(280px,2fr)_100px_120px_86px_92px_118px_118px]'
+export const YUNXIAO_TODO_POOL_GRID_CLASS =
+  'grid-cols-[82px_110px_minmax(280px,2fr)_100px_100px_120px_86px_92px_118px_118px]'
 export const YUNXIAO_TODO_POOL_STATUSES: YunxiaoTodoPoolStatus[] = [
   'queued',
   'needs-clarification',

@@ -39,6 +39,7 @@ export type DfHisEnvironmentConfig = {
   dfhisSkillPackUrl: string
   relayExecModel: string
   relayExecApiKey: string
+  visionApiKey: string
 }
 
 function userDataPath(): string {
@@ -94,7 +95,8 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
       DEFAULT_DFHIS_SKILL_PACK_URL,
     relayExecModel:
       cleanString((config as Record<string, unknown>).relayExecModel) || DEFAULT_RELAY_EXEC_MODEL,
-    relayExecApiKey: cleanString((config as Record<string, unknown>).relayExecApiKey)
+    relayExecApiKey: cleanString((config as Record<string, unknown>).relayExecApiKey),
+    visionApiKey: cleanString((config as Record<string, unknown>).visionApiKey)
   }
 }
 
@@ -129,7 +131,8 @@ function mergeConfigPatch(
     archiveWorkspacePath: cleanPath(patch.archiveWorkspacePath) || current.archiveWorkspacePath,
     dfhisSkillPackUrl: cleanString(patch.dfhisSkillPackUrl) || current.dfhisSkillPackUrl,
     relayExecModel: cleanString(patch.relayExecModel) || current.relayExecModel,
-    relayExecApiKey: cleanString(patch.relayExecApiKey) || current.relayExecApiKey
+    relayExecApiKey: cleanString(patch.relayExecApiKey) || current.relayExecApiKey,
+    visionApiKey: cleanString(patch.visionApiKey) || current.visionApiKey
   })
 }
 
@@ -167,6 +170,8 @@ export function snapshotDfHisEnvironmentConfig(
     dfhisSkillPackUrl: config.dfhisSkillPackUrl,
     relayExecModel: config.relayExecModel,
     relayExecApiKey: config.relayExecApiKey,
-    hasRelayExecApiKey: config.relayExecApiKey.length > 0
+    hasRelayExecApiKey: config.relayExecApiKey.length > 0,
+    visionApiKey: config.visionApiKey,
+    hasVisionApiKey: config.visionApiKey.length > 0
   }
 }

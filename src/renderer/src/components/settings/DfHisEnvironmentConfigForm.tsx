@@ -21,7 +21,8 @@ export function createEmptyDfHisEnvironmentConfigForm(): DfHisEnvironmentConfigF
     archiveWorkspacePath: '',
     dfhisSkillPackUrl: '',
     relayExecModel: '',
-    relayExecApiKey: ''
+    relayExecApiKey: '',
+    visionApiKey: ''
   }
 }
 
@@ -206,6 +207,23 @@ export function DfHisEnvironmentConfigForm({
             placeholder={translate(
               'auto.components.settings.DfHisEnvironmentPane.relayExecApiKeyPlaceholder',
               'sk-... (empty = relay uses k3 only)'
+            )}
+            disabled={disabled}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-foreground">
+            {translate(
+              'auto.components.settings.DfHisEnvironmentPane.visionApiKey',
+              'Vision API key (optional)'
+            )}
+          </span>
+          <Input
+            value={value.visionApiKey}
+            onChange={(event) => onChange('visionApiKey', event.target.value)}
+            placeholder={translate(
+              'auto.components.settings.DfHisEnvironmentPane.visionApiKeyPlaceholder',
+              'sk-... (empty = built-in default)'
             )}
             disabled={disabled}
           />

@@ -52,6 +52,7 @@ export type DfHisEnvironmentConfigInput = {
   dfhisSkillPackUrl?: string
   relayExecModel?: string
   relayExecApiKey?: string
+  visionApiKey?: string
 }
 
 export type DfHisEnvironmentConfigSnapshot = {
@@ -71,6 +72,8 @@ export type DfHisEnvironmentConfigSnapshot = {
   relayExecModel: string
   relayExecApiKey: string
   hasRelayExecApiKey: boolean
+  visionApiKey: string
+  hasVisionApiKey: boolean
 }
 
 export type DfHisEnvironmentInstallResult = {

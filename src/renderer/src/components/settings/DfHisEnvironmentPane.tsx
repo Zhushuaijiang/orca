@@ -187,7 +187,8 @@ export function DfHisEnvironmentPane(): JSX.Element {
       archiveWorkspacePath: current.archiveWorkspacePath || snapshot.archiveWorkspacePath,
       dfhisSkillPackUrl: current.dfhisSkillPackUrl || snapshot.dfhisSkillPackUrl,
       relayExecModel: current.relayExecModel || snapshot.relayExecModel,
-      relayExecApiKey: current.relayExecApiKey || snapshot.relayExecApiKey
+      relayExecApiKey: current.relayExecApiKey || snapshot.relayExecApiKey,
+      visionApiKey: current.visionApiKey || snapshot.visionApiKey
     }))
   }, [])
 

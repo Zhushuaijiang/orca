@@ -1993,6 +1993,7 @@
         "yunxiaoParticipants": "Participants",
         "yunxiaoArchive": "Archive requirement",
         "yunxiaoAddToTodoPool": "Add to todo pool",
+        "yunxiaoInTodoPool": "Todo pool",
         "yunxiaoOpen": "Open in Yunxiao",
         "f6a4d3f9bc": "More actions",
         "yunxiaoMarkQueued": "Mark queued",
@@ -10372,6 +10373,8 @@
           "relayExecModelPlaceholder": "deepseek/deepseek-v4-flash",
           "relayExecApiKey": "Relay exec model API key (optional)",
           "relayExecApiKeyPlaceholder": "sk-... (empty = relay uses k3 only)",
+          "visionApiKey": "Vision API key (optional)",
+          "visionApiKeyPlaceholder": "sk-... (empty = built-in default)",
           "dfhisSkillPackUrl": "DFHIS skill pack URL",
           "dfhisSkillPackUrlPlaceholder": "https://.../dfhis-skill-pack.json"
         },

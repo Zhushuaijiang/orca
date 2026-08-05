@@ -41,6 +41,7 @@ import {
   checkRelayExecModelPrerequisite,
   ensureKimiRelayInstalled
 } from '../../../dfhis-environment/kimi-relay-prerequisites'
+import { ensureVisionSkillInstalled } from '../../../dfhis-environment/vision-skill-config'
 import { describeYgtCompanyEnvironmentStatus } from '../../../dfhis-environment/ygt-company-environment'
 
 const DfHisEnvironmentConfigInputSchema = z
@@ -56,7 +57,8 @@ const DfHisEnvironmentConfigInputSchema = z
     archiveWorkspacePath: OptionalPlainString,
     dfhisSkillPackUrl: OptionalPlainString,
     relayExecModel: OptionalPlainString,
-    relayExecApiKey: OptionalPlainString
+    relayExecApiKey: OptionalPlainString,
+    visionApiKey: OptionalPlainString
   })
   .optional()
   .nullable()
@@ -235,7 +237,8 @@ async function installDfHisEnvironment(
     ...(await pullAndEnsureDfHisWorkflowPack(config.dfhisSkillPackUrl)),
     describeYgtCompanyEnvironmentStatus(),
     await ensureArchiveWorkspace(config),
-    ...(await ensureKimiRelayInstalled(config))
+    ...(await ensureKimiRelayInstalled(config)),
+    ...(await ensureVisionSkillInstalled(config))
   ]
   return {
     installed: messages.every(
