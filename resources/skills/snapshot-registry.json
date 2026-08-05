@@ -1730,6 +1730,24 @@
           }
         ]
       }
+    ],
+    "ui-review": [
+      {
+        "releaseRevision": 1,
+        "packageDigest": "747fd5f4d10cdb55599ecf2d35a3694a783225f6310748da8feeefdf15c72e72",
+        "gitTreeSha": "d10ed5175025185c1c3e11d8091d79070cda8284",
+        "files": [
+          {
+            "path": "SKILL.md",
+            "size": 3470,
+            "executable": false,
+            "classification": "text",
+            "exactSha256": "94f1413b403ff76674839592bc2a26805546b9c00d990b9adf972a3a1c60b29b",
+            "textNormalizedSha256": "94f1413b403ff76674839592bc2a26805546b9c00d990b9adf972a3a1c60b29b",
+            "identitySha256": "94f1413b403ff76674839592bc2a26805546b9c00d990b9adf972a3a1c60b29b"
+          }
+        ]
+      }
     ]
   }
 }
