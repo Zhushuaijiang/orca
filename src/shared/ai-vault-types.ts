@@ -66,6 +66,18 @@ export type AiVaultSessionPreviewMessage = {
   timestamp: string | null
 }
 
+// Per-category token breakdown folded from provider usage records; `total` is
+// the session's billed total (sum of categories unless a provider reports an
+// explicit total that differs, e.g. Codex `total_tokens`).
+export type AiVaultTokenUsage = {
+  input: number
+  cacheRead: number
+  cacheWrite: number
+  output: number
+  reasoning: number
+  total: number
+}
+
 // Terminal statuses come from <task-notification> records in the parent
 // transcript; 'running' is inferred from recent transcript activity.
 export type AiVaultSubagentRunStatus = 'running' | 'completed' | 'failed' | 'stopped'
@@ -95,6 +107,10 @@ export type AiVaultSession = {
   modifiedAt: string
   messageCount: number
   totalTokens: number
+  /** Category breakdown of `totalTokens`; absent when the transcript reports no usage. */
+  tokenUsage?: AiVaultTokenUsage
+  /** Same breakdown grouped by model name; absent when no model-scoped usage was seen. */
+  tokenUsageByModel?: Record<string, AiVaultTokenUsage>
   previewMessages: AiVaultSessionPreviewMessage[]
   /** Older messages fell out of the newest-N window: the earliest preview turn
    * is NOT the opening ask, so first-prompt consumers must not scan it. */

@@ -2,7 +2,8 @@ import type {
   AiVaultAgent,
   AiVaultScanIssue,
   AiVaultSession,
-  AiVaultSessionPreviewMessage
+  AiVaultSessionPreviewMessage,
+  AiVaultTokenUsage
 } from '../../shared/ai-vault-types'
 import type { ExecutionHostId } from '../../shared/execution-host'
 
@@ -113,6 +114,8 @@ export type SessionAccumulator = {
   modifiedAt: string
   messageCount: number
   totalTokens: number
+  tokenUsage: AiVaultTokenUsage
+  tokenUsageByModel: Record<string, AiVaultTokenUsage>
   previewMessages: AiVaultSessionPreviewMessage[]
   // True once an older message fell out of the newest-N preview window, so the
   // earliest preview turn is no longer the session's opening ask.

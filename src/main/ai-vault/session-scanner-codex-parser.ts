@@ -19,6 +19,7 @@ import type {
   ResumableSessionParseState,
   SessionAccumulator
 } from './session-scanner-types'
+import { addCodexUsageBreakdown } from './session-scanner-token-values'
 import {
   addCodexUsage,
   asRecord,
@@ -220,12 +221,12 @@ function consumeCodexRecordLine(state: CodexSessionParseState, line: string): vo
       ? addCodexUsage(state.previousTotals, lastUsage)
       : lastUsage
   }
-  if (delta) {
-    accumulator.totalTokens += delta.totalTokens
-  }
   const model = extractModel(payload)
   if (model) {
     accumulator.model = model
+  }
+  if (delta) {
+    addCodexUsageBreakdown(accumulator, model ?? accumulator.model, delta)
   }
 }
 

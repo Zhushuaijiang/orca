@@ -16,6 +16,11 @@ import {
   updateTimeline
 } from './session-scanner-accumulator'
 import {
+  addTokenUsage,
+  emptyTokenUsage,
+  tokenUsageFromRecord
+} from './session-scanner-token-values'
+import {
   asRecord,
   copilotModelMetricsTotal,
   extractString,
@@ -102,8 +107,18 @@ function consumeCopilotRecordLine(accumulator: SessionAccumulator, line: string)
   }
   if (record.type === 'session.shutdown' && data) {
     accumulator.model = extractString(data.currentModel) ?? accumulator.model
-    accumulator.totalTokens += numberValue(data.currentTokens)
+    const currentTokens = numberValue(data.currentTokens)
+    accumulator.totalTokens += currentTokens
+    if (currentTokens > 0) {
+      addTokenUsage(accumulator, accumulator.model, { ...emptyTokenUsage(), total: currentTokens })
+    }
     accumulator.totalTokens += copilotModelMetricsTotal(data.modelMetrics)
+    const modelMetrics = asRecord(data.modelMetrics)
+    if (modelMetrics) {
+      for (const [metricModel, metric] of Object.entries(modelMetrics)) {
+        addTokenUsage(accumulator, metricModel, tokenUsageFromRecord(asRecord(metric)?.usage))
+      }
+    }
   }
 }
 

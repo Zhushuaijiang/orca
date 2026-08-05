@@ -90,6 +90,7 @@ async function writeKimiSession(args: {
   state?: Record<string, unknown>
   workDir?: string | null
   wireLines?: unknown[] | null
+  subagentWireLines?: unknown[]
 }): Promise<{ file: FileWithMtime }> {
   const home = await mkdtemp(join(tmpdir(), 'orca-kimi-'))
   tempDirs.push(home)
@@ -125,6 +126,14 @@ async function writeKimiSession(args: {
     )
   }
 
+  if (args.subagentWireLines) {
+    await mkdir(join(sessionDir, 'agents', 'sub1'), { recursive: true })
+    await writeFile(
+      join(sessionDir, 'agents', 'sub1', 'wire.jsonl'),
+      args.subagentWireLines.map((line) => JSON.stringify(line)).join('\n')
+    )
+  }
+
   const mtimeMs = Date.now()
   return { file: { path: statePath, mtimeMs, modifiedAt: new Date(mtimeMs).toISOString() } }
 }
@@ -149,6 +158,17 @@ describe('parseKimiSessionFile', () => {
     expect(session?.cwd).toBe('/private/tmp/kimi-test-proj')
     expect(session?.model).toBe('mock-model')
     expect(session?.totalTokens).toBe(30)
+    expect(session?.tokenUsage).toEqual({
+      input: 12,
+      cacheRead: 0,
+      cacheWrite: 0,
+      output: 18,
+      reasoning: 0,
+      total: 30
+    })
+    expect(session?.tokenUsageByModel).toEqual({
+      'mock-model': { input: 12, cacheRead: 0, cacheWrite: 0, output: 18, reasoning: 0, total: 30 }
+    })
     // 1 real user turn + 1 assistant turn; the injected system-reminder is excluded.
     expect(session?.messageCount).toBe(2)
     expect(session?.previewMessages).toEqual([
@@ -157,6 +177,44 @@ describe('parseKimiSessionFile', () => {
     ])
     expect(session?.createdAt).toBe('2026-06-19T07:19:19.118Z')
     expect(session?.updatedAt).toBe('2026-06-19T07:19:19.161Z')
+  })
+
+  it('folds subagent wire usage into the per-model token breakdown', async () => {
+    const { file } = await writeKimiSession({
+      subagentWireLines: [
+        {
+          type: 'usage.record',
+          model: 'mock-sub-model',
+          usage: { inputOther: 5, output: 7, inputCacheRead: 9, inputCacheCreation: 1 },
+          usageScope: 'turn'
+        }
+      ]
+    })
+    const session = await parseKimiSessionFile(file, 'darwin')
+
+    // Main wire 30 + subagent wire 22.
+    expect(session?.totalTokens).toBe(52)
+    expect(session?.tokenUsage).toEqual({
+      input: 17,
+      cacheRead: 9,
+      cacheWrite: 1,
+      output: 25,
+      reasoning: 0,
+      total: 52
+    })
+    expect(session?.tokenUsageByModel).toEqual({
+      'mock-model': { input: 12, cacheRead: 0, cacheWrite: 0, output: 18, reasoning: 0, total: 30 },
+      'mock-sub-model': {
+        input: 5,
+        cacheRead: 9,
+        cacheWrite: 1,
+        output: 7,
+        reasoning: 0,
+        total: 22
+      }
+    })
+    // Subagent usage must not leak into the conversation preview.
+    expect(session?.messageCount).toBe(2)
   })
 
   it('builds a work-dir-scoped resume command', async () => {

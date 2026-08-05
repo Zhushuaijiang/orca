@@ -17,6 +17,7 @@ import {
   sessionIdFromFileName,
   updateTimeline
 } from './session-scanner-accumulator'
+import { addTokenUsage, tokenUsageFromRecord } from './session-scanner-token-values'
 import {
   arrayValue,
   asRecord,
@@ -154,5 +155,6 @@ export function consumeGeminiMessage(
       accumulator.model = model
     }
     accumulator.totalTokens += tokenTotal(record.tokens)
+    addTokenUsage(accumulator, model, tokenUsageFromRecord(record.tokens))
   }
 }

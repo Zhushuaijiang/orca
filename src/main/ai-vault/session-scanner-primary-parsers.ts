@@ -12,6 +12,7 @@ import type {
 } from './session-scanner-types'
 import {
   addPreviewContent,
+  cloneSessionAccumulator,
   createAccumulator,
   finalizeSession,
   sessionIdFromFileName,
@@ -19,6 +20,7 @@ import {
   updateTimeline
 } from './session-scanner-accumulator'
 import { countSubagentTranscripts } from './session-scanner-subagent-transcripts'
+import { addTokenUsage, claudeUsageBreakdown } from './session-scanner-token-values'
 import {
   asRecord,
   claudeUsageTotal,
@@ -59,10 +61,7 @@ export function cloneClaudeSessionParseState(
   state: ClaudeSessionParseState
 ): ClaudeSessionParseState {
   return {
-    accumulator: {
-      ...state.accumulator,
-      previewMessages: [...state.accumulator.previewMessages]
-    },
+    accumulator: cloneSessionAccumulator(state.accumulator),
     metaTitle: state.metaTitle,
     generatedTitle: state.generatedTitle,
     firstUserTitle: state.firstUserTitle
@@ -156,6 +155,7 @@ export function consumeClaudeSessionLine(state: ClaudeSessionParseState, line: s
       accumulator.model = model
     }
     accumulator.totalTokens += claudeUsageTotal(message?.usage)
+    addTokenUsage(accumulator, model, claudeUsageBreakdown(message?.usage))
   }
 }
 

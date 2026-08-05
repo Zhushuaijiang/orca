@@ -11,6 +11,7 @@ import {
   updateTimeline
 } from './session-scanner-accumulator'
 import { extractFullFirstUserPromptText } from './session-scanner-first-user-prompt'
+import { addTokenUsage, tokenUsageFromRecord } from './session-scanner-token-values'
 import {
   asRecord,
   extractPreviewContentText,
@@ -121,6 +122,7 @@ export async function consumeOpenCodeMessages(
         extractString(message.modelID) ||
         accumulator.model
       accumulator.totalTokens += tokenTotal(message.tokens)
+      addTokenUsage(accumulator, accumulator.model, tokenUsageFromRecord(message.tokens))
     }
   }
 }

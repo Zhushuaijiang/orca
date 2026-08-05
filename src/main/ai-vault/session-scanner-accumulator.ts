@@ -17,6 +17,7 @@ import {
   normalizeFullFirstUserPromptText,
   shouldCaptureFullFirstUserPrompt
 } from './session-scanner-first-user-prompt'
+import { emptyTokenUsage, hasTokenUsage } from './session-scanner-token-values'
 import {
   extractPreviewContentText,
   extractString,
@@ -45,6 +46,8 @@ export function createAccumulator(args: {
     modifiedAt: args.file.modifiedAt,
     messageCount: 0,
     totalTokens: 0,
+    tokenUsage: emptyTokenUsage(),
+    tokenUsageByModel: {},
     previewMessages: [],
     previewMessagesTruncated: false,
     firstUserPrompt: null,
@@ -56,7 +59,14 @@ export function createAccumulator(args: {
 }
 
 export function cloneSessionAccumulator(accumulator: SessionAccumulator): SessionAccumulator {
-  return { ...accumulator, previewMessages: [...accumulator.previewMessages] }
+  return {
+    ...accumulator,
+    previewMessages: [...accumulator.previewMessages],
+    tokenUsage: { ...accumulator.tokenUsage },
+    tokenUsageByModel: Object.fromEntries(
+      Object.entries(accumulator.tokenUsageByModel).map(([model, usage]) => [model, { ...usage }])
+    )
+  }
 }
 
 // Resumable fold for parsers whose only parse state is the accumulator itself
@@ -119,6 +129,10 @@ export function finalizeSession(
     modifiedAt: accumulator.modifiedAt,
     messageCount: accumulator.messageCount,
     totalTokens: accumulator.totalTokens,
+    ...(hasTokenUsage(accumulator.tokenUsage) ? { tokenUsage: accumulator.tokenUsage } : {}),
+    ...(Object.keys(accumulator.tokenUsageByModel).length > 0
+      ? { tokenUsageByModel: accumulator.tokenUsageByModel }
+      : {}),
     previewMessages: accumulator.previewMessages,
     ...(accumulator.previewMessagesTruncated ? { previewMessagesTruncated: true } : {}),
     ...(accumulator.firstUserPrompt ? { firstUserPrompt: accumulator.firstUserPrompt } : {}),

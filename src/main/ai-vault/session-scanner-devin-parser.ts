@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
-import type { AiVaultSession } from '../../shared/ai-vault-types'
+import type { AiVaultSession, AiVaultTokenUsage } from '../../shared/ai-vault-types'
 import type { ExecutionHostId } from '../../shared/execution-host'
+import { addTokenUsage } from './session-scanner-token-values'
 import type { FileWithMtime } from './session-scanner-types'
 import {
   addPreviewContent,
@@ -62,7 +63,9 @@ export function parseDevinSessionContent(
     const metrics = asRecord(metadata?.metrics)
     accumulator.model ??=
       extractString(metadata?.generation_model) ?? extractString(metrics?.generation_model)
-    accumulator.totalTokens += devinStepTokenTotal(metadata, metrics)
+    const stepUsage = devinStepTokenUsage(metadata, metrics)
+    accumulator.totalTokens += stepUsage.total
+    addTokenUsage(accumulator, accumulator.model, stepUsage)
     const isUser = metadata?.is_user_input === true
     if (isUser) {
       accumulator.messageCount++
@@ -95,19 +98,28 @@ function extractDevinStepText(step: Record<string, unknown>): string | null {
   return extractString(step.text)
 }
 
-function devinStepTokenTotal(
+function devinStepTokenUsage(
   metadata: Record<string, unknown> | null,
   metrics: Record<string, unknown> | null
-): number {
-  return (
-    numberFromDevinMetadata(metadata, metrics, ['total_input_tokens', 'input_tokens']) +
-    numberFromDevinMetadata(metadata, metrics, ['output_tokens']) +
-    numberFromDevinMetadata(metadata, metrics, ['cache_read_tokens', 'cache_read_input_tokens']) +
-    numberFromDevinMetadata(metadata, metrics, [
-      'cache_creation_tokens',
-      'cache_creation_input_tokens'
-    ])
-  )
+): AiVaultTokenUsage {
+  const input = numberFromDevinMetadata(metadata, metrics, ['total_input_tokens', 'input_tokens'])
+  const output = numberFromDevinMetadata(metadata, metrics, ['output_tokens'])
+  const cacheRead = numberFromDevinMetadata(metadata, metrics, [
+    'cache_read_tokens',
+    'cache_read_input_tokens'
+  ])
+  const cacheWrite = numberFromDevinMetadata(metadata, metrics, [
+    'cache_creation_tokens',
+    'cache_creation_input_tokens'
+  ])
+  return {
+    input,
+    cacheRead,
+    cacheWrite,
+    output,
+    reasoning: 0,
+    total: input + output + cacheRead + cacheWrite
+  }
 }
 
 function numberFromDevinMetadata(

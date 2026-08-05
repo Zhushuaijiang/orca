@@ -15,6 +15,7 @@ import {
   sessionIdFromFileName,
   updateTimeline
 } from './session-scanner-accumulator'
+import { addTokenUsage, tokenUsageFromRecord } from './session-scanner-token-values'
 import {
   asRecord,
   extractMessageText,
@@ -81,6 +82,7 @@ function consumeDroidRecordLine(accumulator: SessionAccumulator, line: string): 
   } else if (record.type === 'completion') {
     accumulator.messageCount++
     accumulator.totalTokens += tokenTotal(record.usage)
+    addTokenUsage(accumulator, accumulator.model, tokenUsageFromRecord(record.usage))
     addPreviewMessage(accumulator, {
       role: 'assistant',
       text: extractString(record.finalText),

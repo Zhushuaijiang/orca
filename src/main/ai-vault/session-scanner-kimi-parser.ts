@@ -1,7 +1,8 @@
 import { createReadStream } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
-import type { AiVaultSession } from '../../shared/ai-vault-types'
+import type { AiVaultSession, AiVaultTokenUsage } from '../../shared/ai-vault-types'
 import {
   addPreviewContent,
   addPreviewMessage,
@@ -16,6 +17,7 @@ import {
   readKimiWorkDirBySessionId
 } from './session-scanner-kimi-paths'
 import type { FileWithMtime, SessionAccumulator } from './session-scanner-types'
+import { addTokenUsage } from './session-scanner-token-values'
 import {
   asRecord,
   extractContentText,
@@ -60,9 +62,56 @@ export async function parseKimiSessionFile(
   updateTimeline(accumulator, extractString(stateRecord.createdAt))
   updateTimeline(accumulator, extractString(stateRecord.updatedAt))
 
-  await consumeKimiWireTranscript(accumulator, kimiPrimaryAgentWirePath(file.path, stateRecord))
+  const primaryWirePath = kimiPrimaryAgentWirePath(file.path, stateRecord)
+  await consumeKimiWireTranscript(accumulator, primaryWirePath)
+  // Subagent transcripts carry their own usage records; bill-wise they belong
+  // to the session, but their messages must not pollute the preview.
+  await consumeKimiSubagentUsage(accumulator, file.path, primaryWirePath)
 
   return finalizeSession(accumulator, platform)
+}
+
+async function consumeKimiSubagentUsage(
+  accumulator: SessionAccumulator,
+  statePath: string,
+  primaryWirePath: string
+): Promise<void> {
+  let entries
+  try {
+    entries = await readdir(join(dirname(statePath), 'agents'), { withFileTypes: true })
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue
+    }
+    const wirePath = join(dirname(statePath), 'agents', entry.name, 'wire.jsonl')
+    if (wirePath === primaryWirePath) {
+      continue
+    }
+    await consumeKimiWireUsage(accumulator, wirePath)
+  }
+}
+
+async function consumeKimiWireUsage(
+  accumulator: SessionAccumulator,
+  wirePath: string
+): Promise<void> {
+  try {
+    const lines = createInterface({
+      input: createReadStream(wirePath, { encoding: 'utf-8' }),
+      crlfDelay: Infinity
+    })
+    for await (const line of lines) {
+      const record = parseJsonObject(line)
+      if (record?.type === 'usage.record') {
+        consumeKimiUsageRecord(accumulator, record)
+      }
+    }
+  } catch {
+    // Subagent transcript not flushed yet — its usage simply stays uncounted.
+  }
 }
 
 async function consumeKimiWireTranscript(
@@ -98,8 +147,7 @@ async function consumeKimiWireTranscript(
           accumulator.model = extractString(record.modelAlias) ?? accumulator.model
           break
         case 'usage.record':
-          accumulator.model = extractString(record.model) ?? accumulator.model
-          accumulator.totalTokens += kimiUsageTotal(record.usage, record.usageScope)
+          consumeKimiUsageRecord(accumulator, record)
           break
         case 'context.append_message':
           consumeKimiUserMessage(accumulator, record.message)
@@ -157,21 +205,40 @@ function consumeKimiLoopEvent(
   }
 }
 
+function consumeKimiUsageRecord(
+  accumulator: SessionAccumulator,
+  record: Record<string, unknown>
+): void {
+  const usage = kimiUsageBreakdown(record.usage, record.usageScope)
+  if (!usage) {
+    return
+  }
+  accumulator.model = extractString(record.model) ?? accumulator.model
+  accumulator.totalTokens += usage.total
+  addTokenUsage(accumulator, extractString(record.model), usage)
+}
+
 // Kimi reports per-turn usage as {inputOther, output, inputCacheRead,
 // inputCacheCreation}; sum all four for a session total. Skip any future
 // cumulative ("session"-scoped) record so turn deltas are not double-counted.
-function kimiUsageTotal(value: unknown, usageScope: unknown): number {
+function kimiUsageBreakdown(value: unknown, usageScope: unknown): AiVaultTokenUsage | null {
   if (usageScope === 'session') {
-    return 0
+    return null
   }
   const usage = asRecord(value)
   if (!usage) {
-    return 0
+    return null
   }
-  return (
-    numberValue(usage.inputOther) +
-    numberValue(usage.output) +
-    numberValue(usage.inputCacheRead) +
-    numberValue(usage.inputCacheCreation)
-  )
+  const input = numberValue(usage.inputOther)
+  const cacheRead = numberValue(usage.inputCacheRead)
+  const cacheWrite = numberValue(usage.inputCacheCreation)
+  const output = numberValue(usage.output)
+  return {
+    input,
+    cacheRead,
+    cacheWrite,
+    output,
+    reasoning: 0,
+    total: input + cacheRead + cacheWrite + output
+  }
 }

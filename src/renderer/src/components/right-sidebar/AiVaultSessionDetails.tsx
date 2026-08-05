@@ -11,6 +11,7 @@ import {
 import { translate } from '@/i18n/i18n'
 import { FirstPromptCard } from './ai-vault-first-prompt-card'
 import { sessionDetailConversationTurns, sessionPromptPreview } from './ai-vault-session-display'
+import { SessionTokenUsageSection } from './ai-vault-session-token-usage'
 import { SessionSubagentsSection } from './AiVaultSessionSubagents'
 import { SessionUnsavedConversationNotice } from './AiVaultSessionUnsavedNotice'
 import {
@@ -184,6 +185,8 @@ export function SessionInlineDetails({
           // preview section instead of stacking a second empty state under it.
           <SessionUnsavedConversationNotice session={session} logAvailable={Boolean(onOpenLog)} />
         )}
+
+        <SessionTokenUsageSection session={session} />
 
         <SessionSubagentsSection session={session} />
 

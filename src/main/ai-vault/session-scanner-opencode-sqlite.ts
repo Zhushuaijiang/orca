@@ -9,6 +9,7 @@ import {
   normalizeFullFirstUserPromptText,
   shouldCaptureFullFirstUserPrompt
 } from './session-scanner-first-user-prompt'
+import { addTokenUsage } from './session-scanner-token-values'
 import { normalizeTitleText } from './session-scanner-values'
 import SyncDatabase from '../sqlite/sync-database'
 import { columnExists, tableExists } from '../opencode-usage/schema-helpers'
@@ -288,6 +289,14 @@ export async function parseOpenCodeSqliteSession(args: {
     accumulator.model = extractModelId(row.model_json)
     accumulator.totalTokens =
       (row.tokens_input ?? 0) + (row.tokens_output ?? 0) + (row.tokens_reasoning ?? 0)
+    addTokenUsage(accumulator, accumulator.model, {
+      input: row.tokens_input ?? 0,
+      cacheRead: row.tokens_cache_read ?? 0,
+      cacheWrite: 0,
+      output: row.tokens_output ?? 0,
+      reasoning: row.tokens_reasoning ?? 0,
+      total: accumulator.totalTokens
+    })
     accumulator.messageCount = row.message_count ?? 0
     updateTimeline(accumulator, row.time_created)
     updateTimeline(accumulator, row.time_updated)

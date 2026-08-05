@@ -19,6 +19,7 @@ import {
   sessionIdFromFileName,
   updateTimeline
 } from './session-scanner-accumulator'
+import { addTokenUsage, tokenUsageFromRecord } from './session-scanner-token-values'
 import {
   arrayValue,
   asRecord,
@@ -230,6 +231,7 @@ function consumeMessageGraphRecordLine(accumulator: SessionAccumulator, line: st
     } else {
       accumulator.model = extractString(message?.model) ?? accumulator.model
       accumulator.totalTokens += tokenTotal(message?.usage)
+      addTokenUsage(accumulator, accumulator.model, tokenUsageFromRecord(message?.usage))
     }
     addPreviewContent(accumulator, role, message?.content, record.timestamp)
   }
