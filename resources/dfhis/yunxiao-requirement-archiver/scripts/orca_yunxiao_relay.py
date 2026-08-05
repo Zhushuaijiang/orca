@@ -278,14 +278,21 @@ def start_worker(task_id: str, profile: tuple[str, str], title: str) -> tuple[st
     raise RuntimeError(f"worker-start failed for {task_id} after ready nudge")
 
 
+WORKER_PREAMBLE = (
+    "调度约束：后台任务（build/install/git）完成后通知自动到达，禁止用 TaskOutput 轮询；"
+    "完成即发 worker_done，不等待不轮询。"
+)
+
+
 def build_stages(req_id: str, req_dir: Path) -> list[dict]:
     d = str(req_dir)
     skill = str(SKILL_DIR)
+    p = WORKER_PREAMBLE
     return [
         {
             "key": "archive_prd", "profile": PROFILES["doc"], "deps": [],
             "title": f"{req_id}-归档PRD",
-            "spec": (f"【{req_id} 阶段·归档+分析+PRD】严格按 {skill}/SKILL.md 执行："
+            "spec": (p + f"【{req_id} 阶段·归档+分析+PRD】严格按 {skill}/SKILL.md 执行："
                      f"①python3 {skill}/scripts/run_direct_archive.py {req_id} --output-dir {d} --json；"
                      f"②阅读归档与截图附件，按技能规则定位真实代码仓库（含页面归属追踪）；"
                      f"③在 {d}/PRD_AND_CODE_ANALYSIS.md 顶部创建精简 Requirement Contract 并完成风险分级；"
@@ -296,7 +303,7 @@ def build_stages(req_id: str, req_dir: Path) -> list[dict]:
         {
             "key": "implement", "profile": PROFILES["exec"], "deps": ["archive_prd"],
             "title": f"{req_id}-实现",
-            "spec": (f"【{req_id} 阶段·代码实现】读 {d}/PRD_AND_CODE_ANALYSIS.md，仅当合同为 ready_to_build 才动手，"
+            "spec": (p + f"【{req_id} 阶段·代码实现】读 {d}/PRD_AND_CODE_ANALYSIS.md，仅当合同为 ready_to_build 才动手，"
                      f"否则如实报告阻断。严格按 {skill}/SKILL.md 第7-9步：prepare_local_worktree 建隔离 worktree、"
                      f"每次编辑前跑 guard_code_edit.py、最小改动、禁止改构建/依赖/项目本地API模块。"
                      "不改 PRD 合同结论，实现偏差需记入决策台账。worker_done body 报告改动文件清单与自验结果。"),
@@ -304,7 +311,7 @@ def build_stages(req_id: str, req_dir: Path) -> list[dict]:
         {
             "key": "review", "profile": PROFILES["review"], "deps": ["implement"],
             "title": f"{req_id}-复核",
-            "spec": (f"【{req_id} 阶段·实现复核·只读】你是 implementation_reviewer。读 {d}/PRD_AND_CODE_ANALYSIS.md 合同/计划/验收标准，"
+            "spec": (p + f"【{req_id} 阶段·实现复核·只读】你是 implementation_reviewer。读 {d}/PRD_AND_CODE_ANALYSIS.md 合同/计划/验收标准，"
                      "对 code/ 下各仓库未提交或已提交 diff 逐行复核：实现与合同及决策台账一致性、异步/时序风险、"
                      "是否误改构建/依赖/API。输出中文结论（通过/阻断/通过但存在非阻断限制）+问题清单，"
                      "追加到 PRD 1.5 reviewChecks 表（注明 dispatch 来源）。禁止修改业务代码。worker_done body 给出结论。"),
@@ -313,14 +320,14 @@ def build_stages(req_id: str, req_dir: Path) -> list[dict]:
         {
             "key": "verify", "profile": PROFILES["exec"], "deps": ["implement"],
             "title": f"{req_id}-验证",
-            "spec": (f"【{req_id} 阶段·lint+build 验证】按 {d}/PRD_AND_CODE_ANALYSIS.md 第8节与 HIS intake 选定的工具链"
+            "spec": (p + f"【{req_id} 阶段·lint+build 验证】按 {d}/PRD_AND_CODE_ANALYSIS.md 第8节与 HIS intake 选定的工具链"
                      "（不得用宿主机默认 Node）在隔离 worktree 复跑 lint 与 build；确认 package.json/锁文件/生成配置无残留 diff。"
                      "禁止修改业务代码；失败如实报告不自行修复。证据中文更新到 PRD 8.4（注明接龙复跑）。worker_done body 报告各项结果。"),
         },
         {
             "key": "screenshot", "profile": PROFILES["visual"], "deps": ["verify"],
             "title": f"{req_id}-截图",
-            "spec": (f"【{req_id} 阶段·业务页截图验收】为 PRD 验收标准涉及的业务页面采集真实截图，存 {d}/evidence/。"
+            "spec": (p + f"【{req_id} 阶段·业务页截图验收】为 PRD 验收标准涉及的业务页面采集真实截图，存 {d}/evidence/。"
                      "先 orca computer permissions --json 确认授权；不可用或环境不可达时，不得用登录页/构建产物/代码冒充证据，"
                      "把精确阻断原因（缺失权限名、负责人）写入 PRD 8.3/8.4。worker_done body 给出截图清单或精确阻断原因。"),
             "allow_env_block": True,
@@ -328,7 +335,7 @@ def build_stages(req_id: str, req_dir: Path) -> list[dict]:
         {
             "key": "deliver", "profile": PROFILES["exec"], "deps": ["review", "verify", "screenshot"],
             "title": f"{req_id}-交付",
-            "spec": (f"【{req_id} 阶段·交付+云效回写】严格按 {skill}/SKILL.md 第11-14步完整执行，缺一不可："
+            "spec": (p + f"【{req_id} 阶段·交付+云效回写】严格按 {skill}/SKILL.md 第11-14步完整执行，缺一不可："
                      "①按仓库惯例 commit 并 push 需求分支，git status -sb 核实跟踪；"
                      f"②python3 {skill}/scripts/comment_yunxiao.py 发中文评论（仓库/分支/commit/改动文件/修复要点/验证结果/阻断如实写，"
                      "前端改动且有截图时先上传并嵌入截图）；"

@@ -198,6 +198,16 @@ When such a change is present:
 
 If a parameter/data change is discovered after the work item was already moved to `待测试`, reopen the handoff as a follow-up delivery: update the Requirement Contract, add the SQL/data patch, rerun fresh verification, upload the attachment, update `数据变更`, add a new Yunxiao comment, and only then restate completion.
 
+## Token Economy Rules
+
+These rules apply to every workflow in this skill. They exist because measured session data shows 97%+ of tokens are cache-reads proportional to turn count × context size, so cutting turns and routing routine turns to cheaper models are the primary cost levers — none of them weaken the evidence chain.
+
+- **No background-task polling**: completion notifications arrive automatically. Never call `TaskOutput` to check whether a background build/install/git task finished (user explicitly asking for progress is the only exception). Each poll is a full turn that re-reads the entire context.
+- **Verify-then-fan-out**: when the same fix must land on multiple branches, build and self-test on one branch first, capture screenshot/build evidence, get user confirmation, then cherry-pick to the remaining branches and run `scripts/verify_branch_matrix.sh` once for all of them. Never push an unverified fix to N branches and rebuild N times.
+- **Dependency install is not a retry loop**: prefer a shared `node_modules` cache and the package manager's offline/frozen mode as the first attempt, not a fallback after repeated failures. If the first correct install (right Node version, right lock-file manager, `--frozen-lockfile`) fails, record the exact error once — do not re-run variations hoping it self-heals.
+- **Default to model tiering, not opt-in**: implementation/build/git/log-reading turns are routine and must run on the cheapest capable model (deepseek-v4-flash for pay-as-you-go, or qwen token-plan for zero marginal cost). Reserve k3 for review, root-cause analysis, and screenshot/visual acceptance. When the workflow has multiple branches or stages, drive it through the relay (`scripts/orca_yunxiao_relay.py`) so each stage's model is pinned automatically; a single-model k3 session for a multi-branch implementation is an anti-pattern.
+- **Session hygiene**: resume an existing session for the same requirement instead of opening a new one — each new session rebuilds context at full (non-cache) price. Prefer `k3-256k` over the 1M window for k3 sessions so compaction triggers earlier and per-turn re-read stays bounded.
+
 ## Orca Model Relay (Multi-Model Staged Execution)
 
 When the user asks for model relay (`模型接龙`) or staged multi-model execution, drive the requirement through `scripts/orca_yunxiao_relay.py` instead of a single-model session. It creates an Orca orchestration Run, one Task per stage with deps, and pins each stage's worker by launching an agent terminal from the adapter table with an injected dispatch.
@@ -238,6 +248,7 @@ Relay operating rules learned from DFHIS-31894 (`{需求目录}/RELAY.md` is the
 - A completed dispatch cannot be `retry-of` restarted; close the stalled terminal so it settles, then start a fresh worker.
 - If a task stays `pending` after its deps completed (readiness lag), nudge with `task-update --status ready` and retry `worker-start`.
 - Stages hand off through files (archive, `PRD_AND_CODE_ANALYSIS.md`, `RELAY.md`), not shared session memory; worker specs must name the stage's gates explicitly because execution models do not follow the skill's formal gates unprompted.
+- Workers must not poll background tasks: each worker launches its build/install/git command, then immediately sends `worker_done` with the outcome. Polling `TaskOutput` from inside a worker burns a full context re-read per poll and is the single largest measured waste in relay sessions.
 
 ## DFHIS Frontend Verification Environment
 
