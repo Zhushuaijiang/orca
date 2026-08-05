@@ -12,7 +12,6 @@ import {
   migrateMobilePairingDataToCanonicalUserDataPath
 } from './persistence'
 import { initSessionParseCachePersistence } from './ai-vault/session-parse-cache-persistence'
-import { scheduleYunxiaoIndexWarmup } from './ai-vault/yunxiao-requirement-index'
 import { ensureActiveOrcaProfile, initOrcaProfilePaths } from './orca-profiles/profile-index-store'
 import { getOrcaCloudAuthConfig } from './orca-profiles/profile-cloud-auth-config'
 import { getProfileUserDataPath } from './orca-profiles/profile-storage-paths'
@@ -744,7 +743,6 @@ if (hasSingleInstanceLock) {
     filePath: join(getCanonicalUserDataPath(), 'ai-vault', 'session-parse-cache.json'),
     appVersion: app.getVersion()
   })
-  scheduleYunxiaoIndexWarmup()
   initOrcaProfilePaths()
   // Why: same timing as initDataPath — capture userData before app.setName changes it. See persistence.ts:20-28.
   initStatsPath()

@@ -1,101 +1,87 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import {
-  resetYunxiaoIndexForTests,
-  searchYunxiaoSessions,
-  type YunxiaoIndexOptions
-} from './yunxiao-requirement-index'
+import { DatabaseSync } from 'node:sqlite'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { searchYunxiaoSessions, type YunxiaoSearchOptions } from './yunxiao-requirement-index'
 
-let root: string
-let options: YunxiaoIndexOptions
+let options: YunxiaoSearchOptions
 
 beforeAll(async () => {
-  root = join(tmpdir(), `orca-yunxiao-index-test-${process.pid}-${Date.now()}`)
+  const root = join(tmpdir(), `orca-yunxiao-search-test-${process.pid}-${Date.now()}`)
   const archive = join(root, 'archive')
-  const codexDir = join(root, 'codex-sessions')
+  const codexHome = join(root, 'codex-home')
   const kimiSessions = join(root, 'kimi-home', 'sessions')
   const kimiSession = join(kimiSessions, 'wd_app_abc', 'session_kimi-1')
+  const requirementDir = join(archive, 'DFHIS-123')
 
-  await mkdir(join(archive, 'DFHIS-123'), { recursive: true })
-  await mkdir(codexDir, { recursive: true })
+  await mkdir(requirementDir, { recursive: true })
+  await mkdir(codexHome, { recursive: true })
   await mkdir(join(kimiSession, 'agents', 'main'), { recursive: true })
 
-  const codexCwd = join(archive, 'DFHIS-123')
-  await writeFile(
-    join(codexDir, 'rollout-a.jsonl'),
-    `${JSON.stringify({ type: 'session_meta', payload: { cwd: codexCwd } })}\n${JSON.stringify({
-      type: 'event_msg',
-      payload: { message: 'please fix DFHIS-123' }
-    })}\n`
+  const rolloutA = join(codexHome, 'rollout-a.jsonl')
+  const rolloutB = join(codexHome, 'rollout-b.jsonl')
+  for (const [path, text] of [
+    [rolloutA, 'please fix DFHIS-123'],
+    [rolloutB, 'unrelated chatter']
+  ] as const) {
+    await writeFile(
+      path,
+      `${JSON.stringify({ type: 'session_meta', payload: { cwd: requirementDir } })}\n${JSON.stringify(
+        { type: 'event_msg', payload: { message: text } }
+      )}\n`
+    )
+  }
+
+  const codexDb = new DatabaseSync(join(codexHome, 'state_9.sqlite'))
+  codexDb.exec(
+    'CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT NOT NULL, cwd TEXT NOT NULL, title TEXT NOT NULL, first_user_message TEXT NOT NULL, preview TEXT NOT NULL)'
   )
-  // cwd-only association: transcript never mentions the requirement id.
-  await writeFile(
-    join(codexDir, 'rollout-b.jsonl'),
-    `${JSON.stringify({ type: 'session_meta', payload: { cwd: codexCwd } })}\n${JSON.stringify({
-      type: 'event_msg',
-      payload: { message: 'unrelated chatter' }
-    })}\n`
-  )
+  codexDb
+    .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?)')
+    .run('thread-a', rolloutA, '/elsewhere', 'fix DFHIS-123 login', '', '')
+  // cwd-only association: no token anywhere in the metadata.
+  codexDb
+    .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?)')
+    .run('thread-b', rolloutB, requirementDir, 'chatter', '', '')
+  codexDb.close()
 
   await writeFile(
     join(root, 'kimi-home', 'session_index.jsonl'),
-    `${JSON.stringify({ sessionId: 'session_kimi-1', workDir: codexCwd })}\n`
+    `${JSON.stringify({ sessionId: 'session_kimi-1', workDir: requirementDir })}\n`
   )
   await writeFile(
     join(kimiSession, 'state.json'),
     JSON.stringify({
-      title: 'fix the login bug',
+      title: 'resume the DFHIS-123 repair',
+      lastPrompt: 'resume the DFHIS-123 repair',
       createdAt: '2026-08-01T00:00:00.000Z',
       updatedAt: '2026-08-01T01:00:00.000Z',
       agents: { main: { type: 'main', parentAgentId: null } }
     })
   )
-  await writeFile(
-    join(kimiSession, 'agents', 'main', 'wire.jsonl'),
-    `${JSON.stringify({
-      type: 'context.append_message',
-      message: { role: 'user', origin: { kind: 'user' }, content: 'resume DFHIS-123 repair' }
-    })}\n`
-  )
 
   options = {
-    codexSessionsDir: codexDir,
+    codexHomeDir: codexHome,
+    opencodeDbPath: join(root, 'missing-opencode.db'),
     kimiSessionsDir: kimiSessions,
-    archiveWorkspacePath: archive,
-    indexPath: join(root, 'yunxiao-index.json')
+    archiveWorkspacePath: archive
   }
 })
 
-afterAll(() => {
-  resetYunxiaoIndexForTests()
-})
-
-describe('yunxiao requirement index', () => {
+describe('yunxiao requirement search', () => {
   it('finds codex and kimi sessions by token, compact form, and cwd', async () => {
-    resetYunxiaoIndexForTests()
-    const byToken = await searchYunxiaoSessions('DFHIS-123', options)
-    const agents = byToken.sessions.map((session) => session.agent).sort()
-    // rollout-a (token), rollout-b (cwd), kimi-1 (token + cwd).
-    expect(agents).toEqual(['codex', 'codex', 'kimi'])
+    const result = await searchYunxiaoSessions('DFHIS-123', options)
+    expect(result.sessions.map((session) => session.agent).sort()).toEqual([
+      'codex',
+      'codex',
+      'kimi'
+    ])
 
     const compact = await searchYunxiaoSessions('dfhis123', options)
     expect(compact.sessions).toHaveLength(3)
 
     const miss = await searchYunxiaoSessions('DFHIS-999', options)
     expect(miss.sessions).toHaveLength(0)
-  })
-
-  it('picks up newly written transcripts incrementally', async () => {
-    const late = join(options.codexSessionsDir as string, 'rollout-c.jsonl')
-    await writeFile(
-      late,
-      `${JSON.stringify({ type: 'session_meta', payload: { cwd: '/tmp/elsewhere' } })}\n${JSON.stringify(
-        { type: 'event_msg', payload: { message: 'DFHIS-123 follow-up' } }
-      )}\n`
-    )
-    const result = await searchYunxiaoSessions('DFHIS-123', options)
-    expect(result.sessions).toHaveLength(4)
   })
 })
