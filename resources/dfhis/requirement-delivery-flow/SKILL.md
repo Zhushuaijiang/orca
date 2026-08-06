@@ -51,6 +51,17 @@ Produce a structured analysis document covering:
 - Risk profile: external dependencies, crypto/format compatibility, network reachability, multi-repo coordination.
 - **Blocking questions**: 1-3 specific multiple-choice questions whose answers change implementation. Do not ask open-ended questions.
 
+## Runtime-Evidence-First Diagnosis for UI/Rendering Defects
+
+When the reported symptom is "page blank", "white screen", "component won't load", or similar rendering failure, static code analysis alone is **insufficient** to identify root cause. Follow this protocol before writing any fix:
+
+1. **Capture runtime errors before diagnosing.** Ask the user to open browser DevTools Console and share all red errors. If the user cannot provide them, scaffold a local E2E that captures console output. Do not propose a fix based solely on code reading — common blank-screen root causes (circular imports, missing modules, registration failures) are visible only at runtime.
+2. **Lock the reproduction environment.** Confirm with the user: (a) which repository/sub-application renders the page, (b) which branch/tag exhibits the bug, (c) the exact URL path. Do not assume — wrong branch or wrong repo wastes an entire fix cycle.
+3. **After a failed fix, go back to evidence — do not guess again.** If a fix is deployed and the user reports the problem persists: re-capture console errors from the current state, verify the deployment actually contains the fix (read config/package hashes), then base the next diagnosis on new runtime evidence.
+4. **No more than one hypothesis without fresh runtime evidence.** If you've made one fix based on a hypothesis and it failed, the next step must produce new runtime evidence, not a new guess. Multi-agent code review does not substitute for runtime evidence.
+
+Measured impact: one session (DFHIS-31796) spent 8 days and 6 failed fix rounds because the agent kept diagnosing from static analysis instead of requesting browser console errors. The actual root cause (circular import) was identifiable only from the runtime module loading error.
+
 ## Phase 3: Clarification — Blocking Decision Gate
 
 Goal: resolve all architecture-level unknowns before writing code.
@@ -171,6 +182,10 @@ When integrating with a system that has poor or no documentation:
 | Ignoring user's proposed simpler alternative | Evaluate the user's suggestion seriously — they know the system |
 | Single giant verification at the end | Verify incrementally at each technical milestone |
 | Stale evidence after code change | Any material edit invalidates prior evidence; re-capture before delivery |
+| Diagnosing UI blank/white-screen from static code only | Capture browser console errors before proposing any fix; static analysis generates hypotheses, not root causes |
+| Fixing the wrong branch or wrong sub-application | Confirm exact branch + repo + URL path with the user before creating a worktree |
+| Guessing a new root cause after a failed fix | Re-capture runtime evidence (console errors, deployed package check) before next hypothesis; no guessing loops |
+| Treating "passed with non-blocking limitation: no runtime verification" as safe to release | When the limitation is missing runtime/UI verification, treat as blocking — do not push until the gap is closed |
 
 ## Delivery vs. Final Acceptance
 

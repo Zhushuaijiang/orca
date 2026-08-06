@@ -85,6 +85,7 @@ Rules:
 - Apply the Orca Superpowers-style gate: clarify before code, keep the first-view contract compact, record alternatives/design confirmation for focused/mandatory risk, write the implementation plan before edits, then verify with fresh command/screenshot/build/test/artifact evidence before claiming completion.
 - Default low-risk work to one builder plus local verification. Escalate to focused review for unresolved decisions, UI/workflow, API/database, requirement conflict, weak verification, or explicit user review requests. Escalate to mandatory independent PRD/architecture/implementation/verifier multi-agent review for multi-repo, permission/release, API/database plus weak verification, or UI/workflow plus requirement conflict cases. Use Orca orchestration or available agent-dispatch tools when available; if independent dispatch is unavailable, state that blocker explicitly and do not mark the requirement safe/complete. Preserve each reviewer verdict in `reviewChecks`; the coordinator decides by evidence, not vote count.
 - Completion is blocked while any required reviewer role is missing, blocking questions are unresolved, the implementation plan is missing, or fresh verification evidence is absent.
+- A reviewer verdict of "passed with non-blocking limitation" is blocking — not passing — when the limitation is missing runtime, browser, or UI verification for a requirement that changes user-visible behavior. Do not treat a code-review-only "looks correct" as completion evidence; push and release only after the runtime verification gap is closed or the user explicitly accepts the risk.
 - When native automation result reporting is available, return structured `yunxiaoRequirementOutcomes` as a per-item array with `itemId`, `poolStatus`, `requirementContract`, and evidence; put `riskProfile`, `reviewChecks`, and `methodologyGate` inside `requirementContract` so Orca can update the todo pool without parsing final text.
 - Do not claim completion without fresh evidence from tests, builds, screenshots, or inspected artifacts.
 
@@ -151,12 +152,24 @@ python3 scripts/comment_yunxiao.py DFHIS-12345 \
 Update Yunxiao completion fields after pushing code. This is mandatory after a successful push and is not replaced by a comment:
 
 ```bash
+# First push (all three fields are new — full replacement is safe)
 python3 scripts/update_yunxiao_completion_fields.py \
   --requirement-dir /path/to/DFHIS-12345 \
   --client-change 'df-web-example: feature-DFHIS-12345 (abcdef1)' \
   --server-change '无' \
   --data-change '无'
 ```
+
+**For follow-up/incremental pushes** (requirement already has field values from prior pushes), use `--append-*` to merge:
+
+```bash
+# Adding a new repo to an already-partially-completed requirement
+python3 scripts/update_yunxiao_completion_fields.py \
+  --requirement-dir /path/to/DFHIS-12345 \
+  --append-server 'df-sapi: feature-DFHIS-12345 (4dd15cd2)'
+```
+
+The script exits with error if full-replacement mode would overwrite a non-empty field. Re-run with `--force-overwrite` only when you have verified the old values are obsolete.
 
 Useful options:
 
@@ -166,12 +179,24 @@ Useful options:
 - `--timeout` controls each HTTP/tool request timeout. Use a larger value for work items with many attachments.
 - `--json` prints a machine-readable wrapper with `work_item_id`, `output_dir`, `rows`, and `message`.
 - `run_mcp_archive.py`, `download_mcp_archive.py`, and `comment_mcp_yunxiao.py` remain available for legacy HIS MCP fallback only.
-- `update_yunxiao_completion_fields.py` uses Yunxiao MCP/OpenAPI directly. It reads `raw.json`, resolves the current organization, finds the work item workflow and field config, updates status to `待测试`, adds participants, writes `客户端变更`/`服务端变更`/`数据变更`, then reads the work item back and fails if verification does not match.
+- `update_yunxiao_completion_fields.py` uses Yunxiao MCP/OpenAPI directly. It reads `raw.json`, resolves the current organization, finds the work item workflow and field config, updates status to `待测试`, adds participants, writes `客户端变更`/`服务端变更`/`数据变更`, then reads the work item back and fails if verification does not match. **The `--client-change`/`--server-change`/`--data-change` args do FULL-FIELD REPLACEMENT.** Use `--append-client`/`--append-server`/`--append-data` to merge new entries into existing values. Without `--force-overwrite`, the script exits with error when a non-empty field would be overwritten.
 - `upload_yunxiao_attachment.py` uploads the exact bytes of a local file as a Yunxiao attachment and verifies by reading `list_workitem_attachments` back. It returns `attachmentId` and an `embedMarkdown` image link for use inside comments. Use it for SQL/data/config scripts and frontend self-test screenshots; do not fake a file name by uploading PRD/comment text.
 
 ## Post-Push Yunxiao Completion Harness
 
 After code is pushed, the Yunxiao work item is not complete until both the comment and structured fields are updated and verified.
+
+**⚠️ CRITICAL — `update_yunxiao_completion_fields.py` does FULL-FIELD REPLACEMENT, not append.**
+
+This is the single most dangerous operation in the workflow. The script overwrites the entire value of each custom field (`客户端变更`, `服务端变更`, `数据变更`). Passing `--server-change "无"` when the field already contains 4 previously-pushed repos will **destroy that data**. Lesson learned from DFHIS-31901: an incremental push for one additional repo wiped all prior repo entries because the agent passed only the new repo and `无` for the other fields.
+
+**Mandatory rules:**
+
+1. **Read-before-write**: Before calling the script, read the current work item (`get_work_item` or inspect `raw.json`) and extract the existing custom field values. You must know what is already there.
+2. **Carry forward all prior entries**: When pushing a follow-up change to an already-partially-completed requirement, include ALL previously recorded repos in the field value, not just the new one. For example, if the field already has `df-his-api: feature-X (abc123)` and you are adding `df-sapi: feature-X (def456)`, pass both entries separated by `；`.
+3. **Never pass `无` for a field that already has a value** — unless you have verified the old value is truly obsolete and use `--force-overwrite`.
+4. **Prefer `--append-*` flags for incremental pushes**: Use `--append-server "df-sapi: feature-X (def456)"` instead of `--server-change` to merge the new entry with existing values automatically. The script reads current values from Yunxiao and merges.
+5. **Overwrite safety**: If you use `--client-change`/`--server-change`/`--data-change` (full replacement mode) and the script detects an existing non-empty value being overwritten, it will **exit with error** unless you pass `--force-overwrite`. This is intentional — it prevents accidental data loss.
 
 Use actual changes to decide field values:
 
@@ -207,6 +232,7 @@ These rules apply to every workflow in this skill. They exist because measured s
 - **Dependency install is not a retry loop**: prefer a shared `node_modules` cache and the package manager's offline/frozen mode as the first attempt, not a fallback after repeated failures. If the first correct install (right Node version, right lock-file manager, `--frozen-lockfile`) fails, record the exact error once — do not re-run variations hoping it self-heals.
 - **Default to model tiering, not opt-in**: implementation/build/git/log-reading turns are routine and must run on the cheapest capable model (deepseek-v4-flash for pay-as-you-go, or qwen token-plan for zero marginal cost). Reserve k3 for review, root-cause analysis, and screenshot/visual acceptance. When the workflow has multiple branches or stages, drive it through the relay (`scripts/orca_yunxiao_relay.py`) so each stage's model is pinned automatically; a single-model k3 session for a multi-branch implementation is an anti-pattern.
 - **Session hygiene**: resume an existing session for the same requirement instead of opening a new one — each new session rebuilds context at full (non-cache) price. Prefer `k3-256k` over the 1M window for k3 sessions so compaction triggers earlier and per-turn re-read stays bounded.
+- **Batch document updates**: update `PRD_AND_CODE_ANALYSIS.md` and the Requirement Contract in a single edit when multiple fields change (status, evidence, decisions). Do not issue a separate patch for each field — in DFHIS-31796, the agent modified `PRD_AND_CODE_ANALYSIS.md` 22 times, mostly for small status transitions, each costing a full LLM turn.
 
 ## Orca Model Relay (Multi-Model Staged Execution)
 
@@ -279,6 +305,40 @@ When any frontend/client code changed, self-test screenshots of the modified pag
   Use `-Z`; combining `-s pixelsWide` with `-s format` silently produces no file.
 - Upload each image with `scripts/upload_yunxiao_attachment.py --requirement-dir {需求目录} --file {截图}`, then embed the returned `embedMarkdown` into a comment posted with `scripts/comment_yunxiao.py` so the images render inline on the work item.
 - Record the screenshot attachment ids in `PRD_AND_CODE_ANALYSIS.md` and the final summary. Any later material edit invalidates the images: mark them `superseded` and recapture from the final diff.
+
+## UI Rendering Bug Diagnosis Protocol
+
+For defects where the symptom is "page blank", "white screen", "component opens to empty", or similar rendering failure, follow this protocol **before** writing any fix. These rules come from measured session data (DFHIS-31796: 8 days, 6 failed fix rounds, because the agent kept guessing from static code instead of capturing runtime errors).
+
+### Console errors first (mandatory)
+
+Before any root-cause analysis, obtain the browser console output from the failing page:
+
+- Ask the user to open DevTools Console (F12) and share all red errors. This is non-negotiable for blank-screen issues.
+- If the user cannot provide console output, scaffold a Playwright spec that captures `page.on('console')` and `page.on('pageerror')` events, run it against the failing environment, and record the output.
+- Common blank-screen root causes visible only in console: circular dependency (`Identifier 'X' has already been declared`), missing module (`Failed to resolve module`), qiankun bootstrap/mount error, CORS rejection, undefined component registration.
+- Static code analysis may surface candidates, but must never be the sole basis for a fix. In DFHIS-31796, four review agents unanimously agreed on a `canShuList` naming conflict as root cause from code reading; the first real-machine test disproved it. The actual root cause was a circular import detectable only from the console error.
+
+### Lock the reproduction context (mandatory)
+
+Before creating a worktree or writing any fix, confirm three things with the user:
+
+1. **Which branch/tag**: DFHIS has many parallel branches (RC, SP, release). Ask "which exact branch can you reproduce this on?" Do not default to the latest RC. In DFHIS-31796, the agent fixed the RC branch; the user could only reproduce on SP15, wasting a full fix cycle.
+2. **Which sub-application/repo**: DFHIS is a qiankun micro-frontend. From the user's URL, determine the sub-app: `/apps/04/` = 门诊 (`df-web-menzhenysz`), `/apps/10/` = 住院 (`df-web-zhuyuanysz`), etc. Do not edit a different sub-app's code without evidence that it owns the failing page. In DFHIS-31796, the agent edited `df-web-zhuyuanysz` (住院) while the user was testing `df-web-menzhenysz` (门诊).
+3. **The exact URL path**: record the full URL including port, app path, and route.
+
+### No guessing loops after a failed fix
+
+If a fix is deployed and the user reports the problem persists:
+
+1. **Verify deployment**: read the deployed `config.json` or package hash to confirm the fix is live.
+2. **Re-capture console errors**: ask for the current browser console output.
+3. **Diagnose from new evidence**: base the next fix on the new runtime evidence, not on another static-code hypothesis.
+4. **Maximum one hypothesis without new runtime evidence**: after one failed fix, the next action must produce runtime evidence. Do not chain guesses — DFHIS-31796 went through 4 consecutive guess→fix→fail rounds before console errors were captured.
+
+### "Non-blocking: no runtime verification" is blocking
+
+When reviewer agents return "passed with non-blocking limitation: no runtime/browser verification", treat that as a **block**, not a pass. Do not push, comment on Yunxiao, or trigger Jenkins until the runtime verification gap is closed or the user explicitly accepts the risk. A review verdict that says "code looks correct but wasn't tested at runtime" is not completion evidence.
 
 ## Executable HIS Workflow Gate
 
@@ -389,7 +449,7 @@ When the user asks to fix a DFHIS requirement:
 11. Commit and push the branch from the local machine. If this requirement came from an Orca Yunxiao todo pool claim, the git commit message must be exactly the full Yunxiao URL from the claim's `提交信息` or `链接` field, and nothing else. Do not replace it with only `DFHIS-12345`, the title, a summary, or a conventional commit message. Push explicitly to the requirement branch, for example `git push -u origin feature-DFHIS-12345`, then verify `git status -sb` so the local branch tracks the pushed feature/hotfix branch rather than the RC base. Do not upload patches to `192.168.1.10` for server-side pushing.
 12. After every successful push, comment on the Yunxiao work item with `scripts/comment_yunxiao.py`. The comment must include repository, branch, commit id, changed files, concise fix summary, validation result, handoff document path, and any dependency/test blockers. When any frontend/client code changed, first capture and upload self-test screenshots of the modified page and embed them in this comment (see Frontend Screenshot Self-Test Gate). If commenting fails, treat the workflow as incomplete and report the exact failure.
 13. If a SQL/data/config script changed, upload the exact script file with `scripts/upload_yunxiao_attachment.py` and verify the attachment list before updating structured fields. If upload or verification fails, treat the workflow as incomplete.
-14. After the comment and any required attachment upload, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. The script must update status to `待测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
+14. After the comment and any required attachment upload, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. **Read the current work item first** to get existing custom field values. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. **When the requirement already has field values from prior pushes, use `--append-client`/`--append-server`/`--append-data` to merge new entries instead of replacing the entire field. Never pass `无` for a field that already has a value from prior work.** The script must update status to `待测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
 15. Report branch name, commit id, pushed remote, Yunxiao comment status/action id, Yunxiao attachment id/status when relevant, Yunxiao field update status, changed files, validation result, local archive path, PRD/code-analysis document path, and any dependency/test blockers.
 
 ## DFHIS Micro-Frontend Release Verification
@@ -435,9 +495,10 @@ python3 scripts/comment_yunxiao.py DFHIS-12345 \
   --content-file /path/to/comment.md
 python3 scripts/update_yunxiao_completion_fields.py \
   --requirement-dir "$YUNXIAO_REQUIREMENT_DIR" \
-  --client-change "project: feature-DFHIS-12345 (<commit>)" \
-  --server-change "无" \
-  --data-change "无"
+  --append-client "project: feature-DFHIS-12345 (<commit>)"
+# For the very first push when no fields exist yet:
+#   --client-change "project: feature-DFHIS-12345 (<commit>)" \
+#   --server-change "无" --data-change "无"
 ```
 
 If host key verification fails, create a workspace-local `known_hosts` file and run Git with:

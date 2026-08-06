@@ -26,14 +26,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--client-change",
-        required=True,
-        help="Client/frontend branch summary, e.g. repo: branch (commit).",
+        default=DEFAULT_NONE_TEXT,
+        help="Client/frontend branch summary, e.g. repo: branch (commit). FULL-REPLACES the field. Use --append-client to merge.",
     )
     parser.add_argument(
-        "--server-change", default=DEFAULT_NONE_TEXT, help="Server/backend branch summary. Use 无 when none."
+        "--server-change", default=DEFAULT_NONE_TEXT, help="Server/backend branch summary. FULL-REPLACES the field. Use --append-server to merge."
     )
     parser.add_argument(
-        "--data-change", default=DEFAULT_NONE_TEXT, help="SQL/data migration summary. Use 无 when none."
+        "--data-change", default=DEFAULT_NONE_TEXT, help="SQL/data migration summary. FULL-REPLACES the field. Use --append-data to merge."
+    )
+    parser.add_argument(
+        "--append-client", default=None,
+        help="Append/merge a client change entry into the existing field value instead of replacing it.",
+    )
+    parser.add_argument(
+        "--append-server", default=None,
+        help="Append/merge a server change entry into the existing field value instead of replacing it.",
+    )
+    parser.add_argument(
+        "--append-data", default=None,
+        help="Append/merge a data change entry into the existing field value instead of replacing it.",
     )
     parser.add_argument("--status-name", default=DEFAULT_STATUS_NAME, help="Target Yunxiao status display name.")
     parser.add_argument("--work-item-id", default="", help="Explicit Yunxiao work item unique id. Defaults to raw.json workitem.id.")
@@ -46,7 +58,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mcp-url", default="", help="Yunxiao MCP URL. Defaults to env/config.")
     parser.add_argument("--token-env", default="YUNXIAO_ACCESS_TOKEN", help="Environment variable containing Yunxiao token.")
     parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument(
+        "--force-overwrite", action="store_true",
+        help="Suppress overwrite warning when replacing non-empty fields. Use only when you have verified the old values are obsolete.",
+    )
     return parser
+
+
+def merge_field_value(existing: str, new_entry: str, none_text: str = DEFAULT_NONE_TEXT) -> str:
+    """Merge a new entry into an existing field value, preserving prior entries."""
+    existing = (existing or "").strip()
+    new_entry = (new_entry or "").strip()
+    if not new_entry:
+        return existing or none_text
+    if not existing or existing == none_text:
+        return new_entry
+    if new_entry in existing:
+        return existing
+    return f"{existing}；{new_entry}"
+
+
+def get_current_field_value(work_item: dict, field_name: str) -> str:
+    """Extract the current text value of a named custom field from a work item."""
+    values = get_values_by_field(work_item, field_name)
+    return "；".join(v for v in values if v) if values else ""
 
 
 def load_dfhis_config() -> dict:
@@ -227,6 +262,57 @@ def main() -> int:
         server_field_id = find_field_id(field_config, FIELD_SERVER_CHANGE)
         data_field_id = find_field_id(field_config, FIELD_DATA_CHANGE)
 
+        # Read current field values before deciding update targets
+        current_client = get_current_field_value(before, FIELD_CLIENT_CHANGE)
+        current_server = get_current_field_value(before, FIELD_SERVER_CHANGE)
+        current_data = get_current_field_value(before, FIELD_DATA_CHANGE)
+
+        # Determine final values: append mode merges with existing; explicit args replace
+        if args.append_client is not None:
+            final_client = merge_field_value(current_client, args.append_client)
+        else:
+            final_client = args.client_change
+        if args.append_server is not None:
+            final_server = merge_field_value(current_server, args.append_server)
+        else:
+            final_server = args.server_change
+        if args.append_data is not None:
+            final_data = merge_field_value(current_data, args.append_data)
+        else:
+            final_data = args.data_change
+
+        # Overwrite safety: warn when replacing a non-empty value with something different
+        overwrite_warnings: list[str] = []
+        for field_name, old_val, new_val in [
+            (FIELD_CLIENT_CHANGE, current_client, final_client),
+            (FIELD_SERVER_CHANGE, current_server, final_server),
+            (FIELD_DATA_CHANGE, current_data, final_data),
+        ]:
+            old_clean = (old_val or "").strip()
+            new_clean = (new_val or "").strip()
+            if not old_clean or old_clean == DEFAULT_NONE_TEXT:
+                continue
+            if new_clean == old_clean:
+                continue
+            overwrite_warnings.append(
+                f"  {field_name}: '{old_clean}' → '{new_clean}'"
+            )
+        if overwrite_warnings:
+            if not args.force_overwrite:
+                print(
+                    "⚠️  OVERWRITE WARNING — the following non-empty field values will be DESTROYED:\n"
+                    + "\n".join(overwrite_warnings)
+                    + "\n  To merge instead, use --append-client/--append-server/--append-data."
+                    + "\n  To confirm full replacement, re-run with --force-overwrite.",
+                    file=sys.stderr,
+                )
+                return 1
+            else:
+                print(
+                    "⚠️  Overwrite confirmed (--force-overwrite):\n" + "\n".join(overwrite_warnings),
+                    file=sys.stderr,
+                )
+
         participants = {user_id(item) for item in before.get("participants") or []}
         participants.update(uid for uid in args.participant if uid)
         if not args.no_add_assignee:
@@ -239,9 +325,9 @@ def main() -> int:
             "status": status_id,
             "participants": sorted(participants),
             "customFieldValues": {
-                client_field_id: args.client_change,
-                server_field_id: args.server_change,
-                data_field_id: args.data_change,
+                client_field_id: final_client,
+                server_field_id: final_server,
+                data_field_id: final_data,
             },
         }
         update_result = client.call_tool(
@@ -258,9 +344,9 @@ def main() -> int:
         verification = {
             "status": (after.get("status") or {}).get("displayName") == args.status_name,
             "participants": sorted(user_id(item) for item in after.get("participants") or []) == sorted(participants),
-            FIELD_CLIENT_CHANGE: get_values_by_field(after, FIELD_CLIENT_CHANGE) == [args.client_change],
-            FIELD_SERVER_CHANGE: get_values_by_field(after, FIELD_SERVER_CHANGE) == [args.server_change],
-            FIELD_DATA_CHANGE: get_values_by_field(after, FIELD_DATA_CHANGE) == [args.data_change],
+            FIELD_CLIENT_CHANGE: get_values_by_field(after, FIELD_CLIENT_CHANGE) == [final_client],
+            FIELD_SERVER_CHANGE: get_values_by_field(after, FIELD_SERVER_CHANGE) == [final_server],
+            FIELD_DATA_CHANGE: get_values_by_field(after, FIELD_DATA_CHANGE) == [final_data],
         }
         ok = all(verification.values())
         print(
@@ -272,7 +358,18 @@ def main() -> int:
                     "organizationId": organization_id,
                     "projectId": project_id,
                     "updateResult": update_result,
-                    "target": update_fields,
+                    "target": {
+                        "status": args.status_name,
+                        "participants": sorted(participants),
+                        FIELD_CLIENT_CHANGE: final_client,
+                        FIELD_SERVER_CHANGE: final_server,
+                        FIELD_DATA_CHANGE: final_data,
+                    },
+                    "previous": {
+                        FIELD_CLIENT_CHANGE: current_client or DEFAULT_NONE_TEXT,
+                        FIELD_SERVER_CHANGE: current_server or DEFAULT_NONE_TEXT,
+                        FIELD_DATA_CHANGE: current_data or DEFAULT_NONE_TEXT,
+                    },
                     "actual": {
                         "status": after.get("status"),
                         "participants": after.get("participants"),

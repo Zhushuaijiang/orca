@@ -21,6 +21,17 @@ Do not treat a command transcript, old screenshot, or git history as proof of a 
 4. Use semantic selectors and assert the exact page or workflow state. Directly opening `/apps/<id>/...` is valid only after proving that the shell prepared the matching menu/tab/mount state, or when the child is explicitly the target surface.
 5. Capture a screenshot of the business page, not only login, shell home, or a menu. Inspect it visually and record numeric geometry measurements where layout is part of acceptance. Reject blank mounts, stale assets, `Unexpected token '<'`, bootstrap/mount/CORS failures, and console errors from the changed child app.
 
+### Console-error-first for blank/white-screen
+
+When the defect symptom is a blank page, white screen, or component that fails to render, the console error output is the primary diagnostic evidence — more important than any static code analysis. Capture it before proposing root cause:
+
+1. Ask the user for browser DevTools Console output (all red errors). This is mandatory for blank-screen defects.
+2. Or scaffold a Playwright capture: `page.on('console', msg => console.log(msg.type(), msg.text()))` and `page.on('pageerror', err => console.log(err.message))`.
+3. Record the console errors as `type: runtime, status: passed` evidence with the specific error messages.
+4. Only after console errors are captured, correlate with static code to form a root-cause hypothesis.
+
+Do not reverse this order. In DFHIS-31796, 4 review agents diagnosed root cause from static analysis (`canShuList` naming conflict), all agreed, and all were wrong. The actual root cause (circular import) was visible only in the runtime console error. The session spent 8 days on 6 failed fix rounds before console errors were captured.
+
 The required loop is:
 
 ```text
