@@ -74,6 +74,7 @@ import {
 import { callRuntimeEnvironment } from './ipc/runtime-environment-transport-routing'
 import { resolveEnvironment } from '../shared/runtime-environment-store'
 import { getPreferredPairingOffer } from '../shared/runtime-environments'
+import { setYunxiaoRequirementPromptGateEnabled } from '../shared/yunxiao-requirement-prompt-gate'
 import { OrcaRuntimeRpcServer } from './runtime/runtime-rpc'
 import {
   recordRuntimeRpcStartFailure,
@@ -2067,6 +2068,9 @@ void app.whenReady().then(async () => {
   logStartupMilestone('store-loaded')
   // Why: apply initial fallback WSL distro from store settings for global git/CLI calls.
   setDefaultWslDistroOverride(store.getSettings().terminalWindowsWslDistro ?? null)
+  setYunxiaoRequirementPromptGateEnabled(
+    store.getSettings().yunxiaoRequirementPromptGateEnabled === true
+  )
   store.onSettingsChanged((updates, settings) => {
     if ('terminalWindowsWslDistro' in updates) {
       // Why: synchronize fallback WSL distro updates to runner.
@@ -2075,6 +2079,9 @@ void app.whenReady().then(async () => {
     if ('showMenuBarIcon' in updates) {
       // Why: Store is the mutation authority for all settings writes, so every macOS toggle updates the native item live.
       syncMacMenuBarIcon(settings.showMenuBarIcon !== false)
+    }
+    if ('yunxiaoRequirementPromptGateEnabled' in updates) {
+      setYunxiaoRequirementPromptGateEnabled(settings.yunxiaoRequirementPromptGateEnabled === true)
     }
   })
   // Why: run before ClaudeRuntimeAuthService's constructor sync — a surviving daemon Claude CLI holds the single-use refresh token; early refresh rotates it out mid-session.

@@ -9,6 +9,12 @@ const TERMINAL_SUBMIT = '\r'
 const BRACKETED_PASTE_START = '\u001b[200~'
 const BRACKETED_PASTE_END = '\u001b[201~'
 
+let gateEnabled = false
+
+export function setYunxiaoRequirementPromptGateEnabled(enabled: boolean): void {
+  gateEnabled = enabled
+}
+
 export const YUNXIAO_DFHIS_CODE_CONSTRAINTS = `DFHIS 代码约束：
 - 禁止修改构建/依赖定义来解决需求，包括 build.gradle、settings.gradle、pom.xml、package dependency lock 等；特别不能把已发布依赖改成 compile project(...) 或启用本地 project API 模块。
 - 禁止新增、修改或依赖项目内 *-api/API 模块、DTO、Req、Feign/客户端 API 包来推进需求；这些项目 API 已废弃，不能作为新实现入口或兼容性补丁。
@@ -42,6 +48,9 @@ export function extractYunxiaoRequirementIdentifier(prompt: string): string | nu
 }
 
 export function shouldApplyYunxiaoRequirementPromptGate(prompt: string): boolean {
+  if (!gateEnabled) {
+    return false
+  }
   const trimmed = prompt.trim()
   return (
     trimmed.length > 0 &&

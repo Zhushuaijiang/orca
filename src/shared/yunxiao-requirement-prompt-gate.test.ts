@@ -1,10 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   applyYunxiaoRequirementPromptGate,
   applyYunxiaoRequirementPromptGateToTerminalInput,
   containsYunxiaoRequirementReference,
+  setYunxiaoRequirementPromptGateEnabled,
   shouldApplyYunxiaoRequirementPromptGate
 } from './yunxiao-requirement-prompt-gate'
+
+afterEach(() => {
+  setYunxiaoRequirementPromptGateEnabled(false)
+})
 
 describe('Yunxiao requirement prompt gate', () => {
   it('detects DFHIS ids and Yunxiao requirement links', () => {
@@ -15,7 +20,15 @@ describe('Yunxiao requirement prompt gate', () => {
     expect(containsYunxiaoRequirementReference('plain request')).toBe(false)
   })
 
-  it('wraps manual requirement prompts with the gate', () => {
+  it('does not gate when disabled (default)', () => {
+    setYunxiaoRequirementPromptGateEnabled(false)
+    const prompt = 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下'
+    expect(shouldApplyYunxiaoRequirementPromptGate(prompt)).toBe(false)
+    expect(applyYunxiaoRequirementPromptGate(prompt)).toBe(prompt)
+  })
+
+  it('wraps manual requirement prompts with the gate when enabled', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const prompt = 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下'
     const gated = applyYunxiaoRequirementPromptGate(prompt)
 
@@ -36,6 +49,7 @@ describe('Yunxiao requirement prompt gate', () => {
   })
 
   it('adds YGT harness instructions for manual 医共体 requirement prompts', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const prompt = 'https://devops.aliyun.com/projex/req/DFHIS-31812 公告管理页面体验优化'
     const gated = applyYunxiaoRequirementPromptGate(prompt)
 
@@ -47,6 +61,7 @@ describe('Yunxiao requirement prompt gate', () => {
   })
 
   it('does not wrap already gated or todo-pool prompts again', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const gated = applyYunxiaoRequirementPromptGate('DFHIS-31732')
 
     expect(shouldApplyYunxiaoRequirementPromptGate(gated)).toBe(false)
@@ -57,6 +72,7 @@ describe('Yunxiao requirement prompt gate', () => {
   })
 
   it('does not rewrite dispatched worker prompts', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const prompt =
       'You are working inside Orca, a multi-agent IDE. You are a dispatched worker.\nDFHIS-31732'
 
@@ -64,6 +80,7 @@ describe('Yunxiao requirement prompt gate', () => {
   })
 
   it('gates bare terminal input as bracketed paste and preserves submit', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const gated = applyYunxiaoRequirementPromptGateToTerminalInput('DFHIS-31732\r')
 
     expect(gated.startsWith('\u001b[200~')).toBe(true)
@@ -73,6 +90,7 @@ describe('Yunxiao requirement prompt gate', () => {
   })
 
   it('gates bracketed terminal paste without leaking framing into the prompt', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const gated = applyYunxiaoRequirementPromptGateToTerminalInput(
       '\u001b[200~https://devops.aliyun.com/projex/req/DFHIS-31732\u001b[201~'
     )

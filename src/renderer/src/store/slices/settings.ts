@@ -27,6 +27,7 @@ import {
   normalizeMobilePairingCustomAddress,
   normalizeMobilePairingCustomAddresses
 } from '../../../../shared/mobile-pairing-custom-address'
+import { setYunxiaoRequirementPromptGateEnabled } from '../../../../shared/yunxiao-requirement-prompt-gate'
 
 export type SettingsSlice = SettingsSearchState & {
   settings: GlobalSettings | null
@@ -137,6 +138,9 @@ async function persistSettingsUpdates(
   set((state) => ({
     settings: (nextSettings as GlobalSettings | undefined) ?? state.settings
   }))
+  setYunxiaoRequirementPromptGateEnabled(
+    (nextSettings as GlobalSettings | undefined)?.yunxiaoRequirementPromptGateEnabled === true
+  )
 }
 
 async function verifyRuntimeEnvironmentReachable(environmentId: string | null): Promise<void> {
@@ -162,6 +166,7 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
     try {
       const settings = await window.api.settings.get()
       set({ settings })
+      setYunxiaoRequirementPromptGateEnabled(settings.yunxiaoRequirementPromptGateEnabled === true)
     } catch (err) {
       console.error('Failed to fetch settings:', err)
     }

@@ -865,6 +865,8 @@ export function AgentsPane({
 
       <AgentStatusHooksSetting settings={settings} updateSettings={updateSettings} />
 
+      <YunxiaoRequirementPromptGateSetting settings={settings} updateSettings={updateSettings} />
+
       <AgentGeneratedTabTitlesSetting settings={settings} updateSettings={updateSettings} />
 
       <AgentAwakeSetting settings={settings} updateSettings={updateSettings} />
@@ -1069,6 +1071,37 @@ export function AgentGeneratedTabTitlesSetting({
           })
         }
         ariaLabel={getAgentGeneratedTabTitlesTitle()}
+      />
+    </section>
+  )
+}
+
+export function YunxiaoRequirementPromptGateSetting({
+  settings,
+  updateSettings
+}: AgentsPaneProps): React.JSX.Element {
+  const enabled = settings.yunxiaoRequirementPromptGateEnabled === true
+  return (
+    <section className="space-y-3">
+      <SettingsSwitchRow
+        label={translate(
+          'auto.components.settings.AgentsPane.yunxiaoRequirementPromptGateTitle',
+          '需求流程提示词注入'
+        )}
+        description={translate(
+          'auto.components.settings.AgentsPane.yunxiaoRequirementPromptGateDescription',
+          '粘贴/发送含 DFHIS 或云效需求链接的提示词时，自动追加受控需求流程指令。关闭则只发送原始内容。'
+        )}
+        checked={enabled}
+        onChange={() =>
+          updateSettings({
+            yunxiaoRequirementPromptGateEnabled: !enabled
+          })
+        }
+        ariaLabel={translate(
+          'auto.components.settings.AgentsPane.yunxiaoRequirementPromptGateTitle',
+          '需求流程提示词注入'
+        )}
       />
     </section>
   )

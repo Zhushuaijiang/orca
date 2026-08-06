@@ -3068,6 +3068,9 @@ export type GlobalSettings = {
   agentYoloDefaultsMigrated?: boolean
   /** Why: disabling must persist so startup doesn't reinstall global agent hook entries the user just removed. */
   agentStatusHooksEnabled: boolean
+  /** When true, pasting/launching prompts that mention DFHIS/Yunxiao requirements
+   *  get wrapped with the controlled requirement workflow gate instructions. Off by default. */
+  yunxiaoRequirementPromptGateEnabled?: boolean
   /** Dismissed freshness tuples: no write authority, just suppress re-nudging the same official placement/revision. */
   dismissedSkillFreshnessNudges?: string[]
   /** Why: generated tab titles are subjective, so they stay opt-in and manual renames win. */

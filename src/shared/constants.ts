@@ -339,6 +339,7 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     agentDefaultEnv: { ...DEFAULT_TUI_AGENT_ENV },
     agentYoloDefaultsMigrated: true,
     agentStatusHooksEnabled: true,
+    yunxiaoRequirementPromptGateEnabled: false,
     tabAutoGenerateTitle: false,
     confirmClosePinnedTab: true,
     keepComputerAwakeWhileAgentsRun: false,
