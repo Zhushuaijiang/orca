@@ -1,6 +1,6 @@
 ---
 name: dfhis-company-environment
-description: DFHIS 公司内网环境验证资料。用于 HIS/云HIS/DFHIS/医共体/YGT 需求修复后的本地验证、数据库查询、Redis 检查、Oracle/MySQL/PostgreSQL 连接、SkyWalking 排查、Jenkins/发布验证、Node 18/Node 22/Node 24 工具链切换、环境选择和联调排障。
+description: DFHIS 公司内网环境验证资料和平台开发经验。用于 HIS/云HIS/DFHIS/医共体/YGT 需求修复后的本地验证、数据库查询、Redis 检查、Oracle/MySQL/PostgreSQL 连接、SkyWalking 排查、Jenkins/发布验证、Node 18/Node 22/Node 24 工具链切换、环境选择和联调排障；也用于锚点插件开发、OAPI MagicAPI 动态脚本、qiankun 微前端页面归属确认、SM4/SM3 国密算法对接。
 ---
 
 # DFHIS Company Environment
@@ -10,6 +10,7 @@ Use this skill when a DFHIS task needs real company environment details for veri
 ## Reference Files
 
 - Read `references/environment-index.md` first to choose the target environment.
+- Read `references/dfhis-platform-development.md` before working with anchor plugins, OAPI MagicAPI, qiankun micro-frontend, SM4/SM3 crypto integration, or Yunxiao ID lookups.
 - Read `references/runtime-toolchain.md` before frontend builds, Jenkins builds, package installs, or any task that depends on Node/pnpm/yarn/npm versions.
 - Read only the matching file under `references/company-environment/` before querying a database, Redis, middleware, SkyWalking, or service endpoint.
 - If Jenkins, packaging, or release details are added later, keep them under `references/` and load only the relevant reference for the task.

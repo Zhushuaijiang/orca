@@ -14,3 +14,9 @@ Use the matching environment file under `company-environment/` when verification
 | 医共体公司开发 | `company-environment/医共体公司开发环境信息.md` | YGT/医共体 company development environment checks. |
 
 Keep final reports credential-free: cite the environment name and validation outcome, not passwords or full secret-bearing connection strings.
+
+## Platform Development Reference
+
+| Topic | Reference file | Typical use |
+| --- | --- | --- |
+| DFHIS 平台开发经验 | `dfhis-platform-development.md` | 锚点插件系统、OAPI MagicAPI、qiankun 微前端、国密算法对接、云效 ID 体系。在涉及前端插件接入、动态脚本、外部接口加解密、微前端页面归属确认时阅读。 |
