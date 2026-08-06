@@ -43,8 +43,6 @@ description: >-
 | 仲盼盼 | `64f1444f8252b691c782c926` | HIS测试 | zhongpp@df-mic.com |
 | 贾志中 | `64f144738252b691c782d0c0` | HIS测试 | jiazz@df-mic.com |
 
-> 注：邢应继(xingyingji@df-mic.com) 是 HIS 开发，但未在云效组织成员列表中找到对应 userId，需手动邀请加入组织后补充。
-
 ## 地区团队
 
 ### 凌云
