@@ -22,7 +22,8 @@ export function createEmptyDfHisEnvironmentConfigForm(): DfHisEnvironmentConfigF
     dfhisSkillPackUrl: '',
     relayExecModel: '',
     relayExecApiKey: '',
-    visionApiKey: ''
+    visionApiKey: '',
+    skillContributionUploadToken: ''
   }
 }
 

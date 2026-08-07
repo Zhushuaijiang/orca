@@ -36,6 +36,7 @@ import {
   checkYunxiaoMcpToolsPrerequisite
 } from '../dfhis-environment/mcp-tool-prerequisites'
 import { describeYgtCompanyEnvironmentStatus } from '../dfhis-environment/ygt-company-environment'
+import { startSkillContributionScheduler } from '../skill-contributions/scheduler'
 
 export {
   checkArchiveWorkspacePrerequisite,
@@ -235,6 +236,7 @@ export async function installDfHisEnvironment(
 
 export function registerDfHisEnvironmentHandlers(): void {
   refreshDfHisWorkflowPackInBackground()
+  startSkillContributionScheduler()
   ipcMain.handle('dfhisEnvironment:getConfig', () => snapshotDfHisEnvironmentConfig())
 
   ipcMain.handle('dfhisEnvironment:check', async (): Promise<DfHisEnvironmentCheckResult> => {

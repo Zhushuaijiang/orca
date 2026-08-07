@@ -40,6 +40,7 @@ export type DfHisEnvironmentConfig = {
   relayExecModel: string
   relayExecApiKey: string
   visionApiKey: string
+  skillContributionUploadToken: string
 }
 
 function userDataPath(): string {
@@ -96,7 +97,10 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
     relayExecModel:
       cleanString((config as Record<string, unknown>).relayExecModel) || DEFAULT_RELAY_EXEC_MODEL,
     relayExecApiKey: cleanString((config as Record<string, unknown>).relayExecApiKey),
-    visionApiKey: cleanString((config as Record<string, unknown>).visionApiKey)
+    visionApiKey: cleanString((config as Record<string, unknown>).visionApiKey),
+    skillContributionUploadToken: cleanString(
+      (config as Record<string, unknown>).skillContributionUploadToken
+    )
   }
 }
 
@@ -132,7 +136,9 @@ function mergeConfigPatch(
     dfhisSkillPackUrl: cleanString(patch.dfhisSkillPackUrl) || current.dfhisSkillPackUrl,
     relayExecModel: cleanString(patch.relayExecModel) || current.relayExecModel,
     relayExecApiKey: cleanString(patch.relayExecApiKey) || current.relayExecApiKey,
-    visionApiKey: cleanString(patch.visionApiKey) || current.visionApiKey
+    visionApiKey: cleanString(patch.visionApiKey) || current.visionApiKey,
+    skillContributionUploadToken:
+      cleanString(patch.skillContributionUploadToken) || current.skillContributionUploadToken
   })
 }
 
@@ -172,6 +178,8 @@ export function snapshotDfHisEnvironmentConfig(
     relayExecApiKey: config.relayExecApiKey,
     hasRelayExecApiKey: config.relayExecApiKey.length > 0,
     visionApiKey: config.visionApiKey,
-    hasVisionApiKey: config.visionApiKey.length > 0
+    hasVisionApiKey: config.visionApiKey.length > 0,
+    // Why: the upload token ships a shared default, so only a configured override is worth exposing.
+    hasSkillContributionUploadToken: config.skillContributionUploadToken.length > 0
   }
 }

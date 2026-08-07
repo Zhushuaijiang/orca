@@ -23,7 +23,8 @@ function configWith(apiKey: string): DfHisEnvironmentConfig {
     dfhisSkillPackUrl: '',
     relayExecModel: '',
     relayExecApiKey: '',
-    visionApiKey: apiKey
+    visionApiKey: apiKey,
+    skillContributionUploadToken: ''
   }
 }
 
