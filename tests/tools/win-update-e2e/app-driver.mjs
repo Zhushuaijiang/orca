@@ -39,7 +39,6 @@ const RESTRICTED_E2E_ENV_KEYS = new Set([
   'USERPROFILE',
   'CODEX_HOME',
   'ORCA_CODEX_HOME',
-  'ORCA_CODEX_SYSTEM_DEFAULT_REAL_HOME',
   'ORCA_E2E_HOME_DIR',
   'ORCA_E2E_USER_DATA_DIR'
 ])
@@ -98,8 +97,7 @@ export async function launchInstalledApp({
       ORCA_STARTUP_DIAGNOSTICS_FILE: path.join(userDataDir, 'startup-diagnostics.log'),
       HOME: isolatedHome,
       USERPROFILE: isolatedHome,
-      ORCA_E2E_HOME_DIR: isolatedHome,
-      ORCA_CODEX_SYSTEM_DEFAULT_REAL_HOME: '0'
+      ORCA_E2E_HOME_DIR: isolatedHome
     }
   })
   const processOutput = capturePackagedProcessOutput(app.process())
