@@ -6,6 +6,7 @@ import {
 } from '../../../../shared/ai-vault-types'
 import type { ExecutionHostScope } from '../../../../shared/execution-host'
 import { useAppStore } from '@/store'
+import { createBrowserUuid } from '@/lib/browser-uuid'
 import type { AiVaultSessionLimit } from './ai-vault-session-limit'
 import {
   aiVaultSessionResultCacheKey,
@@ -45,7 +46,9 @@ export function useAiVaultSessionRefresh(
   const [scanResult, setScanResult] = useState<AiVaultListResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const requestTokenRef = useRef(crypto.randomUUID())
+  // Why: crypto.randomUUID is undefined in non-secure browser contexts (LAN web
+  // client over plain HTTP); createBrowserUuid falls back safely.
+  const requestTokenRef = useRef(createBrowserUuid())
   const refreshIdRef = useRef(0)
   const refreshInFlightRef = useRef(false)
   const pendingRefreshRef = useRef(false)

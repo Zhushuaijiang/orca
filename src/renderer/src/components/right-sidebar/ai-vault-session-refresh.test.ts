@@ -556,3 +556,33 @@ describe('useAiVaultSessionRefresh in-app agent session behavior', () => {
     expect(listSessionsMock).toHaveBeenCalledTimes(3)
   })
 })
+
+describe('useAiVaultSessionRefresh in a non-secure browser context', () => {
+  // Why: LAN web clients are served over plain HTTP, where the browser hides
+  // crypto.randomUUID (secure-context-only). The hook must still mount.
+  const realCrypto = globalThis.crypto
+
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: { getRandomValues: realCrypto.getRandomValues.bind(realCrypto) }
+    })
+  })
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: realCrypto })
+  })
+
+  it('mounts and scans without crypto.randomUUID', async () => {
+    await renderHook()
+    await flushMicrotasks()
+
+    expect(listSessionsMock).toHaveBeenCalledTimes(1)
+    expect(lastCallArgs()).toMatchObject({
+      executionHostScope: 'local',
+      requestToken: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/
+      )
+    })
+  })
+})
