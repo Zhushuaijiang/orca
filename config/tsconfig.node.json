@@ -12,6 +12,9 @@
   ],
   "compilerOptions": {
     "composite": true,
-    "types": ["electron-vite/node"]
+    "types": ["electron-vite/node"],
+    "paths": {
+      "psl": ["../node_modules/psl/types/index.d.ts"]
+    }
   }
 }
