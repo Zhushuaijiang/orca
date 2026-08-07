@@ -289,6 +289,27 @@ For DFHIS frontend repositories:
 - After install/build scripts, run `git status --short` and revert only generated side effects you created, such as version stamping in `public/config.json`; leave ignored `node_modules/` or `dist/` as local artifacts.
 - If full lint is blocked by unrelated historical files, run focused lint or syntax checks on the requirement's changed/affected files, then run the closest build script. Record both the full-lint blocker and the focused/build evidence in `PRD_AND_CODE_ANALYSIS.md`.
 
+## DFHIS Backend Gradle/JDK Verification Environment
+
+For DFHIS backend Gradle repositories that lack a `gradlew` wrapper, do not stop at "JDK not installed" or "gradle not on PATH" when a JDK and Gradle are available locally. JDK and Gradle are auto-discovered per machine by `his-workflow-harness` using a multi-layer fallback (no manual configuration needed on standard setups):
+
+1. `dfhis-environment.json` fields `jdkHome` / `gradleHome` (explicit override for non-standard paths).
+2. Environment variables `JAVA_HOME` / `GRADLE_HOME`.
+3. PATH lookup (resolves `javac` / `gradle` and goes up two directories).
+4. Standard location scan (`~/.jdks`, `C:\Program Files\Java`, JetBrains JBRs, Eclipse Adoptium, BellSoft, SDKMAN, Homebrew, Scoop, common non-system-drive tool dirs, Gradle wrapper dists cache).
+
+When a JDK/Gradle is found via any layer, `his-workflow-harness` injects `JAVA_HOME`/`GRADLE_HOME`/`PATH` automatically. For manual invocation outside the harness:
+
+```bash
+export JAVA_HOME="<discovered-jdk-path>"
+export GRADLE_HOME="<discovered-gradle-path>"
+export PATH="$JAVA_HOME/bin:$GRADLE_HOME/bin:$PATH"
+"$GRADLE_HOME/bin/gradle.bat" compileJava --no-daemon
+```
+
+- Prefer `compileJava` over `test` when the repository has unrelated test failures or git-properties plugins that fail in worktrees. Skip git-properties tasks with `-x generateGitProperties`.
+- Record the exact JDK and Gradle versions and their discovery source in evidence.
+
 ## Frontend Screenshot Self-Test Gate
 
 When any frontend/client code changed, self-test screenshots of the modified page are mandatory delivery evidence, not optional polish. Testers rely on these images; a frontend change delivered with build-only evidence is incomplete.

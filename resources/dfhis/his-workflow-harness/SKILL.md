@@ -23,6 +23,15 @@ Resolution order:
 2. Service entry from `--catalog` or `HIS_WORKFLOW_CATALOG`.
 3. Project-family fallback: general HIS frontend uses Node 18; YGT uses its dedicated harness with Node 22 or repository-selected Node 24.
 
+JDK and Gradle are auto-discovered per machine — no manual configuration required. The harness tries these layers in order and reports which one matched via `jdkSource`/`gradleSource` in the runtime:
+
+1. **`dfhis-environment.json`** fields `jdkHome` / `gradleHome` (explicit override for non-standard paths).
+2. **Environment variables** `JAVA_HOME` / `GRADLE_HOME`.
+3. **PATH lookup** — resolves `javac` / `gradle` on PATH and goes up two directories.
+4. **Standard location scan** — `~/.jdks`, `C:\Program Files\Java`, JetBrains bundled JBRs, Eclipse Adoptium, BellSoft, SDKMAN, Homebrew, Scoop, common non-system-drive tool dirs (`D/E/F:\WorkingApplication\IDEA`, `\DevTools`, `\Java`, `\Gradle`), Gradle wrapper dists cache.
+
+When discovered, the harness injects `JAVA_HOME`, `GRADLE_HOME`, and their `bin` directories into `PATH` via `selectedEnv`. On Windows, `spawn` automatically enables `shell: true` for `.bat`/`.cmd` executables. When a repository lacks `gradlew`, `detectVerifyCommands` falls back to the discovered external Gradle.
+
 ## Commands
 
 ```bash

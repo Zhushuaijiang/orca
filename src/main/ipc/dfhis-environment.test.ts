@@ -62,6 +62,10 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
   const ygtSkill = '---\nname: ygt\n---\nremote ygt skill\n'
   const environmentSkill = '---\nname: dfhis-company-environment\n---\nremote environment skill\n'
   const uiSpecReviewSkill = '---\nname: ui-spec-review\n---\nremote ui spec review skill\n'
+  const yibaoDmdzSkill = '---\nname: dfhis-yibao-dmdz\n---\nremote yibao dmdz skill\n'
+  const deliveryFlowSkill =
+    '---\nname: requirement-delivery-flow\n---\nremote delivery flow skill\n'
+  const contactsSkill = '---\nname: yunxiao-contacts\n---\nremote contacts skill\n'
   const ygtHarness = '#!/usr/bin/env node\nconst ygtHarness = true\n'
   const ygtPluginManifest = '{"name":"ygt","skills":"./skills/"}\n'
   const ygtHarnessGuide = '# YGT 工作流 Harness\n'
@@ -103,6 +107,21 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
             path: 'ui-spec-review/SKILL.md',
             sha256: sha256(uiSpecReviewSkill),
             content: uiSpecReviewSkill
+          },
+          {
+            path: 'dfhis-yibao-dmdz/SKILL.md',
+            sha256: sha256(yibaoDmdzSkill),
+            content: yibaoDmdzSkill
+          },
+          {
+            path: 'requirement-delivery-flow/SKILL.md',
+            sha256: sha256(deliveryFlowSkill),
+            content: deliveryFlowSkill
+          },
+          {
+            path: 'yunxiao-contacts/SKILL.md',
+            sha256: sha256(contactsSkill),
+            content: contactsSkill
           },
           {
             path: 'ygt/harness/scripts/harness/ygt-workflow.mjs',

@@ -16,7 +16,10 @@ export const DFHIS_WORKFLOW_PACK_NAMES = [
   'his-release-merge',
   'ui-spec-review',
   'ygt',
-  'dfhis-company-environment'
+  'dfhis-company-environment',
+  'requirement-delivery-flow',
+  'yunxiao-contacts',
+  'dfhis-yibao-dmdz'
 ] as const
 export const BUNDLED_DFHIS_WORKFLOW_PACK_RELATIVE_PATH = 'dfhis'
 export const MANIFEST_FILE_NAME = '.orca-dfhis-workflow-pack.json'
