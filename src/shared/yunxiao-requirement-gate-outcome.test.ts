@@ -101,6 +101,29 @@ yunxiaoRequirementOutcomes:
     ])
   })
 
+  it('extracts text-form outcomes with the 开发测试 pool status', () => {
+    const outcomes = extractYunxiaoRequirementGateOutcomesFromText(`DFHIS-31800 已处理完成。
+
+yunxiaoRequirementOutcomes:
+- itemId: DFHIS-31800
+  poolStatus: 开发测试
+  requirementContract:
+    status: ready_to_verify
+    owner: qa
+    next_action: QA 环境复核多入口页面
+    intent: 需求修复交付
+    blocking_questions: 无
+
+验证结果：git diff --check 通过，编译通过。`)
+
+    expect(outcomes).toEqual([
+      expect.objectContaining({
+        itemId: 'DFHIS-31800',
+        poolStatus: 'done'
+      })
+    ])
+  })
+
   it('ignores natural-language status text', () => {
     expect(
       extractYunxiaoRequirementGateOutcomesFromText('Contract status: needs_clarification')

@@ -96,7 +96,7 @@ Keep delivery progress separate from final business acceptance. Do not turn an e
 - Before code is committed and pushed, deployed UI/static assets are expected not to contain the change. Record this as `implementation_pending_push`, not as package/runtime failure.
 - After code is pushed but before frontend/backend release, deployed UI may still be old. Record this as `code_pushed_pending_release_validation`.
 - If a deployed app is reachable but its `config.json`, commit id, or bundled JS does not contain the pushed change after release was expected, record `deployed_package_missing_requirement_changes` with asset evidence.
-- If code, SQL, attachments, Yunxiao comment, and structured fields are done but post-release UI evidence is missing, update Yunxiao to `待测试` when appropriate and state “交付已流转，最终验收待发布后验证”; do not report the whole workflow as blocked unless the user asked for final production acceptance.
+- If code, SQL, attachments, Yunxiao comment, and structured fields are done but post-release UI evidence is missing, update Yunxiao to `开发测试` when appropriate and state “交付已流转，最终验收待发布后验证”; do not report the whole workflow as blocked unless the user asked for final production acceptance.
 - Never ask the user why a deployed package lacks a change when the branch has not yet been pushed or released. First check local commits, remote branches, Yunxiao fields, and release status.
 
 ## Contract Revision And Evidence Invalidation
@@ -179,7 +179,7 @@ Useful options:
 - `--timeout` controls each HTTP/tool request timeout. Use a larger value for work items with many attachments.
 - `--json` prints a machine-readable wrapper with `work_item_id`, `output_dir`, `rows`, and `message`.
 - `run_mcp_archive.py`, `download_mcp_archive.py`, and `comment_mcp_yunxiao.py` remain available for legacy HIS MCP fallback only.
-- `update_yunxiao_completion_fields.py` uses Yunxiao MCP/OpenAPI directly. It reads `raw.json`, resolves the current organization, finds the work item workflow and field config, updates status to `待测试`, adds participants, writes `客户端变更`/`服务端变更`/`数据变更`, then reads the work item back and fails if verification does not match. **The `--client-change`/`--server-change`/`--data-change` args do FULL-FIELD REPLACEMENT.** Use `--append-client`/`--append-server`/`--append-data` to merge new entries into existing values. Without `--force-overwrite`, the script exits with error when a non-empty field would be overwritten.
+- `update_yunxiao_completion_fields.py` uses Yunxiao MCP/OpenAPI directly. It reads `raw.json`, resolves the current organization, finds the work item workflow and field config, updates status to `开发测试`, adds participants, writes `客户端变更`/`服务端变更`/`数据变更`, then reads the work item back and fails if verification does not match. **The `--client-change`/`--server-change`/`--data-change` args do FULL-FIELD REPLACEMENT.** Use `--append-client`/`--append-server`/`--append-data` to merge new entries into existing values. Without `--force-overwrite`, the script exits with error when a non-empty field would be overwritten.
 - `upload_yunxiao_attachment.py` uploads the exact bytes of a local file as a Yunxiao attachment and verifies by reading `list_workitem_attachments` back. It returns `attachmentId` and an `embedMarkdown` image link for use inside comments. Use it for SQL/data/config scripts and frontend self-test screenshots; do not fake a file name by uploading PRD/comment text.
 
 ## Post-Push Yunxiao Completion Harness
@@ -204,7 +204,7 @@ Use actual changes to decide field values:
 - `服务端变更`: backend/server repository and pushed branch/commit. Use `无` when no backend repository changed.
 - `数据变更`: SQL script, migration file, or data patch identifier. Use `无` when no SQL/data/config migration changed.
 - `参与者`: preserve existing participants and add the current assignee and current Yunxiao token user. If another developer actually contributed code, pass their user id with `--participant`.
-- `状态`: update to `待测试` after code is pushed and the above fields are written.
+- `状态`: update to `开发测试` after code is pushed and the above fields are written. **云效工作流已调整（2026-08 起）：状态不能直接从开发流转到 `测试`，必须先流转到 `开发测试`**；如目标状态在流程中改名，用 `--status-name` 显式指定。
 
 The completion harness must run after all branch pushes and before the final chat summary. If it fails because Yunxiao MCP credentials, tools, workflow, or field config are unavailable, report the workflow as incomplete with the exact error. Do not silently fall back to a plain comment or browser screenshot.
 
@@ -221,7 +221,7 @@ When such a change is present:
 - Set Yunxiao `数据变更` to the SQL/data patch path or identifier. Do not use `无`.
 - Add the attachment id/file name/size and data-change field value to the Yunxiao comment, the handoff document, and the final summary.
 
-If a parameter/data change is discovered after the work item was already moved to `待测试`, reopen the handoff as a follow-up delivery: update the Requirement Contract, add the SQL/data patch, rerun fresh verification, upload the attachment, update `数据变更`, add a new Yunxiao comment, and only then restate completion.
+If a parameter/data change is discovered after the work item was already moved to `开发测试`, reopen the handoff as a follow-up delivery: update the Requirement Contract, add the SQL/data patch, rerun fresh verification, upload the attachment, update `数据变更`, add a new Yunxiao comment, and only then restate completion.
 
 ## Token Economy Rules
 
@@ -268,7 +268,7 @@ python3 scripts/orca_yunxiao_relay.py --check --fix --api-key sk-...   # add dee
 Relay operating rules learned from DFHIS-31894 (`{需求目录}/RELAY.md` is the per-requirement ledger):
 
 - Workers must launch with auto-approve (`--yolo` / adapter equivalent); otherwise they stall on tool-approval prompts.
-- The deliver stage must run workflow steps 11-14 completely: a Yunxiao comment never replaces `update_yunxiao_completion_fields.py` field writeback and the `待测试` status transition.
+- The deliver stage must run workflow steps 11-14 completely: a Yunxiao comment never replaces `update_yunxiao_completion_fields.py` field writeback and the `开发测试` status transition.
 - A worker that hits an environmental block (e.g. missing OS permission) reports `worker_done --outcome failed`; dependent tasks stay pending until the coordinator verifies the blockage is real and overrides with `task-update --status completed` (only for stages marked `allow_env_block`, e.g. screenshot).
 - `check --wait` output contains `_keepalive` heartbeat lines and replays the oldest unacked delivery; ack each delivery before expecting the next.
 - A completed dispatch cannot be `retry-of` restarted; close the stalled terminal so it settles, then start a fresh worker.
@@ -470,7 +470,7 @@ When the user asks to fix a DFHIS requirement:
 11. Commit and push the branch from the local machine. If this requirement came from an Orca Yunxiao todo pool claim, the git commit message must be exactly the full Yunxiao URL from the claim's `提交信息` or `链接` field, and nothing else. Do not replace it with only `DFHIS-12345`, the title, a summary, or a conventional commit message. Push explicitly to the requirement branch, for example `git push -u origin feature-DFHIS-12345`, then verify `git status -sb` so the local branch tracks the pushed feature/hotfix branch rather than the RC base. Do not upload patches to `192.168.1.10` for server-side pushing.
 12. After every successful push, comment on the Yunxiao work item with `scripts/comment_yunxiao.py`. The comment must include repository, branch, commit id, changed files, concise fix summary, validation result, handoff document path, and any dependency/test blockers. When any frontend/client code changed, first capture and upload self-test screenshots of the modified page and embed them in this comment (see Frontend Screenshot Self-Test Gate). If commenting fails, treat the workflow as incomplete and report the exact failure.
 13. If a SQL/data/config script changed, upload the exact script file with `scripts/upload_yunxiao_attachment.py` and verify the attachment list before updating structured fields. If upload or verification fails, treat the workflow as incomplete.
-14. After the comment and any required attachment upload, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. **Read the current work item first** to get existing custom field values. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. **When the requirement already has field values from prior pushes, use `--append-client`/`--append-server`/`--append-data` to merge new entries instead of replacing the entire field. Never pass `无` for a field that already has a value from prior work.** The script must update status to `待测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
+14. After the comment and any required attachment upload, run `scripts/update_yunxiao_completion_fields.py` to update structured Yunxiao fields. **Read the current work item first** to get existing custom field values. Set `客户端变更` only for frontend/client repositories that changed, `服务端变更` only for backend/server repositories that changed, and `数据变更` only for SQL/data/config migration scripts that changed; otherwise set the field to `无`. **When the requirement already has field values from prior pushes, use `--append-client`/`--append-server`/`--append-data` to merge new entries instead of replacing the entire field. Never pass `无` for a field that already has a value from prior work.** The script must update status to `开发测试`, add participants, and verify by reading the work item back. If this field update fails or verification fails, treat the workflow as incomplete and report the exact failure.
 15. Report branch name, commit id, pushed remote, Yunxiao comment status/action id, Yunxiao attachment id/status when relevant, Yunxiao field update status, changed files, validation result, local archive path, PRD/code-analysis document path, and any dependency/test blockers.
 
 ## DFHIS Micro-Frontend Release Verification

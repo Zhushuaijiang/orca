@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 
 
-DEFAULT_STATUS_NAME = "待测试"
+DEFAULT_STATUS_NAME = "开发测试"
 DEFAULT_NONE_TEXT = "无"
 FIELD_CLIENT_CHANGE = "客户端变更"
 FIELD_SERVER_CHANGE = "服务端变更"

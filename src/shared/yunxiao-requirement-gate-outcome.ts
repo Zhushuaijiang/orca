@@ -106,7 +106,12 @@ function normalizeTextOutcomeStatus(value: string | null): YunxiaoTodoPoolStatus
   if (!normalized) {
     return null
   }
-  if (normalized === 'ready-to-verify' || normalized === '待测试' || normalized === '已完成') {
+  if (
+    normalized === 'ready-to-verify' ||
+    normalized === '待测试' ||
+    normalized === '开发测试' ||
+    normalized === '已完成'
+  ) {
     return 'done'
   }
   if (normalized === 'needs-clarification' || normalized === '需澄清') {

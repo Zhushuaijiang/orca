@@ -341,7 +341,7 @@ def build_stages(req_id: str, req_dir: Path) -> list[dict]:
                      "前端改动且有截图时先上传并嵌入截图）；"
                      "③有 SQL/数据/配置脚本时 upload_yunxiao_attachment.py 上传并核实；"
                      f"④必须运行 python3 {skill}/scripts/update_yunxiao_completion_fields.py 回写 客户端变更/服务端变更/数据变更 "
-                     "并流转状态为待测试（评论不能替代字段回写），脚本回读校验不一致视为失败；"
+                     "并流转状态为开发测试（评论不能替代字段回写），脚本回读校验不一致视为失败；"
                      "⑤更新 PRD 第2节 Current conclusion、8.4、第10节 checklist。worker_done body 给出 commit、push、评论id、字段值与状态。"),
         },
     ]
