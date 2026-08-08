@@ -6,6 +6,7 @@ import {
 import { collectLocalSkills, type CollectedSkill } from './collect-local-skills'
 import { fetchRemoteOfficialAggregates } from './remote-pack-aggregates'
 import { getContributorIdentity } from './contributor-identity'
+import { resolveSkillContributionServerOrigin, skillPackUrlForOrigin } from './server-origin'
 import {
   aggregateSkillFilesSha256,
   readSkillContributionState,
@@ -57,10 +58,6 @@ export function resolveSkillContributionUploadToken(config: DfHisEnvironmentConf
   )
 }
 
-export function resolveSkillContributionUploadUrl(config: DfHisEnvironmentConfig): string {
-  return `${new URL(config.dfhisSkillPackUrl).origin}/api/skill-contributions`
-}
-
 export async function runSkillContributionUpload(): Promise<SkillContributionUploadResult> {
   const result: SkillContributionUploadResult = { uploaded: [], unchanged: [], skipped: [] }
   try {
@@ -69,7 +66,10 @@ export async function runSkillContributionUpload(): Promise<SkillContributionUpl
       return result
     }
     const config = readDfHisEnvironmentConfigSync()
-    const remoteOfficialAggregates = await fetchRemoteOfficialAggregates(config.dfhisSkillPackUrl)
+    const origin = await resolveSkillContributionServerOrigin(config)
+    const remoteOfficialAggregates = await fetchRemoteOfficialAggregates(
+      skillPackUrlForOrigin(config, origin)
+    )
     const collected = await collectLocalSkills({ remoteOfficialAggregates })
     result.skipped = collected.skipped.map((skill) => skill.name)
     const state = await readSkillContributionState()
@@ -84,7 +84,7 @@ export async function runSkillContributionUpload(): Promise<SkillContributionUpl
     if (changed.length === 0) {
       return result
     }
-    const url = resolveSkillContributionUploadUrl(config)
+    const url = `${origin}/api/skill-contributions`
     const token = resolveSkillContributionUploadToken(config)
     for (const batch of batchSkillsBySize(changed)) {
       const response = await fetch(url, {

@@ -23,6 +23,9 @@ vi.mock('./uploader', () => ({
   resolveSkillContributionUploadToken: () => 'test-token',
   runSkillContributionUpload: () => uploadMock()
 }))
+vi.mock('./server-origin', () => ({
+  resolveSkillContributionServerOrigin: async () => 'http://192.168.1.10:18800'
+}))
 
 import {
   SseBlockSplitter,

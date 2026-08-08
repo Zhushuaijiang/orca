@@ -28,6 +28,11 @@ vi.mock('./collect-local-skills', () => ({
 vi.mock('./remote-pack-aggregates', () => ({
   fetchRemoteOfficialAggregates: async () => new Map<string, Set<string>>()
 }))
+vi.mock('./server-origin', () => ({
+  resolveSkillContributionServerOrigin: async () => 'http://192.168.1.10:18800',
+  skillPackUrlForOrigin: (_config: unknown, origin: string) =>
+    `${origin}/static/downloads/dfhis/dfhis-skill-pack.json`
+}))
 vi.mock('./upload-state', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>()
   return {
@@ -40,7 +45,6 @@ vi.mock('./upload-state', async (importOriginal) => {
 import {
   DEFAULT_SKILL_CONTRIB_UPLOAD_TOKEN,
   resolveSkillContributionUploadToken,
-  resolveSkillContributionUploadUrl,
   runSkillContributionUpload
 } from './uploader'
 import { aggregateSkillFilesSha256 } from './upload-state'
@@ -102,12 +106,6 @@ describe('token and url resolution', () => {
         skillContributionUploadToken: 'config-token'
       } as never)
     ).toBe('env-token')
-  })
-
-  it('derives the upload endpoint from the skill pack URL origin', () => {
-    expect(resolveSkillContributionUploadUrl(baseConfig as never)).toBe(
-      'http://192.168.1.10:18800/api/skill-contributions'
-    )
   })
 })
 

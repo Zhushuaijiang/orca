@@ -4,6 +4,7 @@ import {
   readDfHisEnvironmentConfigSync
 } from '../dfhis-environment/config'
 import { getContributorIdentity } from './contributor-identity'
+import { resolveSkillContributionServerOrigin } from './server-origin'
 import { resolveSkillContributionUploadToken, runSkillContributionUpload } from './uploader'
 
 const FIRST_RECONNECT_DELAY_MS = 5_000
@@ -114,7 +115,6 @@ async function runChannelLoop(): Promise<void> {
     return
   }
   const config = readDfHisEnvironmentConfigSync()
-  const url = `${new URL(config.dfhisSkillPackUrl).origin}/api/skill-contributions/channel?userId=${encodeURIComponent(identity.yunxiaoUserId)}`
   const headers = {
     Accept: 'text/event-stream',
     'X-API-Key': resolveSkillContributionUploadToken(config)
@@ -122,6 +122,9 @@ async function runChannelLoop(): Promise<void> {
   let reconnectDelay = FIRST_RECONNECT_DELAY_MS
   while (started) {
     try {
+      // Why: re-resolve per attempt so LAN drop/rejoin switches between intranet and the public domain.
+      const origin = await resolveSkillContributionServerOrigin(config)
+      const url = `${origin}/api/skill-contributions/channel?userId=${encodeURIComponent(identity.yunxiaoUserId)}`
       abortController = new AbortController()
       const response = await fetch(url, { headers, signal: abortController.signal })
       if (!response.ok || !response.body) {
