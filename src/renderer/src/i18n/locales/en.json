@@ -5685,7 +5685,9 @@
           "3f1bdf3cb4": "Environment text is too large to parse safely.",
           "codexSessionSource": "Codex home to import from",
           "codexSessionSourceInfo": "About importing Codex history",
-          "codexSessionSourceTooltip": "Orca runs Codex in an isolated home. Point this at your existing Codex home to import that session history. Empty uses ~/.codex."
+          "codexSessionSourceTooltip": "Orca runs Codex in an isolated home. Point this at your existing Codex home to import that session history. Empty uses ~/.codex.",
+          "yunxiaoRequirementPromptGateTitle": "需求流程提示词注入",
+          "yunxiaoRequirementPromptGateDescription": "粘贴/发送含 DFHIS 或云效需求链接的提示词时，自动追加受控需求流程指令。关闭则只发送原始内容。"
         },
         "AppIconSelector": {
           "d5a112dc9b": "Next icon",
@@ -9532,6 +9534,16 @@
           "e5995ce268": "Keep computer awake while agents are working",
           "95d3031db2": "Keeps this computer and display awake while agents are working. Lid-close behavior follows this device's power settings.",
           "a42f6fbdd8": "Keeps this computer and display awake while agents are working. Orca also asks this device to stay awake when the lid is closed, subject to its power policy."
+        },
+        "skill-review-setting-copy": {
+          "c7d86b9e8e": "Auto-distill skills after agent sessions",
+          "86cb0bd866": "When an agent session ends, Orca runs a sandboxed background review that writes reusable lessons into the shared skill library and long-term memory. It follows the session agent and reverts anything outside the skill and memory directories.",
+          "92892a51e6": "skill",
+          "be772d6d7f": "memory",
+          "35f3db57a2": "distill",
+          "79e42a4d16": "review",
+          "fefaef908d": "session",
+          "f86a4e229d": "lesson"
         },
         "agent-status-hooks-copy": {
           "7707c15abb": "Agent status hooks",

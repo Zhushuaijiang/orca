@@ -88,6 +88,7 @@ import type { RelayBrokerStatus } from './runtime/relay/relay-session-broker'
 import { awaitRuntimeFileWatcherUnsubscribes } from './runtime/orca-runtime-files'
 import { clearRuntimeMetadataIfOwned } from './runtime/runtime-metadata'
 import { scheduleAllPendingHistoryTreeRemovals } from './terminal-history-deletion'
+import { startSkillReviewService } from './skill-review/skill-review-service'
 import { ensureMainI18n, setMainPluginLanguagePacks, setMainUiLanguage } from './i18n/main-i18n'
 import {
   getNextDefaultOnAppearanceSettingValue,
@@ -1375,6 +1376,9 @@ function openMainWindow(): BrowserWindow {
   )
   automations.setWebContents(window.webContents)
   automations.start()
+  startSkillReviewService({
+    isEnabled: () => store?.getSettings().skillReviewEnabled !== false
+  })
   attachMainWindowServices(
     window,
     store,
@@ -2935,6 +2939,10 @@ void app.whenReady().then(async () => {
     }
     // Why: headless serve never opens a renderer, so arm scheduled automation dispatch here.
     automations.start()
+    // Why: SSH 场景由远端 Orca 评审本地会话（本地实例跳过 connectionId 事件），serve 路径必须也启动。
+    startSkillReviewService({
+      isEnabled: () => store?.getSettings().skillReviewEnabled !== false
+    })
     // Why: serve deletes worktrees too, and the history GC that normally drains delete tombstones is
     // armed from the main window — without this, a quit mid-removal leaks the tree until a desktop launch.
     scheduleAllPendingHistoryTreeRemovals()

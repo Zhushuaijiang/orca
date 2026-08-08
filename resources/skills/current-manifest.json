@@ -20,6 +20,33 @@
       ]
     },
     {
+      "name": "dfhis-platform-development",
+      "sourcePath": "skills/dfhis-platform-development",
+      "releaseRevision": 1,
+      "packageDigest": "aaa965104837869470d3693a1bbb3efe105f070982a8c08b260a5b20fc42e1f3",
+      "gitTreeSha": "d0dafe1eca1d220fe59bb3913d2f093e1b1086da",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "size": 5505,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "fbc7df01ebde2d9406b8b21c9e0fe205d1cc24586b7f7cf8162eab28b37d98b3",
+          "textNormalizedSha256": "fbc7df01ebde2d9406b8b21c9e0fe205d1cc24586b7f7cf8162eab28b37d98b3",
+          "identitySha256": "fbc7df01ebde2d9406b8b21c9e0fe205d1cc24586b7f7cf8162eab28b37d98b3"
+        },
+        {
+          "path": "references/company-environment/本地152开发环境.md",
+          "size": 5541,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "5684cc13a771aeabef4bc395e49eea442d3480d3d07600815f471effc61d6650",
+          "textNormalizedSha256": "5684cc13a771aeabef4bc395e49eea442d3480d3d07600815f471effc61d6650",
+          "identitySha256": "5684cc13a771aeabef4bc395e49eea442d3480d3d07600815f471effc61d6650"
+        }
+      ]
+    },
+    {
       "name": "linear-tickets",
       "sourcePath": "skills/linear-tickets",
       "releaseRevision": 10,
@@ -146,6 +173,24 @@
       ]
     },
     {
+      "name": "requirement-delivery-flow",
+      "sourcePath": "skills/requirement-delivery-flow",
+      "releaseRevision": 1,
+      "packageDigest": "694300a4fed7236c70058ca289d1489ba4fa53109cf4c0921354bf87e697c882",
+      "gitTreeSha": "de87eea5fa3891afd635ab7f859322c79dcdcb99",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "size": 12876,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "f93a0abcbef8ab6aa6324ddc6cb2a443deec6ccf7b58d3814c55ef8e770f7fa6",
+          "textNormalizedSha256": "f93a0abcbef8ab6aa6324ddc6cb2a443deec6ccf7b58d3814c55ef8e770f7fa6",
+          "identitySha256": "f93a0abcbef8ab6aa6324ddc6cb2a443deec6ccf7b58d3814c55ef8e770f7fa6"
+        }
+      ]
+    },
+    {
       "name": "ui-review",
       "sourcePath": "skills/ui-review",
       "releaseRevision": 1,
@@ -160,6 +205,24 @@
           "exactSha256": "94f1413b403ff76674839592bc2a26805546b9c00d990b9adf972a3a1c60b29b",
           "textNormalizedSha256": "94f1413b403ff76674839592bc2a26805546b9c00d990b9adf972a3a1c60b29b",
           "identitySha256": "94f1413b403ff76674839592bc2a26805546b9c00d990b9adf972a3a1c60b29b"
+        }
+      ]
+    },
+    {
+      "name": "yunxiao-contacts",
+      "sourcePath": "skills/yunxiao-contacts",
+      "releaseRevision": 1,
+      "packageDigest": "2778b04b45c6265fdc9eb6058c230d7d85d9713c8c9d1e501ace0b0ea41c8491",
+      "gitTreeSha": "a8e49b144d08c500785ee3599d1434511852b530",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "size": 9316,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "f27ee7f313e863ab775707a1c99cec6aa3886eb6b2c34cf267d895e96d7ad718",
+          "textNormalizedSha256": "f27ee7f313e863ab775707a1c99cec6aa3886eb6b2c34cf267d895e96d7ad718",
+          "identitySha256": "f27ee7f313e863ab775707a1c99cec6aa3886eb6b2c34cf267d895e96d7ad718"
         }
       ]
     }

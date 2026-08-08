@@ -19,6 +19,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '@/lib/utils'
 import { AgentAwakeSetting } from './AgentAwakeSetting'
+import { SkillReviewSetting } from './SkillReviewSetting'
 import { AgentCacheTimerSection } from './AgentCacheTimerSection'
 import { AgentRuntimeSetting } from './AgentRuntimeSetting'
 import {
@@ -868,6 +869,8 @@ export function AgentsPane({
       <YunxiaoRequirementPromptGateSetting settings={settings} updateSettings={updateSettings} />
 
       <AgentGeneratedTabTitlesSetting settings={settings} updateSettings={updateSettings} />
+
+      <SkillReviewSetting settings={settings} updateSettings={updateSettings} />
 
       <AgentAwakeSetting settings={settings} updateSettings={updateSettings} />
 
