@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Reject DFHIS code edits outside a requirement-specific worktree.
-
-Direct-dev repos (df-his-api shared API repo) may be edited on the dev branch
-instead of a feature/hotfix branch; see DIRECT_DEV_REPOS below.
-"""
+"""Reject DFHIS code edits outside a requirement-specific worktree."""
 
 from __future__ import annotations
 
@@ -15,15 +11,6 @@ from pathlib import Path
 
 
 WORK_ITEM_RE = re.compile(r"DFHIS-\d+", re.IGNORECASE)
-
-# Repositories that are allowed to be edited directly on their dev branch
-# (no feature/hotfix branch): the shared API repo df-his-api. Its dev branch is
-# the release mainline; contract changes go straight to dev and are published as
-# API jars by the release pipeline. Matching is by the git root directory name.
-DIRECT_DEV_REPOS = {"df-his-api"}
-# Branch name accepted for direct-dev repos ("" means detached HEAD, which is how
-# prepare_local_worktree.py --direct-dev checks out origin/dev).
-DIRECT_DEV_BRANCH = "dev"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,12 +76,6 @@ def validate_path(path: Path, requirement_dir: Path, work_item: str) -> None:
 
     branch = run_stdout(["git", "branch", "--show-current"], root)
     allowed = {f"feature-{work_item}", f"hotfix-{work_item}"}
-    if root.name in DIRECT_DEV_REPOS:
-        # Shared API repos are edited directly on dev: either the dev branch or a
-        # detached HEAD checked out at origin/dev (--direct-dev mode). No
-        # feature/hotfix branch is required for these repos.
-        allowed.add(DIRECT_DEV_BRANCH)
-        allowed.add("")
     if branch not in allowed:
         raise ValueError(f"branch must be one of {sorted(allowed)}, got {branch!r} in {root}")
 

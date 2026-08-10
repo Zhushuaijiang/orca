@@ -82,12 +82,14 @@ async function checkBundledSkillPackTarget(
     status: 'invalid',
     summary:
       manifest?.packageHash === sourceHash
-        ? 'Installed pack differs from bundled version'
+        ? 'Installed pack has local modifications'
         : manifest
           ? 'Installed pack is outdated'
           : 'Legacy pack differs from bundled version',
     detail: targetDirectory,
-    fixable: true
+    // Why: packageHash match means the bundled source hasn't changed since install;
+    // the disk difference is a user edit, not a stale pack — never overwrite it.
+    fixable: manifest?.packageHash !== sourceHash
   }
 }
 
