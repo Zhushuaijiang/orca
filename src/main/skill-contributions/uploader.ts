@@ -7,6 +7,7 @@ import { collectLocalSkills, type CollectedSkill } from './collect-local-skills'
 import { fetchRemoteOfficialAggregates } from './remote-pack-aggregates'
 import { getContributorIdentity } from './contributor-identity'
 import { resolveSkillContributionServerOrigin, skillPackUrlForOrigin } from './server-origin'
+import { withoutProxyEnv } from './direct-fetch'
 import {
   aggregateSkillFilesSha256,
   readSkillContributionState,
@@ -87,21 +88,23 @@ export async function runSkillContributionUpload(): Promise<SkillContributionUpl
     const url = `${origin}/api/skill-contributions`
     const token = resolveSkillContributionUploadToken(config)
     for (const batch of batchSkillsBySize(changed)) {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': token
-        },
-        body: JSON.stringify({
-          schemaVersion: 1,
-          contributor: identity,
-          clientHost: hostname(),
-          collectedAt: new Date().toISOString(),
-          skills: batch
-        }),
-        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS)
-      })
+      const response = await withoutProxyEnv(() =>
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': token
+          },
+          body: JSON.stringify({
+            schemaVersion: 1,
+            contributor: identity,
+            clientHost: hostname(),
+            collectedAt: new Date().toISOString(),
+            skills: batch
+          }),
+          signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS)
+        })
+      )
       if (!response.ok) {
         result.error = `upload failed with status ${response.status}`
         return result

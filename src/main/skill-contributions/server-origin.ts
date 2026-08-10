@@ -1,4 +1,5 @@
 import type { DfHisEnvironmentConfig } from '../dfhis-environment/config'
+import { withoutProxyEnv } from './direct-fetch'
 
 // Why: the team server lives on the office LAN; off-LAN clients fall back to the public domain.
 export const EXTERNAL_SKILL_SERVER_ORIGIN = 'https://bot-direct.zhushuaijiang.cn'
@@ -19,13 +20,15 @@ export function skillPackUrlForOrigin(config: DfHisEnvironmentConfig, origin: st
 }
 
 async function probePrimaryOrigin(primaryOrigin: string): Promise<boolean> {
-  try {
-    // Why: any HTTP response — even an error status — proves the LAN server is reachable.
-    await fetch(`${primaryOrigin}/`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })
-    return true
-  } catch {
-    return false
-  }
+  return withoutProxyEnv(async () => {
+    try {
+      // Why: any HTTP response — even an error status — proves the LAN server is reachable.
+      await fetch(`${primaryOrigin}/`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })
+      return true
+    } catch {
+      return false
+    }
+  })
 }
 
 export async function resolveSkillContributionServerOrigin(

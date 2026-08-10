@@ -5,6 +5,7 @@ import {
 } from '../dfhis-environment/config'
 import { getContributorIdentity } from './contributor-identity'
 import { resolveSkillContributionServerOrigin } from './server-origin'
+import { withoutProxyEnv } from './direct-fetch'
 import { resolveSkillContributionUploadToken, runSkillContributionUpload } from './uploader'
 
 const FIRST_RECONNECT_DELAY_MS = 5_000
@@ -126,7 +127,10 @@ async function runChannelLoop(): Promise<void> {
       const origin = await resolveSkillContributionServerOrigin(config)
       const url = `${origin}/api/skill-contributions/channel?userId=${encodeURIComponent(identity.yunxiaoUserId)}`
       abortController = new AbortController()
-      const response = await fetch(url, { headers, signal: abortController.signal })
+      const controller = abortController
+      const response = await withoutProxyEnv(() =>
+        fetch(url, { headers, signal: controller.signal })
+      )
       if (!response.ok || !response.body) {
         throw new Error(`channel request failed with status ${response.status}`)
       }
