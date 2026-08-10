@@ -21,6 +21,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--known-hosts", default="", help="Optional workspace-local SSH known_hosts file.")
     parser.add_argument("--identity-file", default="", help="Optional SSH identity file.")
     parser.add_argument("--force-existing-worktree", action="store_true", help="Allow an existing worktree directory.")
+    parser.add_argument(
+        "--direct-dev",
+        action="store_true",
+        help=(
+            "Direct-dev mode for shared API repos (df-his-api): do not create a feature/hotfix "
+            "branch; check out --base-ref (usually origin/dev) detached and commit straight to "
+            "dev. Push with 'git push origin HEAD:dev'. guard_code_edit.py accepts this mode."
+        ),
+    )
     return parser
 
 
@@ -102,13 +111,19 @@ def main() -> int:
         stderr=subprocess.DEVNULL,
     )
     worktree_dir.parent.mkdir(parents=True, exist_ok=True)
-    if refs.returncode == 0:
+    if args.direct_dev:
+        # Shared API repos (df-his-api): work directly on dev, no feature branch.
+        run(["git", "worktree", "add", "--detach", str(worktree_dir), args.base_ref], cwd=repo_dir, env=env)
+    elif refs.returncode == 0:
         run(["git", "worktree", "add", str(worktree_dir), args.branch], cwd=repo_dir, env=env)
     else:
         run(["git", "worktree", "add", "-b", args.branch, str(worktree_dir), args.base_ref], cwd=repo_dir, env=env)
 
     run(["git", "status", "--short"], cwd=worktree_dir, env=env)
-    run(["git", "branch", "--show-current"], cwd=worktree_dir, env=env)
+    if args.direct_dev:
+        run(["git", "rev-parse", "--short", "HEAD"], cwd=worktree_dir, env=env)
+    else:
+        run(["git", "branch", "--show-current"], cwd=worktree_dir, env=env)
     return 0
 
 
