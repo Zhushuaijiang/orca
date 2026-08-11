@@ -24,7 +24,13 @@ function configWith(apiKey: string): DfHisEnvironmentConfig {
     relayExecModel: '',
     relayExecApiKey: '',
     visionApiKey: apiKey,
-    skillContributionUploadToken: ''
+    skillContributionUploadToken: '',
+    smtpHost: '',
+    smtpPort: '',
+    smtpUser: '',
+    smtpPassword: '',
+    smtpFromName: '',
+    emailCc: ''
   }
 }
 

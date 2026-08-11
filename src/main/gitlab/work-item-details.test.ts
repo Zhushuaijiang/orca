@@ -192,7 +192,6 @@ describe('getWorkItemDetails', () => {
           })
         }
       }
-      }
       throw new Error(`unexpected glab call: ${args.join(' ')}`)
     })
 

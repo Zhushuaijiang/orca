@@ -215,7 +215,7 @@ export function DfHisEnvironmentPane(): JSX.Element {
       visionApiKey: current.visionApiKey || snapshot.visionApiKey,
       dfhisSkillPackUrl: current.dfhisSkillPackUrl || snapshot.dfhisSkillPackUrl
     }))
-    setHasRelayApiKey(snapshot.hasRelayApiKey)
+    setHasRelayApiKey(snapshot.hasRelayExecApiKey)
     setHasVisionApiKey(snapshot.hasVisionApiKey)
     setSmtpForm((current) => ({
       smtpHost: current.smtpHost || snapshot.smtpHost,

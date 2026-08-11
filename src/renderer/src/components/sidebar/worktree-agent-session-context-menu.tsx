@@ -372,6 +372,8 @@ function ReadySessionMenuItems({
           ? () => void window.api.shell.openPath(sessionCwd)
           : undefined
       }
+      deleteBlockedReason={null}
+      onDelete={() => {}}
     />
   )
 }

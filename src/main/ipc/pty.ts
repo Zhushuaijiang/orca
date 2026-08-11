@@ -202,7 +202,7 @@ function isKnownTuiAgentForegroundProcess(processName: string | null | undefined
     normalized.length > 0 && !isShellProcess(normalized) && TUI_AGENT_PROCESS_NAMES.has(normalized)
   )
 }
-import { isWslUncPath } from '../../shared/wsl-paths'
+import { isWslUncPath, toWindowsWslPath } from '../../shared/wsl-paths'
 import { splitWorktreeIdForFilesystem } from '../../shared/worktree-id'
 import { isFolderRepo } from '../../shared/repo-kind'
 import {
