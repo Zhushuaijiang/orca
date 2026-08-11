@@ -54,6 +54,12 @@ export type DfHisEnvironmentConfigInput = {
   relayExecApiKey?: string
   visionApiKey?: string
   skillContributionUploadToken?: string
+  smtpHost?: string
+  smtpPort?: string
+  smtpUser?: string
+  smtpPassword?: string
+  smtpFromName?: string
+  emailCc?: string
 }
 
 export type DfHisEnvironmentConfigSnapshot = {
@@ -76,6 +82,13 @@ export type DfHisEnvironmentConfigSnapshot = {
   visionApiKey: string
   hasVisionApiKey: boolean
   hasSkillContributionUploadToken: boolean
+  smtpHost: string
+  smtpPort: string
+  smtpUser: string
+  smtpPassword: string
+  hasSmtpPassword: boolean
+  smtpFromName: string
+  emailCc: string
 }
 
 export type DfHisEnvironmentInstallResult = {

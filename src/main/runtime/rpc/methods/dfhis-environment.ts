@@ -58,7 +58,14 @@ const DfHisEnvironmentConfigInputSchema = z
     dfhisSkillPackUrl: OptionalPlainString,
     relayExecModel: OptionalPlainString,
     relayExecApiKey: OptionalPlainString,
-    visionApiKey: OptionalPlainString
+    visionApiKey: OptionalPlainString,
+    skillContributionUploadToken: OptionalPlainString,
+    smtpHost: OptionalPlainString,
+    smtpPort: OptionalPlainString,
+    smtpUser: OptionalPlainString,
+    smtpPassword: OptionalPlainString,
+    smtpFromName: OptionalPlainString,
+    emailCc: OptionalPlainString
   })
   .optional()
   .nullable()

@@ -23,6 +23,21 @@ import {
   DfHisEnvironmentConfigForm,
   type DfHisEnvironmentConfigFormState
 } from './DfHisEnvironmentConfigForm'
+import {
+  DfHisPathsConfigDialog,
+  createEmptyPathsConfig,
+  type DfHisPathsConfigState
+} from './DfHisPathsConfigDialog'
+import {
+  DfHisAiConfigDialog,
+  createEmptyAiConfig,
+  type DfHisAiConfigState
+} from './DfHisAiConfigDialog'
+import {
+  DfHisSmtpConfigDialog,
+  createEmptySmtpConfig,
+  type DfHisSmtpConfigState
+} from './DfHisSmtpConfigDialog'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 
@@ -163,6 +178,12 @@ export function DfHisEnvironmentPane(): JSX.Element {
   )
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [messages, setMessages] = useState<string[]>([])
+  const [pathsForm, setPathsForm] = useState<DfHisPathsConfigState>(createEmptyPathsConfig())
+  const [aiForm, setAiForm] = useState<DfHisAiConfigState>(createEmptyAiConfig())
+  const [hasRelayApiKey, setHasRelayApiKey] = useState(false)
+  const [hasVisionApiKey, setHasVisionApiKey] = useState(false)
+  const [smtpForm, setSmtpForm] = useState<DfHisSmtpConfigState>(createEmptySmtpConfig())
+  const [hasSmtpPassword, setHasSmtpPassword] = useState(false)
 
   const readyCount = useMemo(
     () =>
@@ -181,15 +202,30 @@ export function DfHisEnvironmentPane(): JSX.Element {
       yunxiaoMcpUrl: current.yunxiaoMcpUrl || snapshot.yunxiaoMcpUrl,
       yunxiaoAccessToken: current.yunxiaoAccessToken || snapshot.yunxiaoAccessToken,
       hisMcpUrl: current.hisMcpUrl || snapshot.hisMcpUrl,
-      hisMcpToken: current.hisMcpToken || snapshot.hisMcpToken,
+      hisMcpToken: current.hisMcpToken || snapshot.hisMcpToken
+    }))
+    setPathsForm((current) => ({
       hisCodeRoot: current.hisCodeRoot || snapshot.hisCodeRoot,
       hisWorkflowCatalogPath: current.hisWorkflowCatalogPath || snapshot.hisWorkflowCatalogPath,
-      archiveWorkspacePath: current.archiveWorkspacePath || snapshot.archiveWorkspacePath,
-      dfhisSkillPackUrl: current.dfhisSkillPackUrl || snapshot.dfhisSkillPackUrl,
+      archiveWorkspacePath: current.archiveWorkspacePath || snapshot.archiveWorkspacePath
+    }))
+    setAiForm((current) => ({
       relayExecModel: current.relayExecModel || snapshot.relayExecModel,
       relayExecApiKey: current.relayExecApiKey || snapshot.relayExecApiKey,
-      visionApiKey: current.visionApiKey || snapshot.visionApiKey
+      visionApiKey: current.visionApiKey || snapshot.visionApiKey,
+      dfhisSkillPackUrl: current.dfhisSkillPackUrl || snapshot.dfhisSkillPackUrl
     }))
+    setHasRelayApiKey(snapshot.hasRelayApiKey)
+    setHasVisionApiKey(snapshot.hasVisionApiKey)
+    setSmtpForm((current) => ({
+      smtpHost: current.smtpHost || snapshot.smtpHost,
+      smtpPort: current.smtpPort || snapshot.smtpPort,
+      smtpUser: current.smtpUser || snapshot.smtpUser,
+      smtpPassword: current.smtpPassword || snapshot.smtpPassword,
+      smtpFromName: current.smtpFromName || snapshot.smtpFromName,
+      emailCc: current.emailCc || snapshot.emailCc
+    }))
+    setHasSmtpPassword(snapshot.hasSmtpPassword)
   }, [])
 
   const updateConfigField = useCallback(
@@ -222,7 +258,22 @@ export function DfHisEnvironmentPane(): JSX.Element {
   const install = useCallback(async () => {
     setLoadState('installing')
     try {
-      const result = await getDfHisEnvironmentApi().install(configForm)
+      const result = await getDfHisEnvironmentApi().install({
+        ...configForm,
+        hisCodeRoot: pathsForm.hisCodeRoot,
+        hisWorkflowCatalogPath: pathsForm.hisWorkflowCatalogPath,
+        archiveWorkspacePath: pathsForm.archiveWorkspacePath,
+        relayExecModel: aiForm.relayExecModel,
+        relayExecApiKey: aiForm.relayExecApiKey,
+        visionApiKey: aiForm.visionApiKey,
+        dfhisSkillPackUrl: aiForm.dfhisSkillPackUrl,
+        smtpHost: smtpForm.smtpHost,
+        smtpPort: smtpForm.smtpPort,
+        smtpUser: smtpForm.smtpUser,
+        smtpPassword: smtpForm.smtpPassword,
+        smtpFromName: smtpForm.smtpFromName,
+        emailCc: smtpForm.emailCc
+      })
       setMessages(result.messages)
       setCheckResult(result.check)
       hydrateConfigForm(result.check.config)
@@ -238,7 +289,7 @@ export function DfHisEnvironmentPane(): JSX.Element {
     } finally {
       setLoadState('idle')
     }
-  }, [configForm, hydrateConfigForm])
+  }, [configForm, pathsForm, aiForm, smtpForm, hydrateConfigForm])
 
   const copyCommand = useCallback(async (command: string) => {
     await navigator.clipboard.writeText(command)
@@ -289,6 +340,29 @@ export function DfHisEnvironmentPane(): JSX.Element {
         snapshot={configSnapshot}
         disabled={isBusy}
         onChange={updateConfigField}
+        advancedSlots={[
+          <DfHisPathsConfigDialog
+            key="paths"
+            value={pathsForm}
+            disabled={isBusy}
+            onSave={setPathsForm}
+          />,
+          <DfHisAiConfigDialog
+            key="ai"
+            value={aiForm}
+            hasRelayApiKey={hasRelayApiKey}
+            hasVisionApiKey={hasVisionApiKey}
+            disabled={isBusy}
+            onSave={setAiForm}
+          />,
+          <DfHisSmtpConfigDialog
+            key="smtp"
+            value={smtpForm}
+            hasPassword={hasSmtpPassword}
+            disabled={isBusy}
+            onSave={setSmtpForm}
+          />
+        ]}
       />
 
       <div

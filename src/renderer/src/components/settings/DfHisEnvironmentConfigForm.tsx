@@ -23,7 +23,13 @@ export function createEmptyDfHisEnvironmentConfigForm(): DfHisEnvironmentConfigF
     relayExecModel: '',
     relayExecApiKey: '',
     visionApiKey: '',
-    skillContributionUploadToken: ''
+    skillContributionUploadToken: '',
+    smtpHost: '',
+    smtpPort: '',
+    smtpUser: '',
+    smtpPassword: '',
+    smtpFromName: '',
+    emailCc: ''
   }
 }
 
@@ -32,12 +38,14 @@ type DfHisEnvironmentConfigFormProps = {
   snapshot: DfHisEnvironmentConfigSnapshot | null
   disabled: boolean
   onChange: (field: keyof DfHisEnvironmentConfigFormState, value: string) => void
+  advancedSlots?: JSX.Element[]
 }
 
 export function DfHisEnvironmentConfigForm({
   value,
   disabled,
-  onChange
+  onChange,
+  advancedSlots
 }: DfHisEnvironmentConfigFormProps): JSX.Element {
   return (
     <div className="space-y-4 rounded-lg border border-border/50 bg-background/40 px-4 py-4">
@@ -127,126 +135,14 @@ export function DfHisEnvironmentConfigForm({
             disabled={disabled}
           />
         </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-foreground">
-            {translate(
-              'auto.components.settings.DfHisEnvironmentPane.hisCodeRoot',
-              'Default code root'
-            )}
-          </span>
-          <Input
-            value={value.hisCodeRoot}
-            onChange={(event) => onChange('hisCodeRoot', event.target.value)}
-            placeholder={translate(
-              'auto.components.settings.DfHisEnvironmentPane.hisCodeRootPlaceholder',
-              '~/workspace/<project>/code'
-            )}
-            disabled={disabled}
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-foreground">
-            {translate(
-              'auto.components.settings.DfHisEnvironmentPane.hisWorkflowCatalogPath',
-              'HIS workflow service catalog'
-            )}
-          </span>
-          <Input
-            value={value.hisWorkflowCatalogPath}
-            onChange={(event) => onChange('hisWorkflowCatalogPath', event.target.value)}
-            placeholder={translate(
-              'auto.components.settings.DfHisEnvironmentPane.hisWorkflowCatalogPathPlaceholder',
-              '~/workspace/his-workflow-catalog.json'
-            )}
-            disabled={disabled}
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-foreground">
-            {translate(
-              'auto.components.settings.DfHisEnvironmentPane.archiveWorkspacePath',
-              'Yunxiao archive workspace'
-            )}
-          </span>
-          <Input
-            value={value.archiveWorkspacePath}
-            onChange={(event) => onChange('archiveWorkspacePath', event.target.value)}
-            placeholder={translate(
-              'auto.components.settings.DfHisEnvironmentPane.archiveWorkspacePathPlaceholder',
-              '~/workspace/yunxiao'
-            )}
-            disabled={disabled}
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-foreground">
-            {translate(
-              'auto.components.settings.DfHisEnvironmentPane.relayExecModel',
-              'Relay exec model (kimi alias)'
-            )}
-          </span>
-          <Input
-            value={value.relayExecModel}
-            onChange={(event) => onChange('relayExecModel', event.target.value)}
-            placeholder={translate(
-              'auto.components.settings.DfHisEnvironmentPane.relayExecModelPlaceholder',
-              'deepseek/deepseek-v4-flash'
-            )}
-            disabled={disabled}
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-foreground">
-            {translate(
-              'auto.components.settings.DfHisEnvironmentPane.relayExecApiKey',
-              'Relay exec model API key (optional)'
-            )}
-          </span>
-          <Input
-            value={value.relayExecApiKey}
-            onChange={(event) => onChange('relayExecApiKey', event.target.value)}
-            placeholder={translate(
-              'auto.components.settings.DfHisEnvironmentPane.relayExecApiKeyPlaceholder',
-              'sk-... (empty = relay uses k3 only)'
-            )}
-            disabled={disabled}
-          />
-        </label>
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-foreground">
-            {translate(
-              'auto.components.settings.DfHisEnvironmentPane.visionApiKey',
-              'Vision API key (optional)'
-            )}
-          </span>
-          <Input
-            value={value.visionApiKey}
-            onChange={(event) => onChange('visionApiKey', event.target.value)}
-            placeholder={translate(
-              'auto.components.settings.DfHisEnvironmentPane.visionApiKeyPlaceholder',
-              'sk-... (empty = built-in default)'
-            )}
-            disabled={disabled}
-          />
-        </label>
-        <label className="space-y-1.5 md:col-span-2">
-          <span className="text-xs font-medium text-foreground">
-            {translate(
-              'auto.components.settings.DfHisEnvironmentPane.dfhisSkillPackUrl',
-              'DFHIS skill pack URL'
-            )}
-          </span>
-          <Input
-            value={value.dfhisSkillPackUrl}
-            onChange={(event) => onChange('dfhisSkillPackUrl', event.target.value)}
-            placeholder={translate(
-              'auto.components.settings.DfHisEnvironmentPane.dfhisSkillPackUrlPlaceholder',
-              'https://.../dfhis-skill-pack.json'
-            )}
-            disabled={disabled}
-          />
-        </label>
       </div>
+
+      {advancedSlots && advancedSlots.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
+          {advancedSlots}
+        </div>
+      ) : null}
+
       <p className="text-xs leading-5 text-muted-foreground">
         {translate(
           'auto.components.settings.DfHisEnvironmentPane.configStorageNote',

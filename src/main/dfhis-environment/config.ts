@@ -26,6 +26,11 @@ const DEFAULT_DFHIS_SKILL_PACK_URL =
   'http://192.168.1.10:18800/static/downloads/dfhis/dfhis-skill-pack.json'
 const DEFAULT_RELAY_EXEC_MODEL = 'deepseek/deepseek-v4-flash'
 
+const DEFAULT_SMTP_HOST = 'smtp.exmail.qq.com'
+const DEFAULT_SMTP_PORT = '465'
+const DEFAULT_SMTP_FROM_NAME = 'HIS需求质量审核'
+const DEFAULT_EMAIL_CC = 'chenbin@df-mic.com, yangyan@df-mic.com'
+
 export type DfHisEnvironmentConfig = {
   gitlabHost: string
   gitlabAccessToken: string
@@ -41,6 +46,12 @@ export type DfHisEnvironmentConfig = {
   relayExecApiKey: string
   visionApiKey: string
   skillContributionUploadToken: string
+  smtpHost: string
+  smtpPort: string
+  smtpUser: string
+  smtpPassword: string
+  smtpFromName: string
+  emailCc: string
 }
 
 function userDataPath(): string {
@@ -100,7 +111,14 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
     visionApiKey: cleanString((config as Record<string, unknown>).visionApiKey),
     skillContributionUploadToken: cleanString(
       (config as Record<string, unknown>).skillContributionUploadToken
-    )
+    ),
+    smtpHost: cleanString((config as Record<string, unknown>).smtpHost) || DEFAULT_SMTP_HOST,
+    smtpPort: cleanString((config as Record<string, unknown>).smtpPort) || DEFAULT_SMTP_PORT,
+    smtpUser: cleanString((config as Record<string, unknown>).smtpUser),
+    smtpPassword: cleanString((config as Record<string, unknown>).smtpPassword),
+    smtpFromName:
+      cleanString((config as Record<string, unknown>).smtpFromName) || DEFAULT_SMTP_FROM_NAME,
+    emailCc: cleanString((config as Record<string, unknown>).emailCc) || DEFAULT_EMAIL_CC
   }
 }
 
@@ -138,7 +156,13 @@ function mergeConfigPatch(
     relayExecApiKey: cleanString(patch.relayExecApiKey) || current.relayExecApiKey,
     visionApiKey: cleanString(patch.visionApiKey) || current.visionApiKey,
     skillContributionUploadToken:
-      cleanString(patch.skillContributionUploadToken) || current.skillContributionUploadToken
+      cleanString(patch.skillContributionUploadToken) || current.skillContributionUploadToken,
+    smtpHost: cleanString(patch.smtpHost) || current.smtpHost,
+    smtpPort: cleanString(patch.smtpPort) || current.smtpPort,
+    smtpUser: cleanString(patch.smtpUser) || current.smtpUser,
+    smtpPassword: cleanString(patch.smtpPassword) || current.smtpPassword,
+    smtpFromName: cleanString(patch.smtpFromName) || current.smtpFromName,
+    emailCc: cleanString(patch.emailCc) || current.emailCc
   })
 }
 
@@ -180,6 +204,13 @@ export function snapshotDfHisEnvironmentConfig(
     visionApiKey: config.visionApiKey,
     hasVisionApiKey: config.visionApiKey.length > 0,
     // Why: the upload token ships a shared default, so only a configured override is worth exposing.
-    hasSkillContributionUploadToken: config.skillContributionUploadToken.length > 0
+    hasSkillContributionUploadToken: config.skillContributionUploadToken.length > 0,
+    smtpHost: config.smtpHost,
+    smtpPort: config.smtpPort,
+    smtpUser: config.smtpUser,
+    smtpPassword: config.smtpPassword,
+    hasSmtpPassword: config.smtpPassword.length > 0,
+    smtpFromName: config.smtpFromName,
+    emailCc: config.emailCc
   }
 }
