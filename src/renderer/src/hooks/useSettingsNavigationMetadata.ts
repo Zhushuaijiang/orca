@@ -11,6 +11,8 @@ import {
   Bot,
   Bug,
   Cable,
+  CalendarClock,
+  CircleUserRound,
   FlaskConical,
   GitBranch,
   Globe,
@@ -30,6 +32,7 @@ import {
   TabletSmartphone,
   SquareTerminal,
   TextCursorInput,
+  Files,
   UserCog,
   Wrench
 } from 'lucide-react'
@@ -56,6 +59,9 @@ import { getQuickCommandsPaneSearchEntries } from '@/components/settings/quick-c
 import { getBrowserPaneCombinedSearchEntries } from '@/components/settings/browser-pane-search'
 import { getNotificationsPaneSearchEntries } from '@/components/settings/notifications-search'
 import { getOrchestrationPaneSearchEntries } from '@/components/settings/orchestration-search'
+import { getArtifactsSettingsSearchEntries } from '@/components/settings/artifacts-settings-search'
+import { getAutomationsSettingsSearchEntries } from '@/components/settings/automations-settings-search'
+import { getOrcaAccountSettingsSearchEntries } from '@/components/settings/orca-account-settings-search'
 import { getLinearAgentSkillPaneSearchEntries } from '@/components/settings/linear-agent-skill-search'
 import {
   getRuntimeEnvironmentsSearchEntry,
@@ -160,7 +166,10 @@ export function buildSettingsNavigationMetadata({
         'Manage AI agents, set a default, and customize commands.'
       ),
       icon: Bot,
-      searchEntries: getAgentsPaneSearchEntries({ includeAgentRuntime: isLocalWindowsHost }),
+      searchEntries: getAgentsPaneSearchEntries({
+        includeAgentAwake: !isWebClient,
+        includeAgentRuntime: isLocalWindowsHost
+      }),
       group: 'capabilities'
     },
     {
@@ -229,6 +238,21 @@ export function buildSettingsNavigationMetadata({
             icon: Mic,
             searchEntries: getVoicePaneSearchEntries(),
             group: 'capabilities'
+          }
+        ]
+      : []),
+    ...(showDesktopOnlySettings
+      ? [
+          {
+            id: 'orca-account',
+            title: translate('auto.components.settings.orcaAccount.title', 'Orca Account'),
+            description: translate(
+              'auto.components.settings.orcaAccount.description',
+              'Share work instantly and reach your desktop from Orca Mobile wherever you are.'
+            ),
+            icon: CircleUserRound,
+            searchEntries: getOrcaAccountSettingsSearchEntries(),
+            group: 'setup'
           }
         ]
       : []),
@@ -316,6 +340,29 @@ export function buildSettingsNavigationMetadata({
           }
         ]
       : []),
+    {
+      id: 'automations',
+      title: translate('auto.hooks.useSettingsNavigationMetadata.automationsTitle', 'Automations'),
+      description: translate(
+        'auto.hooks.useSettingsNavigationMetadata.automationsDescription',
+        'Schedule agent work and choose whether Automations appears in the sidebar.'
+      ),
+      icon: CalendarClock,
+      searchEntries: getAutomationsSettingsSearchEntries(),
+      group: 'workflows'
+    },
+    {
+      id: 'artifacts',
+      title: translate('auto.hooks.useSettingsNavigationMetadata.artifactsTitle', 'Artifacts'),
+      description: translate(
+        'auto.hooks.useSettingsNavigationMetadata.artifactsDescription',
+        'Share HTML and Markdown files with your team and manage their public links.'
+      ),
+      icon: Files,
+      searchEntries: getArtifactsSettingsSearchEntries(),
+      group: 'workflows',
+      badge: translate('auto.hooks.useSettingsNavigationMetadata.40d80bad8a', 'Beta')
+    },
     {
       id: 'git',
       title: translate(

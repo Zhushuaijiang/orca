@@ -102,6 +102,9 @@ describe('getWorkItemDetails', () => {
           ])
         }
       }
+      if (endpoint === 'projects/g%2Fp/pipelines/99/bridges?per_page=100') {
+        return { stdout: '[]' }
+      }
       if (endpoint === 'projects/g%2Fp/merge_requests/12/reviewers') {
         return { stdout: '[]' }
       }
@@ -188,6 +191,7 @@ describe('getWorkItemDetails', () => {
             ]
           })
         }
+      }
       }
       throw new Error(`unexpected glab call: ${args.join(' ')}`)
     })
