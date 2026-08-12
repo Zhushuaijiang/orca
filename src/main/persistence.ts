@@ -6893,7 +6893,8 @@ export class Store {
 
   setAutomationRunYunxiaoTodoPoolClaim(
     runId: string,
-    claim: AutomationYunxiaoTodoPoolClaim
+    claim: AutomationYunxiaoTodoPoolClaim,
+    title?: string
   ): AutomationRun {
     const index = (this.state.automationRuns ?? []).findIndex((entry) => entry.id === runId)
     if (index === -1) {
@@ -6902,6 +6903,7 @@ export class Store {
     const current = this.state.automationRuns[index]
     const updated: AutomationRun = {
       ...current,
+      title: title?.trim() || current.title,
       yunxiaoTodoPoolClaim: normalizeAutomationYunxiaoTodoPoolClaim(claim)
     }
     this.state.automationRuns[index] = updated

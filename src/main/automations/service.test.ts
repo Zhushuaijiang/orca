@@ -234,6 +234,7 @@ describe('AutomationService', () => {
     const run = await service.runNow(automation.id)
 
     expect(run.status).toBe('dispatching')
+    expect(run.title).toBe('DFHIS-31705 折扣套餐，医嘱名称变更后，同步变更 +1')
     expect(run.yunxiaoTodoPoolClaim?.itemIds).toHaveLength(2)
     expect(run.yunxiaoTodoPoolClaim?.itemIds).toEqual(
       expect.arrayContaining(['workspace-item', 'ready-item'])

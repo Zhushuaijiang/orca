@@ -43,10 +43,14 @@ export function prepareYunxiaoTodoPoolRun(args: {
     return { ok: false, run: skipped }
   }
   const claimedAt = claimed[0]?.claimedAt ?? Date.now()
-  const updatedRun = args.store.setAutomationRunYunxiaoTodoPoolClaim(args.run.id, {
-    itemIds: claimed.map((item) => item.id),
-    claimedAt
-  })
+  const updatedRun = args.store.setAutomationRunYunxiaoTodoPoolClaim(
+    args.run.id,
+    {
+      itemIds: claimed.map((item) => item.id),
+      claimedAt
+    },
+    buildYunxiaoTodoPoolRunTitle(claimed)
+  )
   return {
     ok: true,
     automation: {
@@ -55,6 +59,16 @@ export function prepareYunxiaoTodoPoolRun(args: {
     },
     run: updatedRun
   }
+}
+
+function buildYunxiaoTodoPoolRunTitle(items: readonly YunxiaoTodoPoolItem[]): string {
+  const first = items[0]
+  if (!first) {
+    return 'Yunxiao todo pool run'
+  }
+  const identity = first.serialNumber ?? first.id
+  const title = `${identity} ${first.title}`.trim()
+  return items.length === 1 ? title : `${title} +${items.length - 1}`
 }
 
 function getYunxiaoTodoPoolClaimStatuses(

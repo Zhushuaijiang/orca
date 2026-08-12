@@ -82,7 +82,42 @@ function preparePrompt(item: YunxiaoWorkItem): string {
   return result.automation.prompt
 }
 
+function prepareRun(items: YunxiaoWorkItem[]): AutomationRun {
+  const run = makeRun()
+  const result = prepareYunxiaoTodoPoolRun({
+    automation: makeAutomation(),
+    run,
+    store: {
+      claimYunxiaoTodoPoolItems: () => items.map((item) => ({ ...item, claimedAt: 1 })),
+      setAutomationRunYunxiaoTodoPoolClaim: (_runId: string, _claim: unknown, title?: string) => ({
+        ...run,
+        title: title ?? run.title
+      }),
+      updateAutomationRun: () => run
+    } as never
+  })
+  if (!result.ok) {
+    throw new Error('Expected Yunxiao todo pool run to be prepared')
+  }
+  return result.run
+}
+
 describe('prepareYunxiaoTodoPoolRun', () => {
+  it('names a claimed run after its Yunxiao work item', () => {
+    const run = prepareRun([makeYunxiaoWorkItem()])
+
+    expect(run.title).toBe('DFHIS-31704 折扣套餐，医嘱名称变更后，同步变更')
+  })
+
+  it('keeps batch run titles concise', () => {
+    const run = prepareRun([
+      makeYunxiaoWorkItem(),
+      makeYunxiaoWorkItem({ id: 'item-2', serialNumber: 'DFHIS-31705' })
+    ])
+
+    expect(run.title).toBe('DFHIS-31704 折扣套餐，医嘱名称变更后，同步变更 +1')
+  })
+
   it('puts the full Yunxiao URL in the claim commit message field', () => {
     const prompt = preparePrompt(makeYunxiaoWorkItem())
 

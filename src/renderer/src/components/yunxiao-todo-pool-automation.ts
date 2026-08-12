@@ -17,32 +17,20 @@ import {
   type WorkspaceRunContext
 } from '../../../shared/task-source-context'
 import { projectHostSetupProjectionFromRepos } from '../../../shared/project-host-setup-projection'
-import { WORKTREE_ID_SEPARATOR } from '../../../shared/worktree-id'
 import type {
   Automation,
   AutomationCreateInput,
   AutomationUpdateInput
 } from '../../../shared/automations-types'
 import { DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES } from '../../../shared/yunxiao-types'
-import type {
-  GlobalSettings,
-  ProjectHostSetup,
-  Repo,
-  TuiAgent,
-  Worktree
-} from '../../../shared/types'
+import type { GlobalSettings, ProjectHostSetup, Repo, TuiAgent } from '../../../shared/types'
 
 type TodoPoolAutomationTarget = {
   repo: Repo
-  workspaceId: string
 }
 
 const TODO_POOL_AUTOMATION_PROMPT =
   'Process the next actionable Yunxiao todo pool requirement. Follow the runtime-provided claim details and use the Yunxiao requirement archiver workflow.'
-
-function getDefaultWorktree(worktrees: readonly Worktree[]): Worktree | null {
-  return worktrees.find((worktree) => worktree.isMainWorktree) ?? worktrees[0] ?? null
-}
 
 function getDefaultAgent(settings: GlobalSettings | null | undefined): TuiAgent {
   const agents = getAgentCatalog().map((agent) => agent.id)
@@ -115,10 +103,6 @@ function repoLooksLikeYunxiaoArchive(repo: Repo): boolean {
   return normalizedName === 'yunxiao' || pathBasename === 'yunxiao'
 }
 
-function getWorkspaceIdForRepo(repo: Repo, worktrees: readonly Worktree[]): string {
-  return getDefaultWorktree(worktrees)?.id ?? `${repo.id}${WORKTREE_ID_SEPARATOR}${repo.path}`
-}
-
 function resolveTodoPoolAutomationTarget(): TodoPoolAutomationTarget | null {
   const state = useAppStore.getState()
   const worktreeMap = new Map(
@@ -137,13 +121,12 @@ function resolveTodoPoolAutomationTarget(): TodoPoolAutomationTarget | null {
   if (!archiveRepo) {
     return null
   }
-  return {
-    repo: archiveRepo,
-    workspaceId: getWorkspaceIdForRepo(archiveRepo, state.worktreesByRepo[archiveRepo.id] ?? [])
-  }
+  return { repo: archiveRepo }
 }
 
-function buildTodoPoolAutomationInput(target: TodoPoolAutomationTarget): AutomationCreateInput {
+export function buildTodoPoolAutomationInput(
+  target: TodoPoolAutomationTarget
+): AutomationCreateInput {
   const state = useAppStore.getState()
   const runContext = buildRunContext({
     repo: target.repo,
@@ -163,8 +146,8 @@ function buildTodoPoolAutomationInput(target: TodoPoolAutomationTarget): Automat
     runContext,
     sourceContext: buildSourceContext({ repo: target.repo, runContext }),
     projectId: target.repo.id,
-    workspaceMode: 'existing',
-    workspaceId: target.workspaceId,
+    workspaceMode: 'new_per_run',
+    workspaceId: null,
     baseBranch: null,
     setupDecision: undefined,
     reuseSession: false,
