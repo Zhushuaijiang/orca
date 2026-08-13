@@ -4,7 +4,11 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const identityMock = vi.fn()
-const uploadMock = vi.fn(async () => ({ uploaded: [], unchanged: [], skipped: [] }))
+const uploadMock = vi.fn(async (_options?: { skillName?: string }) => ({
+  uploaded: [],
+  unchanged: [],
+  skipped: []
+}))
 
 let configDirectory: string
 let configPath: string
@@ -21,7 +25,7 @@ vi.mock('./contributor-identity', () => ({
 }))
 vi.mock('./uploader', () => ({
   resolveSkillContributionUploadToken: () => 'test-token',
-  runSkillContributionUpload: () => uploadMock()
+  runSkillContributionUpload: (options?: { skillName?: string }) => uploadMock(options)
 }))
 vi.mock('./server-origin', () => ({
   resolveSkillContributionServerOrigin: async () => 'http://192.168.1.10:18800'
@@ -124,9 +128,35 @@ describe('startSkillContributionChannel', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('http://192.168.1.10:18800/api/skill-contributions/channel?userId=u-1')
+    expect(url).toBe(
+      'http://192.168.1.10:18800/api/skill-contributions/channel?userId=u-1&capabilities=targeted-collect'
+    )
     expect((init.headers as Record<string, string>)['X-API-Key']).toBe('test-token')
     expect(uploadMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards a targeted collect request to the uploader', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      body: streamFrom('event: collect\ndata: {"requestedAt":"t","skillName":"my-skill"}\n\n')
+    })
+
+    startSkillContributionChannel()
+    await flushAsync()
+
+    expect(uploadMock).toHaveBeenCalledWith({ skillName: 'my-skill' })
+  })
+
+  it('ignores an invalid targeted collect request instead of uploading every skill', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      body: streamFrom('event: collect\ndata: {"skillName":"INVALID"}\n\n')
+    })
+
+    startSkillContributionChannel()
+    await flushAsync()
+
+    expect(uploadMock).not.toHaveBeenCalled()
   })
 
   it('skips duplicate collect events while an upload is still running', async () => {
@@ -148,6 +178,34 @@ describe('startSkillContributionChannel', () => {
     resolveUpload?.({ uploaded: [], unchanged: [], skipped: [] })
     await flushAsync()
     expect(uploadMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('queues a different targeted request while an upload is running', async () => {
+    let resolveFirstUpload: ((value: unknown) => void) | undefined
+    uploadMock
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirstUpload = resolve
+        }) as never
+      )
+      .mockResolvedValue({ uploaded: [], unchanged: [], skipped: [] })
+    fetchMock.mockResolvedValue({
+      ok: true,
+      body: streamFrom(
+        'event: collect\ndata: {"skillName":"skill-a"}\n\n' +
+          'event: collect\ndata: {"skillName":"skill-b"}\n\n'
+      )
+    })
+
+    startSkillContributionChannel()
+    await flushAsync()
+
+    expect(uploadMock).toHaveBeenCalledTimes(1)
+    expect(uploadMock).toHaveBeenLastCalledWith({ skillName: 'skill-a' })
+    resolveFirstUpload?.({ uploaded: [], unchanged: [], skipped: [] })
+    await flushAsync()
+    expect(uploadMock).toHaveBeenCalledTimes(2)
+    expect(uploadMock).toHaveBeenLastCalledWith({ skillName: 'skill-b' })
   })
 
   it('reconnects with exponential backoff after the stream ends', async () => {

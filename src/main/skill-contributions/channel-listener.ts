@@ -64,16 +64,57 @@ export class SseBlockSplitter {
 
 let started = false
 let uploading = false
+let activeUploadKey: string | null = null
+const pendingUploads: (string | undefined)[] = []
+const pendingUploadKeys = new Set<string>()
 let abortController: AbortController | null = null
 
-function triggerUpload(): void {
-  if (uploading) {
+function parseCollectRequest(data: string): { skillName?: string } | null {
+  try {
+    const payload: unknown = JSON.parse(data)
+    if (!payload || typeof payload !== 'object') {
+      return null
+    }
+    const skillName = (payload as { skillName?: unknown }).skillName
+    if (skillName === undefined) {
+      return {}
+    }
+    return typeof skillName === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(skillName)
+      ? { skillName }
+      : null
+  } catch {
+    return null
+  }
+}
+
+async function drainUploads(): Promise<void> {
+  while (pendingUploads.length > 0) {
+    const skillName = pendingUploads.shift()
+    const key = skillName ?? '*'
+    pendingUploadKeys.delete(key)
+    activeUploadKey = key
+    await runSkillContributionUpload(skillName ? { skillName } : undefined)
+  }
+  activeUploadKey = null
+  uploading = false
+}
+
+function triggerUpload(skillName?: string): void {
+  const key = skillName ?? '*'
+  if (activeUploadKey === key || pendingUploadKeys.has(key)) {
     return
   }
-  uploading = true
-  void runSkillContributionUpload().finally(() => {
-    uploading = false
-  })
+  pendingUploads.push(skillName)
+  pendingUploadKeys.add(key)
+  if (!uploading) {
+    uploading = true
+    void drainUploads().catch(() => {
+      pendingUploads.length = 0
+      pendingUploadKeys.clear()
+      activeUploadKey = null
+      uploading = false
+    })
+  }
 }
 
 async function readEventStream(body: ReadableStream<Uint8Array>): Promise<void> {
@@ -82,8 +123,12 @@ async function readEventStream(body: ReadableStream<Uint8Array>): Promise<void> 
   const splitter = new SseBlockSplitter()
   const dispatch = (blocks: string[]): void => {
     for (const block of blocks) {
-      if (parseSseEventBlock(block)?.event === 'collect') {
-        triggerUpload()
+      const event = parseSseEventBlock(block)
+      if (event?.event === 'collect') {
+        const request = parseCollectRequest(event.data)
+        if (request) {
+          triggerUpload(request.skillName)
+        }
       }
     }
   }
@@ -125,7 +170,11 @@ async function runChannelLoop(): Promise<void> {
     try {
       // Why: re-resolve per attempt so LAN drop/rejoin switches between intranet and the public domain.
       const origin = await resolveSkillContributionServerOrigin(config)
-      const url = `${origin}/api/skill-contributions/channel?userId=${encodeURIComponent(identity.yunxiaoUserId)}`
+      const params = new URLSearchParams({
+        userId: identity.yunxiaoUserId,
+        capabilities: 'targeted-collect'
+      })
+      const url = `${origin}/api/skill-contributions/channel?${params}`
       abortController = new AbortController()
       const controller = abortController
       const response = await withoutProxyEnv(() =>

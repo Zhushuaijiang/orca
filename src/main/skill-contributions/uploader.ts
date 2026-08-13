@@ -51,6 +51,10 @@ export type SkillContributionUploadResult = {
   error?: string
 }
 
+export type SkillContributionUploadOptions = {
+  skillName?: string
+}
+
 export function resolveSkillContributionUploadToken(config: DfHisEnvironmentConfig): string {
   return (
     process.env.SKILL_CONTRIB_UPLOAD_TOKEN?.trim() ||
@@ -59,7 +63,9 @@ export function resolveSkillContributionUploadToken(config: DfHisEnvironmentConf
   )
 }
 
-export async function runSkillContributionUpload(): Promise<SkillContributionUploadResult> {
+export async function runSkillContributionUpload(
+  options: SkillContributionUploadOptions = {}
+): Promise<SkillContributionUploadResult> {
   const result: SkillContributionUploadResult = { uploaded: [], unchanged: [], skipped: [] }
   try {
     const identity = await getContributorIdentity()
@@ -72,11 +78,21 @@ export async function runSkillContributionUpload(): Promise<SkillContributionUpl
       skillPackUrlForOrigin(config, origin)
     )
     const collected = await collectLocalSkills({ remoteOfficialAggregates })
-    result.skipped = collected.skipped.map((skill) => skill.name)
+    const requestedSkillName = options.skillName?.trim()
+    result.skipped = collected.skipped
+      .filter((skill) => !requestedSkillName || skill.name === requestedSkillName)
+      .map((skill) => skill.name)
+    const candidates = requestedSkillName
+      ? collected.skills.filter((skill) => skill.name === requestedSkillName)
+      : collected.skills
+    if (requestedSkillName && candidates.length === 0) {
+      result.error = `requested skill not found: ${requestedSkillName}`
+      return result
+    }
     const state = await readSkillContributionState()
-    const changed = collected.skills.filter((skill) => {
+    const changed = candidates.filter((skill) => {
       const aggregate = aggregateSkillFilesSha256(skill.files)
-      if (state.skills[skill.name] === aggregate) {
+      if (!requestedSkillName && state.skills[skill.name] === aggregate) {
         result.unchanged.push(skill.name)
         return false
       }

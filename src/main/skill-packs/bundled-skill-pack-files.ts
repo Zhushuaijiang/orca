@@ -118,8 +118,21 @@ export async function copyBundledSkillPack(
   targetDirectory: string
 ): Promise<void> {
   await mkdir(targetDirectory, { recursive: true })
+  const sourceEntries = await readdir(sourceDirectory, { withFileTypes: true })
+  const skillNames = (
+    await Promise.all(
+      sourceEntries
+        .filter((entry) => entry.isDirectory())
+        .map(async (entry) => ({
+          name: entry.name,
+          isSkill: await pathExists(path.join(sourceDirectory, entry.name, 'SKILL.md'))
+        }))
+    )
+  )
+    .filter((entry) => entry.isSkill)
+    .map((entry) => entry.name)
   await Promise.all(
-    definition.skillNames.map((skillName) => {
+    skillNames.map((skillName) => {
       const skillSourceDirectory = path.join(sourceDirectory, skillName)
       return cp(skillSourceDirectory, path.join(targetDirectory, skillName), {
         recursive: true,

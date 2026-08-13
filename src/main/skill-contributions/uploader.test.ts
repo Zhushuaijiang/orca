@@ -215,4 +215,36 @@ describe('runSkillContributionUpload', () => {
     expect(result).toEqual({ uploaded: [], unchanged: ['my-skill'], skipped: [] })
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it('force uploads only the requested skill even when its local state is unchanged', async () => {
+    const requested = skill('requested-skill', 'same')
+    const unrelated = skill('unrelated-skill', 'new')
+    inMemoryState.skills[requested.name] = aggregateSkillFilesSha256(requested.files)
+    collectMock.mockResolvedValue({ skills: [unrelated, requested], skipped: [] })
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        results: [{ skill: requested.name, status: 'unchanged' }]
+      })
+    })
+
+    const result = await runSkillContributionUpload({ skillName: requested.name })
+
+    expect(result).toEqual({ uploaded: [], unchanged: [requested.name], skipped: [] })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string) as {
+      skills: { name: string }[]
+    }
+    expect(body.skills.map((entry) => entry.name)).toEqual([requested.name])
+  })
+
+  it('does not upload unrelated skills when the requested skill is unavailable', async () => {
+    collectMock.mockResolvedValue({ skills: [skill('unrelated-skill', 'new')], skipped: [] })
+
+    const result = await runSkillContributionUpload({ skillName: 'missing-skill' })
+
+    expect(result.error).toBe('requested skill not found: missing-skill')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

@@ -67,6 +67,7 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
     '---\nname: requirement-delivery-flow\n---\nremote delivery flow skill\n'
   const contactsSkill = '---\nname: yunxiao-contacts\n---\nremote contacts skill\n'
   const skillMemorySkill = '---\nname: skill-memory\n---\nremote skill memory skill\n'
+  const serverAddedSkill = '---\nname: server-added-skill\n---\nremote server-added skill\n'
   const ygtHarness = '#!/usr/bin/env node\nconst ygtHarness = true\n'
   const ygtPluginManifest = '{"name":"ygt","skills":"./skills/"}\n'
   const ygtHarnessGuide = '# YGT 工作流 Harness\n'
@@ -128,6 +129,11 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
             path: 'skill-memory/SKILL.md',
             sha256: sha256(skillMemorySkill),
             content: skillMemorySkill
+          },
+          {
+            path: 'server-added-skill/SKILL.md',
+            sha256: sha256(serverAddedSkill),
+            content: serverAddedSkill
           },
           {
             path: 'ygt/harness/scripts/harness/ygt-workflow.mjs',
@@ -515,6 +521,12 @@ describe('dfhis-environment', () => {
     ).resolves.toContain('remote ygt skill')
     await expect(
       readFile(
+        path.join(homeDirectory, '.codex', 'skills', 'server-added-skill', 'SKILL.md'),
+        'utf8'
+      )
+    ).resolves.toContain('remote server-added skill')
+    await expect(
+      readFile(
         path.join(
           homeDirectory,
           '.codex',
@@ -544,6 +556,11 @@ describe('dfhis-environment', () => {
         'utf8'
       )
     ).resolves.toContain('"name":"ygt"')
+    await expect(checkDfHisWorkflowPackPrerequisites(homeDirectory)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'dfhis-workflow-pack-codex', status: 'ok' })
+      ])
+    )
   })
 
   it('reports Yunxiao MCP token readiness without exposing the token', () => {
