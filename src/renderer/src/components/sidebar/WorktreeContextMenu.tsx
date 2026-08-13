@@ -69,6 +69,12 @@ import { translate } from '@/i18n/i18n'
 import { parseWorkspaceKey, worktreeWorkspaceKey } from '../../../../shared/workspace-scope'
 import { hasRestorableAgentSession } from '@/store/slices/recently-closed-tabs'
 import { restoreRecentlyClosedAgentSession } from './worktree-closed-agent-session'
+import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+import {
+  notifyVaultSessionRestoreFailure,
+  restoreAiVaultSession,
+  scanLatestRestorableVaultSession
+} from './worktree-ai-vault-session-restore'
 
 type Props = {
   worktree: Worktree
@@ -338,6 +344,7 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   const repo = useRepoById(worktree.repoId)
   const deleteState = useAppStore((s) => s.deleteStateByWorktreeId[worktree.id])
   const [menuOpen, setMenuOpen] = useState(false)
+  const [vaultRestoreSession, setVaultRestoreSession] = useState<AiVaultSession | null>(null)
   // Why: the Developer submenu is a power-user affordance, so it is revealed by
   // holding Option/Alt at right-click — captured at open time (like the Help
   // menu's admin options) so the submenu can't appear or vanish mid-menu and
@@ -482,9 +489,10 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
     [cyclicLineageIds, worktree, worktreeLineageById, worktreeMap]
   )
   const validParentWorktreeId = lineageInfo.state === 'valid' ? lineageInfo.parent.id : null
-  const canRestoreSession = (recentlyClosedTerminalTabsByWorktree[worktree.id] ?? []).some(
-    hasRestorableAgentSession
-  )
+  const hasRecentlyClosedAgentSession = (
+    recentlyClosedTerminalTabsByWorktree[worktree.id] ?? []
+  ).some(hasRestorableAgentSession)
+  const canRestoreSession = hasRecentlyClosedAgentSession || vaultRestoreSession !== null
   const hasAnyContextLineage = activeContextWorktrees.some((item) =>
     hasWorktreeParentLink(item, worktreeLineageById, workspaceLineageByChildKey)
   )
@@ -514,6 +522,28 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
     },
     [onOpenChange]
   )
+
+  useEffect(() => {
+    if (!menuOpen || isMultiContext || hasRecentlyClosedAgentSession) {
+      setVaultRestoreSession(null)
+      return
+    }
+    let cancelled = false
+    void scanLatestRestorableVaultSession(worktree.id)
+      .then((session) => {
+        if (!cancelled) {
+          setVaultRestoreSession(session)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVaultRestoreSession(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasRecentlyClosedAgentSession, isMultiContext, menuOpen, worktree.id])
 
   useEffect(() => {
     if (!onLifecycleComplete) {
@@ -666,8 +696,13 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   ])
 
   const handleRestoreSession = useCallback(() => {
-    restoreRecentlyClosedAgentSession(worktree.id)
-  }, [worktree.id])
+    if (restoreRecentlyClosedAgentSession(worktree.id) > 0 || !vaultRestoreSession) {
+      return
+    }
+    void restoreAiVaultSession(worktree.id, vaultRestoreSession).catch(
+      notifyVaultSessionRestoreFailure
+    )
+  }, [vaultRestoreSession, worktree.id])
 
   const sleepWorktreesAfterMenuClose = useCallback(
     (worktreeIds: string[]) => {
