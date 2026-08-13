@@ -1,5 +1,9 @@
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
+import {
+  getAgentResumeArgv,
+  type SleepingAgentSessionRecord
+} from '../../../../shared/agent-session-resume'
 import { getExplicitRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import {
   isWindowsAbsolutePathLike,
@@ -21,15 +25,15 @@ export type {
   RecentlyClosedTabPositionIndex
 } from './recently-closed-tab-position'
 
-/** Snapshot of a terminal tab captured at user-initiated close time. Reopen
- *  recreates a fresh shell in the same startup directory (Ghostty semantics) —
- *  never the old PTY, scrollback, or a relaunched agent session. */
+/** Snapshot of a terminal tab captured at user-initiated close time. Standard
+ *  reopen creates a fresh shell; explicit session restore resumes captured agents. */
 export type ClosedTerminalTabSnapshot = {
   startupCwd?: string
   shellOverride?: string
   customTitle?: string
   color?: string
   position?: RecentlyClosedTabPosition
+  agentSessions?: SleepingAgentSessionRecord[]
 }
 
 export type RecentlyClosedTabKind = 'terminal' | 'browser' | 'editor'
@@ -108,6 +112,42 @@ export type RecentlyClosedTabsSlice = {
   recentlyClosedTabKindsByWorktree: Record<string, RecentlyClosedTabKind[]>
   reopenClosedTerminalTab: (worktreeId: string) => boolean
   reopenClosedTab: (worktreeId: string) => boolean
+  takeRecentlyClosedAgentSessions: (worktreeId: string) => SleepingAgentSessionRecord[] | null
+}
+
+export function hasRestorableAgentSession(
+  snapshot: ClosedTerminalTabSnapshot | undefined
+): boolean {
+  return Boolean(snapshot?.agentSessions?.some(isRestorableAgentSessionRecord))
+}
+
+function isRestorableAgentSessionRecord(record: SleepingAgentSessionRecord): boolean {
+  return (
+    record.automaticResumeBlockedBy === undefined &&
+    getAgentResumeArgv(
+      record.agent,
+      record.providerSession,
+      record.launchConfig?.ompResumeFilePath
+    ) !== null
+  )
+}
+
+function removeTerminalKindAtSnapshotIndex(
+  kinds: RecentlyClosedTabKind[],
+  snapshotIndex: number
+): RecentlyClosedTabKind[] {
+  let terminalIndex = 0
+  const kindIndex = kinds.findIndex((kind) => {
+    if (kind !== 'terminal') {
+      return false
+    }
+    if (terminalIndex === snapshotIndex) {
+      return true
+    }
+    terminalIndex += 1
+    return false
+  })
+  return kindIndex === -1 ? kinds : [...kinds.slice(0, kindIndex), ...kinds.slice(kindIndex + 1)]
 }
 
 export const createRecentlyClosedTabsSlice: StateCreator<
@@ -199,5 +239,31 @@ export const createRecentlyClosedTabsSlice: StateCreator<
         return true
       }
     }
+  },
+
+  takeRecentlyClosedAgentSessions: (worktreeId) => {
+    let sessions: SleepingAgentSessionRecord[] | null = null
+    set((s) => {
+      const stack = s.recentlyClosedTerminalTabsByWorktree[worktreeId] ?? []
+      const snapshotIndex = stack.findIndex(hasRestorableAgentSession)
+      if (snapshotIndex === -1) {
+        return s
+      }
+      sessions = (stack[snapshotIndex]?.agentSessions ?? []).filter(isRestorableAgentSessionRecord)
+      return {
+        recentlyClosedTerminalTabsByWorktree: {
+          ...s.recentlyClosedTerminalTabsByWorktree,
+          [worktreeId]: [...stack.slice(0, snapshotIndex), ...stack.slice(snapshotIndex + 1)]
+        },
+        recentlyClosedTabKindsByWorktree: {
+          ...s.recentlyClosedTabKindsByWorktree,
+          [worktreeId]: removeTerminalKindAtSnapshotIndex(
+            s.recentlyClosedTabKindsByWorktree[worktreeId] ?? [],
+            snapshotIndex
+          )
+        }
+      }
+    })
+    return sessions
   }
 })

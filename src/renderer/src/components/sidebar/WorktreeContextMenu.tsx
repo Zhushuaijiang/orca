@@ -28,7 +28,8 @@ import {
   Workflow,
   FolderInput,
   FolderPlus,
-  FolderTree
+  FolderTree,
+  RotateCcw
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
@@ -66,6 +67,8 @@ import { WorkspaceSleepMenuItems } from './WorkspaceSleepMenuItems'
 import { isEventTargetInsideCurrentTarget } from './worktree-card-dom-events'
 import { translate } from '@/i18n/i18n'
 import { parseWorkspaceKey, worktreeWorkspaceKey } from '../../../../shared/workspace-scope'
+import { hasRestorableAgentSession } from '@/store/slices/recently-closed-tabs'
+import { restoreRecentlyClosedAgentSession } from './worktree-closed-agent-session'
 
 type Props = {
   worktree: Worktree
@@ -96,6 +99,7 @@ const PARENT_PICKER_EXIT_ANIMATION_MS = 200
 const EMPTY_TABS_BY_WORKTREE: AppState['tabsByWorktree'] = {}
 const EMPTY_PTY_IDS_BY_TAB_ID: AppState['ptyIdsByTabId'] = {}
 const EMPTY_BROWSER_TABS_BY_WORKTREE: AppState['browserTabsByWorktree'] = {}
+const EMPTY_RECENTLY_CLOSED_TERMINAL_TABS: AppState['recentlyClosedTerminalTabsByWorktree'] = {}
 const EMPTY_DELETE_STATE_BY_WORKTREE_ID: AppState['deleteStateByWorktreeId'] = {}
 const EMPTY_WORKTREE_LINEAGE_BY_ID: AppState['worktreeLineageById'] = {}
 const EMPTY_WORKSPACE_LINEAGE_BY_CHILD_KEY: AppState['workspaceLineageByChildKey'] = {}
@@ -387,6 +391,13 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   const browserTabsByWorktree = useAppStore((s) =>
     selectMenuScopedMap(menuOpen, s.browserTabsByWorktree, EMPTY_BROWSER_TABS_BY_WORKTREE)
   )
+  const recentlyClosedTerminalTabsByWorktree = useAppStore((s) =>
+    selectMenuScopedMap(
+      menuOpen,
+      s.recentlyClosedTerminalTabsByWorktree,
+      EMPTY_RECENTLY_CLOSED_TERMINAL_TABS
+    )
+  )
   const deleteStateByWorktreeId = useAppStore((s) =>
     selectMenuScopedMap(menuOpen, s.deleteStateByWorktreeId, EMPTY_DELETE_STATE_BY_WORKTREE_ID)
   )
@@ -471,6 +482,9 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
     [cyclicLineageIds, worktree, worktreeLineageById, worktreeMap]
   )
   const validParentWorktreeId = lineageInfo.state === 'valid' ? lineageInfo.parent.id : null
+  const canRestoreSession = (recentlyClosedTerminalTabsByWorktree[worktree.id] ?? []).some(
+    hasRestorableAgentSession
+  )
   const hasAnyContextLineage = activeContextWorktrees.some((item) =>
     hasWorktreeParentLink(item, worktreeLineageById, workspaceLineageByChildKey)
   )
@@ -650,6 +664,10 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
     worktree.comment,
     openModal
   ])
+
+  const handleRestoreSession = useCallback(() => {
+    restoreRecentlyClosedAgentSession(worktree.id)
+  }, [worktree.id])
 
   const sleepWorktreesAfterMenuClose = useCallback(
     (worktreeIds: string[]) => {
@@ -849,10 +867,22 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
             {translate('auto.components.sidebar.WorktreeContextMenu.workspaceSection', 'Workspace')}
           </DropdownMenuLabel>
           {!isMultiContext && (
-            <DropdownMenuItem onSelect={handleRename} disabled={isDeleting}>
-              <Pencil className="size-3.5" />
-              {translate('auto.components.sidebar.WorktreeContextMenu.439fa94d53', 'Update')}
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem onSelect={handleRename} disabled={isDeleting}>
+                <Pencil className="size-3.5" />
+                {translate('auto.components.sidebar.WorktreeContextMenu.439fa94d53', 'Update')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={handleRestoreSession}
+                disabled={isDeleting || !canRestoreSession}
+              >
+                <RotateCcw className="size-3.5" />
+                {translate(
+                  'auto.components.sidebar.WorktreeContextMenu.restoreSession',
+                  'Restore Session'
+                )}
+              </DropdownMenuItem>
+            </>
           )}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger disabled={deletingContext}>

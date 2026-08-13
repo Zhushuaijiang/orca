@@ -154,6 +154,7 @@ import {
   removeSleepingRecordsReplacedByManualWorktreeSleep,
   type AgentStatusWorktreeShutdownReason
 } from './agent-status'
+import { collectRecentlyClosedAgentSessions } from './recently-closed-agent-session-capture'
 import {
   buildTerminalTabRetirementPlan,
   classifyTerminalRetirementWorktree,
@@ -1598,6 +1599,10 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       opts?.precomputedRetirementPlan?.tabId === tabId
         ? opts.precomputedRetirementPlan
         : buildTerminalTabRetirementPlan(get(), tabId)
+    const recentlyClosedAgentSessions =
+      closeReason === 'user' && opts?.captureRecentlyClosed !== false && retirementPlan.worktreeId
+        ? collectRecentlyClosedAgentSessions(get(), retirementPlan.worktreeId, tabId)
+        : []
     let closingWorktreeId: string | null = null
 
     // Why: a parked tab has no mounted TerminalPane cleanup, so revoke its observer/candidate state before provider exit races.
@@ -1688,6 +1693,9 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
               ...(closedTab.shellOverride ? { shellOverride: closedTab.shellOverride } : {}),
               ...(closedTab.customTitle ? { customTitle: closedTab.customTitle } : {}),
               ...(closedTab.color ? { color: closedTab.color } : {}),
+              ...(recentlyClosedAgentSessions.length > 0
+                ? { agentSessions: recentlyClosedAgentSessions }
+                : {}),
               ...(closedPosition ? { position: closedPosition } : {})
             }
           : null

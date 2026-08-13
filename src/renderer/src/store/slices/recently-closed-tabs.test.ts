@@ -121,6 +121,72 @@ describe('terminal recently-closed capture', () => {
     expect(stack[0]?.startupCwd).toBe('/path/wt1/dir-11')
     expect(stack[9]?.startupCwd).toBe('/path/wt1/dir-2')
   })
+
+  it('captures a resumable agent identity when its terminal is closed', () => {
+    const store = makeSeededStore()
+    const tab = store.getState().createTab(WT, undefined, undefined, { launchAgent: 'codex' })
+    const paneKey = `${tab.id}:leaf-1`
+    store.setState({
+      agentStatusByPaneKey: {
+        [paneKey]: {
+          state: 'working',
+          prompt: 'Fix the issue',
+          updatedAt: Date.now(),
+          stateStartedAt: Date.now(),
+          agentType: 'codex',
+          paneKey,
+          tabId: tab.id,
+          worktreeId: WT,
+          providerSession: { key: 'session_id', id: 'session-1' }
+        }
+      }
+    } as never)
+
+    store.getState().closeTab(tab.id)
+
+    expect(store.getState().recentlyClosedTerminalTabsByWorktree[WT]?.[0]?.agentSessions).toEqual([
+      expect.objectContaining({
+        paneKey,
+        worktreeId: WT,
+        agent: 'codex',
+        providerSession: { key: 'session_id', id: 'session-1' },
+        origin: 'worktree-sleep'
+      })
+    ])
+  })
+
+  it('preserves a durable resume record when no live hook row remains', () => {
+    const store = makeSeededStore()
+    const tab = store.getState().createTab(WT, undefined, undefined, { launchAgent: 'codex' })
+    const paneKey = `${tab.id}:leaf-1`
+    store.setState({
+      sleepingAgentSessionsByPaneKey: {
+        [paneKey]: {
+          paneKey,
+          tabId: tab.id,
+          worktreeId: WT,
+          agent: 'codex',
+          providerSession: { key: 'session_id', id: 'session-1' },
+          prompt: 'Fix the issue',
+          state: 'working',
+          capturedAt: 1,
+          updatedAt: 1,
+          origin: 'quit'
+        }
+      }
+    } as never)
+
+    store.getState().closeTab(tab.id)
+
+    expect(store.getState().sleepingAgentSessionsByPaneKey[paneKey]).toBeUndefined()
+    expect(store.getState().recentlyClosedTerminalTabsByWorktree[WT]?.[0]?.agentSessions).toEqual([
+      expect.objectContaining({
+        paneKey,
+        providerSession: { key: 'session_id', id: 'session-1' },
+        origin: 'quit'
+      })
+    ])
+  })
 })
 
 describe('recently-closed history bounds', () => {
@@ -416,5 +482,94 @@ describe('reopenClosedTab cross-type MRU', () => {
   it('returns false when no tab was ever closed', () => {
     const store = makeSeededStore()
     expect(store.getState().reopenClosedTab(WT)).toBe(false)
+  })
+})
+
+describe('takeRecentlyClosedAgentSessions', () => {
+  it('consumes the newest agent snapshot and its matching cross-type kind', () => {
+    const store = makeSeededStore()
+    const session = {
+      paneKey: 'agent-tab:leaf-1',
+      tabId: 'agent-tab',
+      worktreeId: WT,
+      agent: 'codex' as const,
+      providerSession: { key: 'session_id' as const, id: 'session-1' },
+      prompt: 'Fix the issue',
+      state: 'working' as const,
+      capturedAt: 2,
+      updatedAt: 2,
+      origin: 'worktree-sleep' as const
+    }
+    store.setState({
+      recentlyClosedTerminalTabsByWorktree: {
+        [WT]: [{ startupCwd: '/path/wt1/plain' }, { agentSessions: [session] }]
+      },
+      recentlyClosedTabKindsByWorktree: { [WT]: ['browser', 'terminal', 'editor', 'terminal'] }
+    })
+
+    expect(store.getState().takeRecentlyClosedAgentSessions(WT)).toEqual([session])
+    expect(store.getState().recentlyClosedTerminalTabsByWorktree[WT]).toEqual([
+      { startupCwd: '/path/wt1/plain' }
+    ])
+    expect(store.getState().recentlyClosedTabKindsByWorktree[WT]).toEqual([
+      'browser',
+      'terminal',
+      'editor'
+    ])
+  })
+
+  it('does not offer sessions blocked by orchestration ownership', () => {
+    const store = makeSeededStore()
+    store.setState({
+      recentlyClosedTerminalTabsByWorktree: {
+        [WT]: [
+          {
+            agentSessions: [
+              {
+                paneKey: 'agent-tab:leaf-1',
+                worktreeId: WT,
+                agent: 'codex',
+                providerSession: { key: 'session_id', id: 'session-1' },
+                prompt: '',
+                state: 'working',
+                capturedAt: 1,
+                updatedAt: 1,
+                automaticResumeBlockedBy: 'legacy-orchestration-worker'
+              }
+            ]
+          }
+        ]
+      }
+    })
+
+    expect(store.getState().takeRecentlyClosedAgentSessions(WT)).toBeNull()
+    expect(store.getState().recentlyClosedTerminalTabsByWorktree[WT]).toHaveLength(1)
+  })
+
+  it('does not consume a session whose provider metadata cannot build resume arguments', () => {
+    const store = makeSeededStore()
+    store.setState({
+      recentlyClosedTerminalTabsByWorktree: {
+        [WT]: [
+          {
+            agentSessions: [
+              {
+                paneKey: 'agent-tab:leaf-1',
+                worktreeId: WT,
+                agent: 'pi',
+                providerSession: { key: 'session_id', id: 'session-1' },
+                prompt: '',
+                state: 'working',
+                capturedAt: 1,
+                updatedAt: 1
+              }
+            ]
+          }
+        ]
+      }
+    })
+
+    expect(store.getState().takeRecentlyClosedAgentSessions(WT)).toBeNull()
+    expect(store.getState().recentlyClosedTerminalTabsByWorktree[WT]).toHaveLength(1)
   })
 })
