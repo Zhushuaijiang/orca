@@ -209,6 +209,10 @@ describe('electron-builder config', () => {
     )
   })
 
+  it('unpacks the forked AI Vault service entry', () => {
+    expect(electronBuilderConfig.asarUnpack).toContain('out/main/session-scanner-service-entry.js')
+  })
+
   it('keeps the worker-thread hang watchdog inside app.asar', () => {
     expect(electronBuilderConfig.asarUnpack).not.toContain(
       'out/main/main-thread-hang-watchdog-entry.js'
