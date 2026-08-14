@@ -115,7 +115,7 @@ node scripts/his-qiankun-e2e.mjs scaffold \
 
 The scaffolded spec launches persistent Chrome with cross-origin flags, injects `devDebug`, captures screenshots, asserts the qiankun container is visible and mounted, checks target route/text when configured, and fails if no successful network request hits the local gray sub-app entry/config/assets. The generated `login(page)` and `openRequirementFlow(page)` hooks must be filled with real selectors or driven by environment variables before claiming automated E2E evidence.
 
-4. Run cross-origin integrated E2E through `ui-e2e-sandbox`. Its template launches a persistent Chromium context inside the container with `--disable-web-security` and `--disable-site-isolation-trials`. A normal browser context or a desktop Chrome session is not valid evidence for qiankun gray E2E.
+4. Run cross-origin integrated E2E through `ui-e2e-sandbox`. Its template launches an isolated Chromium context inside the container with `--disable-web-security` and `--disable-site-isolation-trials`. A desktop Chrome session is not valid evidence for qiankun gray E2E.
 
 5. Before login or before the shell builds its app list, seed the shell origin storage for the local gray sub-app entry. Use the actual app `name` key from the shell app config, for example:
 

@@ -47,7 +47,7 @@ python scripts/run_container_ui_test.py run DFHIS-31774 \
 
 Set credentials only in `DFHIS_USERNAME` and `DFHIS_PASSWORD`; the runner transfers them through a mode-0600 environment file, never command arguments or reports. Override the remote target with `DFHIS_UI_SANDBOX_REMOTE`, image with `DFHIS_UI_SANDBOX_IMAGE`, and backend with `DFHIS_UI_SANDBOX_BACKEND`.
 
-The runner uses an ephemeral, resource-limited, capability-dropped, read-only-root container and always removes its remote workspace. It writes `reports/results.xml`, `reports/sandbox-run.json`, `logs/browser-test.log`, screenshots, videos, and network evidence back under the work-item directory.
+The runner uses an ephemeral, resource-limited, capability-dropped, read-only-root container and always removes its remote workspace. Browser execution is bounded to 300 seconds by default; override it with `--timeout-seconds` or `DFHIS_UI_SANDBOX_TIMEOUT_SECONDS`. It writes `reports/results.xml`, `reports/sandbox-run.json`, `logs/browser-test.log`, screenshots, videos, and network evidence back under the work-item directory.
 
 Generate the summary after execution:
 

@@ -19,6 +19,9 @@ DEFAULT_IMAGE = "dfhis-ui-sandbox:browserless-chrome121"
 BASE_IMAGE = "browserless/chrome@sha256:57d19e414d9fe4ae9d2ab12ba768c97f38d51246c5b31af55a009205c136012f"
 DEFAULT_REMOTE = "root@192.168.1.10"
 DEFAULT_BASE_URL = "http://192.168.1.151:8015/"
+DEFAULT_RUN_TIMEOUT_SECONDS = 300
+IMAGE_RECIPE_LABEL = "com.orca.dfhis-ui-sandbox.recipe"
+IMAGE_RECIPE_VERSION = "chrome121-playwright141-ffmpeg1"
 PASSTHROUGH_ENV = (
     "DFHIS_USERNAME",
     "DFHIS_PASSWORD",
@@ -56,9 +59,11 @@ def ssh_transport(remote: str, executable: str) -> tuple[list[str], dict[str, st
     return [*base, *options, remote], environment
 
 
-def remote_exec(remote: str, argv: list[str]) -> subprocess.CompletedProcess[bytes]:
+def remote_exec(
+    remote: str, argv: list[str], *, data: bytes | None = None
+) -> subprocess.CompletedProcess[bytes]:
     command, environment = ssh_transport(remote, "ssh")
-    return run_process([*command, shlex.join(argv)], env=environment)
+    return run_process([*command, shlex.join(argv)], data=data, env=environment)
 
 
 def remote_copy(remote: str, source: Path, target: str, *, download: bool = False) -> None:
@@ -68,27 +73,51 @@ def remote_copy(remote: str, source: Path, target: str, *, download: bool = Fals
     run_process(argv, env=environment)
 
 
-def docker(args: argparse.Namespace, argv: list[str]) -> subprocess.CompletedProcess[bytes]:
+def docker(
+    args: argparse.Namespace, argv: list[str], *, data: bytes | None = None
+) -> subprocess.CompletedProcess[bytes]:
     if args.backend == "remote":
-        return remote_exec(args.remote, ["docker", *argv])
-    return run_process(["docker", *argv])
+        return remote_exec(args.remote, ["docker", *argv], data=data)
+    return run_process(["docker", *argv], data=data)
 
 
 def ensure_image(args: argparse.Namespace) -> bool:
-    target_id = None
+    recipe = None
     try:
-        target = docker(args, ["image", "inspect", "--format", "{{.Id}}", args.image])
-        target_id = target.stdout.decode().strip()
+        target = docker(
+            args,
+            [
+                "image",
+                "inspect",
+                "--format",
+                f'{{{{ index .Config.Labels "{IMAGE_RECIPE_LABEL}" }}}}',
+                args.image,
+            ],
+        )
+        recipe = target.stdout.decode().strip()
     except CommandFailed:
         pass
-    try:
-        base = docker(args, ["image", "inspect", "--format", "{{.Id}}", BASE_IMAGE])
-    except CommandFailed:
-        docker(args, ["pull", BASE_IMAGE])
-        base = docker(args, ["image", "inspect", "--format", "{{.Id}}", BASE_IMAGE])
-    if target_id == base.stdout.decode().strip():
+    if recipe == IMAGE_RECIPE_VERSION:
         return False
-    docker(args, ["tag", BASE_IMAGE, args.image])
+    dockerfile = (
+        f"FROM {BASE_IMAGE}\n"
+        "USER root\n"
+        "RUN mkdir -p /usr/src/app/ffmpeg-1009 && "
+        "ln -sf /usr/bin/ffmpeg /usr/src/app/ffmpeg-1009/ffmpeg-linux\n"
+    ).encode()
+    docker(
+        args,
+        [
+            "build",
+            "--pull=false",
+            "--label",
+            f"{IMAGE_RECIPE_LABEL}={IMAGE_RECIPE_VERSION}",
+            "--tag",
+            args.image,
+            "-",
+        ],
+        data=dockerfile,
+    )
     return True
 
 
@@ -181,10 +210,32 @@ def redact(output: bytes) -> bytes:
     return text.encode()
 
 
-def run_local(args: argparse.Namespace, root: Path, script_relative: Path, env_file: Path, container: str) -> tuple[bytes, int]:
-    argv = container_argv(args, container, str(root), str(env_file), f"/artifacts/{args.work_item}/{script_relative.as_posix()}")
-    result = subprocess.run(["docker", *argv], capture_output=True)
-    return redact(result.stdout + result.stderr), result.returncode
+def timeout_output(error: subprocess.TimeoutExpired, seconds: int) -> bytes:
+    stdout = (
+        error.stdout if isinstance(error.stdout, bytes) else (error.stdout or "").encode()
+    )
+    stderr = (
+        error.stderr if isinstance(error.stderr, bytes) else (error.stderr or "").encode()
+    )
+    message = f"\nSandbox execution timed out after {seconds} seconds.\n".encode()
+    return redact(stdout + stderr + message)
+
+
+def run_local(
+    args: argparse.Namespace,
+    root: Path,
+    script_relative: Path,
+    env_file: Path,
+    container: str,
+) -> tuple[bytes, int]:
+    script = f"/artifacts/{args.work_item}/{script_relative.as_posix()}"
+    argv = container_argv(args, container, str(root), str(env_file), script)
+    try:
+        result = subprocess.run(["docker", *argv], capture_output=True, timeout=args.timeout_seconds)
+        return redact(result.stdout + result.stderr), result.returncode
+    except subprocess.TimeoutExpired as error:
+        subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        return timeout_output(error, args.timeout_seconds), 124
 
 
 def make_archive(work_root: Path, archive: Path) -> None:
@@ -213,25 +264,50 @@ def run_remote(args: argparse.Namespace, root: Path, work_root: Path, script_rel
                 f"{run_directory}/test.env",
                 f"/artifacts/{args.work_item}/{script_relative.as_posix()}",
             )
-            result = remote_exec_unchecked(args.remote, ["docker", *argv])
-            remote_exec(args.remote, ["tar", "-czf", f"{run_directory}/result.tar.gz", "-C", f"{run_directory}/artifacts", args.work_item])
+            try:
+                result = remote_exec_unchecked(
+                    args.remote, ["docker", *argv], timeout=args.timeout_seconds
+                )
+                output = redact(result.stdout + result.stderr)
+                exit_code = result.returncode
+            except subprocess.TimeoutExpired as error:
+                remote_exec_unchecked(args.remote, ["docker", "rm", "-f", container])
+                output = timeout_output(error, args.timeout_seconds)
+                exit_code = 124
+            remote_exec(
+                args.remote,
+                [
+                    "tar",
+                    "-czf",
+                    f"{run_directory}/result.tar.gz",
+                    "-C",
+                    f"{run_directory}/artifacts",
+                    args.work_item,
+                ],
+            )
             remote_copy(args.remote, download, f"{run_directory}/result.tar.gz", download=True)
             safe_extract(download, root)
-            return redact(result.stdout + result.stderr), result.returncode
+            return output, exit_code
         finally:
             remote_exec_unchecked(args.remote, ["docker", "rm", "-f", container])
             remote_exec(args.remote, ["rm", "-rf", run_directory])
 
 
-def remote_exec_unchecked(remote: str, argv: list[str]) -> subprocess.CompletedProcess[bytes]:
+def remote_exec_unchecked(
+    remote: str, argv: list[str], *, timeout: int | None = None
+) -> subprocess.CompletedProcess[bytes]:
     command, environment = ssh_transport(remote, "ssh")
-    return subprocess.run([*command, shlex.join(argv)], capture_output=True, env=environment)
+    return subprocess.run(
+        [*command, shlex.join(argv)], capture_output=True, env=environment, timeout=timeout
+    )
 
 
 def run_test(args: argparse.Namespace) -> int:
     work_item = args.work_item.strip().upper()
     if not re.fullmatch(r"DFHIS-\d+", work_item):
         raise CommandFailed("work item must look like DFHIS-31774")
+    if args.timeout_seconds <= 0:
+        raise CommandFailed("timeout seconds must be greater than zero")
     args.work_item = work_item
     root = args.root.expanduser().resolve()
     work_root = root / work_item
@@ -297,6 +373,13 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("--root", type=Path, required=True)
     run.add_argument("--cpus", type=float, default=4)
     run.add_argument("--memory", default="6g")
+    run.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=int(
+            os.getenv("DFHIS_UI_SANDBOX_TIMEOUT_SECONDS", DEFAULT_RUN_TIMEOUT_SECONDS)
+        ),
+    )
     run.add_argument("--allow-mutations", action="store_true")
     return parser.parse_args()
 

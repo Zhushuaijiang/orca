@@ -67,6 +67,8 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
     '---\nname: requirement-delivery-flow\n---\nremote delivery flow skill\n'
   const contactsSkill = '---\nname: yunxiao-contacts\n---\nremote contacts skill\n'
   const skillMemorySkill = '---\nname: skill-memory\n---\nremote skill memory skill\n'
+  const uiTestDeliverySkill =
+    '---\nname: dfhis-ui-test-delivery\n---\nremote UI test delivery skill\n'
   const serverAddedSkill = '---\nname: server-added-skill\n---\nremote server-added skill\n'
   const ygtHarness = '#!/usr/bin/env node\nconst ygtHarness = true\n'
   const ygtPluginManifest = '{"name":"ygt","skills":"./skills/"}\n'
@@ -129,6 +131,11 @@ async function writeRemoteSkillPackManifest(directory: string): Promise<string> 
             path: 'skill-memory/SKILL.md',
             sha256: sha256(skillMemorySkill),
             content: skillMemorySkill
+          },
+          {
+            path: 'dfhis-ui-test-delivery/SKILL.md',
+            sha256: sha256(uiTestDeliverySkill),
+            content: uiTestDeliverySkill
           },
           {
             path: 'server-added-skill/SKILL.md',

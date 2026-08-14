@@ -20,7 +20,8 @@ export const DFHIS_WORKFLOW_PACK_NAMES = [
   'requirement-delivery-flow',
   'yunxiao-contacts',
   'dfhis-yibao-dmdz',
-  'skill-memory'
+  'skill-memory',
+  'dfhis-ui-test-delivery'
 ] as const
 export const BUNDLED_DFHIS_WORKFLOW_PACK_RELATIVE_PATH = 'dfhis'
 export const MANIFEST_FILE_NAME = '.orca-dfhis-workflow-pack.json'
