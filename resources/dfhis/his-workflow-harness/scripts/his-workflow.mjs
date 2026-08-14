@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { triggerAndWaitForJenkins } from './his-jenkins-client.mjs'
+import { runDfHisUiSandboxGate } from './dfhis-ui-sandbox-gate.mjs'
 import { detectVerifyCommands, resolveProjectRuntime } from './his-project-runtime.mjs'
 import {
   executeWorkflow,
@@ -38,7 +39,7 @@ function parseArgs(argv) {
     }
     const key = value.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
     options[key] =
-      ['json', 'allowMutations', 'resume', 'allowUnverifiedJenkinsBranch'].includes(key)
+      ['json', 'allowMutations', 'allowUiMutations', 'resume', 'allowUnverifiedJenkinsBranch'].includes(key)
         ? true
         : argv[++index]
   }
@@ -259,6 +260,19 @@ async function uiReview(context) {
   ]
 }
 
+async function uiE2eSandbox(context) {
+  const result = await runDfHisUiSandboxGate(context)
+  return [
+    evidence(
+      'e2e',
+      'pass',
+      `DFHIS UI verification passed in the ${result.backend} Docker sandbox (${result.image}).`,
+      'dfhis-ui-test-delivery run_container_ui_test.py',
+      result.manifestPath
+    )
+  ]
+}
+
 async function database(context) {
   const checks = context.service?.databaseChecks ?? context.environment?.databaseChecks ?? []
   if (checks.length === 0)
@@ -457,6 +471,8 @@ async function smoke(context) {
 }
 
 async function selftest() {
+  if (parseArgs(['--allow-ui-mutations']).allowUiMutations !== true)
+    {throw new Error('UI mutation authorization parsing failed.')}
   const runtime = resolveProjectRuntime(path.join(tmpdir(), 'df-web-example'))
   if (runtime.family !== 'his' || runtime.nodeMajor !== 18)
     {throw new Error('HIS runtime fallback failed.')}
@@ -518,6 +534,7 @@ async function runStage(stage, context) {
   if (stage === 'doctor') {return doctor(context)}
   if (stage === 'verify') {return verify(context)}
   if (stage === 'ui-review') {return uiReview(context)}
+  if (stage === 'ui-e2e-sandbox') {return uiE2eSandbox(context)}
   if (stage === 'database') {return database(context)}
   if (stage === 'jenkins') {return jenkins(context)}
   if (stage === 'deploy') {return deploy(context)}
@@ -548,9 +565,9 @@ async function main() {
   const service = bindServiceEnvironment(selectedService, environment)
   const stages =
     action === 'full'
-      ? ['doctor', 'verify', 'database', 'jenkins', 'deploy', 'smoke']
+      ? ['doctor', 'verify', ...(options.uiTestScript ? ['ui-e2e-sandbox'] : []), 'database', 'jenkins', 'deploy', 'smoke']
       : action === 'build'
-        ? ['doctor', 'verify', 'jenkins']
+        ? ['doctor', 'verify', ...(options.uiTestScript ? ['ui-e2e-sandbox'] : []), 'jenkins']
         : [action]
   const head = await gitHead(repo)
   const run =

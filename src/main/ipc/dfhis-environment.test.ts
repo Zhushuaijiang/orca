@@ -442,7 +442,7 @@ describe('dfhis-environment', () => {
     ).resolves.toBe('keep me')
   })
 
-  it('repairs drifted managed DFHIS workflow pack files without deleting extra files', async () => {
+  it('preserves locally modified managed DFHIS workflow pack files and extra files', async () => {
     const homeDirectory = await createTemporaryHome()
     const skillPath = getDfHisSkillPath(homeDirectory)
     const extraFilePath = path.join(path.dirname(skillPath), 'local-note.md')
@@ -456,18 +456,16 @@ describe('dfhis-environment', () => {
         expect.objectContaining({
           id: 'dfhis-workflow-pack-codex',
           status: 'invalid',
-          summary: 'Installed pack differs from bundled version',
-          fixable: true
+          summary: 'Installed pack has local modifications',
+          fixable: false
         })
       ])
     )
 
     await expect(ensureDfHisWorkflowPackInstalled(homeDirectory)).resolves.toEqual(
-      expect.arrayContaining([expect.stringContaining('DFHIS workflow pack for Codex')])
+      expect.arrayContaining([expect.stringContaining('has local modifications')])
     )
-    await expect(readFile(skillPath, 'utf8')).resolves.toContain(
-      'name: yunxiao-requirement-archiver'
-    )
+    await expect(readFile(skillPath, 'utf8')).resolves.toBe('edited installed skill')
     await expect(
       readFile(
         path.join(homeDirectory, '.codex', 'skills', 'his-release-merge', 'SKILL.md'),
@@ -480,7 +478,12 @@ describe('dfhis-environment', () => {
     await expect(readFile(extraFilePath, 'utf8')).resolves.toBe('keep me')
     await expect(checkDfHisWorkflowPackPrerequisites(homeDirectory)).resolves.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'dfhis-workflow-pack-codex', status: 'ok' })
+        expect.objectContaining({
+          id: 'dfhis-workflow-pack-codex',
+          status: 'invalid',
+          summary: 'Installed pack has local modifications',
+          fixable: false
+        })
       ])
     )
   })

@@ -37,6 +37,7 @@ When discovered, the harness injects `JAVA_HOME`, `GRADLE_HOME`, and their `bin`
 ```bash
 node scripts/his-workflow.mjs doctor --repo <repo> --catalog <catalog> --service <id> --json
 node scripts/his-workflow.mjs verify --repo <repo> --catalog <catalog> --service <id> --json
+node scripts/his-workflow.mjs ui-e2e-sandbox --repo <repo> --work-item <DFHIS-ID> --ui-test-script <script> --artifact-root <root> --ui-base-url <url> --json
 node scripts/his-workflow.mjs build --repo <repo> --catalog <catalog> --service <id> --environment <id> --allow-mutations --report-dir <dir> --json
 node scripts/his-workflow.mjs database --repo <repo> --catalog <catalog> --service <id> --json
 node scripts/his-workflow.mjs jenkins --repo <repo> --catalog <catalog> --service <id> --allow-mutations --json
@@ -82,11 +83,13 @@ HIS E2E testing is possible and required when a requirement changes a user-visib
 
 Use this decision order:
 
-1. If the repository already exposes `e2e`, `test:e2e`, `playwright`, `test:playwright`, `cypress:run`, or `cy:run`, run it through `verify` and keep the artifact path or report summary.
-2. If the requirement has a concrete browser path but no E2E script exists, add a focused Playwright/Cypress spec in the requirement worktree, wire a stable script such as `e2e`, and run it after build and automated tests.
+1. If the repository already exposes `e2e`, `test:e2e`, `playwright`, `test:playwright`, `cypress:run`, or `cy:run`, inspect it and adapt the requirement flow into the `dfhis-ui-test-delivery` artifact directory. Execute browser interaction through `ui-e2e-sandbox`; do not launch the macOS desktop browser.
+2. If the requirement has a concrete browser path but no E2E script exists, copy the focused container template from `dfhis-ui-test-delivery` into the requirement artifact directory, implement the real flow, and run it after build and automated tests. Do not commit generated evidence or credentials to the product repository.
 3. If E2E cannot run because environment data, browser dependencies, or test accounts are missing, record that exact blocker and compensate with the strongest available evidence: unit/integration tests, build, read-only database checks, Jenkins, deployment, and online smoke.
 
 Do not treat Jenkins compilation, package build, `git diff --check`, or HTTP smoke as E2E evidence. Smoke only proves a mapped endpoint is reachable. A successful build must be followed immediately by the applicable automated tests before claiming a HIS requirement is complete. For frontend work, do not repeat implementation loops after a successful build without first running the available unit, integration, screenshot, or E2E test surface and using the failure evidence to guide the next edit.
+
+Pass `--work-item`, `--ui-test-script`, `--artifact-root`, and `--ui-base-url` to `build` or `full` to insert the remote Docker browser gate immediately after local verification. The default backend is `remote` at `root@192.168.1.10`; override it only with `--ui-sandbox-backend` or `--ui-sandbox-remote`. The test process, browser, and evidence capture run inside the ephemeral container. `--allow-mutations` authorizes release operations only; UI business writes require the separate `--allow-ui-mutations` flag plus a named safe test subject and cleanup.
 
 For E2E artifacts, write screenshots, traces, videos, and reports under the requirement evidence directory or another ignored artifact directory. Never commit generated artifacts or secrets. Prefer deterministic selectors and seeded/mocked data; use real company environments only when the requirement explicitly needs deployed integration evidence.
 
@@ -112,27 +115,7 @@ node scripts/his-qiankun-e2e.mjs scaffold \
 
 The scaffolded spec launches persistent Chrome with cross-origin flags, injects `devDebug`, captures screenshots, asserts the qiankun container is visible and mounted, checks target route/text when configured, and fails if no successful network request hits the local gray sub-app entry/config/assets. The generated `login(page)` and `openRequirementFlow(page)` hooks must be filled with real selectors or driven by environment variables before claiming automated E2E evidence.
 
-4. Run the browser in cross-origin debug mode for integrated local E2E. The scaffolded Playwright spec works on macOS and Windows: it uses `HIS_CHROME_PATH` when set, otherwise auto-detects Google Chrome on macOS and the normal Windows install locations under `Program Files`, `Program Files (x86)`, or `LocalAppData`, then falls back to Playwright's `chrome` channel.
-
-On macOS, launch an isolated Chrome profile like:
-
-```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --disable-web-security \
-  --disable-site-isolation-trials \
-  --user-data-dir="/tmp/chrome-cors"
-```
-
-On Windows, the equivalent manual command is:
-
-```cmd
-"%ProgramFiles%\Google\Chrome\Application\chrome.exe" ^
-  --disable-web-security ^
-  --disable-site-isolation-trials ^
-  --user-data-dir="%TEMP%\chrome-cors"
-```
-
-Playwright specs for this mode must launch persistent Chrome with equivalent arguments, or connect to a Chrome instance launched with these flags. A normal browser context is not valid evidence for local qiankun gray E2E when the shell loads `localhost` sub-app assets from another origin.
+4. Run cross-origin integrated E2E through `ui-e2e-sandbox`. Its template launches a persistent Chromium context inside the container with `--disable-web-security` and `--disable-site-isolation-trials`. A normal browser context or a desktop Chrome session is not valid evidence for qiankun gray E2E.
 
 5. Before login or before the shell builds its app list, seed the shell origin storage for the local gray sub-app entry. Use the actual app `name` key from the shell app config, for example:
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "DFHIS 沙箱 UI 测试"
+  short_description: "在隔离容器中执行单个 DFHIS 需求的浏览器验证"
+  default_prompt: "Use $dfhis-ui-test-delivery after requirement and code evidence exist to create concise UI cases, run Playwright in the Docker sandbox, and return complete browser evidence."
