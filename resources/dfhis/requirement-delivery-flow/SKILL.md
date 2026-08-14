@@ -113,6 +113,7 @@ Goal: produce working code with incremental verification.
 
 - Track progress with `TodoList` — one item per deliverable.
 - Mark each item done only when the deliverable is verified, not when the code is written.
+- Code changes ship with unit tests for the changed behavior in the same delivery. For HIS/DFHIS work this is a hard gate: zero-test delivery is unqualified and is flagged by later AI scans — see `his-workflow-harness` Unit Test Gate.
 - If you hit a wall on one deliverable, don't block all progress — continue with independent deliverables and return to the blocker.
 
 ### Honest Scoping

@@ -77,6 +77,18 @@ node scripts/his-service-catalog.mjs validate --catalog references/company-envir
 
 Add `--allow-mutations` to `discover` only when the reviewed unique mappings should be written. Ambiguous jobs are never written. Use `references/service-catalog.example.json` as the catalog contract. The company-only skill pack may include local plaintext credentials when the environment owner explicitly permits it; never echo them into workflow reports, command evidence, logs, or Yunxiao comments.
 
+## Unit Test Gate (mandatory for HIS changes)
+
+Every HIS frontend/backend code change must ship with unit tests in the same push. This is an explicit user requirement: a modification without unit tests is unqualified, and later AI scans flag it as a non-compliant change. The purpose is to consolidate each module's quality safety net.
+
+Rules:
+
+- After implementation and before commit/push, add or extend unit tests covering the changed main scenario plus regression coverage of every touched branch, following the repository's existing test conventions (for df-web frontends: `tests/<功能目录>/xxx.test.js`, pure `node` + `assert`, runnable directly; for backends: the existing JUnit test tree).
+- Run the unit tests through `verify` when a test script exists, otherwise run them directly, and record test file paths, scenario count, and run result as `passing_test` evidence.
+- If the repository has no unit test surface yet, create one with the lightest existing HIS convention — missing infrastructure is not an exemption.
+- `npm run build`, lint, `git diff --check`, Jenkins compilation, and smoke checks never substitute for unit tests.
+- Module-specific stricter rules (e.g. `dfhis-yizhu-kaili` scenario matrix) apply on top of this gate, not instead of it.
+
 ## Requirement E2E Gate
 
 HIS E2E testing is possible and required when a requirement changes a user-visible frontend flow, permissions/menu behavior, login-dependent interaction, cross-page workflow, or frontend-backend integration that cannot be proven by unit tests alone.
