@@ -139,15 +139,21 @@ export function findLatestRestorableVaultSession(args: {
   workspace: AgentRowWorkspaceTarget
   openSessions?: readonly OpenAgentSessionIdentity[]
 }): AiVaultSession | null {
+  return findRestorableVaultSessions(args)[0] ?? null
+}
+
+export function findRestorableVaultSessions(args: {
+  sessions: readonly AiVaultSession[]
+  workspace: AgentRowWorkspaceTarget
+  openSessions?: readonly OpenAgentSessionIdentity[]
+}): AiVaultSession[] {
   const openSessions = args.openSessions ?? []
-  return (
-    args.sessions
-      .filter((session) => !session.subagent)
-      .filter(isAiVaultSessionResumableContent)
-      .filter((session) => sessionBelongsToWorkspace(session, args.workspace))
-      .filter((session) => !isAlreadyOpen(session, openSessions))
-      .sort((left, right) => sessionTimestamp(right) - sessionTimestamp(left))[0] ?? null
-  )
+  return args.sessions
+    .filter((session) => !session.subagent)
+    .filter(isAiVaultSessionResumableContent)
+    .filter((session) => sessionBelongsToWorkspace(session, args.workspace))
+    .filter((session) => !isAlreadyOpen(session, openSessions))
+    .sort((left, right) => sessionTimestamp(right) - sessionTimestamp(left))
 }
 
 function findCandidate(
@@ -156,6 +162,18 @@ function findCandidate(
   workspace: AgentRowWorkspaceTarget
 ): AiVaultSession | null {
   return findLatestRestorableVaultSession({
+    sessions,
+    workspace,
+    openSessions: collectOpenAgentSessions(state, workspace.workspaceId)
+  })
+}
+
+function findCandidateSessions(
+  sessions: readonly AiVaultSession[],
+  state: VaultRestoreState,
+  workspace: AgentRowWorkspaceTarget
+): AiVaultSession[] {
+  return findRestorableVaultSessions({
     sessions,
     workspace,
     openSessions: collectOpenAgentSessions(state, workspace.workspaceId)
@@ -181,6 +199,44 @@ export async function scanLatestRestorableVaultSession(
   return cached ?? findCandidate((await scan(true)).sessions, useAppStore.getState(), workspace)
 }
 
+export async function scanRestorableVaultSessions(workspaceId: string): Promise<AiVaultSession[]> {
+  const initialState = useAppStore.getState()
+  const workspace = resolveAgentRowWorkspaceTarget(initialState, workspaceId)
+  if (!workspace) {
+    return []
+  }
+  const scan = (force: boolean) =>
+    window.api.aiVault.listSessions({
+      limit: VAULT_SESSION_LIMIT,
+      scopePaths: [workspace.path],
+      executionHostScope: workspace.executionHostId,
+      force
+    })
+  const cached = findCandidateSessions(
+    (await scan(false)).sessions,
+    useAppStore.getState(),
+    workspace
+  )
+  return cached.length > 0
+    ? cached
+    : findCandidateSessions((await scan(true)).sessions, useAppStore.getState(), workspace)
+}
+
+/**
+ * Auto-kill any process holding the agent session lock before resume.
+ * Works for all agent types (codex, claude, etc.). Local-only.
+ */
+async function releaseAgentSessionLockIfNeeded(session: AiVaultSession): Promise<void> {
+  if (!session.sessionId) {
+    return
+  }
+  const holders = await window.api.agentSession.findLockHolders(session.sessionId)
+  if (!holders?.length) {
+    return
+  }
+  await Promise.all(holders.map((h) => window.api.agentSession.killLockHolder(h.pid)))
+}
+
 export async function restoreAiVaultSession(
   workspaceId: string,
   session: AiVaultSession
@@ -190,6 +246,7 @@ export async function restoreAiVaultSession(
   if (!workspace || !sessionBelongsToWorkspace(session, workspace)) {
     return false
   }
+  await releaseAgentSessionLockIfNeeded(session)
   const preparedSession = await prepareAiVaultSessionForResume(session)
   const startup = buildAiVaultResumeStartupForWorktree({
     state,

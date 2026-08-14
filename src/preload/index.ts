@@ -4290,6 +4290,13 @@ const api = {
     }
   },
 
+  agentSession: {
+    findLockHolders: (sessionId: string): Promise<unknown> =>
+      ipcRenderer.invoke('agentSession:findLockHolders', sessionId),
+    killLockHolder: (pid: number): Promise<boolean> =>
+      ipcRenderer.invoke('agentSession:killLockHolder', pid)
+  },
+
   nativeChat: {
     readSession: (
       agent: AgentType,

@@ -2751,6 +2751,12 @@ export type PreloadApi = {
   codexUsage: CodexUsageApi
   openCodeUsage: OpenCodeUsageApi
   aiVault: AiVaultApi
+  agentSession: {
+    findLockHolders: (
+      sessionId: string
+    ) => Promise<{ pid: number; ppid: number; command: string }[]>
+    killLockHolder: (pid: number) => Promise<boolean>
+  }
   nativeChat: NativeChatApi
   fs: {
     readDir: (args: { dirPath: string; connectionId?: string }) => Promise<DirEntry[]>

@@ -69,11 +69,12 @@ import { translate } from '@/i18n/i18n'
 import { parseWorkspaceKey, worktreeWorkspaceKey } from '../../../../shared/workspace-scope'
 import { hasRestorableAgentSession } from '@/store/slices/recently-closed-tabs'
 import { restoreRecentlyClosedAgentSession } from './worktree-closed-agent-session'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+import { aiVaultAgentLabel, type AiVaultSession } from '../../../../shared/ai-vault-types'
 import {
   notifyVaultSessionRestoreFailure,
   restoreAiVaultSession,
-  scanLatestRestorableVaultSession
+  scanLatestRestorableVaultSession,
+  scanRestorableVaultSessions
 } from './worktree-ai-vault-session-restore'
 
 type Props = {
@@ -345,6 +346,7 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   const deleteState = useAppStore((s) => s.deleteStateByWorktreeId[worktree.id])
   const [menuOpen, setMenuOpen] = useState(false)
   const [vaultRestoreSession, setVaultRestoreSession] = useState<AiVaultSession | null>(null)
+  const [vaultRestoreSessions, setVaultRestoreSessions] = useState<AiVaultSession[]>([])
   // Why: the Developer submenu is a power-user affordance, so it is revealed by
   // holding Option/Alt at right-click — captured at open time (like the Help
   // menu's admin options) so the submenu can't appear or vanish mid-menu and
@@ -492,7 +494,7 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   const hasRecentlyClosedAgentSession = (
     recentlyClosedTerminalTabsByWorktree[worktree.id] ?? []
   ).some(hasRestorableAgentSession)
-  const canRestoreSession = hasRecentlyClosedAgentSession || vaultRestoreSession !== null
+  const canRestoreSession = hasRecentlyClosedAgentSession || vaultRestoreSessions.length > 0
   const hasAnyContextLineage = activeContextWorktrees.some((item) =>
     hasWorktreeParentLink(item, worktreeLineageById, workspaceLineageByChildKey)
   )
@@ -538,6 +540,28 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
       .catch(() => {
         if (!cancelled) {
           setVaultRestoreSession(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasRecentlyClosedAgentSession, isMultiContext, menuOpen, worktree.id])
+
+  useEffect(() => {
+    if (!menuOpen || isMultiContext || hasRecentlyClosedAgentSession) {
+      setVaultRestoreSessions([])
+      return
+    }
+    let cancelled = false
+    void scanRestorableVaultSessions(worktree.id)
+      .then((sessions) => {
+        if (!cancelled) {
+          setVaultRestoreSessions(sessions)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVaultRestoreSessions([])
         }
       })
     return () => {
@@ -696,13 +720,22 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   ])
 
   const handleRestoreSession = useCallback(() => {
-    if (restoreRecentlyClosedAgentSession(worktree.id) > 0 || !vaultRestoreSession) {
+    if (restoreRecentlyClosedAgentSession(worktree.id) > 0) {
       return
     }
-    void restoreAiVaultSession(worktree.id, vaultRestoreSession).catch(
-      notifyVaultSessionRestoreFailure
-    )
-  }, [vaultRestoreSession, worktree.id])
+    const session = vaultRestoreSession ?? vaultRestoreSessions[0]
+    if (!session) {
+      return
+    }
+    void restoreAiVaultSession(worktree.id, session).catch(notifyVaultSessionRestoreFailure)
+  }, [vaultRestoreSession, vaultRestoreSessions, worktree.id])
+
+  const handleRestoreSpecificSession = useCallback(
+    (session: AiVaultSession) => {
+      void restoreAiVaultSession(worktree.id, session).catch(notifyVaultSessionRestoreFailure)
+    },
+    [worktree.id]
+  )
 
   const sleepWorktreesAfterMenuClose = useCallback(
     (worktreeIds: string[]) => {
@@ -907,16 +940,43 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
                 <Pencil className="size-3.5" />
                 {translate('auto.components.sidebar.WorktreeContextMenu.439fa94d53', 'Update')}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={handleRestoreSession}
-                disabled={isDeleting || !canRestoreSession}
-              >
-                <RotateCcw className="size-3.5" />
-                {translate(
-                  'auto.components.sidebar.WorktreeContextMenu.restoreSession',
-                  'Restore Session'
-                )}
-              </DropdownMenuItem>
+              {vaultRestoreSessions.length > 1 ? (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger disabled={isDeleting || !canRestoreSession}>
+                    <RotateCcw className="size-3.5" />
+                    {translate(
+                      'auto.components.sidebar.WorktreeContextMenu.restoreSession',
+                      'Restore Session'
+                    )}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-72">
+                    {vaultRestoreSessions.map((session) => (
+                      <DropdownMenuItem
+                        key={session.sessionId}
+                        onSelect={() => handleRestoreSpecificSession(session)}
+                      >
+                        <div className="flex min-w-0 flex-col">
+                          <span className="truncate text-sm">{session.title || 'Untitled'}</span>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {aiVaultAgentLabel(session.agent)} · {session.modifiedAt}
+                          </span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : (
+                <DropdownMenuItem
+                  onSelect={handleRestoreSession}
+                  disabled={isDeleting || !canRestoreSession}
+                >
+                  <RotateCcw className="size-3.5" />
+                  {translate(
+                    'auto.components.sidebar.WorktreeContextMenu.restoreSession',
+                    'Restore Session'
+                  )}
+                </DropdownMenuItem>
+              )}
             </>
           )}
           <DropdownMenuSub>

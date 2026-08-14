@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import type { Repo, Worktree } from '../../../../shared/types'
 
@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   activateWorktree: vi.fn(),
   activateFolder: vi.fn(),
   toastSuccess: vi.fn(),
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  findLockHolders: vi.fn(),
+  killLockHolder: vi.fn()
 }))
 
 vi.mock('@/store', () => ({ useAppStore: { getState: mocks.getState } }))
@@ -34,7 +36,8 @@ vi.mock('sonner', () => ({
 import {
   findLatestRestorableVaultSession,
   restoreAiVaultSession,
-  scanLatestRestorableVaultSession
+  scanLatestRestorableVaultSession,
+  scanRestorableVaultSessions
 } from './worktree-ai-vault-session-restore'
 
 const WORKTREE_ID = 'repo-1::/repo/orca'
@@ -102,12 +105,31 @@ function storeState(overrides: Record<string, unknown> = {}): Record<string, unk
   }
 }
 
+function stubWindowApi(listSessions: ReturnType<typeof vi.fn>): void {
+  vi.stubGlobal('window', {
+    api: {
+      aiVault: { listSessions },
+      agentSession: {
+        findLockHolders: mocks.findLockHolders,
+        killLockHolder: mocks.killLockHolder
+      }
+    }
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.getState.mockReturnValue(storeState())
   mocks.prepareSession.mockImplementation(async (value) => value)
   mocks.buildStartup.mockReturnValue({ command: "kimi --session 'session-1'" })
   mocks.launchSession.mockReturnValue({ tabId: 'tab-restored' })
+  mocks.findLockHolders.mockResolvedValue([])
+  mocks.killLockHolder.mockResolvedValue(true)
+  stubWindowApi(vi.fn().mockResolvedValue({ sessions: [], issues: [], scannedAt: '' }))
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('findLatestRestorableVaultSession', () => {
@@ -173,7 +195,7 @@ describe('scanLatestRestorableVaultSession', () => {
   it('uses the scoped cache and skips a forced scan when it finds a session', async () => {
     const found = session()
     const listSessions = vi.fn().mockResolvedValue({ sessions: [found], issues: [], scannedAt: '' })
-    vi.stubGlobal('window', { api: { aiVault: { listSessions } } })
+    stubWindowApi(listSessions)
 
     await expect(scanLatestRestorableVaultSession(WORKTREE_ID)).resolves.toBe(found)
     expect(listSessions).toHaveBeenCalledOnce()
@@ -191,7 +213,7 @@ describe('scanLatestRestorableVaultSession', () => {
       .fn()
       .mockResolvedValueOnce({ sessions: [], issues: [], scannedAt: '' })
       .mockResolvedValueOnce({ sessions: [found], issues: [], scannedAt: '' })
-    vi.stubGlobal('window', { api: { aiVault: { listSessions } } })
+    stubWindowApi(listSessions)
 
     await expect(scanLatestRestorableVaultSession(WORKTREE_ID)).resolves.toBe(found)
     expect(listSessions).toHaveBeenNthCalledWith(2, {
@@ -200,6 +222,23 @@ describe('scanLatestRestorableVaultSession', () => {
       executionHostScope: 'local',
       force: true
     })
+  })
+})
+
+describe('scanRestorableVaultSessions', () => {
+  it('returns all cached sessions newest-first', async () => {
+    const older = session({ id: 'older', sessionId: 'older' })
+    const newest = session({
+      id: 'newest',
+      sessionId: 'newest',
+      modifiedAt: '2026-08-08T00:00:00.000Z'
+    })
+    const listSessions = vi
+      .fn()
+      .mockResolvedValue({ sessions: [older, newest], issues: [], scannedAt: '' })
+    stubWindowApi(listSessions)
+
+    await expect(scanRestorableVaultSessions(WORKTREE_ID)).resolves.toEqual([newest, older])
   })
 })
 
@@ -217,5 +256,18 @@ describe('restoreAiVaultSession', () => {
     })
     expect(mocks.activateWorktree).toHaveBeenCalledWith(WORKTREE_ID)
     expect(mocks.toastSuccess).toHaveBeenCalledOnce()
+  })
+
+  it('kills stale lock holders before resuming the session', async () => {
+    const restored = session()
+    mocks.findLockHolders.mockResolvedValue([
+      { pid: 501, ppid: 1, command: `node codex --session ${restored.sessionId}` }
+    ])
+
+    await expect(restoreAiVaultSession(WORKTREE_ID, restored)).resolves.toBe(true)
+
+    expect(mocks.findLockHolders).toHaveBeenCalledWith(restored.sessionId)
+    expect(mocks.killLockHolder).toHaveBeenCalledWith(501)
+    expect(mocks.prepareSession).toHaveBeenCalledWith(restored)
   })
 })
