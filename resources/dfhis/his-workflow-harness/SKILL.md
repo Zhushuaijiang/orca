@@ -1,6 +1,6 @@
 ---
 name: his-workflow-harness
-description: Run deterministic, evidence-driven HIS and DFHIS verification and release workflows. Use for HIS repository intake, Node/JDK/package-manager selection, local builds, read-only database checks, Jenkins compilation, deployment commands, online smoke checks, release verification, or any request to carry a HIS change from code through environment validation.
+description: Run deterministic, evidence-driven HIS and DFHIS verification and release workflows. Use for HIS repository intake, Node/JDK/package-manager selection, local builds, read-only database checks, Jenkins compilation, deployment commands, online smoke checks, release verification, qiankun/iframe E2E 排障（子应用挂载探测、弹窗 DOM 脱钩、导航重试、route 拦截差分验收）, or any request to carry a HIS change from code through environment validation.
 ---
 
 # HIS Workflow Harness
@@ -143,6 +143,16 @@ sessionStorage.setItem('<package-json-name>', '//localhost:<dev-port>')
 10. After Jenkins/package/deployment, repeat online verification through the deployed shell and verify the served sub-app entry/version/hash. Deployment smoke is not a substitute for the integrated local E2E above.
 
 If the account, menu permission, patient/order data, cross-origin browser, or environment proxy is missing, stop and report that blocker precisely. Do not replace this gate with build success, HTTP smoke, or standalone sub-app screenshots.
+
+## Qiankun E2E 排障与加速（DFHIS-32040 实测沉淀）
+
+以真实事故为准的硬规则，执行上面的集成 E2E 前先过一遍：
+
+1. **先确认子应用挂载形态再写探测**。devDebug 灰度下子应用可能跑在 **iframe**（如 df-web-main 病区医生站）而非 qiankun div；`document.body.innerText`/`textContent` 探不到 iframe 内容，会出现"截图已渲染、就绪探测永远 false"。第一步先 dump `page.frames()`：子应用在 iframe 里就全程用 `frame.getByText/…` 操作（截图仍用 `page.screenshot`），在 div 里才用 page 级选择器。
+2. **遮挡层清理绝不删 `.df-dialog__wrapper`**。remove 弹窗 DOM 会让 Vue 组件状态与 DOM 脱钩：之后该弹窗永远打不开，报错是 element-ui `documentHandler`/`removeTabindex` 空指针——堆栈指向库内部，极具误导性（DFHIS-32040 排障 3 轮才定位）。只删 `.df-utils-message-wrapper, .el-message, .v-modal`。
+3. **门户内导航必须 URL 断言 + 有界重试**。双击病人卡/菜单项可能因残留 tab、未保存确认框而不跳转；每步导航后断言 `page.url()` 或目标 frame 文本，失败则处理确认弹窗后重试（≤4 次），不要裸等。
+4. **竞态/时序类缺陷用 route 拦截做确定性差分验收，优先于搭本地全栈**。缺陷若依赖"字典未加载完/字典缺失"这类竞态（DFHIS-32040 根因），用 Playwright `route` 拦截对应接口响应并置空/篡改，100% 复现；旧包（部署环境）与修复包各跑一遍截图对比即证据。比搭"本地门户+bui+子应用 dist 垫片"全栈省 40-70 分钟，且无环境排障。
+5. **区分非致命环境噪音**。本地 bui 与 RC 分支子应用存在 DFhelper 方法错配（`getZiDianAllFenLeiList is not a function` 等 pageerror），页面仍可完整渲染；记录即可，不要据此返工。152 在线门户的部署包本身可能损坏（引用旧 static 路径 404），用前先用一次截图确认可用，坏了立即换本地壳子，别在它的报错上空耗。
 
 ## UI 规范门禁（HIS 前端）
 
