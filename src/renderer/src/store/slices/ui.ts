@@ -81,6 +81,9 @@ import {
   normalizeAgentActivityDisplayMode,
   normalizeWorktreeCardProperties
 } from '../../../../shared/constants'
+import type { WorktreeCardMode, WorktreeCardProperty } from '../../../../shared/ui-chrome-types'
+import type { ChangelogData, UpdateStatus } from '../../../../shared/update-status-types'
+import type { WorkspaceStatusDefinition } from '../../../../shared/worktree/types'
 import {
   DEFAULT_BROWSER_PAGE_ZOOM_LEVEL,
   normalizeBrowserPageZoomLevel

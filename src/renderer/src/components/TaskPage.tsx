@@ -364,12 +364,12 @@ import {
 } from '../../../shared/github/pull-request-merge-methods'
 import type {
   GitHubAssignableUser,
-  GitHubPRMergeMethod,
-  GitHubIssueUpdate,
-  GitHubWorkItem,
-  GitLabCommentResult,
-  GitLabTodo,
-  GitLabWorkItem,
+  GitHubOwnerRepo,
+  GitHubPRMergeMethod
+} from '../../../shared/github/pull-request-types'
+import type { GitHubWorkItem } from '../../../shared/github/work-item-types'
+import type { GitHubIssueUpdate } from '../../../shared/issue-mutation-types'
+import type {
   JiraCreateField,
   JiraIssue,
   JiraIssueType,
@@ -378,6 +378,7 @@ import type {
   JiraProjectStatusOrder
 } from '../../../shared/jira-types'
 import type { LinearIssue } from '../../../shared/linear/issue-types'
+import type { LinearWorkspaceSelection } from '../../../shared/linear/workspace-types'
 import type {
   LinearCustomViewModel,
   LinearCustomViewSummary,
@@ -394,7 +395,12 @@ import type {
   YunxiaoWorkItem
 } from '../../../shared/types'
 import type { PreflightStatus } from '../../../preload/api-types'
-import type { GitLabProjectRef } from '../../../shared/gitlab-types'
+import type {
+  GitLabCommentResult,
+  GitLabProjectRef,
+  GitLabTodo,
+  GitLabWorkItem
+} from '../../../shared/gitlab-types'
 import { buildYunxiaoWorkspaceSource } from '../../../shared/new-workspace/workspace-source'
 import {
   LINEAR_ISSUE_LIST_MAX,

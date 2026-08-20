@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   buildAgentDraftLaunchPlan,
   buildAgentResumeStartupPlan,
@@ -6,9 +6,14 @@ import {
   buildShellCommandFromArgv,
   planAgentCliArgsSuffix
 } from './tui-agent-startup'
+import { setYunxiaoRequirementPromptGateEnabled } from './yunxiao-requirement-prompt-gate'
 import { TUI_AGENT_CONFIG } from './tui-agent-config'
 import { normalizeTuiAgentArgsRecord, resolveTuiAgentLaunchArgs } from './tui-agent-launch-defaults'
 import { tokenizeStartupCommand } from './tui-agent-startup-shell'
+
+afterEach(() => {
+  setYunxiaoRequirementPromptGateEnabled(false)
+})
 
 function unwrapPosixShellScript(command: string | undefined): string {
   const tokenized = tokenizeStartupCommand(command ?? '', 'posix')
@@ -443,6 +448,7 @@ describe('tui agent startup plans', () => {
   })
 
   it('gates manual Yunxiao requirement prompts before argv startup commands are built', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const plan = buildAgentStartupPlan({
       agent: 'codex',
       prompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
@@ -897,6 +903,7 @@ describe('tui agent startup plans', () => {
   })
 
   it('gates manual Yunxiao requirement prompts before native draft plans are built', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const plan = buildAgentDraftLaunchPlan({
       agent: 'omp',
       draft: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',

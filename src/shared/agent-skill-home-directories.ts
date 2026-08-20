@@ -1,4 +1,4 @@
-import type { TuiAgent } from './types'
+import type { TuiAgent } from './tui-agent'
 
 /** Home skills root shared by agents with no dedicated root (kimi, cline, ...). */
 export const UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY = ['.agents', 'skills'] as const

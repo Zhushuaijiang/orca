@@ -1,5 +1,9 @@
-import { createReadStream } from 'node:fs'
-import { readdir } from 'node:fs/promises'
+import {
+  openTranscriptReadStream,
+  wslGatedReadFile,
+  wslGatedReaddir
+} from '../native-chat/wsl-transcript-fs-access'
+import { WslTranscriptFsError } from '../native-chat/wsl-transcript-fs-gate'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { AiVaultSession, AiVaultTokenUsage } from '../../shared/ai-vault-types'
@@ -86,8 +90,13 @@ async function consumeKimiSubagentUsage(
 ): Promise<void> {
   let entries
   try {
-    entries = await readdir(join(dirname(statePath), 'agents'), { withFileTypes: true })
-  } catch {
+    entries = await wslGatedReaddir(join(dirname(statePath), 'agents'), 'scan')
+  } catch (error) {
+    // Same rule as the primary transcript: a gate refusal must not be cached
+    // as an under-counted session.
+    if (error instanceof WslTranscriptFsError) {
+      throw error
+    }
     return
   }
   for (const entry of entries) {
@@ -106,19 +115,24 @@ async function consumeKimiWireUsage(
   accumulator: SessionAccumulator,
   wirePath: string
 ): Promise<void> {
+  const input = openTranscriptReadStream(wirePath, { encoding: 'utf-8' }, 'scan')
+  const lines = createInterface({ input, crlfDelay: Infinity })
   try {
-    const lines = createInterface({
-      input: createReadStream(wirePath, { encoding: 'utf-8' }),
-      crlfDelay: Infinity
-    })
     for await (const line of lines) {
       const record = parseJsonObject(line)
       if (record?.type === 'usage.record') {
         consumeKimiUsageRecord(accumulator, record)
       }
     }
-  } catch {
+  } catch (error) {
     // Subagent transcript not flushed yet — its usage simply stays uncounted.
+    // A gate refusal instead means a partial count must not be cached.
+    if (error instanceof WslTranscriptFsError) {
+      throw error
+    }
+  } finally {
+    lines.close()
+    input.destroy()
   }
 }
 

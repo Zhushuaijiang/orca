@@ -50,9 +50,14 @@ describe('updater', () => {
     checkForUpdatesFromMenu()
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.3.17-rc.1', 2, {
-        includePrerelease: true
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.3.17-rc.1',
+        2,
+        // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+        expect.objectContaining({
+          includePrerelease: true
+        })
+      )
       expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
         provider: 'generic',
         url: 'https://github.com/stablyai/orca/releases/download/v1.3.17-rc.2'
@@ -381,9 +386,14 @@ describe('updater', () => {
     await vi.waitFor(() => {
       expect(fetchNewerReleaseTagsMock).toHaveBeenCalledTimes(1)
     })
-    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.26', 1, {
-      includePrerelease: false
-    })
+    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+      '1.4.26',
+      1,
+      // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+      expect.objectContaining({
+        includePrerelease: false
+      })
+    )
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
     expect(setLastUpdateCheckAt).not.toHaveBeenCalled()
 
@@ -457,9 +467,14 @@ describe('updater', () => {
       await vi.waitFor(() => {
         expect(fetchNewerReleaseTagsMock).toHaveBeenCalledTimes(1)
       })
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(version, candidateLimit, {
-        includePrerelease
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        version,
+        candidateLimit,
+        // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+        expect.objectContaining({
+          includePrerelease
+        })
+      )
       expect(setPendingUpdateNudgeId).toHaveBeenCalledWith('campaign-1')
       expect(setPendingUpdateNudgeId).not.toHaveBeenCalledWith(null)
       expect(setDismissedUpdateNudgeId).not.toHaveBeenCalled()

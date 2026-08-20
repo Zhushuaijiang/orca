@@ -1,3 +1,5 @@
+/* eslint-disable max-lines -- Why: context-menu actions share pane refs, focus
+ * recovery, inherited-cwd split behavior, and agent-fork state in one hook. */
 import { useCallback, useRef } from 'react'
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
 import type { PtyTransport } from './pty-transport'
@@ -5,31 +7,40 @@ import type { PaneCwdMap } from './resolve-split-cwd'
 import type { TerminalQuickCommand } from '../../../../shared/terminal-quick-command-types'
 import { isTerminalAgentQuickCommand } from '../../../../shared/terminal-quick-commands'
 import { sendTerminalQuickCommandToPane } from './terminal-quick-command-dispatch'
-import type { TerminalPasteSource } from './terminal-paste-coordinator'
+import { getConnectionId } from '@/lib/connection-context'
+import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { pasteTerminalText } from './terminal-bracketed-paste'
+import { pasteTerminalClipboard } from './terminal-clipboard-paste'
+import {
+  executeTerminalPastePlan,
+  planTerminalPasteWithYield,
+  type TerminalPasteSource,
+  type TerminalPasteTextOptions
+} from './terminal-paste-coordinator'
+import { formatTerminalPasteExecutionError } from './terminal-paste-errors'
+import { resolveTerminalPasteRuntime } from './terminal-paste-runtime'
+import { getTerminalPasteSshRemotePlatform } from './terminal-paste-ssh-platform'
+import { isTerminalPanePasteTargetCurrent } from './terminal-paste-target-state'
+import { writeTerminalPastePtyInput } from './terminal-pty-paste-writer'
+import { scheduleImagePasteWebglAtlasRecovery } from './terminal-webgl-atlas-recovery'
 import { runQuickCommandInNewTab } from '@/lib/run-quick-command-in-new-tab'
 import type { PreparedAgentSessionFork } from './terminal-agent-session-fork'
 import type { AgentSessionContinuationRequest } from '@/lib/agent-session-continuation'
-import { recordCreatedTerminalPaneSplit } from './terminal-pane-split-completion'
-import { splitTerminalPaneWithInheritedCwd } from './terminal-pane-split-with-inherited-cwd'
 import { useAppStore } from '@/store'
-import { translate } from '@/i18n/i18n'
 import { recordTerminalUserInputForLeaf } from './terminal-input-activity'
-import { copyTerminalHandleForPane } from './terminal-handle-copy'
 import { applyYunxiaoRequirementTerminalPasteGate } from './yunxiao-terminal-paste-gate'
-import { runCopyPaneId, runTerminalCopy } from './terminal-copy-rejection-guards'
-import { copyTerminalSelection } from './terminal-selection-copy'
-
-const CLOSE_ALL_CONTEXT_MENUS_EVENT = 'orca-close-all-context-menus'
-
-export function recordContextMenuCreatedTerminalPaneSplit(
-  createdPane: unknown,
-  args: {
-    source: 'contextual_tour' | 'context_menu'
-    direction: 'vertical' | 'horizontal'
-  }
-): boolean {
-  return recordCreatedTerminalPaneSplit(createdPane, args)
-}
+import {
+  copyTerminalPaneMenuPaneId,
+  copyTerminalPaneMenuSelection,
+  copyTerminalPaneMenuTerminalId
+} from './terminal-pane-menu-copy-actions'
+import {
+  continueAgentSessionFromMenuPane,
+  copyAgentSessionContextFromMenuPane,
+  forkAgentSessionFromMenuPane
+} from './terminal-pane-menu-agent-session-actions'
+import { useTerminalPaneSplitActions } from './use-terminal-pane-split-actions'
+import { useTerminalContextMenuTrigger } from './use-terminal-context-menu-trigger'
 
 type UseTerminalPaneContextMenuDeps = {
   managerRef: React.RefObject<PaneManager | null>
@@ -116,64 +127,6 @@ export function useTerminalPaneContextMenu({
     return manager.getActivePane() ?? panes[0] ?? null
   }, [managerRef])
 
-  const pasteResolvedPane = async (
-    source: Extract<TerminalPasteSource, 'context-menu' | 'right-click'>
-  ): Promise<void> =>
-    pasteTerminalPaneMenuClipboard(
-      {
-        managerRef,
-        paneTransportsRef,
-        tabId,
-        worktreeId,
-        forceBracketedMultilineTextPaste,
-        onPasteError
-      },
-      resolveMenuPane(),
-      source
-    )
-
-  const { open, setOpen, point, menuOpenedAtRef, onContextMenuCapture, onPaneTitleContextMenu } =
-    useTerminalContextMenuTrigger({
-      managerRef,
-      containerRef,
-      contextPaneIdRef,
-      rightClickToPaste,
-      pasteResolvedPane
-    })
-
-  const { onSplitRight, onSplitDown } = useTerminalPaneSplitActions({
-    managerRef,
-    paneTransportsRef,
-    paneCwdRef,
-    contextPaneIdRef,
-    tabId,
-    fallbackCwd,
-    resolveMenuPane
-  })
-
-  const agentSessionContext = {
-    paneCwdRef,
-    tabId,
-    worktreeId,
-    groupId,
-    fallbackCwd,
-    onAgentSessionForkReady,
-    onAgentSessionContinuationReady
-  }
-
-  const onCopy = async (): Promise<void> => copyTerminalPaneMenuSelection(resolveMenuPane())
-
-  const onSelectAll = (): void => {
-    const pane = resolveMenuPane()
-    if (pane) {
-      pane.terminal.selectAll()
-      pane.terminal.focus()
-    }
-  }
-
-  const onCopyPaneId = async (): Promise<void> =>
-    copyTerminalPaneMenuPaneId(resolveMenuPane(), tabId)
-
   const getShortcutPlatform = (): NodeJS.Platform => {
     if (navigator.userAgent.includes('Mac')) {
       return 'darwin'
@@ -252,36 +205,6 @@ export function useTerminalPaneContextMenu({
     return true
   }
 
-  const onCopyTerminalId = async (): Promise<void> => {
-    const pane = resolveMenuPane()
-    if (!pane) {
-      return
-    }
-    try {
-      await copyTerminalHandleForPane({
-        tabId,
-        leafId: pane.leafId,
-        callRuntime: window.api.runtime.call,
-        writeClipboardText: window.api.ui.writeTerminalClipboardText
-      })
-      toast.success(
-        translate(
-          'auto.components.terminal.pane.use.terminal.pane.context.menu.terminal.id.copied',
-          'Terminal ID copied'
-        )
-      )
-    } catch {
-      toast.error(
-        translate(
-          'auto.components.terminal.pane.use.terminal.pane.context.menu.terminal.id.copy.failed',
-          'Unable to copy terminal ID'
-        )
-      )
-    } finally {
-      pane.terminal.focus()
-    }
-  }
-
   const pasteResolvedPane = async (
     source: Extract<TerminalPasteSource, 'context-menu' | 'right-click'>
   ): Promise<void> => {
@@ -316,6 +239,51 @@ export function useTerminalPaneContextMenu({
     // do not steal focus from the user's new control.
     pane.terminal.focus()
   }
+
+  const { open, setOpen, point, menuOpenedAtRef, onContextMenuCapture, onPaneTitleContextMenu } =
+    useTerminalContextMenuTrigger({
+      managerRef,
+      containerRef,
+      contextPaneIdRef,
+      rightClickToPaste,
+      pasteResolvedPane
+    })
+
+  const { onSplitRight, onSplitDown } = useTerminalPaneSplitActions({
+    managerRef,
+    paneTransportsRef,
+    paneCwdRef,
+    contextPaneIdRef,
+    tabId,
+    fallbackCwd,
+    resolveMenuPane
+  })
+
+  const agentSessionContext = {
+    paneCwdRef,
+    tabId,
+    worktreeId,
+    groupId,
+    fallbackCwd,
+    onAgentSessionForkReady,
+    onAgentSessionContinuationReady
+  }
+
+  const onCopy = async (): Promise<void> => copyTerminalPaneMenuSelection(resolveMenuPane())
+
+  const onSelectAll = (): void => {
+    const pane = resolveMenuPane()
+    if (pane) {
+      pane.terminal.selectAll()
+      pane.terminal.focus()
+    }
+  }
+
+  const onCopyPaneId = async (): Promise<void> =>
+    copyTerminalPaneMenuPaneId(resolveMenuPane(), tabId)
+
+  const onCopyTerminalId = async (): Promise<void> =>
+    copyTerminalPaneMenuTerminalId(resolveMenuPane(), tabId)
 
   const onPaste = async (): Promise<void> => pasteResolvedPane('context-menu')
 

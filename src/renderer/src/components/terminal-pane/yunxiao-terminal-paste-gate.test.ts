@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
+import { setYunxiaoRequirementPromptGateEnabled } from '../../../../shared/yunxiao-requirement-prompt-gate'
 import { applyYunxiaoRequirementTerminalPasteGate } from './yunxiao-terminal-paste-gate'
 
 function agentStatus(paneKey: string): AgentStatusEntry {
@@ -16,7 +17,12 @@ function agentStatus(paneKey: string): AgentStatusEntry {
 }
 
 describe('Yunxiao terminal paste gate', () => {
+  afterEach(() => {
+    setYunxiaoRequirementPromptGateEnabled(false)
+  })
+
   it('gates manual Yunxiao requirement paste for panes with a live agent row', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const paneKey = makePaneKey('tab-1', '11111111-1111-4111-8111-111111111111')
     const text = 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下'
 

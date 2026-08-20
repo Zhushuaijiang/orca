@@ -102,6 +102,10 @@ import {
   buildAgentPromptPasteBytes
 } from '../../shared/agent-prompt-injection'
 import {
+  type AgentPromptActivity,
+  verifyAgentPromptSubmission
+} from './agent-prompt-submission-verification'
+import {
   applyYunxiaoRequirementPromptGate,
   containsYunxiaoRequirementReference,
   createManualYunxiaoRequirementGate,
@@ -113,7 +117,12 @@ import type {
   YunxiaoTodoPoolUpdateArgs,
   YunxiaoWorkItem
 } from '../../shared/yunxiao-types'
-import { gitExecFileAsync, gitSpawn, nonInteractiveGitEnv } from '../git/runner'
+import {
+  awaitWindowsHostGitEnvironmentReady,
+  gitExecFileAsync,
+  gitSpawnAfterWindowsEnvironmentReady,
+  nonInteractiveGitEnv
+} from '../git/runner'
 import { runWithGitReadCacheInvalidation } from '../git/status'
 import { wakeFolderRepoGitUpgradeWatch } from '../ipc/folder-repo-git-upgrade-wake'
 import {
@@ -249,7 +258,14 @@ import {
   releaseFederationAckCheckpoint
 } from './orchestration/federation-ack-checkpoints'
 import { syncFederatedDispatch } from './orchestration/federation-sync'
-import { formatMessagePointer } from './orchestration/formatter'
+import { MailPointerRepointScheduler } from './orchestration/mail-pointer-repoint-scheduler'
+import { OrchestrationMailboxOwner } from './orchestration/mailbox-owner'
+import { OrchestrationMailboxNotificationCoordinator } from './orchestration/mailbox-notification-coordinator'
+import { OrchestrationMailboxDeliveryTarget } from './orchestration/mailbox-delivery-target'
+import {
+  OrchestrationMailboxPointerDelivery,
+  type OrchestrationMessageWaiter
+} from './orchestration/mailbox-pointer-delivery'
 import { readDfHisEnvironmentConfigSync } from '../dfhis-environment/config'
 import {
   buildYunxiaoTerminalEnv,
@@ -18762,7 +18778,6 @@ export class OrcaRuntimeService {
     await this.ensureDfHisWorkflowPackCurrentForPrompt(prompt)
     const gatedPrompt = applyYunxiaoRequirementPromptGate(prompt)
     const payload = buildAgentPromptPasteBytes(gatedPrompt)
-    const bytesWritten = Buffer.byteLength(`${payload}${AGENT_PROMPT_SUBMIT}`, 'utf8')
     const pty = this.getLivePtyForHandle(handle)
     if (pty) {
       if (!pty.pty.connected) {

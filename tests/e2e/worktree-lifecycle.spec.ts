@@ -101,7 +101,7 @@ test.describe('Worktree Lifecycle', () => {
     await orcaPage
       .evaluate(async (id) => {
         try {
-          await window.__store?.getState().removeWorktree(id, true)
+          await window.__store?.getState().removeWorktree({ id, executionHostId: null }, true)
         } catch {
           /* best-effort cleanup */
         }

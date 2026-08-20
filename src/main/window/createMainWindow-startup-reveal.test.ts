@@ -168,15 +168,21 @@ describe('createMainWindow', () => {
     })
   })
 
-  it('does not install the startup reveal fallback on macOS', () => {
+  it('reveals the startup window on macOS when ready-to-show never fires', () => {
+    // Why: the fork installs the fallback on every platform (a stalled
+    // ready-to-show strands the only window hidden on macOS too), so unlike
+    // upstream this asserts the fallback DOES fire here.
     vi.useFakeTimers()
     const { browserWindowInstance } = createStartupRevealWindowFixture()
 
     withPlatform('darwin', () => {
       createMainWindow(null)
-      vi.advanceTimersByTime(10_000)
-
+      vi.advanceTimersByTime(9_999)
       expect(browserWindowInstance.show).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(1)
+
+      expect(browserWindowInstance.show).toHaveBeenCalledTimes(1)
       expect(browserWindowInstance.maximize).not.toHaveBeenCalled()
     })
   })

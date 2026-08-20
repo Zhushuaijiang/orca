@@ -112,8 +112,10 @@ import type {
 } from '../shared/worktree/base-ref-drift-types'
 import type {
   WorktreeDefaultTabsLaunch,
-  WorktreeHeadIdentity,
-  WorktreeRemoteBranchConflictEvent,
+  WorktreeSetupLaunch
+} from '../shared/worktree/launch-types'
+import type { GitPushTarget, WorktreeHeadIdentity } from '../shared/worktree/types'
+import type {
   YunxiaoArchiveRequirementArgs,
   YunxiaoArchiveRequirementResult,
   YunxiaoCreateRequirementArgs,
@@ -123,10 +125,8 @@ import type {
   YunxiaoRequirementResult,
   YunxiaoTodoPoolAddArgs,
   YunxiaoTodoPoolItem,
-  YunxiaoTodoPoolUpdateArgs,
-  WorktreeSetupLaunch
-} from '../shared/worktree/launch-types'
-import type { GitPushTarget, WorktreeHeadIdentity } from '../shared/worktree/types'
+  YunxiaoTodoPoolUpdateArgs
+} from '../shared/yunxiao-types'
 import type { PtyModelRestoreNeededEvent } from '../shared/pty-model-restore-marker'
 import type { PtyListedSession } from '../shared/pty-listed-session'
 import type {

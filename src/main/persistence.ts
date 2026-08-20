@@ -8,6 +8,7 @@ import {
   renameSync,
   unlinkSync,
   copyFileSync,
+  rmSync,
   statSync,
   realpathSync
 } from 'node:fs'
@@ -83,6 +84,7 @@ import {
   normalizeProjectRuntimePreference
 } from '../shared/project-execution-runtime'
 import { projectHostSetupProjectionFromRepos } from '../shared/project-host-setup-projection'
+import { carryProjectStateThroughIdentityChange } from '../shared/project-identity-succession'
 import { isPluginPanelTabKey } from '../shared/plugins/plugin-manifest'
 import type { GitRemoteIdentity } from '../shared/git-remote-identity'
 import {
@@ -143,6 +145,7 @@ import {
 import { isFolderRepo } from '../shared/repo-kind'
 import {
   getRepoExecutionHostId,
+  isRuntimeOwnedSshTargetId,
   parseExecutionHostId,
   LOCAL_EXECUTION_HOST_ID,
   normalizeExecutionHostOrder,
@@ -200,7 +203,21 @@ import {
   FOLDER_WORKSPACE_INSTANCE_SEPARATOR,
   getRepoIdFromWorktreeId,
   getWorktreePathBasenameFromId
-} from '../shared/worktree-id'
+} from '../shared/worktree/id'
+import { normalizeRetirableGeneratedName } from './worktree-name-retirement'
+import {
+  migrateRetirementNamespaceHostIdentity,
+  recordRetirementNamespaceRegistry,
+  sshHostIdentity
+} from './worktree-retirement-namespace'
+import {
+  addRetiredNames,
+  clampExhaustedTiers,
+  compactRetiredNames,
+  EMPTY_RETIRED_NAME_REGISTRY,
+  isEmptyRetiredNameRegistry,
+  type RetiredNameRegistry
+} from '../shared/worktree/retired-name-registry'
 import {
   isPathInsideOrEqual,
   isWindowsAbsolutePathLike,
@@ -222,6 +239,13 @@ import {
 import { normalizeOpenInApplications } from '../shared/open-in-applications'
 import { normalizeTerminalShortcutPolicy } from '../shared/keybindings'
 import { normalizeSourceControlGroupOrder } from '../shared/source-control-group-order'
+import { mergeWorkspaceCleanupUIState } from '../shared/workspace-cleanup-ui-state'
+import { persistedNotificationSettingsRepaired } from './persistence/applying-settings/onboarding-normalization'
+import {
+  findCrossHostPaneTabIds,
+  withoutPaneTabIds
+} from './persistence/restoring-sessions/cross-host-pane-tab-ids'
+import { hasWorktreeRemovalRepoOwnerOnOtherHost } from './worktree-removal-repo-owner'
 import { normalizeAppIconId } from '../shared/app-icon'
 import { normalizeTerminalCustomThemes } from '../shared/terminal-custom-themes'
 import {
@@ -252,9 +276,21 @@ import {
 } from '../shared/workspace-statuses'
 import { clampMarkdownTocPanelWidth } from '../shared/markdown-toc-panel-width'
 import { clampCombinedDiffFileTreeWidth } from '../shared/combined-diff-file-tree-width'
-import { isLegacyRepoForExternalWorktreeVisibility } from '../shared/worktree-ownership'
+import { isLegacyRepoForExternalWorktreeVisibility } from '../shared/worktree/ownership'
+import {
+  migrateExternalWorktreeVisibilityDefaults,
+  normalizeWorktreeVisibilityDefaults
+} from '../shared/external-worktree-visibility'
+import {
+  normalizeCustomWorktreeVisibilitySources,
+  normalizeWorktreeVisibilitySourcePreferences
+} from '../shared/worktree/visibility-sources'
 import { sanitizeRepoIcon } from '../shared/repo-icon'
 import { normalizeRepoBadgeColor } from '../shared/repo-badge-color'
+import {
+  collectFolderWorkspaceDiffComments,
+  normalizeFolderWorkspaceDiffComments
+} from './folder-workspace-diff-comments'
 import {
   clearMissingProjectGroupMemberships,
   createProjectGroup,
@@ -564,10 +600,24 @@ export function migrateMobilePairingDataToCanonicalUserDataPath(sourceUserDataDi
   }
 
   mkdirSync(targetUserDataDir, { recursive: true })
-  for (const { sourcePath, targetPath } of migrations) {
-    copyFileSync(sourcePath, targetPath)
-    // Why: copyFileSync drops Windows ACLs, so re-assert current-user-only on these credential copies (device tokens, E2EE key).
-    hardenExistingSecureFile(targetPath)
+  const copied: string[] = []
+  try {
+    for (const { sourcePath, targetPath } of migrations) {
+      copyFileSync(sourcePath, targetPath)
+      copied.push(targetPath)
+      // Why: copyFileSync drops Windows ACLs, so re-assert current-user-only on these credential copies (device tokens, E2EE key).
+      hardenExistingSecureFile(targetPath)
+    }
+  } catch (error) {
+    // Why: a half-copied pair mixes devices with the wrong key, and the existing-target guard above would block the retry.
+    for (const targetPath of copied) {
+      try {
+        rmSync(targetPath, { force: true })
+      } catch {
+        // Best effort — leave the retry guard to the next launch.
+      }
+    }
+    console.error('[persistence] Failed to migrate mobile pairing files forward:', error)
   }
 }
 
@@ -738,11 +788,8 @@ function migrateTerminalScrollbackRows(settings: unknown): {
   needsSave: boolean
 } {
   const legacySettings = readLegacyTerminalScrollbackSettings(settings)
-  const hasRows = Object.prototype.hasOwnProperty.call(legacySettings, 'terminalScrollbackRows')
-  const hasLegacyBytes = Object.prototype.hasOwnProperty.call(
-    legacySettings,
-    'terminalScrollbackBytes'
-  )
+  const hasRows = Object.hasOwn(legacySettings, 'terminalScrollbackRows')
+  const hasLegacyBytes = Object.hasOwn(legacySettings, 'terminalScrollbackBytes')
   const rows = hasRows
     ? normalizeDesktopTerminalScrollbackRows(legacySettings.terminalScrollbackRows)
     : legacyTerminalScrollbackBytesToRows(legacySettings.terminalScrollbackBytes)
@@ -1042,10 +1089,20 @@ function normalizeNotificationSettings(value: unknown): NotificationSettings {
     typeof rawVolume === 'number' && Number.isFinite(rawVolume)
       ? Math.min(100, Math.max(0, rawVolume))
       : defaults.customSoundVolume
+  // Why field-by-field: a blanket spread let a type-flipped value on disk through, so `enabled: "false"`
+  // stayed truthy and `customSoundPath: 42` reached the sound loader.
+  const booleanOr = (raw: unknown, fallback: boolean): boolean =>
+    typeof raw === 'boolean' ? raw : fallback
   return {
-    ...defaults,
-    ...candidate,
+    enabled: booleanOr(candidate.enabled, defaults.enabled),
+    agentTaskComplete: booleanOr(candidate.agentTaskComplete, defaults.agentTaskComplete),
+    terminalBell: booleanOr(candidate.terminalBell, defaults.terminalBell),
+    suppressWhenFocused: booleanOr(candidate.suppressWhenFocused, defaults.suppressWhenFocused),
     customSoundId,
+    customSoundPath:
+      typeof candidate.customSoundPath === 'string'
+        ? candidate.customSoundPath
+        : defaults.customSoundPath,
     customSoundVolume
   }
 }
@@ -1648,6 +1705,17 @@ function sanitizeForkSyncMode(value: unknown): Repo['forkSyncMode'] | undefined 
   return value === 'ask' || value === 'safe-auto' || value === 'off' ? value : undefined
 }
 
+/**
+ * Cache key for a repo's resolved git username. Host-scoped because the same checkout path can exist
+ * on local, SSH, and runtime hosts with different `user.name`, and a path-only key hydrates one
+ * host's username onto another (wrong `git-username` branch prefix).
+ */
+function repoGitUsernameCacheKey(
+  repo: Pick<Repo, 'path' | 'connectionId' | 'executionHostId'>
+): string {
+  return `${getRepoExecutionHostId(repo)}\u0000${repo.path}`
+}
+
 function sanitizeRepoUpdatesForPersistence<
   T extends Partial<
     Pick<
@@ -1659,6 +1727,8 @@ function sanitizeRepoUpdatesForPersistence<
       | 'worktreeBasePath'
       | 'projectHostSetupMethod'
       | 'forkSyncMode'
+      | 'customWorktreeVisibilitySources'
+      | 'worktreeVisibilitySourcePreferences'
     >
   >
 >(updates: T): T {
@@ -1717,6 +1787,26 @@ function sanitizeRepoUpdatesForPersistence<
       delete sanitized.forkSyncMode
     } else {
       sanitized.forkSyncMode = forkSyncMode
+    }
+  }
+  if ('customWorktreeVisibilitySources' in sanitized) {
+    const sources = normalizeCustomWorktreeVisibilitySources(
+      sanitized.customWorktreeVisibilitySources
+    )
+    if (!sources) {
+      delete sanitized.customWorktreeVisibilitySources
+    } else {
+      sanitized.customWorktreeVisibilitySources = sources
+    }
+  }
+  if ('worktreeVisibilitySourcePreferences' in sanitized) {
+    const preferences = normalizeWorktreeVisibilitySourcePreferences(
+      sanitized.worktreeVisibilitySourcePreferences
+    )
+    if (!preferences) {
+      delete sanitized.worktreeVisibilitySourcePreferences
+    } else {
+      sanitized.worktreeVisibilitySourcePreferences = preferences
     }
   }
   return sanitized
@@ -1878,7 +1968,7 @@ type LayoutLeafNormalization = {
 
 function collectLayoutLeafCounts(
   node: TerminalPaneLayoutNode,
-  counts: Map<string, number> = new Map()
+  counts = new Map<string, number>()
 ): Map<string, number> {
   if (node.type === 'leaf') {
     counts.set(node.leafId, (counts.get(node.leafId) ?? 0) + 1)
@@ -2259,7 +2349,8 @@ function normalizeTerminalLayoutSnapshotForPersistence(
 
 function normalizeWorkspaceSessionPaneIdentities(
   session: WorkspaceSessionState,
-  priorLayoutsByTabId: Record<string, TerminalLayoutSnapshot> = {}
+  priorLayoutsByTabId: Record<string, TerminalLayoutSnapshot> = {},
+  options: { skipAliasTabIds?: ReadonlySet<string> } = {}
 ): {
   session: WorkspaceSessionState
   changed: boolean
@@ -2281,19 +2372,21 @@ function normalizeWorkspaceSessionPaneIdentities(
     )
     terminalLayoutsByTabId[tabId] = normalized.snapshot
     leafIdByInputLeafIdByTabId.set(tabId, normalized.leafIdByInputLeafId)
-    const migrationEntries = collectMigrationUnsupportedPtyEntries({
-      session,
-      tabId,
-      inputLayout: layout,
-      normalizedLayout: normalized.snapshot,
-      leafIdByInputLeafId: normalized.leafIdByInputLeafId
-    })
-    // Why: old split layouts can generate enough alias rows to exceed V8's argument limit if spread into push().
-    for (const entry of migrationEntries.migrationUnsupportedEntries) {
-      migrationUnsupportedEntries.push(entry)
-    }
-    for (const entry of migrationEntries.legacyPaneKeyAliasEntries) {
-      legacyPaneKeyAliasEntries.push(entry)
+    if (!options.skipAliasTabIds?.has(tabId)) {
+      const migrationEntries = collectMigrationUnsupportedPtyEntries({
+        session,
+        tabId,
+        inputLayout: layout,
+        normalizedLayout: normalized.snapshot,
+        leafIdByInputLeafId: normalized.leafIdByInputLeafId
+      })
+      // Why: old split layouts can generate enough alias rows to exceed V8's argument limit if spread into push().
+      for (const entry of migrationEntries.migrationUnsupportedEntries) {
+        migrationUnsupportedEntries.push(entry)
+      }
+      for (const entry of migrationEntries.legacyPaneKeyAliasEntries) {
+        legacyPaneKeyAliasEntries.push(entry)
+      }
     }
     const leafIdByPtyId = new Map<string, string>()
     const duplicatePtyIds = new Set<string>()
@@ -2323,25 +2416,39 @@ function normalizeWorkspaceSessionPaneIdentities(
 
 function remapSshRemotePtyLeaseLeafIds(
   leases: SshRemotePtyLease[],
-  leafIdByInputLeafIdByTabId: Map<string, Map<string, string>>,
-  leafIdByPtyIdByTabId: Map<string, Map<string, string>>
+  remapsByHostId: ReadonlyMap<ExecutionHostId, WorkspaceSessionPaneIdentityRemap>,
+  hostIdsWithWorkspaceSessions: ReadonlySet<ExecutionHostId> = new Set(remapsByHostId.keys())
 ): { leases: SshRemotePtyLease[]; changed: boolean } {
   let changed = false
   const nextLeases = leases.map((lease) => {
-    if (lease.leafId === undefined || isTerminalLeafId(lease.leafId)) {
+    if (lease.leafId === undefined) {
       return lease
     }
+    const hostId = toSshExecutionHostId(lease.targetId)
+    // Legacy unpartitioned state kept SSH panes in local; only fall back when this host has no partition.
+    const remap =
+      remapsByHostId.get(hostId) ??
+      (hostIdsWithWorkspaceSessions.has(hostId)
+        ? undefined
+        : remapsByHostId.get(LOCAL_EXECUTION_HOST_ID))
     const remappedLeafId = lease.tabId
-      ? leafIdByInputLeafIdByTabId.get(lease.tabId)?.get(lease.leafId)
+      ? remap?.leafIdByInputLeafIdByTabId.get(lease.tabId)?.get(lease.leafId)
       : undefined
     const leafIdForPty = lease.tabId
-      ? leafIdByPtyIdByTabId.get(lease.tabId)?.get(lease.ptyId)
+      ? remap?.leafIdByPtyIdByTabId.get(lease.tabId)?.get(lease.ptyId)
       : undefined
-    changed = true
     const nextLeafId = remappedLeafId ?? leafIdForPty
     if (nextLeafId) {
+      if (nextLeafId === lease.leafId) {
+        return lease
+      }
+      changed = true
       return { ...lease, leafId: nextLeafId }
     }
+    if (isTerminalLeafId(lease.leafId)) {
+      return lease
+    }
+    changed = true
     const next = { ...lease }
     // Why: unmatched legacy leaf ids are ambiguous after migration; don't re-persist them as durable pane identity.
     delete next.leafId
@@ -2350,27 +2457,91 @@ function remapSshRemotePtyLeaseLeafIds(
   return { leases: nextLeases, changed }
 }
 
+type WorkspaceSessionPaneIdentityRemap = {
+  leafIdByInputLeafIdByTabId: Map<string, Map<string, string>>
+  leafIdByPtyIdByTabId: Map<string, Map<string, string>>
+}
+
+/** Acknowledgement keys lack host metadata, so an already-mapped tab keeps its mapping. */
+function mergeAcknowledgementLeafIdMapsByTabId(
+  target: Map<string, Map<string, string>>,
+  source: Map<string, Map<string, string>>
+): Map<string, Map<string, string>> {
+  const merged = new Map(target)
+  for (const [tabId, leafIds] of source) {
+    const existing = merged.get(tabId)
+    merged.set(tabId, existing ? new Map([...leafIds, ...existing]) : new Map(leafIds))
+  }
+  return merged
+}
+
 function normalizePersistedPaneIdentityState(state: PersistedState): {
   state: PersistedState
   changed: boolean
   migrationUnsupportedEntries: MigrationUnsupportedPtyEntry[]
   legacyPaneKeyAliasEntries: LegacyPaneKeyAliasEntry[]
 } {
-  const normalizedSession = normalizeWorkspaceSessionPaneIdentities(state.workspaceSession, {})
+  const crossHostTabIds = findCrossHostPaneTabIds(state)
+  const normalizedSession = normalizeWorkspaceSessionPaneIdentities(
+    state.workspaceSession,
+    {},
+    {
+      skipAliasTabIds: crossHostTabIds
+    }
+  )
+  let acknowledgementLeafIdByInputLeafIdByTabId = normalizedSession.leafIdByInputLeafIdByTabId
+  const remapsByHostId = new Map<ExecutionHostId, WorkspaceSessionPaneIdentityRemap>([
+    [LOCAL_EXECUTION_HOST_ID, normalizedSession]
+  ])
+  const hostSessionLegacyPaneKeyAliasEntries: LegacyPaneKeyAliasEntry[] = []
+  // Why: SSH/runtime hosts keep their own session blob, and their legacy leaves need the same UUID
+  // rewrite — otherwise their leases and read markers still point at `pane:1` after migration.
+  const normalizedHostSessions = state.workspaceSessionsByHostId
+    ? { ...state.workspaceSessionsByHostId }
+    : undefined
+  let hostSessionsChanged = false
+  if (normalizedHostSessions) {
+    for (const hostId of Object.keys(
+      normalizedHostSessions
+    ) as (keyof typeof normalizedHostSessions)[]) {
+      const hostSession = normalizedHostSessions[hostId]
+      if (!hostSession) {
+        continue
+      }
+      const normalizedHostSession = normalizeWorkspaceSessionPaneIdentities(
+        hostSession,
+        {},
+        {
+          skipAliasTabIds: crossHostTabIds
+        }
+      )
+      normalizedHostSessions[hostId] = normalizedHostSession.session
+      remapsByHostId.set(hostId, normalizedHostSession)
+      acknowledgementLeafIdByInputLeafIdByTabId = mergeAcknowledgementLeafIdMapsByTabId(
+        acknowledgementLeafIdByInputLeafIdByTabId,
+        normalizedHostSession.leafIdByInputLeafIdByTabId
+      )
+      for (const entry of normalizedHostSession.legacyPaneKeyAliasEntries) {
+        hostSessionLegacyPaneKeyAliasEntries.push(entry)
+      }
+      hostSessionsChanged ||= normalizedHostSession.changed
+    }
+  }
   const remappedLeases = remapSshRemotePtyLeaseLeafIds(
     state.sshRemotePtyLeases ?? [],
-    normalizedSession.leafIdByInputLeafIdByTabId,
-    normalizedSession.leafIdByPtyIdByTabId
+    remapsByHostId
   )
   const mergedMigrationUnsupportedEntries: MigrationUnsupportedPtyEntry[] = []
   const mergedLegacyPaneKeyAliasEntries = mergeLegacyPaneKeyAliasEntries([
     ...normalizeLegacyPaneKeyAliasEntries(state.legacyPaneKeyAliasEntries),
     ...legacyMigrationUnsupportedRowsToAliasEntries(state.migrationUnsupportedPtyEntries ?? []),
-    ...normalizedSession.legacyPaneKeyAliasEntries
-  ])
+    ...normalizedSession.legacyPaneKeyAliasEntries,
+    ...hostSessionLegacyPaneKeyAliasEntries
+    // Rows an older build wrote for a now-colliding tab id would keep the ambiguous routing alive.
+  ]).filter((entry) => !crossHostTabIds.has(parsePaneKey(entry.stablePaneKey)?.tabId ?? ''))
   const remappedAcknowledgements = remapAcknowledgedAgentPaneKeys(
     state.ui?.acknowledgedAgentsByPaneKey,
-    normalizedSession.leafIdByInputLeafIdByTabId
+    withoutPaneTabIds(acknowledgementLeafIdByInputLeafIdByTabId, crossHostTabIds)
   )
   const migrationUnsupportedChanged = !migrationUnsupportedEntriesEqual(
     state.migrationUnsupportedPtyEntries ?? [],
@@ -2382,6 +2553,7 @@ function normalizePersistedPaneIdentityState(state: PersistedState): {
   )
   if (
     !normalizedSession.changed &&
+    !hostSessionsChanged &&
     !remappedLeases.changed &&
     !migrationUnsupportedChanged &&
     !legacyAliasesChanged &&
@@ -2398,6 +2570,7 @@ function normalizePersistedPaneIdentityState(state: PersistedState): {
     state: {
       ...state,
       workspaceSession: normalizedSession.session,
+      ...(normalizedHostSessions ? { workspaceSessionsByHostId: normalizedHostSessions } : {}),
       sshRemotePtyLeases: remappedLeases.leases,
       migrationUnsupportedPtyEntries: mergedMigrationUnsupportedEntries,
       legacyPaneKeyAliasEntries: mergedLegacyPaneKeyAliasEntries,
@@ -2488,6 +2661,43 @@ function normalizeClaudeLivePtySessionIds(value: unknown): string[] {
     }
   }
   return ids.toReversed()
+}
+
+function normalizeRetiredNameRegistry(row: unknown): RetiredNameRegistry {
+  const isPlainArray = Array.isArray(row)
+  const rawRow = row as { exhaustedTiers?: unknown; names?: unknown } | null | undefined
+  const rawNames = isPlainArray ? row : Array.isArray(rawRow?.names) ? rawRow.names : []
+  const names = new Set<string>()
+  for (const entry of rawNames) {
+    if (typeof entry !== 'string') {
+      continue
+    }
+    const normalized = normalizeRetirableGeneratedName(entry)
+    if (normalized) {
+      names.add(normalized)
+    }
+  }
+  return compactRetiredNames({
+    exhaustedTiers: isPlainArray ? 0 : clampExhaustedTiers(rawRow?.exhaustedTiers),
+    names: [...names]
+  })
+}
+
+function normalizeRetiredNameRegistryMap(value: unknown): Record<string, RetiredNameRegistry> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  const byRepo: Record<string, RetiredNameRegistry> = {}
+  for (const [repoId, row] of Object.entries(value as Record<string, unknown>)) {
+    if (!repoId) {
+      continue
+    }
+    const registry = normalizeRetiredNameRegistry(row)
+    if (!isEmptyRetiredNameRegistry(registry)) {
+      byRepo[repoId] = registry
+    }
+  }
+  return byRepo
 }
 
 function normalizeMigrationUnsupportedPtyEntries(value: unknown): MigrationUnsupportedPtyEntry[] {
@@ -2618,24 +2828,40 @@ function isRepoBackedProjectHostSetup(
   return repoId.length > 0 && (currentRepoIds.has(repoId) || setup.id === repoId)
 }
 
+function projectHostKey(setup: Pick<ProjectHostSetup, 'projectId' | 'hostId'>): string {
+  return `${setup.projectId}\u0000${setup.hostId}`
+}
+
 function mergeProjectHostSetupCompatibilityState(
   state: Pick<PersistedState, 'projects' | 'projectHostSetups'>,
   repos: readonly Repo[]
 ): Pick<PersistedState, 'projects' | 'projectHostSetups'> {
   const projection = projectHostSetupProjectionFromRepos(repos)
-  const existingProjectsById = new Map(
-    (state.projects ?? []).map((project) => [project.id, project])
+  const succession = carryProjectStateThroughIdentityChange(
+    projection.projects,
+    state.projects ?? []
   )
   const currentRepoIds = new Set(repos.map((repo) => repo.id))
   const projectedProjectIds = new Set(projection.projects.map((project) => project.id))
   const projectedSetupIds = new Set(projection.setups.map((setup) => setup.id))
+  const projectedHosts = new Set(projection.setups.map(projectHostKey))
   // Why: legacy/repo-backed setup rows reuse the repo id; keep only independent rows so repo deletion leaves no ghosts.
-  const independentSetups = (state.projectHostSetups ?? []).filter((setup) => {
-    if (projectedSetupIds.has(setup.id)) {
-      return false
-    }
-    return !isRepoBackedProjectHostSetup(setup, currentRepoIds)
-  })
+  const independentSetups = (state.projectHostSetups ?? [])
+    .filter((setup) => {
+      if (projectedSetupIds.has(setup.id)) {
+        return false
+      }
+      return !isRepoBackedProjectHostSetup(setup, currentRepoIds)
+    })
+    // Why: follow the repo's project through a derived-id change so no ghost project row survives.
+    .map((setup) => {
+      const remappedProjectId = succession.remappedProjectIds.get(setup.projectId)
+      return remappedProjectId ? { ...setup, projectId: remappedProjectId } : setup
+    })
+    // Why: a project resolves to one setup per host. Once a repo projection covers that
+    // pair, a leftover placeholder is a ghost that shadows the ready row — it sorts first
+    // and reads back as "not set up". Runs after the remap so renamed rows are caught too.
+    .filter((setup) => !projectedHosts.has(projectHostKey(setup)))
   const independentProjectIds = new Set(independentSetups.map((setup) => setup.projectId))
   const independentProjects = (state.projects ?? [])
     .filter(
@@ -2645,18 +2871,8 @@ function mergeProjectHostSetupCompatibilityState(
       ...project,
       sourceRepoIds: project.sourceRepoIds.filter((repoId) => currentRepoIds.has(repoId))
     }))
-  const projectedProjects = projection.projects.map((project) => {
-    const existingProject = existingProjectsById.get(project.id)
-    return existingProject?.localWindowsRuntimePreference
-      ? {
-          ...project,
-          localWindowsRuntimePreference: existingProject.localWindowsRuntimePreference,
-          updatedAt: Math.max(project.updatedAt, existingProject.updatedAt)
-        }
-      : project
-  })
   return {
-    projects: [...projectedProjects, ...independentProjects],
+    projects: [...succession.projects, ...independentProjects],
     projectHostSetups: [...projection.setups, ...independentSetups]
   }
 }
@@ -3814,6 +4030,14 @@ export type StoreOptions = {
   dataFile?: string
 }
 
+export type PtyBindingSourceExpectation = {
+  worktreeId?: string
+  tabId: string
+  leafId: string
+  ptyId: string
+  incarnationId?: string
+}
+
 export class Store {
   private state: PersistedState
   private readonly dataFile: string
@@ -3875,6 +4099,7 @@ export class Store {
     // profile avoids serializing the multi-MB recovery store on navigation.
     this.activeViewPreference = new ActiveViewPreference(this.dataFile, this.state.ui?.activeView)
     const adaptedProjectGroups = this.adaptFlatFolderScanProjectGroups()
+    this.hydrateFolderWorkspaceDiffComments()
     for (const entry of normalized.migrationUnsupportedEntries) {
       setMigrationUnsupportedPty(entry)
     }
@@ -3893,6 +4118,33 @@ export class Store {
       // Why: rewrite legacy pane:1 leaves so older renderer writes can't revive them; other migrations also set loadNeedsSave.
       this.scheduleSave()
     }
+  }
+
+  // Why: notes live top-level on disk so an older build's field-by-field
+  // normalizeFolderWorkspaces can't drop them; re-attach them to the in-memory records here.
+  private hydrateFolderWorkspaceDiffComments(): void {
+    const stored = this.state.folderWorkspaceDiffComments
+    let relocatedInline = false
+    for (const workspace of this.state.folderWorkspaces ?? []) {
+      if (Array.isArray(workspace.diffComments) && workspace.diffComments.length > 0) {
+        // Inline wins: an intervening rollback to a #14112 build writes notes inline and leaves the
+        // older map untouched, so inline is the last notes-aware write. Also makes the relocation
+        // durable even if the user never edits anything this session.
+        relocatedInline = true
+        continue
+      }
+      const comments = stored?.[workspace.id]
+      // Not `??`: a degenerate `{ id: [] }` entry must not delete an intact inline value.
+      if (Array.isArray(comments) && comments.length > 0) {
+        workspace.diffComments = comments
+      }
+    }
+    if (relocatedInline) {
+      this.loadNeedsSave = true
+    }
+    // Write-only projection: buildStateToSave() is the only producer, so leaving the loaded map in
+    // state would make it a stale second source of truth that getDurableState() spreads back out.
+    delete this.state.folderWorkspaceDiffComments
   }
 
   private adaptFlatFolderScanProjectGroups(): boolean {
@@ -4171,6 +4423,13 @@ export class Store {
         // Merge with defaults in case new fields were added
         const homeDir = homedir()
         const defaults = getDefaultPersistedState(homeDir)
+        const migratedExternalVisibility = migrateExternalWorktreeVisibilityDefaults(
+          Array.isArray(parsed.repos) ? parsed.repos : [],
+          parsed.settings?.worktreeVisibilityDefaults
+        )
+        if (migratedExternalVisibility.changed) {
+          this.loadNeedsSave = true
+        }
         const migratedTerminalScrollback = migrateTerminalScrollbackRows(parsed.settings)
         if (migratedTerminalScrollback.needsSave) {
           this.loadNeedsSave = true
@@ -4439,9 +4698,23 @@ export class Store {
         ) {
           this.loadNeedsSave = true
         }
+        const normalizedNotifications = normalizeNotificationSettings(
+          parsed.settings?.notifications
+        )
+        // Why: a type-flipped notification field is repaired in memory only; without a dirty mark the
+        // bad value stays on disk and the repair reruns on every launch.
+        if (
+          persistedNotificationSettingsRepaired(
+            parsed.settings?.notifications,
+            normalizedNotifications
+          )
+        ) {
+          this.loadNeedsSave = true
+        }
         result = {
           ...defaults,
           ...parsed,
+          repos: migratedExternalVisibility.repos,
           featureInteractionTelemetryBuckets: normalizeFeatureInteractionTelemetryBuckets(
             parsed.featureInteractionTelemetryBuckets
           ),
@@ -4449,6 +4722,9 @@ export class Store {
           folderWorkspaces: normalizeFolderWorkspaces(
             parsed.folderWorkspaces,
             normalizedProjectGroups
+          ),
+          folderWorkspaceDiffComments: normalizeFolderWorkspaceDiffComments(
+            parsed.folderWorkspaceDiffComments
           ),
           yunxiaoTodoPool: normalizeYunxiaoTodoPool(parsed.yunxiaoTodoPool),
           worktreeLineageById: parsed.worktreeLineageById ?? {},
@@ -4462,6 +4738,7 @@ export class Store {
             ...defaults.settings,
             // Why (#7977): keep persisted experimentalNewWorktreeCardStyle:true — v1.4.130's onboarding auto-wrote it as a plain boolean, so it's indistinguishable from a real opt-in; only the default changed.
             ...stripLegacyTerminalScrollbackBytes(parsed.settings),
+            worktreeVisibilityDefaults: migratedExternalVisibility.defaults,
             prBotAuthorOverrides: normalizePRBotAuthorOverrides(
               parsed.settings?.prBotAuthorOverrides
             ),
@@ -4535,7 +4812,7 @@ export class Store {
             openInApplications: normalizeOpenInApplications(parsed.settings?.openInApplications, {
               seedDefaults: true
             }),
-            notifications: normalizeNotificationSettings(parsed.settings?.notifications),
+            notifications: normalizedNotifications,
             sourceControlAi: migratedSourceControlAi,
             sourceControlGroupOrder: normalizedSourceControlGroupOrder,
             // Why: rollback builds still read commitMessageAi, so refresh the legacy projection from sourceControlAi for compat.
@@ -4652,6 +4929,20 @@ export class Store {
             ) {
               this.loadNeedsSave = true
             }
+            const rawExplorerView = parsed.ui?.rightSidebarExplorerView
+            const rightSidebarExplorerView = normalizeRightSidebarExplorerView(
+              rawExplorerView,
+              parsed.ui?.rightSidebarTab
+            )
+            // Why: without a dirty mark the legacy "Search tab, no explorer view" repair stays
+            // in memory only, so a profile that never writes again redoes it on every launch.
+            if (
+              rawExplorerView === undefined
+                ? rightSidebarExplorerView !== defaults.ui.rightSidebarExplorerView
+                : rawExplorerView !== rightSidebarExplorerView
+            ) {
+              this.loadNeedsSave = true
+            }
             const setupGuideSidebarDismissed = resolveSetupGuideSidebarDismissedOnLoad(
               parsed.ui?.setupGuideSidebarDismissed,
               normalizedOnboarding
@@ -4689,6 +4980,9 @@ export class Store {
               // Why: migrate once from the retired Appearance setting only when no explicit chrome preference exists yet.
               rightSidebarOpen,
               rightSidebarTab: normalizeRightSidebarTab(parsed.ui?.rightSidebarTab),
+              // Why here and not in getPersistedUI: only the raw payload still shows the legacy
+              // "Search tab, no explorer view" shape — the defaults spread above fills in 'files'.
+              rightSidebarExplorerView,
               setupGuideSidebarDismissed,
               usagePercentageDisplayChangeNoticeDismissed,
               setupGuideBrowserMilestoneMigrated:
@@ -4761,6 +5055,12 @@ export class Store {
                 (alias): alias is string => typeof alias === 'string'
               )
             : [],
+          retiredWorktreeNamesByRepo: normalizeRetiredNameRegistryMap(
+            parsed.retiredWorktreeNamesByRepo
+          ),
+          retiredWorktreeNamesByNamespace: normalizeRetiredNameRegistryMap(
+            parsed.retiredWorktreeNamesByNamespace
+          ),
           sshRemotePtyLeases: (parsed.sshRemotePtyLeases ?? [])
             .map(normalizeSshRemotePtyLease)
             .filter((lease): lease is SshRemotePtyLease => lease !== null),
@@ -5062,6 +5362,13 @@ export class Store {
     // Why: clone before encrypting secrets so in-memory this.state stays plaintext.
     const stateToSave = {
       ...this.getDurableState(),
+      // Why both keys unconditionally: the explicit keys always win over the spread, and
+      // JSON.stringify drops the `undefined` value so a note-free profile gains no key on disk.
+      // The strip builds a new array here only; this.state records keep their notes in memory.
+      folderWorkspaces: (this.state.folderWorkspaces ?? []).map(
+        ({ diffComments: _relocated, ...rest }) => rest
+      ),
+      folderWorkspaceDiffComments: collectFolderWorkspaceDiffComments(this.state.folderWorkspaces),
       sshPtyConsumerRecoveries: (this.state.sshPtyConsumerRecoveries ?? []).map((record) => ({
         ...record,
         ownerLease: encryptToSentinel(
@@ -5417,15 +5724,24 @@ export class Store {
 
   /**
    * Record a background-resolved git username; kept out of updateRepo's whitelist so the renderer can't write it directly.
+   * Takes the probed repo, not just its id: the same id can exist on several execution hosts, and an
+   * id-only lookup would write one host's username onto a sibling host's row and cache key.
    * @returns true when the hydrated value changed.
    */
-  setResolvedRepoGitUsername(id: string, username: string): boolean {
-    const repo = this.state.repos.find((r) => r.id === id)
+  setResolvedRepoGitUsername(
+    target: Pick<Repo, 'id' | 'connectionId' | 'executionHostId'>,
+    username: string
+  ): boolean {
+    const targetHostId = getRepoExecutionHostId(target)
+    const repo = this.state.repos.find(
+      (r) => r.id === target.id && getRepoExecutionHostId(r) === targetHostId
+    )
     if (!repo) {
       return false
     }
-    const previous = this.gitUsernameCache.get(repo.path) ?? repo.gitUsername ?? ''
-    this.gitUsernameCache.set(repo.path, username)
+    const cacheKey = repoGitUsernameCacheKey(repo)
+    const previous = this.gitUsernameCache.get(cacheKey) ?? repo.gitUsername ?? ''
+    this.gitUsernameCache.set(cacheKey, username)
     if (previous === username) {
       return false
     }
@@ -5552,7 +5868,7 @@ export class Store {
     const folderPath =
       typeof input.folderPath === 'string' && input.folderPath.trim().length > 0
         ? input.folderPath
-        : group?.parentPath
+        : group?.parentPath?.trim()
     if (!group || !folderPath) {
       throw new Error('Folder-backed project group not found.')
     }
@@ -5608,6 +5924,7 @@ export class Store {
         | 'pendingFirstAgentMessageRename'
         | 'firstAgentMessageRenameError'
         | 'lastActivityAt'
+        | 'diffComments'
       >
     >
   ): FolderWorkspace | null {
@@ -5680,6 +5997,9 @@ export class Store {
     }
     if (updates.lastActivityAt !== undefined && Number.isFinite(updates.lastActivityAt)) {
       workspace.lastActivityAt = updates.lastActivityAt
+    }
+    if (updates.diffComments !== undefined) {
+      workspace.diffComments = updates.diffComments
     }
     workspace.updatedAt = Date.now()
     this.scheduleSave()
@@ -6171,6 +6491,7 @@ export class Store {
     this.syncProjectHostSetupCompatibilityState()
     // Why: presets are repo-scoped and unreachable once the repo is gone, so drop them with it.
     delete this.state.sparsePresetsByRepo[id]
+    delete this.state.retiredWorktreeNamesByRepo?.[id]
     this.pruneWorktreeStateForRepo(id, null)
     this.state.workspaceSession = removeRepoFromWorkspaceSession(this.state.workspaceSession, id)
     this.state.workspaceSessionsByHostId = removeRepoFromHostWorkspaceSessions(
@@ -6186,9 +6507,10 @@ export class Store {
       (r) => !(r.id === id && getRepoExecutionHostId(r) === hostId)
     )
     const idStillPresent = this.state.repos.some((r) => r.id === id)
-    // Why: presets are repo-id-scoped (not host-scoped); drop them only when the last host's copy is gone.
+    // Why: presets and retirements are repo-id-scoped (not host-scoped); drop them only when the last host's copy is gone.
     if (!idStillPresent) {
       delete this.state.sparsePresetsByRepo[id]
+      delete this.state.retiredWorktreeNamesByRepo?.[id]
     }
     this.syncProjectHostSetupCompatibilityState()
     // Why: prune only this host's worktree metas if the id survives elsewhere; otherwise prune everything (matches removeProject).
@@ -6344,15 +6666,18 @@ export class Store {
         | 'symlinkPaths'
         | 'issueSourcePreference'
         | 'forkSyncMode'
-        | 'externalWorktreeVisibility'
         | 'externalWorktreeVisibilityPromptDismissedAt'
         | 'externalWorktreeInboxBaselinePaths'
         | 'importedExternalWorktreePaths'
+        | 'customWorktreeVisibilitySources'
+        | 'worktreeVisibilitySourcePreferences'
         | 'projectGroupId'
         | 'projectGroupOrder'
         | 'projectHostSetupMethod'
       >
     > & {
+      externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null
+      agentWorktreeVisibility?: Repo['agentWorktreeVisibility'] | null
       sourceControlAi?: Repo['sourceControlAi'] | null
       externalWorktreeDiscoverySuppressedAt?: Repo['externalWorktreeDiscoverySuppressedAt'] | null
     },
@@ -6366,6 +6691,25 @@ export class Store {
       return null
     }
     const sanitizedUpdates = sanitizeRepoUpdatesForPersistence(updates)
+    if (
+      'agentWorktreeVisibility' in sanitizedUpdates &&
+      !('worktreeVisibilitySourcePreferences' in sanitizedUpdates) &&
+      (sanitizedUpdates.agentWorktreeVisibility === 'hide' ||
+        sanitizedUpdates.agentWorktreeVisibility === 'show')
+    ) {
+      // Why normalize: the stored value is spread in as-is, so a legacy/corrupt custom map would be
+      // written straight back without passing the same validation as a renderer-supplied patch.
+      const preferences = normalizeWorktreeVisibilitySourcePreferences({
+        ...repo.worktreeVisibilitySourcePreferences,
+        builtIn: {
+          claude: sanitizedUpdates.agentWorktreeVisibility,
+          gsd: sanitizedUpdates.agentWorktreeVisibility
+        }
+      })
+      if (preferences) {
+        sanitizedUpdates.worktreeVisibilitySourcePreferences = preferences
+      }
+    }
     if ('projectGroupId' in sanitizedUpdates) {
       const nextGroupId = sanitizedUpdates.projectGroupId
       if (
@@ -6399,6 +6743,22 @@ export class Store {
     if ('worktreeBasePath' in sanitizedUpdates && sanitizedUpdates.worktreeBasePath === undefined) {
       delete repo.worktreeBasePath
       delete sanitizedUpdates.worktreeBasePath
+    }
+    if (
+      'externalWorktreeVisibility' in sanitizedUpdates &&
+      (sanitizedUpdates.externalWorktreeVisibility === undefined ||
+        sanitizedUpdates.externalWorktreeVisibility === null)
+    ) {
+      delete repo.externalWorktreeVisibility
+      repo.externalWorktreeVisibilityLegacy = false
+      delete sanitizedUpdates.externalWorktreeVisibility
+    }
+    if (
+      'agentWorktreeVisibility' in sanitizedUpdates &&
+      sanitizedUpdates.agentWorktreeVisibility === null
+    ) {
+      delete repo.agentWorktreeVisibility
+      delete sanitizedUpdates.agentWorktreeVisibility
     }
     if (
       'externalWorktreeVisibility' in sanitizedUpdates &&
@@ -6531,6 +6891,8 @@ export class Store {
       sourceControlAi: rawSourceControlAi,
       projectHostSetupMethod: rawProjectHostSetupMethod,
       forkSyncMode: rawForkSyncMode,
+      customWorktreeVisibilitySources: rawCustomWorktreeVisibilitySources,
+      worktreeVisibilitySourcePreferences: rawWorktreeVisibilitySourcePreferences,
       ...repoWithoutIcon
     } = repo
     const repoIcon = sanitizeRepoIcon(rawRepoIcon)
@@ -6539,10 +6901,16 @@ export class Store {
     const sourceControlAi = normalizeRepoSourceControlAiOverrides(rawSourceControlAi)
     const projectHostSetupMethod = sanitizeRepoProjectHostSetupMethod(rawProjectHostSetupMethod)
     const forkSyncMode = sanitizeForkSyncMode(rawForkSyncMode)
+    const customWorktreeVisibilitySources = normalizeCustomWorktreeVisibilitySources(
+      rawCustomWorktreeVisibilitySources
+    )
+    const worktreeVisibilitySourcePreferences = normalizeWorktreeVisibilitySourcePreferences(
+      rawWorktreeVisibilitySourcePreferences
+    )
     // Why: never spawn git/gh username resolution in hydration — a stuck probe froze Windows startup for minutes (issue #7225); read only cache/persisted value.
     const gitUsername = isFolderRepo(repo)
       ? ''
-      : (this.gitUsernameCache.get(repo.path) ?? repo.gitUsername ?? '')
+      : (this.gitUsernameCache.get(repoGitUsernameCacheKey(repo)) ?? repo.gitUsername ?? '')
 
     return {
       ...repoWithoutIcon,
@@ -6552,6 +6920,10 @@ export class Store {
       ...(sourceControlAi !== undefined ? { sourceControlAi } : {}),
       ...(projectHostSetupMethod !== undefined ? { projectHostSetupMethod } : {}),
       ...(forkSyncMode !== undefined ? { forkSyncMode } : {}),
+      ...(customWorktreeVisibilitySources !== undefined ? { customWorktreeVisibilitySources } : {}),
+      ...(worktreeVisibilitySourcePreferences !== undefined
+        ? { worktreeVisibilitySourcePreferences }
+        : {}),
       kind: isFolderRepo(repo) ? 'folder' : 'git',
       gitUsername,
       hookSettings: {
@@ -6668,6 +7040,11 @@ export class Store {
       throw new Error('Automation not found.')
     }
     const current = this.state.automations[index]
+    // Why: the renderer forwards a Partial verbatim, so `{ enabled: undefined }` survives structuredClone
+    // and would blank the stored value in the spread below. Explicit clears go through the `null` branches.
+    const definedUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([, value]) => value !== undefined)
+    ) as AutomationUpdateInput
     const repoId = updates.projectId ?? current.projectId
     const repo = this.state.repos.find((entry) => entry.id === repoId)
     const executionTargetType = repo?.connectionId ? 'ssh' : 'local'
@@ -6679,23 +7056,23 @@ export class Store {
     const workspaceMode = updates.workspaceMode ?? current.workspaceMode
     const updated: Automation = {
       ...current,
-      ...updates,
+      ...definedUpdates,
       name:
         updates.name !== undefined ? updates.name.trim() || 'Untitled automation' : current.name,
-      precheck: Object.hasOwn(updates, 'precheck')
-        ? normalizeAutomationPrecheck(updates.precheck)
+      precheck: Object.hasOwn(definedUpdates, 'precheck')
+        ? normalizeAutomationPrecheck(definedUpdates.precheck)
         : normalizeAutomationPrecheck(current.precheck),
-      yunxiaoTodoPool: Object.hasOwn(updates, 'yunxiaoTodoPool')
-        ? normalizeAutomationYunxiaoTodoPoolSource(updates.yunxiaoTodoPool)
+      yunxiaoTodoPool: Object.hasOwn(definedUpdates, 'yunxiaoTodoPool')
+        ? normalizeAutomationYunxiaoTodoPoolSource(definedUpdates.yunxiaoTodoPool)
         : normalizeAutomationYunxiaoTodoPoolSource(current.yunxiaoTodoPool),
       projectId: repoId,
-      runContext: Object.hasOwn(updates, 'runContext')
-        ? (updates.runContext ?? null)
+      runContext: Object.hasOwn(definedUpdates, 'runContext')
+        ? (definedUpdates.runContext ?? null)
         : updates.projectId !== undefined
           ? contexts.runContext
           : (current.runContext ?? contexts.runContext),
-      sourceContext: Object.hasOwn(updates, 'sourceContext')
-        ? (updates.sourceContext ?? null)
+      sourceContext: Object.hasOwn(definedUpdates, 'sourceContext')
+        ? (definedUpdates.sourceContext ?? null)
         : updates.projectId !== undefined
           ? contexts.sourceContext
           : (current.sourceContext ?? contexts.sourceContext),
@@ -6705,20 +7082,23 @@ export class Store {
       workspaceMode,
       workspaceId:
         workspaceMode === 'existing'
-          ? Object.hasOwn(updates, 'workspaceId')
-            ? (updates.workspaceId ?? null)
+          ? Object.hasOwn(definedUpdates, 'workspaceId')
+            ? (definedUpdates.workspaceId ?? null)
             : current.workspaceId
           : null,
       baseBranch:
         workspaceMode === 'new_per_run'
-          ? Object.hasOwn(updates, 'baseBranch')
-            ? (updates.baseBranch ?? null)
+          ? Object.hasOwn(definedUpdates, 'baseBranch')
+            ? (definedUpdates.baseBranch ?? null)
             : (current.baseBranch ?? null)
           : null,
       setupDecision:
         workspaceMode === 'new_per_run'
-          ? Object.hasOwn(updates, 'setupDecision')
-            ? normalizeAutomationSetupDecisionForWorkspaceMode(workspaceMode, updates.setupDecision)
+          ? Object.hasOwn(definedUpdates, 'setupDecision')
+            ? normalizeAutomationSetupDecisionForWorkspaceMode(
+                workspaceMode,
+                definedUpdates.setupDecision
+              )
             : normalizeAutomationSetupDecisionForWorkspaceMode(workspaceMode, current.setupDecision)
           : undefined,
       reuseSession:
@@ -6992,17 +7372,34 @@ export class Store {
   }
 
   removeWorktreeMeta(worktreeId: string, hostId?: ExecutionHostId | null): void {
-    // Persisted ownership beats stale live routing; hostId is only an ownerless fallback.
-    const owner = this.state.worktreeMeta[worktreeId]?.hostId ?? hostId
+    // A host-qualified removal names the owner; the persisted host is the fallback.
+    const persistedOwner = this.state.worktreeMeta[worktreeId]?.hostId
+    const owner = hostId ?? persistedOwner
+    const preservesDifferentPersistedOwner = Boolean(
+      hostId && persistedOwner && persistedOwner !== hostId
+    )
+    const ownerPartition = workspaceSessionOwnerPartitionForHost(owner)
+    const preservesSameIdSessionOwner = Boolean(
+      preservesDifferentPersistedOwner ||
+      (owner &&
+        hasWorktreeRemovalRepoOwnerOnOtherHost(
+          this,
+          getRepoIdFromWorktreeId(worktreeId),
+          ownerPartition
+        ))
+    )
     // Skip partitions main never wrote: materializing one fences every sibling worktree of the repo.
     const partitions = new Set<ExecutionHostId>(
-      workspaceSessionPartitionIdsForHost(owner).filter((partition) =>
-        this.hasPersistedWorkspaceSession(partition)
+      workspaceSessionPartitionIdsForHost(owner).filter(
+        (partition) =>
+          this.hasPersistedWorkspaceSession(partition) &&
+          // The local partition can be a remote spill surface or a same-id owner.
+          // Preserve it whenever another owner may still use the bare id.
+          (!preservesSameIdSessionOwner || partition === ownerPartition)
       )
     )
     // A repo-wide fence must not rebase a sibling's unpersisted tabs onto main's copy, and a spill
     // partition that never held this worktree has no claim on the repo at all.
-    const ownerPartition = workspaceSessionOwnerPartitionForHost(owner)
     const fencedPartitions = new Set(
       [...partitions].filter(
         (partition) =>
@@ -7011,9 +7408,11 @@ export class Store {
             !this.partitionHasOtherRepoWorktreeTabs(worktreeId, partition))
       )
     )
-    delete this.state.worktreeMeta[worktreeId]
-    delete this.state.worktreeLineageById[worktreeId]
-    delete this.state.workspaceLineageByChildKey[worktreeWorkspaceKey(worktreeId)]
+    if (!preservesDifferentPersistedOwner) {
+      delete this.state.worktreeMeta[worktreeId]
+      delete this.state.worktreeLineageById[worktreeId]
+      delete this.state.workspaceLineageByChildKey[worktreeWorkspaceKey(worktreeId)]
+    }
     for (const partition of partitions) {
       this.removeWorkspaceSessionOwnerInPartition(worktreeId, partition, {
         advanceTerminalTopologyRevision: fencedPartitions.has(partition)
@@ -7272,6 +7671,10 @@ export class Store {
 
   // ── Settings ───────────────────────────────────────────────────────
 
+  getProfileStorageDirectory(): string {
+    return dirname(this.dataFile)
+  }
+
   getSettings(): GlobalSettings {
     return this.state.settings
   }
@@ -7338,8 +7741,19 @@ export class Store {
     if ('artifactSharingEnabled' in updates) {
       sanitizedUpdates.artifactSharingEnabled = updates.artifactSharingEnabled === true
     }
+    if ('agentSkillSharingEnabled' in updates) {
+      sanitizedUpdates.agentSkillSharingEnabled = updates.agentSkillSharingEnabled === true
+    }
     if ('disabledTuiAgents' in updates) {
       sanitizedUpdates.disabledTuiAgents = normalizeDisabledTuiAgents(updates.disabledTuiAgents)
+    }
+    if ('worktreeVisibilityDefaults' in updates) {
+      sanitizedUpdates.worktreeVisibilityDefaults = {
+        ...this.state.settings.worktreeVisibilityDefaults,
+        ...(normalizeWorktreeVisibilityDefaults(updates.worktreeVisibilityDefaults) ?? {
+          external: 'hide'
+        })
+      }
     }
     if ('agentDefaultArgs' in updates) {
       sanitizedUpdates.agentDefaultArgs = normalizeTuiAgentArgsRecord(updates.agentDefaultArgs)
@@ -7607,6 +8021,10 @@ export class Store {
     const nextUI = {
       ...currentUI,
       ...durableUpdates,
+      workspaceCleanup: mergeWorkspaceCleanupUIState(
+        currentUI.workspaceCleanup,
+        durableUpdates.workspaceCleanup
+      ),
       groupBy: durableUpdates.groupBy
         ? normalizeGroupBy(durableUpdates.groupBy)
         : normalizeGroupBy(this.state.ui?.groupBy),
@@ -7964,10 +8382,13 @@ export class Store {
       registerPersistedPaneKeyAlias(entry)
     }
     session = normalized.session
+    const remapsByHostId = new Map<ExecutionHostId, WorkspaceSessionPaneIdentityRemap>([
+      [LOCAL_EXECUTION_HOST_ID, normalized]
+    ])
     const remappedLeases = remapSshRemotePtyLeaseLeafIds(
       this.state.sshRemotePtyLeases ?? [],
-      normalized.leafIdByInputLeafIdByTabId,
-      normalized.leafIdByPtyIdByTabId
+      remapsByHostId,
+      new Set(this.getWorkspaceSessionHostIds())
     )
     if (remappedLeases.changed) {
       this.state.sshRemotePtyLeases = remappedLeases.leases
@@ -8286,15 +8707,37 @@ export class Store {
       incarnationId?: string
       startupCwd?: string
       expectedBinding?: { ptyId: string; incarnationId?: string }
+      expectedSourceBinding?: PtyBindingSourceExpectation
     },
     hostId?: string | null
   ): boolean {
     const resolvedHostId = this.resolveHostId(hostId)
     const session = this.getWorkspaceSession(resolvedHostId)
     const paneKey = `${args.tabId}:${args.leafId}`
+    const bindingWorktreeId = args.expectedSourceBinding?.worktreeId ?? args.worktreeId
+    if (args.expectedSourceBinding) {
+      const expected = args.expectedSourceBinding
+      if (expected.tabId !== args.tabId) {
+        return false
+      }
+      const sourceTab = session.tabsByWorktree?.[bindingWorktreeId]?.find(
+        (candidate) => candidate.id === expected.tabId && candidate.worktreeId === bindingWorktreeId
+      )
+      const sourceLayout = session.terminalLayoutsByTabId?.[expected.tabId]
+      const sourcePaneKey = `${expected.tabId}:${expected.leafId}`
+      if (
+        !sourceTab ||
+        sourceLayout?.ptyIdsByLeafId?.[expected.leafId] !== expected.ptyId ||
+        !layoutContainsLeafId(sourceLayout.root, expected.leafId) ||
+        (expected.incarnationId !== undefined &&
+          session.terminalPtyIncarnationsByPaneKey?.[sourcePaneKey] !== expected.incarnationId)
+      ) {
+        return false
+      }
+    }
     if (args.expectedBinding) {
-      const tab = session.tabsByWorktree?.[args.worktreeId]?.find(
-        (candidate) => candidate.id === args.tabId && candidate.worktreeId === args.worktreeId
+      const tab = session.tabsByWorktree?.[bindingWorktreeId]?.find(
+        (candidate) => candidate.id === args.tabId && candidate.worktreeId === bindingWorktreeId
       )
       const boundPtyId = session.terminalLayoutsByTabId?.[args.tabId]?.ptyIdsByLeafId?.[args.leafId]
       if (
@@ -8317,9 +8760,13 @@ export class Store {
       args.incarnationId !== args.expectedBinding.incarnationId
     let terminalMembershipChanged = false
     const advanceTopologyFence = (): void => {
-      const repoId = getRepoIdFromWorktreeId(args.worktreeId)
+      const repoId = getRepoIdFromWorktreeId(bindingWorktreeId)
       const currentRevision = session.terminalTopologyRevisionByRepoId?.[repoId] ?? 0
-      if (!reconciledIncarnation && (!terminalMembershipChanged || currentRevision <= 0)) {
+      const establishesSplitAuthority = args.expectedSourceBinding !== undefined
+      if (
+        !reconciledIncarnation &&
+        (!terminalMembershipChanged || (currentRevision <= 0 && !establishesSplitAuthority))
+      ) {
         return
       }
       // Why: host-admitted membership or incarnation changes must outrank a stale renderer replay.
@@ -8350,7 +8797,7 @@ export class Store {
         delete session.terminalSurfaceTombstonesByPaneKey[paneKey]
       }
     }
-    const tabs = session.tabsByWorktree?.[args.worktreeId]
+    const tabs = session.tabsByWorktree?.[bindingWorktreeId]
     const tab = tabs?.find((t) => t.id === args.tabId)
     if (tab) {
       tab.ptyId = args.ptyId
@@ -8361,18 +8808,19 @@ export class Store {
         ...(tabs ?? []),
         createMinimalPersistedTerminalTab({
           ...args,
+          worktreeId: bindingWorktreeId,
           existingTabCount: tabs?.length ?? 0
         })
       ]
       session.tabsByWorktree = {
         ...session.tabsByWorktree,
-        [args.worktreeId]: nextTabs
+        [bindingWorktreeId]: nextTabs
       }
-      session.activeWorktreeId ??= args.worktreeId
+      session.activeWorktreeId ??= bindingWorktreeId
       session.activeTabId ??= args.tabId
       session.activeTabIdByWorktree = {
         ...session.activeTabIdByWorktree,
-        [args.worktreeId]: session.activeTabIdByWorktree?.[args.worktreeId] ?? args.tabId
+        [bindingWorktreeId]: session.activeTabIdByWorktree?.[bindingWorktreeId] ?? args.tabId
       }
     }
     if (!isTerminalLeafId(args.leafId)) {
@@ -8458,12 +8906,22 @@ export class Store {
       return null
     }
     const normalized = normalizeSshTarget({ ...target, ...updates })
+    const previousHostIdentity = sshHostIdentity(target)
     Object.assign(target, updates, normalized)
     if (!Object.hasOwn(normalized, 'relayGracePeriodSeconds')) {
       delete target.relayGracePeriodSeconds
     }
     if (!Object.hasOwn(normalized, 'systemSshConnectionReuse')) {
       delete target.systemSshConnectionReuse
+    }
+    // Why: an endpoint edit keeps the row id, so no re-adoption runs and nothing else would carry
+    // the retirement mirror across. Copied, not moved: another target may still sit on the old
+    // endpoint. Runtime-owned targets are excluded — each provision reaches a discarded filesystem.
+    if (!isRuntimeOwnedSshTargetId(id)) {
+      migrateRetirementNamespaceHostIdentity(this.state.retiredWorktreeNamesByNamespace, {
+        copyFrom: [previousHostIdentity],
+        to: sshHostIdentity(target)
+      })
     }
     this.scheduleSave()
     return { ...target }
@@ -8510,6 +8968,104 @@ export class Store {
     }
     this.state.claudeLivePtySessionIds = ids.filter((id) => id !== sessionId)
     this.scheduleSave()
+  }
+
+  getRetiredWorktreeNameRegistry(repoId: string): RetiredNameRegistry {
+    const stored = this.state.retiredWorktreeNamesByRepo?.[repoId]
+    return stored
+      ? { exhaustedTiers: stored.exhaustedTiers, names: [...stored.names] }
+      : EMPTY_RETIRED_NAME_REGISTRY
+  }
+
+  getRetiredWorktreeNameRegistryForNamespace(namespaceKey: string): RetiredNameRegistry {
+    const stored = this.state.retiredWorktreeNamesByNamespace?.[namespaceKey]
+    return stored
+      ? { exhaustedTiers: stored.exhaustedTiers, names: [...stored.names] }
+      : EMPTY_RETIRED_NAME_REGISTRY
+  }
+
+  addRetiredWorktreeName(repoId: string, name: string): void {
+    const normalized = normalizeRetirableGeneratedName(name)
+    if (!repoId || !normalized) {
+      return
+    }
+    this.applyRetiredWorktreeNames(repoId, [normalized])
+  }
+
+  mergeRetiredWorktreeNames(repoId: string, names: Iterable<string>): boolean {
+    if (!repoId) {
+      return false
+    }
+    const incoming = new Set<string>()
+    for (const name of names) {
+      const normalized = normalizeRetirableGeneratedName(name)
+      if (normalized) {
+        incoming.add(normalized)
+      }
+    }
+    return incoming.size > 0 && this.applyRetiredWorktreeNames(repoId, incoming)
+  }
+
+  mergeRetiredWorktreeNamesForNamespace(namespaceKey: string, names: Iterable<string>): boolean {
+    if (!namespaceKey) {
+      return false
+    }
+    const normalized = new Set<string>()
+    for (const name of names) {
+      const candidate = normalizeRetirableGeneratedName(name)
+      if (candidate) {
+        normalized.add(candidate)
+      }
+    }
+    const next = addRetiredNames(
+      this.getRetiredWorktreeNameRegistryForNamespace(namespaceKey),
+      normalized
+    )
+    if (!next) {
+      return false
+    }
+    this.state.retiredWorktreeNamesByNamespace ??= {}
+    recordRetirementNamespaceRegistry(
+      this.state.retiredWorktreeNamesByNamespace,
+      namespaceKey,
+      next
+    )
+    this.scheduleSave()
+    return true
+  }
+
+  private applyRetiredWorktreeNames(repoId: string, names: Iterable<string>): boolean {
+    const next = addRetiredNames(this.getRetiredWorktreeNameRegistry(repoId), names)
+    if (!next) {
+      return false
+    }
+    this.state.retiredWorktreeNamesByRepo ??= {}
+    this.state.retiredWorktreeNamesByRepo[repoId] = next
+    this.scheduleSave()
+    return true
+  }
+
+  /** Retirement namespaces key on the endpoint a target reaches, so a rotation moves them only when
+   *  the endpoint itself changed — plus any pre-identity key that embedded the row id. */
+  private migrateRetirementNamespacesForTargetReassignment(
+    oldTargetId: string,
+    newTargetId: string
+  ): boolean {
+    const newTarget = this.state.sshTargets?.find((target) => target.id === newTargetId)
+    if (!newTarget) {
+      return false
+    }
+    // The removal tombstone is the only record of what endpoint the old id reached.
+    const tombstone = this.state.removedSshTargetTombstones?.find(
+      (entry) => entry.oldTargetId === oldTargetId
+    )
+    return migrateRetirementNamespaceHostIdentity(this.state.retiredWorktreeNamesByNamespace, {
+      // The row id died with the target, so nothing else can still resolve to it.
+      moveFrom: [toSshExecutionHostId(oldTargetId)],
+      // Endpoints are shared, not owned: a second target can still reach this host, so leave its bucket.
+      copyFrom: tombstone ? [sshHostIdentity(tombstone)] : [],
+      to: sshHostIdentity(newTarget)
+    })
   }
 
   getDeletedSshConfigAliases(): string[] {
@@ -8618,6 +9174,9 @@ export class Store {
       carrierChanged = true
     }
     if (migrateUiHostScopeSshTargetId(this.state.ui, oldTargetId, newTargetId)) {
+      carrierChanged = true
+    }
+    if (this.migrateRetirementNamespacesForTargetReassignment(oldTargetId, newTargetId)) {
       carrierChanged = true
     }
     for (const lease of this.state.sshRemotePtyLeases ?? []) {
@@ -8739,14 +9298,14 @@ export class Store {
       (entry) =>
         entry.targetId === normalizedLease.targetId && entry.ptyId === normalizedLease.ptyId
     )
-    const existing = existingIndex >= 0 ? this.state.sshRemotePtyLeases[existingIndex] : undefined
+    const existing = existingIndex !== -1 ? this.state.sshRemotePtyLeases[existingIndex] : undefined
     const next: SshRemotePtyLease = {
       ...existing,
       ...normalizedLease,
       createdAt: existing?.createdAt ?? normalizedLease.createdAt ?? now,
       updatedAt: normalizedLease.updatedAt ?? now
     }
-    if (existingIndex >= 0) {
+    if (existingIndex !== -1) {
       this.state.sshRemotePtyLeases[existingIndex] = next
     } else {
       this.state.sshRemotePtyLeases.push(next)

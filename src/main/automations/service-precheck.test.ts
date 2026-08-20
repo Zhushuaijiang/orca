@@ -204,21 +204,15 @@ describe('AutomationService prechecks', () => {
       headlessDispatcher
     })
     const run = store.createAutomationRun(automation, Date.now(), 'scheduled')
-    const requestHeadlessDispatch = (
+    // The fork extracted headless dispatch into requestHeadlessAutomationDispatch;
+    // requestDispatch is the service entry that wires the precheck into it.
+    const requestDispatch = (
       service as unknown as {
-        requestHeadlessDispatch: (
-          automationArg: typeof automation,
-          runArg: typeof run,
-          targetArg: { ok: true; cwd: string; repo: Repo }
-        ) => Promise<unknown>
+        requestDispatch: (automationArg: typeof automation, runArg: typeof run) => Promise<unknown>
       }
-    ).requestHeadlessDispatch.bind(service)
+    ).requestDispatch.bind(service)
 
-    await requestHeadlessDispatch(automation, run, {
-      ok: true,
-      cwd: '/repo',
-      repo: store.getRepo('r1')!
-    })
+    await requestDispatch(automation, run)
 
     expect(headlessDispatcher).not.toHaveBeenCalled()
     expect(store.listAutomationRuns(automation.id)[0]).toMatchObject({

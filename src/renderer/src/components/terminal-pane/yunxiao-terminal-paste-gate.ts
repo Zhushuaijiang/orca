@@ -1,5 +1,4 @@
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
-import { makePaneKey, type TerminalLeafId } from '../../../../shared/stable-pane-id'
 import { applyYunxiaoRequirementPromptGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
 
 export function applyYunxiaoRequirementTerminalPasteGate(
@@ -10,7 +9,9 @@ export function applyYunxiaoRequirementTerminalPasteGate(
     agentStatusByPaneKey: Record<string, AgentStatusEntry>
   }
 ): string {
-  const paneKey = makePaneKey(opts.tabId, opts.leafId as TerminalLeafId)
+  // Why: plain composite instead of makePaneKey — legacy panes can carry
+  // non-UUID leaf ids, and a lookup miss just means "no live agent row".
+  const paneKey = `${opts.tabId}:${opts.leafId}`
   if (!opts.agentStatusByPaneKey[paneKey]) {
     return text
   }

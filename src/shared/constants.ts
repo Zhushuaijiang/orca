@@ -14,7 +14,7 @@ import { getDefaultTerminalQuickCommands } from './terminal-quick-commands'
 import type { VoiceSettings } from './speech-types'
 import { cloneDefaultWorkspaceStatuses } from './workspace-statuses'
 import { DEFAULT_TASK_SOURCE, DEFAULT_VISIBLE_TASK_PROVIDERS } from './task-providers'
-import { DEFAULT_WORKTREE_CARD_PROPERTIES } from './worktree-card-properties'
+import { DEFAULT_WORKTREE_CARD_PROPERTIES } from './worktree/card-properties'
 import { getDefaultSourceControlAiSettings } from './source-control-ai'
 import { DEFAULT_APP_ICON_ID } from './app-icon'
 import { DEFAULT_OPEN_IN_APPLICATIONS } from './open-in-applications'
@@ -180,6 +180,7 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     autoRenameBranchFromWorkDefaultedOn: true,
     branchPrefix: 'git-username',
     branchPrefixCustom: '',
+    enableGitHubAttribution: false,
     theme: 'system',
     leftSidebarAppearanceMode: 'default',
     leftSidebarTintColor: DEFAULT_LEFT_SIDEBAR_TINT_COLOR,

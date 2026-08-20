@@ -3888,7 +3888,8 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
         submitCompareBaseRef,
         {
           linkedWorkItem: toFolderWorkspaceLinkedTask(submitLinkedWorkItem),
-          linkedTaskSourceContext: taskSourceContext
+          linkedTaskSourceContext: taskSourceContext,
+          nameWasGenerated
         }
       )
       const worktree = result.worktree

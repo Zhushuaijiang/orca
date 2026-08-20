@@ -20,6 +20,7 @@ vi.mock('node:fs/promises', async () => {
 })
 
 const { clearSkillRootScanCache, discoverSkills, MAX_LOGGED_ROOT_IDS } = await import('./discovery')
+const { buildSkillDiscoverySources } = await import('./skill-discovery-sources')
 
 async function writeSkill(directory: string, name: string): Promise<void> {
   await mkdir(directory, { recursive: true })
@@ -178,9 +179,20 @@ describe('bounded concurrent skill discovery', () => {
     await discoverSkills({ homeDir: home, repos: [], cwd: noWorkspace })
 
     const line = String(info.mock.calls.at(0)?.at(0))
+    // The root set grows with the supported-agent list (the fork scans every
+    // AGENT_SKILL_HOME_DIRECTORIES provider, not a hardcoded few), so derive the
+    // count from the same builder the scan used — what matters here is that every
+    // root was walked exactly once (walked === roots) and only 3 hold skills.
+    const expectedRoots = buildSkillDiscoverySources({
+      homeDir: home,
+      repos: [],
+      cwd: noWorkspace
+    }).length
     // `present` is the signal that separates "big tree" from "big root set", and
     // is not derivable from the other counts.
-    expect(line).toContain('[skills] scan roots=23 present=3 walked=23 skills=3')
+    expect(line).toContain(
+      `[skills] scan roots=${expectedRoots} present=3 walked=${expectedRoots} skills=3`
+    )
     expect(line).toContain('home-claude')
     expect(line).not.toContain(home)
     expect(line).not.toContain(tmpdir())

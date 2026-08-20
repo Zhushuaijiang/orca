@@ -45,6 +45,7 @@ import {
   createWorktreeContextMenuDeleteIntent,
   deferWorktreeContextMenuDeleteIntent
 } from './worktree-context-menu-delete-intent'
+import { getDeleteStateForWorktreeHost } from './worktree-delete-state-host-match'
 import { runSleepWorktrees } from './sleep-worktree-flow'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { VIRTUALIZED_SCROLL_ANCHOR_RECORD_EVENT } from '@/hooks/useVirtualizedScrollAnchor'

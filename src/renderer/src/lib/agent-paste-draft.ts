@@ -47,6 +47,7 @@ export function sanitizeBracketedPasteContent(content: string): string {
 // composer budget on top would only delay that verdict. Keeping them distinct
 // also stops one slow step from spending the other's budget (STA-3367).
 const PTY_SPAWN_TIMEOUT_MS = 8000
+const READINESS_TIMEOUT_MS = 8000
 
 export function getSettingsForAgentTabRuntimeOwner(
   tabId: string

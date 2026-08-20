@@ -2,7 +2,7 @@
 
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { getByRole } from '@testing-library/dom'
+import { getByRole } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { ActiveOption } from './tab-create-entry-active-option'

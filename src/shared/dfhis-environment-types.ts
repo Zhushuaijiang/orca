@@ -1,4 +1,4 @@
-import type { TuiAgent } from './types'
+import type { TuiAgent } from './tui-agent'
 
 /** Why: one workflow-pack row per supported agent home; keyed off TuiAgent so
  * newly supported agents join the checklist without another type edit. */

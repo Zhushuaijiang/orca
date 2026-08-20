@@ -16,6 +16,8 @@ import {
   UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
 } from '../../shared/agent-skill-home-directories'
 import { TUI_AGENT_DISPLAY_NAMES } from '../../shared/tui-agent-display-names'
+import type { SkillProviderRootOverrides } from './skill-provider-destinations'
+import { resolveEnvironmentSkillProviderRoots } from './skill-provider-runtime-roots'
 
 export type SkillScanRoot = Omit<SkillDiscoverySource, 'exists' | 'skippedReason'>
 type SkillDiscoveryPathApi = Pick<typeof posix, 'basename' | 'join'>

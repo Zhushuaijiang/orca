@@ -29,7 +29,9 @@ async function seedTwoParentAgents(page: Page, worktreeId: string): Promise<void
     }
     const state = store.getState()
     if (!state.worktreeCardProperties.includes('inline-agents')) {
-      state.toggleWorktreeCardProperty('inline-agents')
+      store.setState({
+        worktreeCardProperties: [...state.worktreeCardProperties, 'inline-agents']
+      })
     }
     while ((store.getState().tabsByWorktree[worktreeId] ?? []).length < 2) {
       store.getState().createTab(worktreeId)

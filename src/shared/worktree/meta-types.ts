@@ -12,6 +12,7 @@ import type {
 import type { TuiAgent } from '../tui-agent'
 import type { OrcaWorkspaceLayout } from '../global-settings-types'
 import type { DiffComment, MobileDiffReviewState } from '../diff-comment-types'
+import type { ManualYunxiaoRequirementGate } from '../yunxiao-requirement-prompt-gate'
 
 // ─── Worktree metadata (persisted user-authored fields only) ─────────
 export type WorktreeMeta = {
@@ -86,6 +87,7 @@ export type WorktreeMeta = {
   mobileDiffReview?: MobileDiffReviewState
   /** System-owned provenance for workspaces created by automation new-per-run dispatches. */
   automationProvenance?: AutomationWorkspaceProvenance
+  yunxiaoRequirementGate?: ManualYunxiaoRequirementGate
   /** System-owned provenance for workspaces created via `orca worktree create`. */
   cliProvenance?: CliWorkspaceProvenance
 }

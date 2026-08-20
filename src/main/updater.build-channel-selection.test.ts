@@ -471,9 +471,14 @@ describe('updater', () => {
     checkForUpdatesFromMenu({ includePrerelease: true })
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.3.17', 2, {
-        includePrerelease: true
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.3.17',
+        2,
+        // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+        expect.objectContaining({
+          includePrerelease: true
+        })
+      )
       expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
         provider: 'generic',
         url: 'https://github.com/stablyai/orca/releases/download/v1.3.18-rc.1'
@@ -497,10 +502,15 @@ describe('updater', () => {
     checkForUpdatesFromMenu({ includePerfPrerelease: true })
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.120', 2, {
-        includePrerelease: true,
-        releaseFilter: 'perf'
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.4.120',
+        2,
+        // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+        expect.objectContaining({
+          includePrerelease: true,
+          releaseFilter: 'perf'
+        })
+      )
       expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
         provider: 'generic',
         url: 'https://github.com/stablyai/orca/releases/download/v1.4.121-rc.6.perf'
@@ -530,10 +540,15 @@ describe('updater', () => {
         userInitiated: true
       })
     })
-    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.120', 2, {
-      includePrerelease: true,
-      releaseFilter: 'perf'
-    })
+    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+      '1.4.120',
+      2,
+      // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+      expect.objectContaining({
+        includePrerelease: true,
+        releaseFilter: 'perf'
+      })
+    )
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
     expect(autoUpdaterMock.setFeedURL.mock.calls.length).toBe(setupFeedUrlCalls)
   })
@@ -565,9 +580,15 @@ describe('updater', () => {
     await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenNthCalledWith(2, '1.4.120', 1, {
-        includePrerelease: false
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenNthCalledWith(
+        2,
+        '1.4.120',
+        1,
+        // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+        expect.objectContaining({
+          includePrerelease: false
+        })
+      )
       expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
         provider: 'generic',
         url: 'https://github.com/stablyai/orca/releases/download/v1.4.121'
@@ -594,9 +615,14 @@ describe('updater', () => {
         userInitiated: true
       })
     })
-    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.120-rc.5', 2, {
-      includePrerelease: true
-    })
+    expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+      '1.4.120-rc.5',
+      2,
+      // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+      expect.objectContaining({
+        includePrerelease: true
+      })
+    )
     expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled()
   })
 

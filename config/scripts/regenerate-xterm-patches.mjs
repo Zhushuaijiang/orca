@@ -215,8 +215,13 @@ export function patchHash(patchText) {
 }
 
 function lockfilePatchHashPattern(packageKey) {
-  // Unscoped keys such as `node-pty@1.1.0` are emitted unquoted.
-  return new RegExp(`(^  '?${escapeRegExp(packageKey)}'?:\\n    hash: )([0-9a-f]{64})$`, 'm')
+  // Two lockfile spellings: pnpm 10 nests the hash (`key:` then `hash: <hex>`
+  // on the next line); pnpm 11 writes the flat `key: <hex>`. Unscoped keys such
+  // as `node-pty@1.1.0` are emitted unquoted.
+  return new RegExp(
+    `(^  '?${escapeRegExp(packageKey)}'?:(?:\\n    hash:)? )([0-9a-f]{64})$`,
+    'm'
+  )
 }
 
 export function readLockfilePatchHash(lockfileText, packageKey) {

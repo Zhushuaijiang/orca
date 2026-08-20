@@ -299,7 +299,9 @@ describe('electron-builder config', () => {
       delete process.env.ORCA_MAC_RELEASE
       process.env.ORCA_LOCAL_BUILD_VERSION = '1.4.159-rc.0.local.123.abc'
       expect(require('../electron-builder.config.cjs').extraMetadata).toEqual({
-        version: '1.4.159-rc.0.local.123.abc'
+        version: '1.4.159-rc.0.local.123.abc',
+        // Why: this repo ships resources/dfhis, which defaults the release feed off.
+        orca: { releaseFeed: { mode: 'disabled' } }
       })
     } finally {
       if (originalMacRelease === undefined) {
@@ -325,7 +327,10 @@ describe('electron-builder config', () => {
       delete require.cache[configPath]
       process.env.ORCA_LOCAL_BUILD_VERSION = '1.4.159-local.123.abc'
       process.env.ORCA_MAC_RELEASE = '1'
-      expect(require('../electron-builder.config.cjs').extraMetadata).toBeUndefined()
+      expect(require('../electron-builder.config.cjs').extraMetadata).toEqual({
+        // Why: no version override for release packaging; only the dfhis release-feed default.
+        orca: { releaseFeed: { mode: 'disabled' } }
+      })
     } finally {
       if (originalLocalVersion === undefined) {
         delete process.env.ORCA_LOCAL_BUILD_VERSION
@@ -386,7 +391,11 @@ describe('electron-builder config', () => {
     withEnv(
       { ORCA_MAC_HOURLY: '1', ORCA_HOURLY_BUILD_VERSION: '1.4.160-hourly.202607281400' },
       (config) => {
-        expect(config.extraMetadata).toEqual({ version: '1.4.160-hourly.202607281400' })
+        expect(config.extraMetadata).toEqual({
+          version: '1.4.160-hourly.202607281400',
+          // Why: this repo ships resources/dfhis, which defaults the release feed off.
+          orca: { releaseFeed: { mode: 'disabled' } }
+        })
       }
     )
   })

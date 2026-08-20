@@ -432,9 +432,14 @@ describe('updater', () => {
     resolveStableCheck()
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.4.35', 2, {
-        includePrerelease: true
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.4.35',
+        2,
+        // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+        expect.objectContaining({
+          includePrerelease: true
+        })
+      )
       expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(2)
     })
     expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({

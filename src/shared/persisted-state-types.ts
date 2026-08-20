@@ -23,6 +23,7 @@ import type { RetiredNameRegistry } from './worktree/retired-name-registry'
 import type { WorkspaceLineage, WorktreeLineage } from './worktree/lineage-types'
 import type { WorktreeMeta } from './worktree/meta-types'
 import type { WorkspaceSessionState } from './workspace-session-state-types'
+import type { YunxiaoTodoPoolItem } from './yunxiao-types'
 
 export type LegacyPaneKeyAliasEntry = {
   ptyId: string
@@ -54,6 +55,7 @@ export type PersistedState = {
   projectHostSetups: ProjectHostSetup[]
   projectGroups: ProjectGroup[]
   folderWorkspaces: FolderWorkspace[]
+  yunxiaoTodoPool: YunxiaoTodoPoolItem[]
   /** Folder-workspace review notes, keyed by FolderWorkspace.id. Top-level, NOT nested in
    *  folderWorkspaces[]: normalizeFolderWorkspaces rebuilds each record field-by-field, so an
    *  older build drops nested fields, while unknown top-level keys round-trip untouched.

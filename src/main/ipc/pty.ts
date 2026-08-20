@@ -55,6 +55,7 @@ import {
 import { recordCrashBreadcrumb } from '../crash-reporting/crash-breadcrumb-store'
 import { isShellProcess } from '../../shared/shell-process-detection'
 import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/tui-agent-config'
+import { isTuiAgentEnabled } from '../../shared/tui-agent-selection'
 import {
   normalizeAgentProviderSession,
   type AgentProviderSessionMetadata,
@@ -217,7 +218,7 @@ function isKnownTuiAgentForegroundProcess(processName: string | null | undefined
   )
 }
 import { isWslUncPath, toWindowsWslPath } from '../../shared/wsl-paths'
-import { splitWorktreeIdForFilesystem } from '../../shared/worktree-id'
+import { splitWorktreeIdForFilesystem } from '../../shared/worktree/id'
 import { isFolderRepo } from '../../shared/repo-kind'
 import {
   buildYunxiaoTerminalEnv,
@@ -6297,14 +6298,13 @@ export function registerPtyHandlers(
       // Why: honor the fallback only for fresh local spawns — reattach needs exact cwd and SSH can't probe the local filesystem.
       const requestedMissingCwdFallback =
         !args.connectionId && !args.sessionId && args.cwdFallback === 'worktree'
-      const isWslOwnedPosixCwd =
-        args.cwd?.startsWith('/') === true && !/^\/[A-Za-z](?:\/|$)/.test(args.cwd)
+      const isPosixStartupCwd = args.cwd?.startsWith('/') === true
       const startupWorkspaceCwd =
-        requestedMissingCwdFallback && isWslOwnedPosixCwd
+        requestedMissingCwdFallback && isPosixStartupCwd
           ? resolvePtySpawnStartupCwd(args.worktreeId, '.')
           : undefined
       const initiallyResolvedStartupCwd =
-        requestedMissingCwdFallback && isWslOwnedPosixCwd
+        requestedMissingCwdFallback && isPosixStartupCwd
           ? resolvePtySpawnStartupCwd(args.worktreeId, args.cwd)
           : undefined
       const startupTerminalRuntimeOptions =
@@ -6318,7 +6318,7 @@ export function registerPtyHandlers(
           : undefined
       const wslRuntimeOwnsStartupCwd =
         requestedMissingCwdFallback &&
-        isWslOwnedPosixCwd &&
+        isPosixStartupCwd &&
         (isWslShellName(startupTerminalRuntimeOptions?.shellOverride) ||
           isWslUncPath(startupWorkspaceCwd ?? ''))
       const startupWslContext = wslRuntimeOwnsStartupCwd

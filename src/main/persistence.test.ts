@@ -4636,11 +4636,11 @@ describe('Store', () => {
     store.addRepo(makeRepo())
     expect(store.getRepo('r1')!.gitUsername).toBe('')
 
-    expect(store.setResolvedRepoGitUsername('r1', 'testuser')).toBe(true)
+    expect(store.setResolvedRepoGitUsername(makeRepo(), 'testuser')).toBe(true)
     expect(store.getRepo('r1')!.gitUsername).toBe('testuser')
     // Unchanged value reports no change so callers can skip renderer notify.
-    expect(store.setResolvedRepoGitUsername('r1', 'testuser')).toBe(false)
-    expect(store.setResolvedRepoGitUsername('missing', 'x')).toBe(false)
+    expect(store.setResolvedRepoGitUsername(makeRepo(), 'testuser')).toBe(false)
+    expect(store.setResolvedRepoGitUsername(makeRepo({ id: 'missing' }), 'x')).toBe(false)
 
     store.flush()
     const persisted = readDataFile() as PersistedState
@@ -13293,16 +13293,20 @@ describe('Store host-partitioned workspace sessions', () => {
 
     store.removeWorktreeMeta(worktreeId, 'local')
 
+    // STA-4343: the removal targets the caller-confirmed 'local' host; the worktree lives on
+    // runtime:env-a, whose persisted ownership differs, so neither partition fences and the
+    // env-a metadata survives.
     expect(
       store.getWorkspaceSession('runtime:env-a').terminalTopologyRevisionByRepoId?.['repo-split']
-    ).toBe(1)
+    ).toBeUndefined()
     expect(
       store.getWorkspaceSession('local').terminalTopologyRevisionByRepoId?.['repo-split']
     ).toBeUndefined()
     expect(store.getWorkspaceSession('local').tabsByWorktree[otherWorktreeId]).toHaveLength(1)
+    expect(store.getWorktreeMeta(worktreeId)?.hostId).toBe('runtime:env-a')
   })
 
-  it('trusts persisted ownership over a stale caller hostId', async () => {
+  it('removes on the caller-confirmed host and preserves a different persisted owner', async () => {
     const store = await createStore()
     const worktreeId = 'repo-split::/workspace/stale'
     const session = {
@@ -13315,12 +13319,13 @@ describe('Store host-partitioned workspace sessions', () => {
     store.setWorkspaceSession(session, 'runtime:env-b')
     store.setWorktreeMeta(worktreeId, { hostId: 'runtime:env-a' })
 
-    // A caller's hostId comes from live routing and can go stale mid-removal; the same
-    // repoId::path can name a live worktree on env-b, whose tabs must survive.
+    // STA-4343: the host-qualified removal names the owner — the user confirmed the env-b row, so
+    // env-b's session is pruned while env-a's same-id workspace and its metadata survive.
     store.removeWorktreeMeta(worktreeId, 'runtime:env-b')
 
-    expect(store.getWorkspaceSession('runtime:env-a').tabsByWorktree[worktreeId]).toBeUndefined()
-    expect(store.getWorkspaceSession('runtime:env-b').tabsByWorktree[worktreeId]).toHaveLength(1)
+    expect(store.getWorkspaceSession('runtime:env-b').tabsByWorktree[worktreeId]).toBeUndefined()
+    expect(store.getWorkspaceSession('runtime:env-a').tabsByWorktree[worktreeId]).toHaveLength(1)
+    expect(store.getWorktreeMeta(worktreeId)?.hostId).toBe('runtime:env-a')
   })
 
   it('falls back to the caller hostId only when no ownership was recorded', async () => {

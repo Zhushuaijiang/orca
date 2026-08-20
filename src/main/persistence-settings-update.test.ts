@@ -323,7 +323,9 @@ describe('Store', () => {
     expect(persisted.settings).not.toHaveProperty('terminalScrollbackBytes')
   })
 
-  it('retires the persisted GitHub attribution setting without dropping unknown settings', async () => {
+  it('preserves the GitHub attribution setting and unknown settings across load and save', async () => {
+    // Why: this fork keeps enableGitHubAttribution as a first-class setting (GitPane toggle), so it
+    // must round-trip like any other known key; unknown future keys must survive verbatim too.
     const settledStore = await createStore()
     settledStore.flush()
     const settled = readDataFile() as { settings: Record<string, unknown> }
@@ -335,7 +337,7 @@ describe('Store', () => {
     try {
       const store = await createStore()
 
-      expect(store.getSettings()).not.toHaveProperty('enableGitHubAttribution')
+      expect(store.getSettings()).toHaveProperty('enableGitHubAttribution', true)
       expect(store.getSettings()).toHaveProperty('futureSetting', { enabled: true })
       vi.advanceTimersByTime(5_000)
       await store.waitForPendingWrite()
@@ -343,27 +345,27 @@ describe('Store', () => {
       vi.useRealTimers()
     }
     const persisted = readDataFile() as { settings?: Record<string, unknown> }
-    expect(persisted.settings).not.toHaveProperty('enableGitHubAttribution')
+    expect(persisted.settings).toHaveProperty('enableGitHubAttribution', true)
     expect(persisted.settings).toHaveProperty('futureSetting', { enabled: true })
   })
 
-  it('ignores retired GitHub attribution updates and strips stale in-memory values on save', async () => {
+  it('applies GitHub attribution updates and keeps unknown in-memory settings on save', async () => {
     const store = await createStore()
     const listener = vi.fn()
     store.onSettingsChanged(listener)
 
-    const updated = store.updateSettings({ enableGitHubAttribution: true } as never, {
+    const updated = store.updateSettings({ enableGitHubAttribution: true }, {
       notifyListeners: true
     })
 
-    expect(updated).not.toHaveProperty('enableGitHubAttribution')
-    expect(listener).not.toHaveBeenCalled()
+    expect(updated).toHaveProperty('enableGitHubAttribution', true)
+    expect(listener).toHaveBeenCalled()
     const settings = store.getSettings() as GlobalSettings & Record<string, unknown>
     settings.enableGitHubAttribution = false
     settings.futureSetting = 'kept'
     store.flush()
     const persisted = readDataFile() as { settings?: Record<string, unknown> }
-    expect(persisted.settings).not.toHaveProperty('enableGitHubAttribution')
+    expect(persisted.settings).toHaveProperty('enableGitHubAttribution', false)
     expect(persisted.settings?.futureSetting).toBe('kept')
   })
 

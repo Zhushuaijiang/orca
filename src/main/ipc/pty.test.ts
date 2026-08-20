@@ -12,6 +12,7 @@ import {
 import { CLIPBOARD_TEXT_MEASURE_YIELD_CODE_UNITS } from '../../shared/clipboard-text'
 import { redactPtyIdForDiagnostics } from '../../shared/pty-delivery-diagnostics'
 import { FLOATING_TERMINAL_WORKTREE_ID, getDefaultWorkspaceSession } from '../../shared/constants'
+import { LOCAL_EXECUTION_HOST_ID, toSshExecutionHostId } from '../../shared/execution-host'
 import type { TuiAgent } from '../../shared/types'
 import type { AgentSessionOwnerBinding } from '../../shared/agent-session-host-authority'
 import { AGENT_SESSION_CLAIM_DIGEST_VERSION } from '../../shared/agent-session-host-authority'
@@ -263,6 +264,7 @@ import {
 } from './pty'
 import { setDfHisWorkflowPackRefreshInstallerForTests } from '../dfhis-environment/workflow-pack-refresh'
 import { resetMacosLoginShellPreflightForTests } from '../providers/macos-tcc-login-shell'
+import { getShellReadyWrapperRoot } from '../providers/local-pty-shell-ready-wrapper-root'
 import {
   _resetHiddenRendererPtyDeliveryGateForTest,
   isHiddenRendererPty
@@ -454,7 +456,7 @@ describe('registerPtyHandlers', () => {
     // Why: wrapper roots resolve from ORCA_USER_DATA_PATH; mirror the mocked userData so ZDOTDIR/wrapper assertions match.
     process.env.ORCA_USER_DATA_PATH = '/tmp/orca-user-data'
     existsSyncMock.mockReturnValue(true)
-    statSyncMock.mockReturnValue({ isDirectory: () => true, mode: 0o755 })
+    statSyncMock.mockReturnValue({ isDirectory: () => true, mode: 0o755, size: 1 })
     readFileSyncMock.mockReturnValue('')
     openCodeBuildPtyEnvMock.mockImplementation((_ptyId: string, existingConfigDir?: string) => ({
       ORCA_OPENCODE_HOOK_PORT: '4567',
@@ -3347,16 +3349,28 @@ describe('registerPtyHandlers', () => {
       expect(env.ORCA_CLAUDE_AGENT_STATUS_SETTINGS).toBeUndefined()
     })
 
-    it('prepends local git/gh attribution shims when attribution is enabled', async () => {
-      const env = await spawnAndGetEnv(undefined, undefined, undefined, () => ({
-        enableGitHubAttribution: true
-      }))
+    it('strips retired git/gh attribution shims even when the legacy setting is enabled', async () => {
+      // Why: upstream retired the attribution shim (#14141); the legacy setting and any
+      // inherited shim env must not reappear in spawned terminals.
+      const env = await spawnAndGetEnv(
+        {
+          ORCA_ENABLE_GIT_ATTRIBUTION: '1',
+          ORCA_GIT_COMMIT_TRAILER: 'stale',
+          PATH: `${expectedAttributionShimDir()}${delimiter}/usr/bin`
+        },
+        undefined,
+        undefined,
+        () => ({
+          enableGitHubAttribution: true
+        })
+      )
 
-      expect(env.ORCA_ENABLE_GIT_ATTRIBUTION).toBe('1')
-      expect(env.ORCA_GIT_COMMIT_TRAILER).toBe('Co-authored-by: Orca <help@stably.ai>')
-      expect(env.ORCA_GH_PR_FOOTER).toBe('Made with [Orca](https://github.com/stablyai/orca) 🐋')
-      expect(env.ORCA_GH_ISSUE_FOOTER).toBe('Made with [Orca](https://github.com/stablyai/orca) 🐋')
-      expect(env.PATH).toContain(expectedAttributionShimDir())
+      expect(env.ORCA_ENABLE_GIT_ATTRIBUTION).toBeUndefined()
+      expect(env.ORCA_GIT_COMMIT_TRAILER).toBeUndefined()
+      expect(env.ORCA_GH_PR_FOOTER).toBeUndefined()
+      expect(env.ORCA_GH_ISSUE_FOOTER).toBeUndefined()
+      expect(env.PATH ?? '').not.toContain('orca-terminal-attribution')
+      expect(env.PATH).toContain('/usr/bin')
     })
 
     it('skips git/gh attribution shims when attribution is disabled', async () => {
@@ -3371,7 +3385,7 @@ describe('registerPtyHandlers', () => {
       expect(env.PATH ?? '').not.toContain(expectedAttributionShimDir())
     })
 
-    it('prepends git/gh attribution shims for daemon-backed local PTYs', async () => {
+    it('strips retired git/gh attribution shims for daemon-backed local PTYs', async () => {
       const daemonSpawn = vi.fn(async (options) => ({ id: 'daemon-pty', pid: 123, ...options }))
       setLocalPtyProvider({
         spawn: daemonSpawn,
@@ -3392,12 +3406,21 @@ describe('registerPtyHandlers', () => {
       await handlers.get('pty:spawn')!(null, {
         cols: 80,
         rows: 24,
-        env: {}
+        env: {
+          ORCA_ENABLE_GIT_ATTRIBUTION: '1',
+          PATH: `${expectedAttributionShimDir()}${delimiter}/usr/bin`
+        }
       })
 
-      const env = daemonSpawn.mock.calls.at(-1)![0].env
-      expect(env.ORCA_ENABLE_GIT_ATTRIBUTION).toBe('1')
-      expect(env.PATH).toContain(expectedAttributionShimDir())
+      const spawnCall = daemonSpawn.mock.calls.at(-1)![0] as {
+        env: Record<string, string>
+        envToDelete?: string[]
+      }
+      expect(spawnCall.env.ORCA_ENABLE_GIT_ATTRIBUTION).toBeUndefined()
+      expect(spawnCall.env.PATH ?? '').not.toContain('orca-terminal-attribution')
+      expect(spawnCall.envToDelete).toEqual(
+        expect.arrayContaining(['ORCA_ENABLE_GIT_ATTRIBUTION'])
+      )
     })
 
     it('overrides ambient CODEX_HOME with the Orca-managed home for system default', async () => {
@@ -4491,10 +4514,13 @@ describe('registerPtyHandlers', () => {
         })
       })
 
-      it('bridges a host-managed Prime status extension into WSL without redirecting Prime home', async () => {
+      it('does not install or inject a Prime extension for an explicit WSL launch', async () => {
         await withWin32Platform(async () => {
           const env = await daemonSpawnAndGetEnv(
-            { PRIME_AGENT_CODING_AGENT_DIR: 'C:\\Users\\test\\.prime\\agent' },
+            {
+              PRIME_AGENT_CODING_AGENT_DIR: 'C:\\Users\\test\\.prime\\agent',
+              ORCA_PRIME_AGENT_STATUS_EXTENSION: 'C:\\stale\\orca-agent-status.ts'
+            },
             undefined,
             undefined,
             undefined,
@@ -4502,26 +4528,23 @@ describe('registerPtyHandlers', () => {
           )
 
           expect(piBuildPtyEnvMock).not.toHaveBeenCalled()
-          expect(piBuildStatusOnlyPtyEnvMock).toHaveBeenCalledWith('prime-agent')
           expect(env.ORCA_PRIME_AGENT_SOURCE_AGENT_DIR).toBeUndefined()
-          expect(env.ORCA_PRIME_AGENT_STATUS_EXTENSION).toBe(
-            'C:\\Users\\test\\AppData\\Roaming\\Orca\\prime-agent-managed-status-extension\\orca-agent-status.ts'
-          )
-          expect(env.ORCA_WSL_HOOK_INSTANCE).toBe('port5678')
+          expect(env.ORCA_PRIME_AGENT_STATUS_EXTENSION).toBeUndefined()
+          expect(env.ORCA_WSL_HOOK_INSTANCE).toBeUndefined()
           expect(env.PRIME_AGENT_CODING_AGENT_DIR).toBe('C:\\Users\\test\\.prime\\agent')
         })
       })
 
-      it('prepares the Prime bridge for a typed launch in a bare WSL shell', async () => {
+      it('does not prepare a Prime extension for a typed launch in a bare WSL shell', async () => {
         await withWin32Platform(async () => {
           const env = await daemonSpawnAndGetEnv({}, undefined, undefined, undefined, {
             shellOverride: 'wsl.exe'
           })
 
-          expect(piBuildStatusOnlyPtyEnvMock).toHaveBeenCalledWith('prime-agent')
-          expect(env.ORCA_PRIME_AGENT_STATUS_EXTENSION).toContain(
-            'prime-agent-managed-status-extension'
+          expect(piBuildPtyEnvMock.mock.calls.some(([, , kind]) => kind === 'prime-agent')).toBe(
+            false
           )
+          expect(env.ORCA_PRIME_AGENT_STATUS_EXTENSION).toBeUndefined()
           expect(env.PRIME_AGENT_CODING_AGENT_DIR).toBeUndefined()
         })
       })
@@ -5088,33 +5111,38 @@ describe('registerPtyHandlers', () => {
           onPtyData: vi.fn()
         }
         handlers.clear()
-        registerPtyHandlers(mainWindow as never, runtime as never, undefined, (() => ({
-          enableGitHubAttribution: true
-        })) as never)
+        registerPtyHandlers(mainWindow as never, runtime as never)
         const controller = runtime.setPtyController.mock.calls[0]?.[0] as RuntimeSpawnController
 
-        await controller.spawn({
-          cols: 80,
-          rows: 24,
-          worktreeId: 'wt-runtime',
-          command: 'claude',
-          env: {
-            PATH: `/tmp/orca-agent-teams-bin${delimiter}/usr/bin`,
-            ORCA_AGENT_TEAMS_TEAM_ID: 'team-test',
-            TERM_PROGRAM: 'Orca',
-            ORCA_ATTRIBUTION_SHIM_DIR: '/tmp/stale-attribution'
-          },
-          envToDelete: ['TERM_PROGRAM', 'ORCA_ATTRIBUTION_SHIM_DIR']
-        })
+        // Why: dev mode makes buildPtyHostEnv prepend its own CLI shim on every platform, so
+        // the promotion below has something to beat instead of passing trivially.
+        const { app } = await import('electron')
+        const mockedApp = app as unknown as { isPackaged: boolean }
+        const prevPackaged = mockedApp.isPackaged
+        mockedApp.isPackaged = false
+        try {
+          await controller.spawn({
+            cols: 80,
+            rows: 24,
+            worktreeId: 'wt-runtime',
+            command: 'claude',
+            env: {
+              PATH: `/tmp/orca-agent-teams-bin${delimiter}/usr/bin`,
+              ORCA_AGENT_TEAMS_TEAM_ID: 'team-test',
+              TERM_PROGRAM: 'Orca'
+            },
+            envToDelete: ['TERM_PROGRAM']
+          })
+        } finally {
+          mockedApp.isPackaged = prevPackaged
+        }
 
         const spawnOptions = daemonSpawn.mock.calls.at(-1)?.[0] as DaemonSpawnCall
-        expect(spawnOptions.env.PATH.split(delimiter)[0]).toBe('/tmp/orca-agent-teams-bin')
-        expect(spawnOptions.env.PATH).toContain(expectedAttributionShimDir())
+        const spawnedPath = spawnOptions.env.PATH.split(delimiter)
+        expect(spawnedPath[0]).toBe('/tmp/orca-agent-teams-bin')
+        expect(spawnedPath.some((entry) => entry.includes(join('cli', 'bin')))).toBe(true)
         expect(spawnOptions.env.TERM_PROGRAM).toBeUndefined()
-        expect(spawnOptions.env.ORCA_ATTRIBUTION_SHIM_DIR).toBeUndefined()
-        expect(spawnOptions.envToDelete).toEqual(
-          expect.arrayContaining(['TERM_PROGRAM', 'ORCA_ATTRIBUTION_SHIM_DIR'])
-        )
+        expect(spawnOptions.envToDelete).toEqual(expect.arrayContaining(['TERM_PROGRAM']))
       })
 
       it('strips inherited agent-hook endpoint env from development daemon PTYs', async () => {
@@ -5134,38 +5162,53 @@ describe('registerPtyHandlers', () => {
         }
       })
 
-      it('prepends attribution shims on the daemon path', async () => {
-        const env = await daemonSpawnAndGetEnv({}, undefined, () => ({
-          enableGitHubAttribution: true
-        }))
-        expect(env.ORCA_ENABLE_GIT_ATTRIBUTION).toBe('1')
-        expect(env.PATH).toContain(expectedAttributionShimDir())
+      it('strips retired attribution shims on the daemon path', async () => {
+        const env = await daemonSpawnAndGetEnv(
+          {
+            ORCA_ENABLE_GIT_ATTRIBUTION: '1',
+            PATH: `${expectedAttributionShimDir()}${delimiter}/usr/bin`
+          },
+          undefined,
+          () => ({
+            enableGitHubAttribution: true
+          })
+        )
+        expect(env.ORCA_ENABLE_GIT_ATTRIBUTION).toBeUndefined()
+        expect(env.PATH ?? '').not.toContain('orca-terminal-attribution')
       })
 
       it('keeps the Agent Teams tmux shim ahead of host PATH shims on daemon pty:spawn', async () => {
-        const spawnOptions = await daemonSpawnAndGetOptions(
-          {
-            PATH: `/tmp/orca-agent-teams-bin${delimiter}/usr/bin`,
-            ORCA_AGENT_TEAMS_TEAM_ID: 'team-test',
-            TERM_PROGRAM: 'Orca',
-            ORCA_ATTRIBUTION_SHIM_DIR: '/tmp/stale-attribution'
-          },
-          undefined,
-          () => ({ enableGitHubAttribution: true }),
-          undefined,
-          {
-            command: 'claude',
-            envToDelete: ['TERM_PROGRAM', 'ORCA_ATTRIBUTION_SHIM_DIR']
-          }
-        )
+        // Why: dev mode makes buildPtyHostEnv prepend its own CLI shim on every platform, so
+        // the promotion below has something to beat instead of passing trivially.
+        const { app } = await import('electron')
+        const mockedApp = app as unknown as { isPackaged: boolean }
+        const prevPackaged = mockedApp.isPackaged
+        mockedApp.isPackaged = false
+        let spawnOptions: Awaited<ReturnType<typeof daemonSpawnAndGetOptions>>
+        try {
+          spawnOptions = await daemonSpawnAndGetOptions(
+            {
+              PATH: `/tmp/orca-agent-teams-bin${delimiter}/usr/bin`,
+              ORCA_AGENT_TEAMS_TEAM_ID: 'team-test',
+              TERM_PROGRAM: 'Orca'
+            },
+            undefined,
+            undefined,
+            undefined,
+            {
+              command: 'claude',
+              envToDelete: ['TERM_PROGRAM']
+            }
+          )
+        } finally {
+          mockedApp.isPackaged = prevPackaged
+        }
 
-        expect(spawnOptions.env.PATH.split(delimiter)[0]).toBe('/tmp/orca-agent-teams-bin')
-        expect(spawnOptions.env.PATH).toContain(expectedAttributionShimDir())
+        const spawnedPath = spawnOptions.env.PATH.split(delimiter)
+        expect(spawnedPath[0]).toBe('/tmp/orca-agent-teams-bin')
+        expect(spawnedPath.some((entry) => entry.includes(join('cli', 'bin')))).toBe(true)
         expect(spawnOptions.env.TERM_PROGRAM).toBeUndefined()
-        expect(spawnOptions.env.ORCA_ATTRIBUTION_SHIM_DIR).toBeUndefined()
-        expect(spawnOptions.envToDelete).toEqual(
-          expect.arrayContaining(['TERM_PROGRAM', 'ORCA_ATTRIBUTION_SHIM_DIR'])
-        )
+        expect(spawnOptions.envToDelete).toEqual(expect.arrayContaining(['TERM_PROGRAM']))
       })
 
       it('injects dev-mode ORCA_USER_DATA_PATH + dev CLI PATH on the daemon path', async () => {
@@ -5969,7 +6012,7 @@ describe('registerPtyHandlers', () => {
         await Promise.resolve()
 
         expect(runtime.onPtyExit).toHaveBeenCalledTimes(1)
-        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined)
+        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, undefined)
         expect(
           mainWindow.webContents.send.mock.calls.filter((call) => call[0] === 'pty:exit')
         ).toEqual([['pty:exit', { id: 'local-pty', code: 0 }]])
@@ -6023,7 +6066,7 @@ describe('registerPtyHandlers', () => {
         await expect(stopPromise).resolves.toBe(true)
 
         expect(runtime.onPtyExit).toHaveBeenCalledTimes(1)
-        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined)
+        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, undefined)
         expect(
           mainWindow.webContents.send.mock.calls.filter((call) => call[0] === 'pty:exit')
         ).toEqual([['pty:exit', { id: 'local-pty', code: 0 }]])
@@ -6142,7 +6185,7 @@ describe('registerPtyHandlers', () => {
           'remote-pty',
           'terminated'
         )
-        expect(runtime.onPtyExit).toHaveBeenCalledWith('remote-pty', -1, undefined)
+        expect(runtime.onPtyExit).toHaveBeenCalledWith('remote-pty', 0, undefined)
       })
 
       it('splits the teardown budget so the liveness RPC gets only what shutdown left', async () => {
@@ -6359,7 +6402,7 @@ describe('registerPtyHandlers', () => {
         await controller.spawn({ cols: 80, rows: 24 })
         await expect(controller.stopAndWait('local-incarnated')).resolves.toBe(true)
 
-        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-incarnated', -1, 'incarnation-live')
+        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-incarnated', 0, 'incarnation-live')
       })
 
       it('runtime controller kill routes app-scoped SSH ids through the parsed provider when ownership is absent', async () => {
@@ -6477,7 +6520,9 @@ describe('registerPtyHandlers', () => {
           kill: (ptyId: string) => boolean
         }
 
-        expect(controller.kill('ssh:ssh-1@@relay-pty')).toBe(true)
+        // The lease is tombstoned, but nothing observed the detached relay PTY
+        // stop, so the stop itself is reported as unconfirmed.
+        expect(controller.kill('ssh:ssh-1@@relay-pty')).toBe(false)
 
         expect(localShutdown).not.toHaveBeenCalled()
         expect(store.markSshRemotePtyLease).toHaveBeenCalledWith('ssh-1', 'relay-pty', 'terminated')
@@ -6506,7 +6551,7 @@ describe('registerPtyHandlers', () => {
           kill: (ptyId: string) => boolean
         }
 
-        expect(controller.kill('remote-pty')).toBe(true)
+        expect(controller.kill('remote-pty')).toBe(false)
 
         expect(store.markSshRemotePtyLease).toHaveBeenCalledWith(
           'ssh-1',
@@ -6745,11 +6790,16 @@ describe('registerPtyHandlers', () => {
     })
     registerSshPtyProvider('ssh-a', { listProcesses: sshAList } as never)
     registerSshPtyProvider('ssh-b', { listProcesses: sshBList } as never)
-    const runtime = { setPtyController: vi.fn() }
+    setPtyOwnership('ssh-b-pty', 'ssh-b')
+    const runtime = {
+      setPtyController: vi.fn(),
+      markPtyLivenessUnverifiable: vi.fn()
+    }
     handlers.clear()
     registerPtyHandlers(mainWindow as never, runtime as never)
     const controller = runtime.setPtyController.mock.calls[0]?.[0] as {
       listProcesses(connectionId?: string | null): Promise<{ id: string }[]>
+      listProcessesWithHostScope(): Promise<{ processes: { id: string }[]; hostIds: string[] }>
     }
 
     await expect(controller.listProcesses(null)).resolves.toEqual([
@@ -6763,7 +6813,25 @@ describe('registerPtyHandlers', () => {
     expect(sshAList).toHaveBeenCalledOnce()
     expect(sshBList).not.toHaveBeenCalled()
 
-    await expect(controller.listProcesses()).rejects.toThrow('ssh-b unavailable')
+    // STA-517: the aggregate used to propagate ssh-b's failure, which cost the runtime the
+    // whole liveness inventory — so no PTY was ever proven dead and mobile kept every
+    // retained pane "active". One unreachable relay now drops out of the answer instead.
+    await expect(controller.listProcesses()).resolves.toEqual([
+      { id: 'local-pty', title: 'Local', cwd: '/local' },
+      { id: 'ssh-a-pty' }
+    ])
+    expect(sshBList).toHaveBeenCalledOnce()
+    expect(runtime.markPtyLivenessUnverifiable).toHaveBeenCalledWith(
+      'ssh-b-pty',
+      'ssh-b unavailable'
+    )
+
+    await expect(controller.listProcessesWithHostScope()).resolves.toEqual({
+      processes: [{ id: 'local-pty', title: 'Local', cwd: '/local' }, { id: 'ssh-a-pty' }],
+      hostIds: [LOCAL_EXECUTION_HOST_ID, toSshExecutionHostId('ssh-a')]
+    })
+    expect(sshBList).toHaveBeenCalledTimes(2)
+    deletePtyOwnership('ssh-b-pty')
   })
 
   it('returns unavailable runtime confirmation for unsupported or missing providers', async () => {
@@ -6911,7 +6979,7 @@ describe('registerPtyHandlers', () => {
     await handlers.get('pty:kill')!(null, { id: 'local-pty' })
 
     expect(runtime.onPtyExit).toHaveBeenCalledTimes(1)
-    expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined)
+    expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, undefined)
     expect(mainWindow.webContents.send.mock.calls.filter((call) => call[0] === 'pty:exit')).toEqual(
       [['pty:exit', { id: 'local-pty', code: 0 }]]
     )
@@ -7159,7 +7227,7 @@ describe('registerPtyHandlers', () => {
         seq: 13,
         rawLength: 'daemon output'.length
       })
-      expect(runtime.onPtyExit).toHaveBeenCalledWith(result.id, 0, undefined)
+      expect(runtime.onPtyExit).toHaveBeenCalledWith(result.id, 0, undefined, undefined)
       expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:exit', {
         id: result.id,
         code: 0
@@ -12845,7 +12913,7 @@ describe('registerPtyHandlers', () => {
       })
       expect(shell).toBe('/bin/zsh')
       expect(args).toEqual(['-l'])
-      expect(options.env.ZDOTDIR).toBe('/tmp/orca-user-data/shell-ready/zsh')
+      expect(options.env.ZDOTDIR).toBe(join(getShellReadyWrapperRoot(), 'zsh'))
       expect(options.env.ORCA_ORIG_ZDOTDIR).toBe(process.env.HOME)
     } finally {
       Object.defineProperty(process, 'platform', {
@@ -12939,8 +13007,8 @@ describe('registerPtyHandlers', () => {
       expect(args).toEqual(['-l'])
       expect(options.env.OPENCODE_CONFIG_DIR).toBe('/tmp/orca-opencode-config')
       expect(options.env.ORCA_OPENCODE_CONFIG_DIR).toBe('/tmp/orca-opencode-config')
-      expect(options.env.ZDOTDIR).toBe('/tmp/orca-user-data/shell-ready/zsh')
-      expect(options.env.ORCA_SHELL_READY_MARKER).toBe('0')
+      expect(options.env.ZDOTDIR).toBe(join(getShellReadyWrapperRoot(), 'zsh'))
+      expect(options.env.ORCA_SHELL_FEATURES).not.toContain('ready')
     } finally {
       Object.defineProperty(process, 'platform', {
         configurable: true,
@@ -12981,8 +13049,8 @@ describe('registerPtyHandlers', () => {
       expect(options.env.PI_CODING_AGENT_DIR).toBe('/tmp/user-pi-agent')
       expect(options.env.ORCA_PI_CODING_AGENT_DIR).toBeUndefined()
       expect(options.env.ORCA_PI_SOURCE_AGENT_DIR).toBe('/tmp/user-pi-agent')
-      expect(options.env.ZDOTDIR).toBe('/tmp/orca-user-data/shell-ready/zsh')
-      expect(options.env.ORCA_SHELL_READY_MARKER).toBe('0')
+      expect(options.env.ZDOTDIR).toBe(join(getShellReadyWrapperRoot(), 'zsh'))
+      expect(options.env.ORCA_SHELL_FEATURES).not.toContain('ready')
     } finally {
       Object.defineProperty(process, 'platform', {
         configurable: true,
@@ -13075,7 +13143,7 @@ describe('registerPtyHandlers', () => {
         })
 
         const [, , options] = spawnMock.mock.calls[0]!
-        expect(options.env.ORCA_SHELL_READY_MARKER).toBe('0')
+        expect(options.env.ORCA_SHELL_FEATURES).not.toContain('ready')
 
         await Promise.resolve()
         vi.advanceTimersByTime(49)
@@ -13108,7 +13176,7 @@ describe('registerPtyHandlers', () => {
       })
 
       const [, , options] = spawnMock.mock.calls[0]!
-      expect(options.env.ORCA_SHELL_READY_MARKER).toBe('1')
+      expect(options.env.ORCA_SHELL_FEATURES).toContain('ready')
       expect(mockProc.proc.write).not.toHaveBeenCalled()
 
       mockProc.emitData('last login: today\r\n')
@@ -13177,7 +13245,7 @@ describe('registerPtyHandlers', () => {
       })
 
       const [, , options] = spawnMock.mock.calls[0]!
-      expect(options.env.ORCA_SHELL_READY_MARKER).toBe('1')
+      expect(options.env.ORCA_SHELL_FEATURES).toContain('ready')
       expect(mockProc.proc.write).not.toHaveBeenCalled()
 
       mockProc.emitData('\x1b]777;orca-shell-ready\x07')
@@ -17540,8 +17608,8 @@ describe('registerPtyHandlers', () => {
           cwd: '/tmp',
           env: expect.objectContaining({
             ORCA_OPENCODE_CONFIG_DIR: '/tmp/orca-opencode-config',
-            ORCA_SHELL_READY_MARKER: '0',
-            ZDOTDIR: '/tmp/orca-user-data/shell-ready/zsh'
+            ORCA_SHELL_FEATURES: 'overlay,history,markers',
+            ZDOTDIR: join(getShellReadyWrapperRoot(), 'zsh')
           })
         })
       )
@@ -18890,8 +18958,8 @@ describe('registerPtyHandlers', () => {
           env: expect.objectContaining({
             SHELL: '/bin/zsh',
             ORCA_OPENCODE_CONFIG_DIR: '/tmp/orca-opencode-config',
-            ORCA_SHELL_READY_MARKER: '0',
-            ZDOTDIR: '/tmp/orca-user-data/shell-ready/zsh'
+            ORCA_SHELL_FEATURES: 'overlay,history,markers',
+            ZDOTDIR: join(getShellReadyWrapperRoot(), 'zsh')
           })
         })
       )
@@ -19247,7 +19315,9 @@ describe('registerPtyHandlers', () => {
     await Promise.resolve()
 
     expect(killSpy).toHaveBeenCalled()
-    expect(runtime.onPtyExit).toHaveBeenCalledWith(spawnResult.id, -1, spawnResult.incarnationId)
+    expect(runtime.onPtyExit).toHaveBeenCalledWith(spawnResult.id, -1, spawnResult.incarnationId, {
+      cause: { kind: 'unknown', reason: 'stop_unverified' }
+    })
     const listed = await getLocalPtyProvider().listProcesses()
     expect(listed.some((info) => info.id === spawnResult.id)).toBe(false)
   })

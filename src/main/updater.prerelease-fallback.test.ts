@@ -677,9 +677,14 @@ describe('updater', () => {
     checkForUpdatesFromMenu()
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.3.17', 1, {
-        includePrerelease: false
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.3.17',
+        1,
+        // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+        expect.objectContaining({
+          includePrerelease: false
+        })
+      )
       expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
     })
     expect(autoUpdaterMock.setFeedURL).toHaveBeenLastCalledWith({
@@ -702,9 +707,14 @@ describe('updater', () => {
     checkForUpdatesFromMenu({ includePrerelease: true })
 
     await vi.waitFor(() => {
-      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith('1.3.17', 2, {
-        includePrerelease: true
-      })
+      expect(fetchNewerReleaseTagsMock).toHaveBeenCalledWith(
+        '1.3.17',
+        2,
+        // Why objectContaining: the dfhis release-feed override threads an extra releaseFeed option through.
+        expect.objectContaining({
+          includePrerelease: true
+        })
+      )
       expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledTimes(1)
     })
     expect(autoUpdaterMock.allowPrerelease).toBe(true)

@@ -1,3 +1,4 @@
+import { wslGatedReadFile } from '../native-chat/wsl-transcript-fs-access'
 import type { AiVaultSession, AiVaultTokenUsage } from '../../shared/ai-vault-types'
 import type { ExecutionHostId } from '../../shared/execution-host'
 import { addTokenUsage } from './session-scanner-token-values'

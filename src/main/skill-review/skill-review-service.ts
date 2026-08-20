@@ -1,5 +1,5 @@
 import { agentHookServer } from '../agent-hooks/server'
-import { splitWorktreeIdForFilesystem } from '../../shared/worktree-id'
+import { splitWorktreeIdForFilesystem } from '../../shared/worktree/id'
 import { startSkillReviewCurator } from './review-curator'
 import { createSkillReviewQueue } from './review-queue'
 import { runSkillReview } from './review-runner'

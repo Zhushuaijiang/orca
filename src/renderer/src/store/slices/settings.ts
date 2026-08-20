@@ -31,6 +31,10 @@ import {
 import { setYunxiaoRequirementPromptGateEnabled } from '../../../../shared/yunxiao-requirement-prompt-gate'
 import * as ownerHydration from './settings-owner-hydration-publication'
 import { persistVisibilityAwareSettings } from './worktree-visibility-settings-write'
+import {
+  hydrateOwnerWorktreeVisibilityDefaults,
+  type WorktreeVisibilityDefaultsByHost
+} from './worktree-visibility-owner-settings'
 import { getSettingsFocusedExecutionHostId } from '../../../../shared/execution-host'
 
 export type SettingsSlice = SettingsSearchState & {
@@ -189,13 +193,11 @@ export const createSettingsSlice: StateCreator<AppState, [], [], SettingsSlice> 
   worktreeVisibilitySourceDefaultsSupportedRuntimeEnvironmentId: null,
   ...createSettingsSearchState((state) => set(state)),
 
-  fetchSettings: async () => {
-    try {
-      const settings = await window.api.settings.get()
-      set({ settings })
+  fetchSettings: async (options) => {
+    await ownerHydration.fetchSettingsWithOwnerHydration({ options, set, get })
+    const settings = get().settings
+    if (settings) {
       setYunxiaoRequirementPromptGateEnabled(settings.yunxiaoRequirementPromptGateEnabled === true)
-    } catch (err) {
-      console.error('Failed to fetch settings:', err)
     }
     const { runtimeEnvironmentCatalogHydrated, runtimeEnvironments, runtimeStatusByEnvironmentId } =
       get()

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+/* oxlint-disable max-lines */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', async () =>
   (await import('./createMainWindow-test-harness')).electronModuleMock()
@@ -14,15 +15,30 @@ vi.mock('../browser/browser-manager', async () =>
   (await import('./createMainWindow-test-harness')).browserManagerMock()
 )
 
-import { createMainWindow, loadMainWindow } from './createMainWindow'
+import {
+  createMainWindow,
+  loadMainWindow,
+  WINDOW_QUIT_RENDERER_ACK_TIMEOUT_MS
+} from './createMainWindow'
 import { ipcMain } from 'electron'
-import { resetExpectedTeardownStateForTest } from '../crash-reporting/expected-teardown-state'
+import { shouldRecoverRendererAfterProcessGone } from '../crash-reporting/process-gone-classification'
+import {
+  resetExpectedTeardownStateForTest,
+  resolveExpectedTeardownScope,
+  WINDOWS_SESSION_END_CRASH_SUPPRESSION_WINDOW_MS
+} from '../crash-reporting/expected-teardown-state'
 import {
   attachGuestPoliciesMock,
   browserWindowMock,
+  buildFromTemplateMock,
+  isMock,
   macosTahoeMock,
+  menuPopupMock,
+  notificationMock,
+  notificationShowMock,
   openExternalMock,
   powerMonitorOnMock,
+  powerMonitorRemoveListenerMock,
   resetMainWindowMocks,
   withPlatform
 } from './createMainWindow-test-harness'

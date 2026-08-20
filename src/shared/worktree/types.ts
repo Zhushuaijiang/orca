@@ -3,17 +3,19 @@ import type { AutomationExecutionTargetType } from '../automations-types'
 import type { TaskSourceContext } from '../task-source-context'
 import type { TuiAgent } from '../tui-agent'
 import type { DiffComment, MobileDiffReviewState } from '../diff-comment-types'
+import type { ManualYunxiaoRequirementGate } from '../yunxiao-requirement-prompt-gate'
 import type { EphemeralVmCheckoutMode } from '../orca-yaml-hook-types'
 import type { BuiltInWorktreeVisibilitySourceId } from '../repo-types'
 
 export type WorkspaceLinkedItem = {
-  provider: 'github' | 'gitlab' | 'linear' | 'jira'
+  provider: 'github' | 'gitlab' | 'linear' | 'jira' | 'yunxiao'
   type: 'issue' | 'pr' | 'mr'
   number: number
   title: string
   url: string
   linearIdentifier?: string
   jiraIdentifier?: string
+  yunxiaoIdentifier?: string
   repoId?: string
 }
 
@@ -133,6 +135,7 @@ export type Worktree = {
   diffComments?: DiffComment[]
   mobileDiffReview?: MobileDiffReviewState
   automationProvenance?: AutomationWorkspaceProvenance
+  yunxiaoRequirementGate?: ManualYunxiaoRequirementGate
   cliProvenance?: CliWorkspaceProvenance
 } & GitWorktreeInfo
 

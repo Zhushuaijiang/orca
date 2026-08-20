@@ -92,7 +92,8 @@ describe('Store', () => {
     expect(settings.rightSidebarOpenByDefault).toBe(true)
     expect(settings.showTasksButton).toBe(true)
     expect(settings.showAutomationsButton).toBe(true)
-    expect(settings.visibleTaskProviders).toEqual(['github', 'gitlab', 'linear', 'jira'])
+    // Fork defaults (dfhis): gitlab/yunxiao/code-merge ship visible; github/linear/jira stay opt-in.
+    expect(settings.visibleTaskProviders).toEqual(['gitlab', 'yunxiao', 'code-merge'])
     expect(settings.openInApplications).toEqual([
       { id: 'vscode', label: 'VS Code', command: 'code' }
     ])

@@ -27,7 +27,7 @@ export type UpdateCheckOptions = {
 
 /** Non-release origins for an update. Derived from the dev-channel list so a new
  *  channel with its own repo cannot be reported as an ordinary release. */
-export type UpdateSource = 'local' | DedicatedRepoChannel
+export type UpdateSource = 'local' | DedicatedRepoChannel | 'dfhis'
 
 /** Root-package Linux install formats whose update installs need privilege escalation. */
 export type LinuxRootPackageType = 'deb' | 'rpm'

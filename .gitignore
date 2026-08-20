@@ -153,4 +153,4 @@ tests/tools/benchmarks/results/terminal-pipeline-*.json
 # DFHIS auto-release local credentials (never commit)
 .dfhis-auto-release.env
 # Old release trees the cross-version wire harness extracts on demand
-tests/e2e/.cross-version-checkouts/ origin/main
+tests/e2e/.cross-version-checkouts/

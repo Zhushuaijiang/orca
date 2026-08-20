@@ -20,7 +20,16 @@ const STRING_FORM = new RegExp(String.raw`wsl(?:\.exe)?\b[^\n]*?[^-]--\s+${GUEST
 
 const SCANNED_ROOTS = ['src', 'config', 'tests']
 const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.mjs', '.js']
-const IGNORED_DIRECTORIES = new Set(['node_modules', 'dist', 'out', 'build', '.git'])
+// `.cross-version-checkouts` holds extracted historical releases (gitignored);
+// scanning old snapshots would flag patterns the current tree already fixed.
+const IGNORED_DIRECTORIES = new Set([
+  'node_modules',
+  'dist',
+  'out',
+  'build',
+  '.git',
+  '.cross-version-checkouts'
+])
 
 function collectSourceFiles(root: string): string[] {
   let found: string[] = []

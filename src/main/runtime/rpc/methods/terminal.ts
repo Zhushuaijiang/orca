@@ -1421,21 +1421,26 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
           ? applyYunxiaoRequirementPromptGate(params.text)
           : params.text
       try {
-        result = await runtime.sendTerminal(
-          params.terminal,
-          {
-            text,
-            enter: params.enter === true,
-            interrupt: params.interrupt === true
-          },
-          {
-            beforeWrite,
-            ...(reserveWrite ? { reserveWrite } : {}),
-            ...(params.inputKind !== 'query-reply' && mobileFloorClientId
-              ? { afterWrite: () => commitMobileInputFloorClaim(mobileFloorClaim) }
-              : {})
-          }
-        )
+        result = useSettledAgentPrompt
+          ? await runtime.sendTerminalAgentPrompt(params.terminal, params.text!, {
+              beforeWrite,
+              signal
+            })
+          : await runtime.sendTerminal(
+              params.terminal,
+              {
+                text,
+                enter: params.enter === true,
+                interrupt: params.interrupt === true
+              },
+              {
+                beforeWrite,
+                ...(reserveWrite ? { reserveWrite } : {}),
+                ...(params.inputKind !== 'query-reply' && mobileFloorClientId
+                  ? { afterWrite: () => commitMobileInputFloorClaim(mobileFloorClaim) }
+                  : {})
+              }
+            )
       } catch (error) {
         mobileFloorClaim.current?.rollback()
         const refusedReason = getTerminalSendGuardRefusedReason(error)

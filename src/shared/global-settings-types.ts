@@ -73,6 +73,7 @@ export type GlobalSettings = {
   autoRenameBranchFromWorkDefaultedOn?: boolean
   branchPrefix: BranchPrefixStrategy
   branchPrefixCustom: string
+  enableGitHubAttribution: boolean
   theme: 'system' | 'dark' | 'light'
   /** Controls the left sidebar surface without changing terminal brightness. */
   leftSidebarAppearanceMode: LeftSidebarAppearanceMode
@@ -331,6 +332,10 @@ export type GlobalSettings = {
   visibleTaskProviders: TaskProvider[]
   /** Why: one-shot guard to make Jira visible for existing profiles once, without re-adding after a later opt-out. */
   visibleTaskProvidersDefaultedForJira: boolean
+  /** Why: one-shot guard to make Yunxiao visible for existing profiles once, without re-adding after a later opt-out. */
+  visibleTaskProvidersDefaultedForYunxiao: boolean
+  /** Why: one-shot guard to make code merge visible for existing profiles once, without re-adding after a later opt-out. */
+  visibleTaskProvidersDefaultedForCodeMerge: boolean
   /** Persisted repo selection (cross-repo tasks view). null = sticky-all (includes future-added repos);
    *  string[] = frozen curated subset (ineligible ids dropped on load; empty after drop is treated as null). */
   defaultRepoSelection: string[] | null
@@ -375,6 +380,11 @@ export type GlobalSettings = {
   keepComputerAwakeWhileAgentsRun: boolean
   /** Optional for mixed-version compatibility; the legacy boolean maps true to Auto. */
   computerAwakeMode?: ComputerAwakeMode
+  /** When true, pasting/launching prompts that mention DFHIS/Yunxiao requirements
+   *  get wrapped with the controlled requirement workflow gate instructions. Off by default. */
+  yunxiaoRequirementPromptGateEnabled?: boolean
+  /** Why: 会话结束后自动评审并沉淀技能/记忆（hermes 式）；缺省视为开启（!== false）。 */
+  skillReviewEnabled?: boolean
   /** macOS Option key: compose layout chars (@ German, € French) vs act as Meta/Esc for readline.
    *  'auto' (default) = layout-aware via navigator.keyboard.getLayoutMap() (US → Meta, else compose);
    *  'false' = compose; 'true' = Meta on both Option keys; 'left'/'right' = only that key is Meta.

@@ -30,6 +30,7 @@ import type {
   GlobalSettings,
   WorktreeVisibilityDefaults
 } from '../../../shared/global-settings-types'
+import { normalizeTaskProviderSettings } from '../../../shared/task-providers'
 import type { OnboardingState } from '../../../shared/onboarding-state-types'
 import type { PersistedUIState } from '../../../shared/persisted-ui-state-types'
 import {
@@ -4034,6 +4035,21 @@ async function getRuntimeBackedStoredSettings(): Promise<GlobalSettings> {
     }
     if (typeof result.settings.agentSkillSharingEnabled === 'boolean') {
       runtimeSettings.agentSkillSharingEnabled = result.settings.agentSkillSharingEnabled
+    }
+    // Why: the paired host owns task-provider availability (e.g. yunxiao), so its
+    // provider list and default win over stale web-local values.
+    if (
+      result.settings.defaultTaskSource !== undefined ||
+      result.settings.visibleTaskProviders !== undefined
+    ) {
+      Object.assign(
+        runtimeSettings,
+        normalizeTaskProviderSettings({
+          defaultTaskSource: result.settings.defaultTaskSource ?? local.defaultTaskSource,
+          visibleTaskProviders:
+            result.settings.visibleTaskProviders ?? local.visibleTaskProviders
+        })
+      )
     }
     const next = mergeSettings(local, runtimeSettings)
     writeStoredSettings(next)

@@ -25,13 +25,6 @@ export type IssueListResult = {
   error?: ClassifiedError
 }
 
-// Why: GitLab REST API addresses projects by URL-encoded path. Centralize
-// the encoding so a future call site can't forget it (the slash escapes
-// are easy to miss).
-function encodedProject(projectPath: string): string {
-  return encodeURIComponent(projectPath)
-}
-
 const MARKDOWN_DATA_IMAGE_PATTERN =
   /!\[([^\]]*)\]\((data:image\/(png|jpe?g|gif|webp);base64,([A-Za-z0-9+/=\s]+))\)/gi
 

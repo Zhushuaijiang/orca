@@ -134,6 +134,11 @@ export function createSettings(overrides: TestSettingsOverrides = {}): GlobalSet
     leftSidebarAppearanceMode: overrides.leftSidebarAppearanceMode ?? 'default',
     appFontFamily,
     agentStatusHooksEnabled,
-    tabAutoGenerateTitle
+    tabAutoGenerateTitle,
+    enableGitHubAttribution: overrides.enableGitHubAttribution ?? false,
+    visibleTaskProvidersDefaultedForYunxiao:
+      overrides.visibleTaskProvidersDefaultedForYunxiao ?? true,
+    visibleTaskProvidersDefaultedForCodeMerge:
+      overrides.visibleTaskProvidersDefaultedForCodeMerge ?? true
   }
 }
