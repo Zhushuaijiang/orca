@@ -23,8 +23,12 @@ const isMacHourly = process.env.ORCA_MAC_HOURLY === '1'
 const isMacAdhoc = process.env.ORCA_MAC_ADHOC === '1'
 const isMacRelease = process.env.ORCA_MAC_RELEASE === '1' || isMacHourly || isMacAdhoc
 const isLinuxArm64Release = process.env.ORCA_LINUX_ARM64_RELEASE === '1'
-const localBuildVersion = isMacRelease ? undefined : process.env.ORCA_LOCAL_BUILD_VERSION
-const devChannelBuildVersion = isMacHourly
+const localBuildVersion =
+  isMacRelease || isWinDevChannel ? undefined : process.env.ORCA_LOCAL_BUILD_VERSION
+const isHourlyChannel = isMacHourly || isWinHourly
+const isDailyChannel = isMacDaily || isWinDaily
+const isAdhocChannel = isMacAdhoc || isWinAdhoc
+const devChannelBuildVersion = isHourlyChannel
   ? process.env.ORCA_HOURLY_BUILD_VERSION
   : isMacAdhoc
     ? process.env.ORCA_ADHOC_BUILD_VERSION
@@ -148,6 +152,9 @@ module.exports = {
     '!out/**/*.test.js',
     // Why: Vite's manifest is only used to project the paired web client.
     '!out/renderer/.vite{,/**/*}',
+    // Why: out/electron-dev caches `pnpm dev`'s per-branch Electron.app copies (~270MB each).
+    // CI never creates it, but packaging on a machine that has run dev would pack them all.
+    '!out/electron-dev{,/**/*}',
     '!electron.vite.config.{js,ts,mjs,cjs}',
     '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md,README.md}',
     '!{.env,.env.*,.npmrc,pnpm-lock.yaml}',
@@ -186,6 +193,12 @@ module.exports = {
   // Why: sherpa-onnx native bindings (platform-specific subpackages) must be
   // unpacked because they ship .node addons + .dylib/.so files that cannot be
   // dlopen()'d from inside the asar archive.
+  // Why: the OpenCode SQLite worker entry is also spawned by the scanner
+  // service, which runs under ELECTRON_RUN_AS_NODE and so cannot see into
+  // app.asar. Left packed, that spawn fails closed and every OpenCode session
+  // disappears from Agent Session History in packaged builds only. Worker
+  // entries reached solely from the Electron main process stay packed, since
+  // asar redirects their app.asar paths.
   asarUnpack: [
     'out/package.json',
     'out/cli/**',
@@ -203,6 +216,8 @@ module.exports = {
     'out/main/hermes/**',
     'out/main/daemon-entry.js',
     'out/main/session-scanner-service-entry.js',
+    'out/main/wsl-transcript-fs-process-entry.js',
+    'out/main/session-scanner-opencode-sqlite-worker-entry.js',
     'out/main/plugin-host-entry.js',
     'out/main/computer-sidecar.js',
     'out/main/parcel-watcher-process-entry.js',
@@ -297,8 +312,14 @@ module.exports = {
     }
     if (context.electronPlatformName === 'darwin') {
       await signMacComputerUseHelper(join(resourcesDir, 'Orca Computer Use.app'), context.packager)
-      await signMacNotificationStatusHelper(
+      await signMacStandaloneHelper(
         join(resourcesDir, '..', 'MacOS', 'orca-notification-status'),
+        'orca-notification-status',
+        context.packager
+      )
+      await signMacStandaloneHelper(
+        join(resourcesDir, '..', 'MacOS', 'orca-keyboard-layout'),
+        'orca-keyboard-layout',
         context.packager
       )
     }
@@ -307,9 +328,18 @@ module.exports = {
     executableName: 'Orca',
     // Why: Windows installers are signed after electron-builder packaging by
     // SignPath, so the packager cannot infer the updater publisherName.
-    signtoolOptions: {
-      publisherName: 'SignPath Foundation'
-    },
+    //
+    // Why dev channels drop it instead: they ship unsigned, because SignPath's
+    // approval waits are budgeted in hours and cannot fit an hourly cadence.
+    // electron-updater Authenticode-verifies every installer it downloads
+    // against the publisherName baked into the *installed* app's app-update.yml
+    // (NsisUpdater.verifySignature), and skips verification entirely when that
+    // name is absent. An unsigned build that still claimed 'SignPath Foundation'
+    // would therefore reject its own channel's next build — and its way back to
+    // stable with it. Dropping it is what makes dev→dev and dev→stable work.
+    ...(isWinDevChannel
+      ? { verifyUpdateCodeSignature: false }
+      : { signtoolOptions: { publisherName: 'SignPath Foundation' } }),
     extraResources: [
       ...commonExtraResources,
       ...createPackagedRuntimeNodeModuleResources('win32'),
@@ -413,6 +443,10 @@ module.exports = {
       {
         from: 'native/notification-status-macos/.build/release/orca-notification-status',
         to: 'MacOS/orca-notification-status'
+      },
+      {
+        from: 'native/keyboard-layout-macos/.build/release/orca-keyboard-layout',
+        to: 'MacOS/orca-keyboard-layout'
       }
     ],
     target: [
@@ -585,10 +619,10 @@ async function signMacComputerUseHelper(helperAppPath, packager) {
   })
 }
 
-async function signMacNotificationStatusHelper(helperPath, packager) {
+async function signMacStandaloneHelper(helperPath, helperName, packager) {
   if (!existsSync(helperPath)) {
     if (isMacRelease) {
-      throw new Error(`Missing orca-notification-status helper at ${helperPath}`)
+      throw new Error(`Missing ${helperName} helper at ${helperPath}`)
     }
     return
   }
@@ -601,12 +635,9 @@ async function signMacNotificationStatusHelper(helperPath, packager) {
     findInstalledMacSigningIdentity(codeSigningInfo?.keychainFile) ??
     (isMacRelease ? null : '-')
   if (!identity) {
-    throw new Error('Missing signing identity for orca-notification-status helper')
+    throw new Error(`Missing signing identity for ${helperName} helper`)
   }
-  // Why: macOS keys notification records to the code-signing identifier; the
-  // binary embeds the app's CFBundleIdentifier in __TEXT,__info_plist so this
-  // (and any later) `codesign --force` derives the correct identifier. Sign
-  // before the outer Orca.app is sealed, like the computer-use helper.
+  // Why: nested executables must be signed before the outer app bundle is sealed.
   const args = ['--force', '--sign', identity]
   if (isMacRelease) {
     args.push('--options', 'runtime', '--timestamp')

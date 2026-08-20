@@ -35,15 +35,15 @@ import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import { useAllWorktrees, useRepoById, useRepoMap, useWorktreeMap } from '@/store/selectors'
 import { cn } from '@/lib/utils'
+import type { Repo } from '../../../../shared/repo-types'
 import type {
-  Repo,
-  Worktree,
   WorkspaceStatus,
-  WorkspaceStatusDefinition
-} from '../../../../shared/types'
+  WorkspaceStatusDefinition,
+  Worktree
+} from '../../../../shared/worktree/types'
 import {
-  deferWorktreeContextMenuDeleteIntent,
-  type WorktreeContextMenuDeleteIntent
+  createWorktreeContextMenuDeleteIntent,
+  deferWorktreeContextMenuDeleteIntent
 } from './worktree-context-menu-delete-intent'
 import { runSleepWorktrees } from './sleep-worktree-flow'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
@@ -66,6 +66,7 @@ import {
 import { WorkspaceSleepMenuItems } from './WorkspaceSleepMenuItems'
 import { isEventTargetInsideCurrentTarget } from './worktree-card-dom-events'
 import { translate } from '@/i18n/i18n'
+import { unnestWorktrees } from './worktree-unnest'
 import { parseWorkspaceKey, worktreeWorkspaceKey } from '../../../../shared/workspace-scope'
 import { hasRestorableAgentSession } from '@/store/slices/recently-closed-tabs'
 import { restoreRecentlyClosedAgentSession } from './worktree-closed-agent-session'
@@ -343,7 +344,9 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   const createProjectGroup = useAppStore((s) => s.createProjectGroup)
   const moveProjectToGroup = useAppStore((s) => s.moveProjectToGroup)
   const repo = useRepoById(worktree.repoId)
-  const deleteState = useAppStore((s) => s.deleteStateByWorktreeId[worktree.id])
+  const deleteState = useAppStore((s) =>
+    getDeleteStateForWorktreeHost(worktree, s.deleteStateByWorktreeId)
+  )
   const [menuOpen, setMenuOpen] = useState(false)
   const [vaultRestoreSession, setVaultRestoreSession] = useState<AiVaultSession | null>(null)
   const [vaultRestoreSessions, setVaultRestoreSessions] = useState<AiVaultSession[]>([])
@@ -438,11 +441,14 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   const lineageDescendantCount = lineageMenuActions.descendants.length
   const subtreeSleepableWorktrees = lineageMenuActions.sleepableTargets
   const deletingContext = useMemo(
-    () => activeContextWorktrees.some((item) => deleteStateByWorktreeId[item.id]?.isDeleting),
+    () =>
+      activeContextWorktrees.some(
+        (item) => getDeleteStateForWorktreeHost(item, deleteStateByWorktreeId)?.isDeleting
+      ),
     [activeContextWorktrees, deleteStateByWorktreeId]
   )
   const deletingSubtree = lineageMenuActions.targets.some(
-    (item) => deleteStateByWorktreeId[item.id]?.isDeleting
+    (item) => getDeleteStateForWorktreeHost(item, deleteStateByWorktreeId)?.isDeleting
   )
   const contextDeletePending = isMultiContext ? deletingContext : deletingSubtree
   const contextWorkspaceStatus = useMemo(() => {
@@ -761,27 +767,15 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
     scopeRef.current
       ?.closest('[data-worktree-sidebar]')
       ?.dispatchEvent(new Event(VIRTUALIZED_SCROLL_ANCHOR_RECORD_EVENT))
-    const intent: WorktreeContextMenuDeleteIntent = isMultiContext
-      ? {
-          kind: 'batch',
-          worktrees: batchDeleteWorktrees.map(({ id, instanceId }) => ({ id, instanceId }))
-        }
-      : folderWorkspaceId
-        ? { kind: 'folder', folderWorkspaceId }
-        : {
-            kind: 'worktree',
-            worktree: { id: worktree.id, instanceId: worktree.instanceId }
-          }
+    const intent = createWorktreeContextMenuDeleteIntent({
+      worktree,
+      batchDeleteWorktrees,
+      isMultiContext,
+      ...(folderWorkspaceId ? { folderWorkspaceId } : {})
+    })
     deferWorktreeContextMenuDeleteIntent(intent, restoreSidebarPosition)
     setMenuOpenState(false)
-  }, [
-    batchDeleteWorktrees,
-    folderWorkspaceId,
-    isMultiContext,
-    setMenuOpenState,
-    worktree.id,
-    worktree.instanceId
-  ])
+  }, [batchDeleteWorktrees, folderWorkspaceId, isMultiContext, setMenuOpenState, worktree])
 
   const handleOpenParent = useCallback(() => {
     if (validParentWorktreeId) {
@@ -835,8 +829,9 @@ const WorktreeContextMenu = React.memo(function WorktreeContextMenu({
   )
 
   const handleRemoveParentLink = useCallback(() => {
-    void Promise.all(
-      activeContextWorktrees.map((item) => updateWorktreeLineage(item.id, { noParent: true }))
+    void unnestWorktrees(
+      activeContextWorktrees.map((item) => item.id),
+      updateWorktreeLineage
     )
   }, [activeContextWorktrees, updateWorktreeLineage])
 

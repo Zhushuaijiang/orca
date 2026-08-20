@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import type { AiVaultSession, AiVaultTokenUsage } from '../../shared/ai-vault-types'
 import type { ExecutionHostId } from '../../shared/execution-host'
 import { addTokenUsage } from './session-scanner-token-values'
@@ -28,7 +27,11 @@ export async function parseDevinSessionFile(
   file: FileWithMtime,
   platform: NodeJS.Platform = process.platform
 ): Promise<AiVaultSession | null> {
-  return parseDevinSessionContent(file, await readFile(file.path, 'utf-8'), platform)
+  return parseDevinSessionContent(
+    file,
+    await wslGatedReadFile(file.path, 'utf-8', 'scan'),
+    platform
+  )
 }
 
 export function parseDevinSessionContent(

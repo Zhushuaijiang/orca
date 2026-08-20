@@ -1,112 +1,35 @@
-/* oxlint-disable max-lines */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  browserWindowMock,
-  openExternalMock,
-  attachGuestPoliciesMock,
-  buildFromTemplateMock,
-  menuPopupMock,
-  notificationMock,
-  notificationShowMock,
-  powerMonitorOnMock,
-  powerMonitorRemoveListenerMock,
-  isMock,
-  macosTahoeMock
-} = vi.hoisted(() => {
-  const menuPopupMock = vi.fn()
-  const notificationShowMock = vi.fn()
-  return {
-    browserWindowMock: vi.fn(),
-    openExternalMock: vi.fn(),
-    attachGuestPoliciesMock: vi.fn(),
-    buildFromTemplateMock: vi.fn(() => ({ popup: menuPopupMock })),
-    menuPopupMock,
-    notificationMock: vi.fn(function () {
-      return { show: notificationShowMock }
-    }),
-    notificationShowMock,
-    powerMonitorOnMock: vi.fn(),
-    powerMonitorRemoveListenerMock: vi.fn(),
-    isMock: { dev: false },
-    macosTahoeMock: { value: false }
-  }
-})
+vi.mock('electron', async () =>
+  (await import('./createMainWindow-test-harness')).electronModuleMock()
+)
+vi.mock('@electron-toolkit/utils', async () =>
+  (await import('./createMainWindow-test-harness')).electronToolkitUtilsMock()
+)
+vi.mock('./macos-tahoe-release', async () =>
+  (await import('./createMainWindow-test-harness')).macosTahoeReleaseMock()
+)
+vi.mock('../app-icon', async () => (await import('./createMainWindow-test-harness')).appIconMock())
+vi.mock('../browser/browser-manager', async () =>
+  (await import('./createMainWindow-test-harness')).browserManagerMock()
+)
 
-vi.mock('electron', () => ({
-  app: { on: vi.fn(), removeListener: vi.fn() },
-  BrowserWindow: browserWindowMock,
-  ipcMain: { on: vi.fn(), removeListener: vi.fn(), handle: vi.fn(), removeHandler: vi.fn() },
-  Menu: { buildFromTemplate: buildFromTemplateMock },
-  Notification: notificationMock,
-  nativeTheme: { shouldUseDarkColors: false },
-  powerMonitor: { on: powerMonitorOnMock, removeListener: powerMonitorRemoveListenerMock },
-  screen: {
-    getPrimaryDisplay: () => ({ workAreaSize: { width: 1440, height: 900 } }),
-    getDisplayMatching: () => ({ scaleFactor: 2 })
-  },
-  shell: { openExternal: openExternalMock }
-}))
-
-vi.mock('@electron-toolkit/utils', () => ({
-  is: isMock
-}))
-
-vi.mock('./macos-tahoe-release', () => ({
-  isMacosTahoeOrNewer: vi.fn(() => macosTahoeMock.value)
-}))
-
-vi.mock('../app-icon', () => ({
-  getAppIconPath: vi.fn(() => 'icon')
-}))
-
-vi.mock('../browser/browser-manager', () => ({
-  browserManager: {
-    attachGuestPolicies: attachGuestPoliciesMock,
-    setDictationShortcutForwardingPredicate: vi.fn()
-  }
-}))
-
-import {
-  createMainWindow,
-  loadMainWindow,
-  WINDOW_QUIT_RENDERER_ACK_TIMEOUT_MS
-} from './createMainWindow'
+import { createMainWindow, loadMainWindow } from './createMainWindow'
 import { ipcMain } from 'electron'
-import { shouldRecoverRendererAfterProcessGone } from '../crash-reporting/process-gone-classification'
+import { resetExpectedTeardownStateForTest } from '../crash-reporting/expected-teardown-state'
 import {
-  resetExpectedTeardownStateForTest,
-  resolveExpectedTeardownScope,
-  WINDOWS_SESSION_END_CRASH_SUPPRESSION_WINDOW_MS
-} from '../crash-reporting/expected-teardown-state'
-
-function withPlatform<T>(platform: NodeJS.Platform, run: () => T): T {
-  const original = process.platform
-  Object.defineProperty(process, 'platform', { configurable: true, value: platform })
-  try {
-    return run()
-  } finally {
-    Object.defineProperty(process, 'platform', { configurable: true, value: original })
-  }
-}
+  attachGuestPoliciesMock,
+  browserWindowMock,
+  macosTahoeMock,
+  openExternalMock,
+  powerMonitorOnMock,
+  resetMainWindowMocks,
+  withPlatform
+} from './createMainWindow-test-harness'
 
 describe('createMainWindow', () => {
   beforeEach(() => {
-    browserWindowMock.mockReset()
-    openExternalMock.mockReset()
-    attachGuestPoliciesMock.mockReset()
-    buildFromTemplateMock.mockClear()
-    menuPopupMock.mockClear()
-    notificationMock.mockClear()
-    notificationShowMock.mockClear()
-    powerMonitorOnMock.mockReset()
-    powerMonitorRemoveListenerMock.mockReset()
-    isMock.dev = false
-    macosTahoeMock.value = false
-    vi.mocked(ipcMain.on).mockReset()
-    vi.mocked(ipcMain.removeListener).mockReset()
-    vi.mocked(ipcMain.handle).mockReset()
-    vi.mocked(ipcMain.removeHandler).mockReset()
+    resetMainWindowMocks()
     resetExpectedTeardownStateForTest()
     vi.useRealTimers()
   })
@@ -155,6 +78,9 @@ describe('createMainWindow', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
       on: vi.fn((event, handler) => {
+        windowHandlers[event] = handler
+      }),
+      once: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
       setZoomLevel: vi.fn(),
