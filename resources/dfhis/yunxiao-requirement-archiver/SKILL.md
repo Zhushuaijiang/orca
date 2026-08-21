@@ -24,6 +24,8 @@ blocking_questions: []
 
 Ask only questions that materially change behavior, acceptance, rollout, data, API, or UI. Record answers in the decision ledger. Stop before edits only when a blocking decision is genuinely unresolved.
 
+For every PRD, immediately after the compact contract write a concise **“需求意图与最终诉求”** section before source evidence, code analysis, or detailed questions. It must state: the underlying business problem (not feature names), the final business outcome, the value to the primary roles, and the end-to-end closure standard. For a complex parent requirement, add at most five product decision questions with recommended options and business consequences; keep only 1-3 implementation blockers in the Contract, and place detailed questions in a collapsed appendix or the relevant child requirement.
+
 ## Locate Before Reading
 
 Use the multi-project knowledge/code-graph route when available:
