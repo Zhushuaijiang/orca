@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { homedir } from 'node:os'
 import type { FolderWorkspace } from '../../shared/types'
 import { readDfHisEnvironmentConfigSync } from './config'
 import { resolveDfHisProjectRuntime } from './project-runtime'
@@ -57,6 +58,22 @@ export function buildYunxiaoTerminalEnv(
   addIfMissing(env, 'HIS_MCP_URL', config.hisMcpUrl)
   addIfMissing(env, 'HIS_WORKFLOW_CATALOG', config.hisWorkflowCatalogPath)
   addIfMissing(env, 'YUNXIAO_ARCHIVE_WORKSPACE', config.archiveWorkspacePath)
+  addIfMissing(env, 'HIS_FACT_CARDS_ROOT', config.hisFactCardsRoot)
+  addIfMissing(env, 'HIS_FACT_INDEX_PATH', config.hisFactIndexPath)
+  addIfMissing(env, 'ORCA_YGT_WORKSPACE_ROOT', config.ygtWorkspaceRoot)
+  addIfMissing(env, 'ORCA_PROJECT_INDEX_MANIFEST', config.projectIndexManifestPath)
+  addIfMissing(env, 'ORCA_PROJECT_CODE_GRAPH_PATH', config.projectCodeGraphPath)
+  addIfMissing(env, 'ORCA_PROJECT_KNOWLEDGE_INDEX_PATH', config.projectKnowledgeIndexPath)
+  addIfMissing(
+    env,
+    'HIS_WORKFLOW_HARNESS_ROOT',
+    path.join(homedir(), '.agents', 'skills', 'his-workflow-harness')
+  )
+  addIfMissing(
+    env,
+    'HIS_CODE_INDEX_PATH',
+    path.join(path.dirname(config.hisFactIndexPath), 'code-paths.json')
+  )
   const ygtCompanyEnvironment = getYgtCompanyEnvironment()
   if (ygtCompanyEnvironment) {
     for (const [key, value] of Object.entries(ygtCompanyEnvironment.variables)) {

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "id": "his",
+      "label": "HIS / DFHIS",
+      "aliases": ["HIS", "DFHIS", "云HIS"],
+      "codeRoots": [],
+      "knowledgeRoots": [],
+      "historyRoots": [],
+      "historyPriority": 0,
+      "repositoryPatterns": ["df-(?!ygt|web-ygt)[a-z0-9-]+"]
+    },
+    {
+      "id": "ygt",
+      "label": "医共体 / YGT",
+      "aliases": ["医共体", "YGT"],
+      "codeRoots": [],
+      "knowledgeRoots": [],
+      "historyRoots": [],
+      "historyPriority": 100,
+      "repositoryPatterns": ["df-ygt", "df-web-ygt", "医共体", "YGT"]
+    }
+  ]
+}

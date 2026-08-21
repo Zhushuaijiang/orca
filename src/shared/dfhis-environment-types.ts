@@ -49,6 +49,12 @@ export type DfHisEnvironmentConfigInput = {
   hisCodeRoot?: string
   hisWorkflowCatalogPath?: string
   archiveWorkspacePath?: string
+  hisFactCardsRoot?: string
+  hisFactIndexPath?: string
+  ygtWorkspaceRoot?: string
+  projectIndexManifestPath?: string
+  projectCodeGraphPath?: string
+  projectKnowledgeIndexPath?: string
   dfhisSkillPackUrl?: string
   relayExecModel?: string
   relayExecApiKey?: string
@@ -75,6 +81,12 @@ export type DfHisEnvironmentConfigSnapshot = {
   hisCodeRoot: string
   hisWorkflowCatalogPath: string
   archiveWorkspacePath: string
+  hisFactCardsRoot: string
+  hisFactIndexPath: string
+  ygtWorkspaceRoot: string
+  projectIndexManifestPath: string
+  projectCodeGraphPath: string
+  projectKnowledgeIndexPath: string
   dfhisSkillPackUrl: string
   relayExecModel: string
   relayExecApiKey: string

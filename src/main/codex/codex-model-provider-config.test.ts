@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { readCodexTopLevelModelProvider } from './codex-model-provider-config'
+import {
+  readCodexTopLevelModel,
+  readCodexTopLevelModelProvider
+} from './codex-model-provider-config'
 
 describe('readCodexTopLevelModelProvider', () => {
   it.each([
@@ -59,5 +62,14 @@ describe('readCodexTopLevelModelProvider', () => {
     ['assignment after a table', '[profiles.default]\nmodel_provider = "codex-lb"\n']
   ])('ignores malformed or non-root %s', (_description, config) => {
     expect(readCodexTopLevelModelProvider(config)).toBeNull()
+  })
+})
+
+describe('readCodexTopLevelModel', () => {
+  it('reads only the root model setting', () => {
+    expect(readCodexTopLevelModel('model = "glm-5.3"\n[profiles.fast]\nmodel = "other"\n')).toBe(
+      'glm-5.3'
+    )
+    expect(readCodexTopLevelModel('[profiles.fast]\nmodel = "glm-5.3"\n')).toBeNull()
   })
 })

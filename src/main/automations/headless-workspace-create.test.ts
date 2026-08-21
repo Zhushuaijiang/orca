@@ -2,7 +2,10 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Automation } from '../../shared/automations-types'
 import type { Repo } from '../../shared/repo-types'
-import { buildHeadlessAutomationWorktreeCreateArgs } from './headless-workspace-create'
+import {
+  buildHeadlessAutomationWorktreeCreateArgs,
+  resolveHeadlessAutomationLaunchPreferences
+} from './headless-workspace-create'
 
 const repoPath = path.join('tmp', 'orca')
 
@@ -102,5 +105,68 @@ describe('headless automation workspace create args', () => {
     })
 
     expect(args.setupDecision).toBe('skip')
+  })
+
+  it('starts known OpenAI Sol Yunxiao todo runs on the routine-work model tier', () => {
+    const launchPreferences = resolveHeadlessAutomationLaunchPreferences(
+      {
+        ...automation,
+        yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 }
+      },
+      { config: 'model = "gpt-5.6-sol"\n' }
+    )
+    const args = buildHeadlessAutomationWorktreeCreateArgs({
+      automation: {
+        ...automation,
+        yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 }
+      },
+      run: {
+        id: 'run-1',
+        title: 'DFHIS-32098',
+        scheduledFor: Date.UTC(2026, 0, 2, 3, 4, 5)
+      },
+      launchPreferences,
+      repo
+    })
+
+    expect(args.startupLaunchPreferences).toEqual({
+      model: 'gpt-5.6-terra',
+      effort: 'medium'
+    })
+  })
+
+  it.each([
+    ['native Kimi agent', 'kimi', undefined, undefined],
+    ['Kimi K3 through Codex', 'codex', '--model kimi-k3', 'model = "gpt-5.6-sol"\n'],
+    ['GLM-5.3 through Codex', 'codex', '-m zai/glm-5.3', 'model = "gpt-5.6-sol"\n'],
+    ['custom provider', 'codex', '-m gpt-5.6-sol', 'model_provider = "custom"\n'],
+    ['unknown model', 'codex', '-m future-model', ''],
+    ['unresolved default', 'codex', undefined, '']
+  ])('preserves %s model settings', (_label, agentId, agentArgs, config) => {
+    expect(
+      resolveHeadlessAutomationLaunchPreferences(
+        {
+          ...automation,
+          agentId: agentId as Automation['agentId'],
+          yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 }
+        },
+        { agentArgs, config }
+      )
+    ).toBeUndefined()
+  })
+
+  it('honors an explicit custom provider override in Codex arguments', () => {
+    expect(
+      resolveHeadlessAutomationLaunchPreferences(
+        {
+          ...automation,
+          yunxiaoTodoPool: { kind: 'yunxiao-todo-pool', statuses: ['queued'], batchSize: 1 }
+        },
+        {
+          agentArgs: '-m gpt-5.6-sol -c model_provider=glm',
+          config: 'model_provider = "openai"\n'
+        }
+      )
+    ).toBeUndefined()
   })
 })

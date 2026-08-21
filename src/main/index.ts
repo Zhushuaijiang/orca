@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- main-process entry point; owns app lifecycle, service wiring, window creation, and hook/daemon startup with no cleaner split seam. */
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import os from 'node:os'
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, powerMonitor, type Tray } from 'electron'
@@ -290,7 +290,10 @@ import { initializeBrowserSessionsForApp } from './browser/browser-session-start
 import { setUnreadDockBadgeCount } from './dock/unread-badge'
 import { AutomationService } from './automations/service'
 import { createHeadlessAutomationOutputSnapshotBuffer } from './automations/headless-dispatch'
-import { buildHeadlessAutomationWorktreeCreateArgs } from './automations/headless-workspace-create'
+import {
+  buildHeadlessAutomationWorktreeCreateArgs,
+  resolveHeadlessAutomationLaunchPreferences
+} from './automations/headless-workspace-create'
 import { AgentAwakeService } from './agent-awake-service'
 import { normalizeComputerAwakeMode } from '../shared/computer-awake-mode'
 import { registerSystemResumeBroadcast } from './system-resume-broadcast'
@@ -2688,13 +2691,32 @@ void app.whenReady().then(async () => {
           let terminalPtyId: string | null = null
           let workspaceId: string
           let workspaceDisplayName: string | null = null
+          let codexConfig: string | null = null
+          if (
+            automation.agentId === 'codex' &&
+            automation.yunxiaoTodoPool?.kind === 'yunxiao-todo-pool'
+          ) {
+            try {
+              codexConfig = readFileSync(join(getSystemCodexHomePath(), 'config.toml'), 'utf8')
+            } catch {
+              // A missing/unreadable config is fail-open: preserve the configured agent launch.
+            }
+          }
+          const automationLaunchPreferences = resolveHeadlessAutomationLaunchPreferences(
+            automation,
+            {
+              agentArgs: store!.getSettings().agentDefaultArgs?.codex,
+              config: codexConfig
+            }
+          )
 
           if (automation.workspaceMode === 'new_per_run') {
             const created = await runtimeService.createManagedWorktree({
               ...buildHeadlessAutomationWorktreeCreateArgs({
                 automation,
                 run,
-                repo: target.repo
+                repo: target.repo,
+                launchPreferences: automationLaunchPreferences
               })
             })
             terminalHandle = created.startupTerminal?.handle ?? ''
@@ -2718,7 +2740,8 @@ void app.whenReady().then(async () => {
               {
                 agent: automation.agentId,
                 prompt: automation.prompt,
-                title: run.title
+                title: run.title,
+                launchPreferences: automationLaunchPreferences
               }
             )
             terminalHandle = terminal.handle

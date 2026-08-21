@@ -30,6 +30,15 @@ Read the JSON before broad exploration:
 - `commands`: deterministic harness commands to run next.
 - `notes`: multi-agent and safety constraints.
 
+When the installed workflow pack exposes `ORCA_PROJECT_INDEX_MANIFEST`, route the request through the shared multi-project index before repository-wide search:
+
+```bash
+node "$HIS_WORKFLOW_HARNESS_ROOT/scripts/project-index.mjs" search \
+  --project ygt --query "<request, route, API, or symbol>" --limit 5
+```
+
+Use returned YGT knowledge, repository, route, and symbol hits only as candidates, then validate current code in the owning repository. The manifest is generated from DFHIS Setup paths; never add a developer-specific absolute path to this skill or the YGT harness.
+
 If the request changes the harness, plugin, installer, or YGT documentation workflow, run:
 
 ```bash

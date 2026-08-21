@@ -7,6 +7,17 @@ description: Run deterministic, evidence-driven HIS and DFHIS verification and r
 
 Use `scripts/his-workflow.mjs` as the executable backbone for general HIS work. Use the YGT skill and its own harness for `df-ygt-*` repositories.
 
+## Multi-project knowledge and code-graph routing
+
+Before searching a repository tree, use the project manifest generated from DFHIS Setup. It supports multiple project roots without embedding machine paths in the skill:
+
+```bash
+node scripts/project-index.mjs build
+node scripts/project-index.mjs search --project <his|ygt|other-id> --query "<requirement title, route, repository, or symbol>" --limit 5
+```
+
+DFHIS Setup exposes `ORCA_PROJECT_INDEX_MANIFEST`, `ORCA_PROJECT_CODE_GRAPH_PATH`, and `ORCA_PROJECT_KNOWLEDGE_INDEX_PATH`; explicit flags override them. The manifest is generated from configured HIS/YGT roots and can declare more projects later. The index stores compact documentation/history metadata plus tracked paths, symbols, routes, imports, and bounded reference edges without persisting source text. Unified search then runs bounded full-text `git grep` only inside routed candidate repositories and returns capped snippets. Repository fingerprints make unchanged builds incremental. Treat hits as candidates, never proof. Read only the top files and validate current code before editing. Legacy `his-fact-index.mjs` and `his-code-index.mjs` remain compatibility fallbacks.
+
 ## Intake
 
 Run from this skill directory and point `--repo` at the isolated requirement worktree, never the original HIS aggregate source directory.

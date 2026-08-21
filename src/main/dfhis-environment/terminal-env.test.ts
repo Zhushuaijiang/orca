@@ -56,7 +56,13 @@ describe('Yunxiao terminal environment', () => {
         hisMcpUrl: 'http://192.168.1.10:9020/mcp',
         hisCodeRoot: '/workspace/default-code',
         hisWorkflowCatalogPath: '/workspace/his-workflow-catalog.json',
-        archiveWorkspacePath: '/workspace/yunxiao'
+        archiveWorkspacePath: '/workspace/yunxiao',
+        hisFactCardsRoot: '/workspace/fact-cards',
+        hisFactIndexPath: '/workspace/cache/fact-cards.json',
+        ygtWorkspaceRoot: '/workspace/ygt',
+        projectIndexManifestPath: '/workspace/cache/projects/manifest.json',
+        projectCodeGraphPath: '/workspace/cache/projects/code-graph.json',
+        projectKnowledgeIndexPath: '/workspace/cache/projects/knowledge.json'
       })
     )
   })
@@ -92,6 +98,14 @@ describe('Yunxiao terminal environment', () => {
       HIS_MCP_URL: 'http://192.168.1.10:9020/mcp',
       HIS_WORKFLOW_CATALOG: '/workspace/his-workflow-catalog.json',
       YUNXIAO_ARCHIVE_WORKSPACE: '/workspace/yunxiao',
+      HIS_FACT_CARDS_ROOT: '/workspace/fact-cards',
+      HIS_FACT_INDEX_PATH: '/workspace/cache/fact-cards.json',
+      HIS_CODE_INDEX_PATH: '/workspace/cache/code-paths.json',
+      ORCA_YGT_WORKSPACE_ROOT: '/workspace/ygt',
+      ORCA_PROJECT_INDEX_MANIFEST: '/workspace/cache/projects/manifest.json',
+      ORCA_PROJECT_CODE_GRAPH_PATH: '/workspace/cache/projects/code-graph.json',
+      ORCA_PROJECT_KNOWLEDGE_INDEX_PATH: '/workspace/cache/projects/knowledge.json',
+      HIS_WORKFLOW_HARNESS_ROOT: expect.stringContaining('his-workflow-harness'),
       DFHIS_PROJECT_FAMILY: 'unknown',
       DFHIS_NODE_SOURCE: 'unknown',
       DFHIS_PACKAGE_MANAGER: 'unknown'

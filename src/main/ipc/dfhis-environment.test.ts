@@ -28,7 +28,8 @@ import type { TuiAgent } from '../../shared/types'
 
 vi.mock('electron', () => ({
   app: {
-    getPath: () => '/tmp/orca-ygt-env-test-user-data'
+    getPath: () => '/tmp/orca-ygt-env-test-user-data',
+    getVersion: () => '1.4.164-test'
   },
   ipcMain: {
     handle: vi.fn()
@@ -573,6 +574,21 @@ describe('dfhis-environment', () => {
     )
   })
 
+  it('ignores a legacy remote cache without app-version provenance', async () => {
+    const homeDirectory = await createTemporaryHome()
+    const userDataDirectory = await createTemporaryHome()
+    process.env.ORCA_USER_DATA_PATH = userDataDirectory
+    const manifestPath = await writeRemoteSkillPackManifest(userDataDirectory)
+
+    await installRemoteDfHisWorkflowPack(manifestPath, homeDirectory)
+    await rm(path.join(userDataDirectory, 'dfhis-workflow-pack-cache', 'metadata.json'))
+
+    await ensureDfHisWorkflowPackInstalled(homeDirectory)
+    await expect(readFile(getDfHisSkillPath(homeDirectory), 'utf8')).resolves.not.toContain(
+      'remote yunxiao skill'
+    )
+  })
+
   it('reports Yunxiao MCP token readiness without exposing the token', () => {
     expect(checkYunxiaoMcpPrerequisite()).toMatchObject({
       id: 'yunxiao-mcp',
@@ -665,6 +681,55 @@ describe('dfhis-environment', () => {
       id: 'archive-workspace',
       status: 'ok'
     })
+  })
+
+  it('generates a portable multi-project index manifest from configured roots', async () => {
+    const userDataDirectory = await createTemporaryHome()
+    const hisCodeRoot = path.join(userDataDirectory, 'his-code')
+    const hisFactCardsRoot = path.join(userDataDirectory, 'facts')
+    const archiveWorkspacePath = path.join(userDataDirectory, 'archives')
+    const ygtWorkspaceRoot = path.join(userDataDirectory, 'ygt-workspace')
+    const projectIndexManifestPath = path.join(userDataDirectory, 'indexes', 'manifest.json')
+    await Promise.all([
+      mkdir(hisCodeRoot, { recursive: true }),
+      mkdir(hisFactCardsRoot, { recursive: true }),
+      mkdir(archiveWorkspacePath, { recursive: true }),
+      mkdir(path.join(ygtWorkspaceRoot, 'df-ygt'), { recursive: true }),
+      mkdir(path.join(ygtWorkspaceRoot, 'df-base'), { recursive: true })
+    ])
+
+    await saveDfHisEnvironmentConfig(
+      {
+        hisCodeRoot,
+        hisFactCardsRoot,
+        archiveWorkspacePath,
+        ygtWorkspaceRoot,
+        projectIndexManifestPath
+      },
+      userDataDirectory
+    )
+
+    const manifest = JSON.parse(await readFile(projectIndexManifestPath, 'utf8'))
+    expect(manifest).toMatchObject({
+      version: 1,
+      projects: [
+        {
+          id: 'his',
+          codeRoots: [hisCodeRoot],
+          knowledgeRoots: [hisFactCardsRoot],
+          historyRoots: [archiveWorkspacePath]
+        },
+        {
+          id: 'ygt',
+          codeRoots: [
+            path.join(ygtWorkspaceRoot, 'df-ygt'),
+            path.join(ygtWorkspaceRoot, 'df-base')
+          ],
+          historyRoots: [archiveWorkspacePath]
+        }
+      ]
+    })
+    expect(JSON.stringify(manifest)).not.toContain('/Users/')
   })
 
   it('requires a valid HIS workflow service catalog', async () => {

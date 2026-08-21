@@ -3,6 +3,7 @@ import type {
   RuntimeCreateAgentSessionRequest,
   RuntimeCreateAgentSessionResult
 } from '../../shared/agent-session-host-authority'
+import { setYunxiaoRequirementPromptGateEnabled } from '../../shared/yunxiao-requirement-prompt-gate'
 import { setDfHisWorkflowPackRefreshInstallerForTests } from '../dfhis-environment/workflow-pack-refresh'
 import { OrcaRuntimeService } from './orca-runtime'
 
@@ -74,6 +75,7 @@ describe('agent-session create operation ledger', () => {
 
   afterEach(() => {
     setDfHisWorkflowPackRefreshInstallerForTests(null)
+    setYunxiaoRequirementPromptGateEnabled(false)
   })
 
   it('selects legacy before trust, spawn, or ledger state for an old daemon', async () => {
@@ -183,6 +185,7 @@ describe('agent-session create operation ledger', () => {
   })
 
   it('gates manually pasted Yunxiao requirement prompts before agent launch', async () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
     const runtime = createRuntime()
     const createTerminal = vi.spyOn(runtime, 'createTerminal').mockResolvedValue(terminal())
     const id = operationId()

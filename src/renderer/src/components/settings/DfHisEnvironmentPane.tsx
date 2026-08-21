@@ -207,7 +207,15 @@ export function DfHisEnvironmentPane(): JSX.Element {
     setPathsForm((current) => ({
       hisCodeRoot: current.hisCodeRoot || snapshot.hisCodeRoot,
       hisWorkflowCatalogPath: current.hisWorkflowCatalogPath || snapshot.hisWorkflowCatalogPath,
-      archiveWorkspacePath: current.archiveWorkspacePath || snapshot.archiveWorkspacePath
+      archiveWorkspacePath: current.archiveWorkspacePath || snapshot.archiveWorkspacePath,
+      hisFactCardsRoot: current.hisFactCardsRoot || snapshot.hisFactCardsRoot,
+      hisFactIndexPath: current.hisFactIndexPath || snapshot.hisFactIndexPath,
+      ygtWorkspaceRoot: current.ygtWorkspaceRoot || snapshot.ygtWorkspaceRoot,
+      projectIndexManifestPath:
+        current.projectIndexManifestPath || snapshot.projectIndexManifestPath,
+      projectCodeGraphPath: current.projectCodeGraphPath || snapshot.projectCodeGraphPath,
+      projectKnowledgeIndexPath:
+        current.projectKnowledgeIndexPath || snapshot.projectKnowledgeIndexPath
     }))
     setAiForm((current) => ({
       relayExecModel: current.relayExecModel || snapshot.relayExecModel,
@@ -263,6 +271,12 @@ export function DfHisEnvironmentPane(): JSX.Element {
         hisCodeRoot: pathsForm.hisCodeRoot,
         hisWorkflowCatalogPath: pathsForm.hisWorkflowCatalogPath,
         archiveWorkspacePath: pathsForm.archiveWorkspacePath,
+        hisFactCardsRoot: pathsForm.hisFactCardsRoot,
+        hisFactIndexPath: pathsForm.hisFactIndexPath,
+        ygtWorkspaceRoot: pathsForm.ygtWorkspaceRoot,
+        projectIndexManifestPath: pathsForm.projectIndexManifestPath,
+        projectCodeGraphPath: pathsForm.projectCodeGraphPath,
+        projectKnowledgeIndexPath: pathsForm.projectKnowledgeIndexPath,
         relayExecModel: aiForm.relayExecModel,
         relayExecApiKey: aiForm.relayExecApiKey,
         visionApiKey: aiForm.visionApiKey,

@@ -17,13 +17,25 @@ export type DfHisPathsConfigState = {
   hisCodeRoot: string
   hisWorkflowCatalogPath: string
   archiveWorkspacePath: string
+  hisFactCardsRoot: string
+  hisFactIndexPath: string
+  ygtWorkspaceRoot: string
+  projectIndexManifestPath: string
+  projectCodeGraphPath: string
+  projectKnowledgeIndexPath: string
 }
 
 export function createEmptyPathsConfig(): DfHisPathsConfigState {
   return {
     hisCodeRoot: '',
     hisWorkflowCatalogPath: '',
-    archiveWorkspacePath: ''
+    archiveWorkspacePath: '',
+    hisFactCardsRoot: '',
+    hisFactIndexPath: '',
+    ygtWorkspaceRoot: '',
+    projectIndexManifestPath: '',
+    projectCodeGraphPath: '',
+    projectKnowledgeIndexPath: ''
   }
 }
 
@@ -61,7 +73,7 @@ export function DfHisPathsConfigDialog({
           {translate('auto.components.settings.DfHisPathsConfigDialog.button', 'Path settings')}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="scrollbar-sleek max-h-[85vh] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>
             {translate('auto.components.settings.DfHisPathsConfigDialog.title', 'Path settings')}
@@ -86,6 +98,94 @@ export function DfHisPathsConfigDialog({
               value={local.hisCodeRoot}
               onChange={(e) => setLocal((s) => ({ ...s, hisCodeRoot: e.target.value }))}
               placeholder="~/workspace/<project>/code"
+              disabled={disabled}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground">
+              {translate(
+                'auto.components.settings.DfHisPathsConfigDialog.ygtWorkspaceRoot',
+                'YGT workspace root'
+              )}
+            </span>
+            <Input
+              value={local.ygtWorkspaceRoot}
+              onChange={(e) => setLocal((s) => ({ ...s, ygtWorkspaceRoot: e.target.value }))}
+              placeholder="~/workspace/<project>/ygt-workspace"
+              disabled={disabled}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground">
+              {translate(
+                'auto.components.settings.DfHisPathsConfigDialog.factCards',
+                'HIS fact cards'
+              )}
+            </span>
+            <Input
+              value={local.hisFactCardsRoot}
+              onChange={(e) => setLocal((s) => ({ ...s, hisFactCardsRoot: e.target.value }))}
+              placeholder="~/knowledge/01-fact-cards"
+              disabled={disabled}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground">
+              {translate(
+                'auto.components.settings.DfHisPathsConfigDialog.projectIndexManifest',
+                'Multi-project index manifest'
+              )}
+            </span>
+            <Input
+              value={local.projectIndexManifestPath}
+              onChange={(e) =>
+                setLocal((s) => ({ ...s, projectIndexManifestPath: e.target.value }))
+              }
+              placeholder="~/.cache/orca/project-index/manifest.json"
+              disabled={disabled}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground">
+              {translate(
+                'auto.components.settings.DfHisPathsConfigDialog.projectCodeGraph',
+                'Multi-project code graph'
+              )}
+            </span>
+            <Input
+              value={local.projectCodeGraphPath}
+              onChange={(e) => setLocal((s) => ({ ...s, projectCodeGraphPath: e.target.value }))}
+              placeholder="~/.cache/orca/project-index/code-graph.json"
+              disabled={disabled}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground">
+              {translate(
+                'auto.components.settings.DfHisPathsConfigDialog.projectKnowledgeIndex',
+                'Multi-project knowledge index'
+              )}
+            </span>
+            <Input
+              value={local.projectKnowledgeIndexPath}
+              onChange={(e) =>
+                setLocal((s) => ({ ...s, projectKnowledgeIndexPath: e.target.value }))
+              }
+              placeholder="~/.cache/orca/project-index/knowledge.json"
+              disabled={disabled}
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-foreground">
+              {translate(
+                'auto.components.settings.DfHisPathsConfigDialog.factIndex',
+                'HIS fact index'
+              )}
+            </span>
+            <Input
+              value={local.hisFactIndexPath}
+              onChange={(e) => setLocal((s) => ({ ...s, hisFactIndexPath: e.target.value }))}
+              placeholder="~/.cache/orca/his-index/fact-cards.json"
               disabled={disabled}
             />
           </label>

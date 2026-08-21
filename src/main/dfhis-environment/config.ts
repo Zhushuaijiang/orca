@@ -14,6 +14,26 @@ const DEFAULT_HIS_MCP_URL = 'http://192.168.1.10:9020/mcp'
 const DEFAULT_YUNXIAO_MCP_URL =
   'https://openapi-rdc.aliyuncs.com/ai/mcp?toolsets=organization-management,project-management'
 const DEFAULT_ARCHIVE_WORKSPACE_PATH = path.join(homedir(), 'workspace', 'yunxiao')
+const DEFAULT_HIS_FACT_INDEX_PATH = path.join(
+  homedir(),
+  '.cache',
+  'orca',
+  'his-index',
+  'fact-cards.json'
+)
+const DEFAULT_PROJECT_INDEX_DIRECTORY = path.join(homedir(), '.cache', 'orca', 'project-index')
+const DEFAULT_PROJECT_INDEX_MANIFEST_PATH = path.join(
+  DEFAULT_PROJECT_INDEX_DIRECTORY,
+  'manifest.json'
+)
+const DEFAULT_PROJECT_CODE_GRAPH_PATH = path.join(
+  DEFAULT_PROJECT_INDEX_DIRECTORY,
+  'code-graph.json'
+)
+const DEFAULT_PROJECT_KNOWLEDGE_INDEX_PATH = path.join(
+  DEFAULT_PROJECT_INDEX_DIRECTORY,
+  'knowledge.json'
+)
 const DEFAULT_HIS_WORKFLOW_CATALOG_PATH = path.join(
   homedir(),
   '.codex',
@@ -41,6 +61,12 @@ export type DfHisEnvironmentConfig = {
   hisCodeRoot: string
   hisWorkflowCatalogPath: string
   archiveWorkspacePath: string
+  hisFactCardsRoot: string
+  hisFactIndexPath: string
+  ygtWorkspaceRoot: string
+  projectIndexManifestPath: string
+  projectCodeGraphPath: string
+  projectKnowledgeIndexPath: string
   dfhisSkillPackUrl: string
   relayExecModel: string
   relayExecApiKey: string
@@ -102,6 +128,20 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
     archiveWorkspacePath:
       cleanPath((config as Record<string, unknown>).archiveWorkspacePath) ||
       DEFAULT_ARCHIVE_WORKSPACE_PATH,
+    hisFactCardsRoot: cleanPath((config as Record<string, unknown>).hisFactCardsRoot),
+    hisFactIndexPath:
+      cleanPath((config as Record<string, unknown>).hisFactIndexPath) ||
+      DEFAULT_HIS_FACT_INDEX_PATH,
+    ygtWorkspaceRoot: cleanPath((config as Record<string, unknown>).ygtWorkspaceRoot),
+    projectIndexManifestPath:
+      cleanPath((config as Record<string, unknown>).projectIndexManifestPath) ||
+      DEFAULT_PROJECT_INDEX_MANIFEST_PATH,
+    projectCodeGraphPath:
+      cleanPath((config as Record<string, unknown>).projectCodeGraphPath) ||
+      DEFAULT_PROJECT_CODE_GRAPH_PATH,
+    projectKnowledgeIndexPath:
+      cleanPath((config as Record<string, unknown>).projectKnowledgeIndexPath) ||
+      DEFAULT_PROJECT_KNOWLEDGE_INDEX_PATH,
     dfhisSkillPackUrl:
       cleanString((config as Record<string, unknown>).dfhisSkillPackUrl) ||
       DEFAULT_DFHIS_SKILL_PACK_URL,
@@ -151,6 +191,14 @@ function mergeConfigPatch(
     hisWorkflowCatalogPath:
       cleanPath(patch.hisWorkflowCatalogPath) || current.hisWorkflowCatalogPath,
     archiveWorkspacePath: cleanPath(patch.archiveWorkspacePath) || current.archiveWorkspacePath,
+    hisFactCardsRoot: cleanPath(patch.hisFactCardsRoot) || current.hisFactCardsRoot,
+    hisFactIndexPath: cleanPath(patch.hisFactIndexPath) || current.hisFactIndexPath,
+    ygtWorkspaceRoot: cleanPath(patch.ygtWorkspaceRoot) || current.ygtWorkspaceRoot,
+    projectIndexManifestPath:
+      cleanPath(patch.projectIndexManifestPath) || current.projectIndexManifestPath,
+    projectCodeGraphPath: cleanPath(patch.projectCodeGraphPath) || current.projectCodeGraphPath,
+    projectKnowledgeIndexPath:
+      cleanPath(patch.projectKnowledgeIndexPath) || current.projectKnowledgeIndexPath,
     dfhisSkillPackUrl: cleanString(patch.dfhisSkillPackUrl) || current.dfhisSkillPackUrl,
     relayExecModel: cleanString(patch.relayExecModel) || current.relayExecModel,
     relayExecApiKey: cleanString(patch.relayExecApiKey) || current.relayExecApiKey,
@@ -178,7 +226,48 @@ export async function saveDfHisEnvironmentConfig(
     mode: 0o600
   })
   await chmod(configPath, 0o600)
+  await writeProjectIndexManifest(next)
   return next
+}
+
+export async function writeProjectIndexManifest(config: DfHisEnvironmentConfig): Promise<void> {
+  const projects: Record<string, unknown>[] = []
+  if (config.hisCodeRoot) {
+    projects.push({
+      id: 'his',
+      label: 'HIS / DFHIS',
+      aliases: ['HIS', 'DFHIS', '云HIS'],
+      codeRoots: [config.hisCodeRoot],
+      knowledgeRoots: config.hisFactCardsRoot ? [config.hisFactCardsRoot] : [],
+      historyRoots: config.archiveWorkspacePath ? [config.archiveWorkspacePath] : [],
+      historyPriority: 0,
+      repositoryPatterns: ['df-(?!ygt|web-ygt)[a-z0-9-]+']
+    })
+  }
+  if (config.ygtWorkspaceRoot) {
+    const ygtRoot = path.join(config.ygtWorkspaceRoot, 'df-ygt')
+    const baseRoot = path.join(config.ygtWorkspaceRoot, 'df-base')
+    const codeRoots = [ygtRoot, baseRoot].filter((root) => existsSync(root))
+    if (codeRoots.length > 0) {
+      projects.push({
+        id: 'ygt',
+        label: '医共体 / YGT',
+        aliases: ['医共体', 'YGT'],
+        codeRoots,
+        knowledgeRoots: existsSync(ygtRoot) ? [ygtRoot] : [],
+        historyRoots: config.archiveWorkspacePath ? [config.archiveWorkspacePath] : [],
+        historyPriority: 100,
+        repositoryPatterns: ['df-ygt', 'df-web-ygt', '医共体', 'YGT']
+      })
+    }
+  }
+  const manifestPath = config.projectIndexManifestPath
+  await mkdir(path.dirname(manifestPath), { recursive: true })
+  await writeFile(manifestPath, `${JSON.stringify({ version: 1, projects }, null, 2)}\n`, {
+    encoding: 'utf8',
+    mode: 0o600
+  })
+  await chmod(manifestPath, 0o600)
 }
 
 export function snapshotDfHisEnvironmentConfig(
@@ -197,6 +286,12 @@ export function snapshotDfHisEnvironmentConfig(
     hisCodeRoot: config.hisCodeRoot,
     hisWorkflowCatalogPath: config.hisWorkflowCatalogPath,
     archiveWorkspacePath: config.archiveWorkspacePath,
+    hisFactCardsRoot: config.hisFactCardsRoot,
+    hisFactIndexPath: config.hisFactIndexPath,
+    ygtWorkspaceRoot: config.ygtWorkspaceRoot,
+    projectIndexManifestPath: config.projectIndexManifestPath,
+    projectCodeGraphPath: config.projectCodeGraphPath,
+    projectKnowledgeIndexPath: config.projectKnowledgeIndexPath,
     dfhisSkillPackUrl: config.dfhisSkillPackUrl,
     relayExecModel: config.relayExecModel,
     relayExecApiKey: config.relayExecApiKey,

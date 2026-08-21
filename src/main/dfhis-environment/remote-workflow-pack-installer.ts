@@ -24,16 +24,54 @@ type RemoteWorkflowPackManifest = {
 const REMOTE_WORKFLOW_PACK_FETCH_TIMEOUT_MS = 30_000
 const REMOTE_WORKFLOW_PACK_CACHE_DIRECTORY = 'dfhis-workflow-pack-cache'
 
-function getCachedDfHisWorkflowPackPath(): string {
+type RemoteWorkflowPackCacheMetadata = {
+  schemaVersion: 1
+  appVersion: string
+  manifestVersion?: string
+}
+
+function getRemoteWorkflowPackCacheRoot(): string {
   return path.join(
     process.env.ORCA_USER_DATA_PATH?.trim() || app.getPath('userData'),
-    REMOTE_WORKFLOW_PACK_CACHE_DIRECTORY,
-    'dfhis'
+    REMOTE_WORKFLOW_PACK_CACHE_DIRECTORY
   )
+}
+
+function getCachedDfHisWorkflowPackPath(): string {
+  return path.join(getRemoteWorkflowPackCacheRoot(), 'dfhis')
+}
+
+function getCachedDfHisWorkflowPackMetadataPath(): string {
+  return path.join(getRemoteWorkflowPackCacheRoot(), 'metadata.json')
+}
+
+async function readCacheMetadata(): Promise<RemoteWorkflowPackCacheMetadata | null> {
+  try {
+    const metadata = JSON.parse(
+      await readFile(getCachedDfHisWorkflowPackMetadataPath(), 'utf8')
+    ) as Partial<RemoteWorkflowPackCacheMetadata>
+    if (
+      metadata.schemaVersion !== 1 ||
+      typeof metadata.appVersion !== 'string' ||
+      !metadata.appVersion.trim()
+    ) {
+      return null
+    }
+    return metadata as RemoteWorkflowPackCacheMetadata
+  } catch {
+    return null
+  }
 }
 
 export async function getCachedDfHisWorkflowPackPathIfPresent(): Promise<string | null> {
   const cachePath = getCachedDfHisWorkflowPackPath()
+  const metadata = await readCacheMetadata()
+  // A remote pack is an explicit override for the Orca build that downloaded it.
+  // On an app upgrade, fall back to the newer bundled pack unless the user pulls
+  // the remote pack again. Legacy caches had no provenance and are treated as stale.
+  if (!metadata || metadata.appVersion !== app.getVersion()) {
+    return null
+  }
   return (await findMissingBundledSkill(DFHIS_BUNDLED_SKILL_PACK, cachePath)) ? null : cachePath
 }
 
@@ -139,6 +177,16 @@ export async function installRemoteDfHisWorkflowPack(
     await rm(cachePath, { recursive: true, force: true })
     await mkdir(path.dirname(cachePath), { recursive: true })
     await materializeManifest(manifest, cachePath)
+    const metadata: RemoteWorkflowPackCacheMetadata = {
+      schemaVersion: 1,
+      appVersion: app.getVersion(),
+      ...(manifest.version ? { manifestVersion: manifest.version } : {})
+    }
+    await writeFile(
+      getCachedDfHisWorkflowPackMetadataPath(),
+      `${JSON.stringify(metadata, null, 2)}\n`,
+      'utf8'
+    )
     return [
       `Downloaded DFHIS workflow pack${manifest.version ? ` ${manifest.version}` : ''}.`,
       ...(await ensureBundledSkillPackInstalled(DFHIS_BUNDLED_SKILL_PACK, homeDirectory, cachePath))

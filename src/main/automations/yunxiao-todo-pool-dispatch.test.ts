@@ -124,16 +124,12 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(prompt).toContain('提交信息: https://devops.aliyun.com/projex/bug/DFHIS-31704')
     expect(prompt).toContain('链接: https://devops.aliyun.com/projex/bug/DFHIS-31704')
     expect(prompt).toContain('工作流: dfhis-requirement-gate')
-    expect(prompt).toContain(
-      'git commit message 必须使用该工作项 claim 中“提交信息”字段的完整云效链接'
-    )
-    expect(prompt).toContain('禁止修改构建/依赖定义来解决需求，包括 build.gradle')
-    expect(prompt).toContain('不能把已发布依赖改成 compile project(...)')
-    expect(prompt).toContain('禁止新增、修改或依赖项目内 *-api/API 模块')
-    expect(prompt).toContain('必须优先定位并修改共享 API 仓库 df-his-api 中对应模块')
-    expect(prompt).toContain('不能只改业务仓库内的 mic-*/agg-*/winbff-* 本地 *-api 模块')
-    expect(prompt).toContain('必须用截图页名、路由/菜单配置、iframe/微前端挂载')
-    expect(prompt).toContain('确认实际渲染组件所在仓库')
+    expect(prompt).toContain('代码提交信息必须精确使用 claim 的“提交信息”完整 URL')
+    expect(prompt).toContain('不得为需求修改构建/锁文件')
+    expect(prompt).toContain('先修改共享 df-his-api')
+    expect(prompt).toContain('事实卡/索引定位候选仓库')
+    expect(prompt).toContain('UI 必须用路由/挂载/import 证据确认真实仓库')
+    expect(prompt.length).toBeLessThan(2_000)
   })
 
   it('synthesizes a full Yunxiao URL from category and serial number when the item has no URL', () => {

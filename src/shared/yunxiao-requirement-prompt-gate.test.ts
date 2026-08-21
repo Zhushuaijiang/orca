@@ -32,20 +32,15 @@ describe('Yunxiao requirement prompt gate', () => {
     const prompt = 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下'
     const gated = applyYunxiaoRequirementPromptGate(prompt)
 
-    expect(gated).toContain('Orca Yunxiao requirement workflow gate')
-    expect(gated).toContain('所有用户可见进展')
-    expect(gated).toContain('必须执行的流程：')
-    expect(gated).toContain('结论：通过/阻断/通过但存在非阻断限制')
-    expect(gated).toContain('reviewChecks')
-    expect(gated).toContain('禁止修改构建/依赖定义来解决需求，包括 build.gradle')
-    expect(gated).toContain('不能把已发布依赖改成 compile project(...)')
-    expect(gated).toContain('禁止新增、修改或依赖项目内 *-api/API 模块')
-    expect(gated).toContain('必须优先定位并修改共享 API 仓库 df-his-api 中对应模块')
-    expect(gated).toContain('不能只改业务仓库内的 mic-*/agg-*/winbff-* 本地 *-api 模块')
-    expect(gated).toContain(
-      '没有同步 df-his-api、发布 API jar/调用方 API 兼容计划和本地编译验证，不能标记为完成'
-    )
+    expect(gated).toContain('Orca Yunxiao requirement workflow gate: DFHIS-31732')
+    expect(gated).toContain('执行 $yunxiao-requirement-archiver')
+    expect(gated).toContain('事实卡/索引定位候选仓库')
+    expect(gated).toContain('禁止因“多仓库”单一因素固定启动四个 reviewer')
+    expect(gated).toContain('不得为需求修改构建/锁文件')
+    expect(gated).toContain('只改业务仓内已废弃的 *-api/DTO/Req/Feign 契约')
+    expect(gated).toContain('先修改共享 df-his-api')
     expect(gated).toContain(`原始用户请求：\n${prompt}`)
+    expect(gated.length).toBeLessThan(1_200)
   })
 
   it('adds YGT harness instructions for manual 医共体 requirement prompts', () => {
