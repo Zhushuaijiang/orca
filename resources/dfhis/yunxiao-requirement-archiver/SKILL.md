@@ -63,7 +63,7 @@ For general HIS runtime selection and validation, use `his-workflow-harness`. Fo
 
 ## Completion
 
-After successful push, complete all applicable actions from `delivery-workflow.md`: upload SQL/screenshots, post the Yunxiao comment, update structured client/server/data fields, move to `开发测试`, and read back verification. Existing field values must be preserved; use append flags for incremental delivery.
+After successful push, complete all applicable actions from `delivery-workflow.md`: upload SQL/screenshots, post the Yunxiao comment, update structured client/server/data fields, move to `开发测试`, and read back verification. Existing field values must be preserved; use append flags for incremental delivery. For the `开发测试` handoff, assignment follows `yunxiao-contacts` as the single source of truth: choose one developer and write that same user as `assignedTo` and the only `participants` entry; remove stale or automatically added participants and fail read-back if the count or identity does not match.
 
 Return a concise Chinese summary with repositories, branches, commits, tests/build/runtime/UI evidence, attachment/comment/writeback results, contract status, and remaining owner. Do not claim completion from code reading, `git diff --check`, or an unverified reviewer opinion.
 

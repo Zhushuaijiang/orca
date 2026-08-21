@@ -37,7 +37,7 @@ Do not push a shared RC branch. Do not change build definitions or a project-loc
 1. For SQL/data/config and UI screenshots, upload the exact files with `upload_yunxiao_attachment.py` and verify attachment name/size/id.
 2. Post a comment with `comment_yunxiao.py` containing repo, branch, commit, changed files, fix summary, test/build evidence, screenshot links when relevant, and the handoff path.
 3. Read current custom fields before writing. For incremental deliveries use `--append-client`, `--append-server`, or `--append-data`; never replace existing entries with `无`.
-4. Run `update_yunxiao_completion_fields.py`; set only fields matching actual changes, preserve participants, move to `开发测试`, and require read-back verification.
+4. Run `update_yunxiao_completion_fields.py`; set only fields matching actual changes, preserve unrelated field values, move to `开发测试`, and require read-back verification. For this handoff, follow `yunxiao-contacts`: choose one developer and set the same user as `assignedTo` and the sole `participants` entry; do not retain or append stale/current-user/other-developer participants, and verify count plus identity after writeback.
 5. Keep final acceptance separate from delivery. Before release use `code_pushed_pending_release_validation`; after release verify the deployed child bundle and UI. Missing post-release evidence does not erase completed code delivery, but it does block a claim of final production acceptance.
 
 Any failed comment, attachment, field update, or read-back leaves that closeout step incomplete. Report the exact error and remaining owner.

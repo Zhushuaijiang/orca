@@ -53,6 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-id", default="", help="Explicit project id. Defaults to get_work_item space.id.")
     parser.add_argument("--workitem-type-id", default="", help="Explicit work item type id. Defaults to get_work_item workitemType.id.")
     parser.add_argument("--participant", action="append", default=[], help="Additional participant user id. Repeatable.")
+    parser.add_argument(
+        "--handoff-assignee",
+        default="",
+        help="开发测试单人流转：同时设置负责人和唯一参与者为此 user id；不会保留旧参与者或自动加入当前用户。",
+    )
     parser.add_argument("--no-add-assignee", action="store_true", help="Do not automatically add current assignee as participant.")
     parser.add_argument("--no-add-current-user", action="store_true", help="Do not automatically add current token user as participant.")
     parser.add_argument("--mcp-url", default="", help="Yunxiao MCP URL. Defaults to env/config.")
@@ -313,13 +318,18 @@ def main() -> int:
                     file=sys.stderr,
                 )
 
-        participants = {user_id(item) for item in before.get("participants") or []}
-        participants.update(uid for uid in args.participant if uid)
-        if not args.no_add_assignee:
-            participants.add(user_id(before.get("assignedTo")))
-        if not args.no_add_current_user:
-            participants.add(str(current_user.get("id") or current_org.get("userId") or ""))
-        participants.discard("")
+        handoff_assignee = args.handoff_assignee.strip()
+        if handoff_assignee:
+            # 开发测试流转的硬约束：负责人和唯一参与者必须是同一人。
+            participants = {handoff_assignee}
+        else:
+            participants = {user_id(item) for item in before.get("participants") or []}
+            participants.update(uid for uid in args.participant if uid)
+            if not args.no_add_assignee:
+                participants.add(user_id(before.get("assignedTo")))
+            if not args.no_add_current_user:
+                participants.add(str(current_user.get("id") or current_org.get("userId") or ""))
+            participants.discard("")
 
         update_fields = {
             "status": status_id,
@@ -330,6 +340,8 @@ def main() -> int:
                 data_field_id: final_data,
             },
         }
+        if handoff_assignee:
+            update_fields["assignedTo"] = handoff_assignee
         update_result = client.call_tool(
             "update_work_item",
             {
@@ -348,6 +360,8 @@ def main() -> int:
             FIELD_SERVER_CHANGE: get_values_by_field(after, FIELD_SERVER_CHANGE) == [final_server],
             FIELD_DATA_CHANGE: get_values_by_field(after, FIELD_DATA_CHANGE) == [final_data],
         }
+        if handoff_assignee:
+            verification["assignedTo"] = user_id(after.get("assignedTo")) == handoff_assignee
         ok = all(verification.values())
         print(
             json.dumps(
@@ -358,9 +372,10 @@ def main() -> int:
                     "organizationId": organization_id,
                     "projectId": project_id,
                     "updateResult": update_result,
-                    "target": {
-                        "status": args.status_name,
-                        "participants": sorted(participants),
+                        "target": {
+                            "status": args.status_name,
+                            "assignedTo": handoff_assignee or user_id(before.get("assignedTo")),
+                            "participants": sorted(participants),
                         FIELD_CLIENT_CHANGE: final_client,
                         FIELD_SERVER_CHANGE: final_server,
                         FIELD_DATA_CHANGE: final_data,
