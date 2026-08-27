@@ -6118,9 +6118,7 @@
           "e2955d9ccb": "新規ワークスペースを作成する場所を構成します。",
           "7511097c5d": "ワークスペース",
           "externalWorktrees": "外部ワークツリー",
-          "externalWorktreesDescription": "Orca 外で作成されたワークツリーをデフォルトで表示するかどうかを選択します。",
-          "show": "表示",
-          "hide": "非表示"
+          "externalWorktreesDescription": "Orca 外で作成されたワークツリーをデフォルトで表示するかどうかを選択します。"
         },
         "GhosttyImportModal": {
           "9d3e56ca36": "変更を適用する",

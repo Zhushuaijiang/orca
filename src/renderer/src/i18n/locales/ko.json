@@ -6108,9 +6108,7 @@
           "e2955d9ccb": "새 워크스페이스가 생성되는 위치를 구성합니다.",
           "7511097c5d": "워크스페이스",
           "externalWorktrees": "외부 작업 트리",
-          "externalWorktreesDescription": "Orca 외부에서 만든 작업 트리를 기본적으로 표시할지 선택합니다.",
-          "show": "표시",
-          "hide": "숨기기"
+          "externalWorktreesDescription": "Orca 외부에서 만든 작업 트리를 기본적으로 표시할지 선택합니다."
         },
         "GhosttyImportModal": {
           "9d3e56ca36": "변경 사항 적용",

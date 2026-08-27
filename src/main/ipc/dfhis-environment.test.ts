@@ -751,4 +751,38 @@ describe('dfhis-environment', () => {
       status: 'ok'
     })
   })
+
+  it('defaults the RC e2e gate to false and round-trips explicit true and false', async () => {
+    const userDataDirectory = await createTemporaryHome()
+
+    let config = await saveDfHisEnvironmentConfig({}, userDataDirectory)
+    expect(config.hisWorkflow).toEqual({ rcE2eGate: false })
+
+    config = await saveDfHisEnvironmentConfig(
+      { hisWorkflow: { rcE2eGate: true } },
+      userDataDirectory
+    )
+    expect(config.hisWorkflow).toEqual({ rcE2eGate: true })
+
+    // Why: boolean merge must let an explicit false overwrite a saved true.
+    config = await saveDfHisEnvironmentConfig(
+      { hisWorkflow: { rcE2eGate: false } },
+      userDataDirectory
+    )
+    expect(config.hisWorkflow).toEqual({ rcE2eGate: false })
+  })
+
+  it('keeps the saved RC e2e gate across unrelated patches and drops unknown nested keys', async () => {
+    const userDataDirectory = await createTemporaryHome()
+    const configPath = getDfHisEnvironmentConfigPath(userDataDirectory)
+    await mkdir(path.dirname(configPath), { recursive: true })
+    await writeFile(configPath, JSON.stringify({ hisWorkflow: { rcE2eGate: true, futureKey: 1 } }))
+
+    const config = await saveDfHisEnvironmentConfig({ emailCc: 'a@example.com' }, userDataDirectory)
+    expect(config.hisWorkflow).toEqual({ rcE2eGate: true })
+    expect(snapshotDfHisEnvironmentConfig(config).hisWorkflow).toEqual({ rcE2eGate: true })
+    expect(JSON.parse(await readFile(configPath, 'utf8')).hisWorkflow).toEqual({
+      rcE2eGate: true
+    })
+  })
 })

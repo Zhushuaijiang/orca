@@ -39,6 +39,10 @@ export type DfHisEnvironmentCheckResult = {
   config: DfHisEnvironmentConfigSnapshot
 }
 
+export type DfHisWorkflowGateSettings = {
+  rcE2eGate: boolean
+}
+
 export type DfHisEnvironmentConfigInput = {
   gitlabHost?: string
   gitlabAccessToken?: string
@@ -66,6 +70,7 @@ export type DfHisEnvironmentConfigInput = {
   smtpPassword?: string
   smtpFromName?: string
   emailCc?: string
+  hisWorkflow?: { rcE2eGate?: boolean }
 }
 
 export type DfHisEnvironmentConfigSnapshot = {
@@ -101,6 +106,7 @@ export type DfHisEnvironmentConfigSnapshot = {
   hasSmtpPassword: boolean
   smtpFromName: string
   emailCc: string
+  hisWorkflow: DfHisWorkflowGateSettings
 }
 
 export type DfHisEnvironmentInstallResult = {

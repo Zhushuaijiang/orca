@@ -6,7 +6,10 @@ import type {
 import { Input } from '../ui/input'
 import { translate } from '@/i18n/i18n'
 
-export type DfHisEnvironmentConfigFormState = Required<DfHisEnvironmentConfigInput>
+// Why: the form edits plain string fields; hisWorkflow is handled by the workflow gate dialog.
+export type DfHisEnvironmentConfigFormState = Required<
+  Omit<DfHisEnvironmentConfigInput, 'hisWorkflow'>
+>
 
 export function createEmptyDfHisEnvironmentConfigForm(): DfHisEnvironmentConfigFormState {
   return {

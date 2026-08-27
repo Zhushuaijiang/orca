@@ -5,7 +5,7 @@ import type {
   DfHisEnvironmentPrerequisiteResult
 } from '../../../../shared/dfhis-environment-types'
 import { defineMethod, type RpcMethod } from '../core'
-import { OptionalPlainString } from '../schemas'
+import { OptionalBoolean, OptionalPlainString } from '../schemas'
 import { getHisMcpConnection, getOfficialYunxiaoConnection } from '../../../yunxiao/mcp-connections'
 import {
   readDfHisEnvironmentConfigSync,
@@ -71,7 +71,8 @@ const DfHisEnvironmentConfigInputSchema = z
     smtpUser: OptionalPlainString,
     smtpPassword: OptionalPlainString,
     smtpFromName: OptionalPlainString,
-    emailCc: OptionalPlainString
+    emailCc: OptionalPlainString,
+    hisWorkflow: z.object({ rcE2eGate: OptionalBoolean }).optional()
   })
   .optional()
   .nullable()

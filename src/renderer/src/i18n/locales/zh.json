@@ -6120,9 +6120,7 @@
           "e2955d9ccb": "配置创建新工作区的位置。",
           "7511097c5d": "工作区",
           "externalWorktrees": "外部工作树",
-          "externalWorktreesDescription": "选择是否默认显示在 Orca 外部创建的工作树。",
-          "show": "显示",
-          "hide": "隐藏"
+          "externalWorktreesDescription": "选择是否默认显示在 Orca 外部创建的工作树。"
         },
         "GhosttyImportModal": {
           "9d3e56ca36": "应用更改",
@@ -10369,6 +10367,15 @@
           "hisTokenPlaceholder": "HIS_MCP_TOKEN",
           "hisCodeRootPlaceholder": "~/workspace/<project>/code",
           "archiveWorkspacePathPlaceholder": "~/workspace/yunxiao"
+        },
+        "DfHisWorkflowGateDialog": {
+          "button": "需求交付工作流",
+          "title": "需求交付工作流",
+          "description": "HIS 需求交付的流程开关。保存为 dfhis-environment.json 中的 hisWorkflow。",
+          "rcE2eGate": "是否走 RC 验收流程（合并到 RC → Jenkins 152 编译 → Docker 沙箱 e2e → 上传截图/视频证据）",
+          "rcE2eGateHint": "开启后，交付必须合并到最新 RC 分支、在 Jenkins 152 上编译、运行 Docker 沙箱 e2e，并将截图/视频上传到云效附件。",
+          "cancel": "取消",
+          "save": "保存"
         },
         "VoiceMicrophoneSetting": {
           "systemDefault": "系统默认",

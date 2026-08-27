@@ -6123,9 +6123,7 @@
           "e2955d9ccb": "Configura dónde se crean nuevos espacios de trabajo.",
           "7511097c5d": "Espacio de trabajo",
           "externalWorktrees": "Worktrees externos",
-          "externalWorktreesDescription": "Elige si los worktrees creados fuera de Orca aparecen de forma predeterminada.",
-          "show": "Mostrar",
-          "hide": "Ocultar"
+          "externalWorktreesDescription": "Elige si los worktrees creados fuera de Orca aparecen de forma predeterminada."
         },
         "GhosttyImportModal": {
           "9d3e56ca36": "Aplicar cambios",

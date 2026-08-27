@@ -11087,6 +11087,15 @@
           "dfhisSkillPackUrl": "DFHIS skill pack URL",
           "dfhisSkillPackUrlPlaceholder": "https://.../dfhis-skill-pack.json"
         },
+        "DfHisWorkflowGateDialog": {
+          "button": "Requirement delivery workflow",
+          "title": "Requirement delivery workflow",
+          "description": "Gates for HIS requirement delivery. Saved as hisWorkflow in dfhis-environment.json.",
+          "rcE2eGate": "Run RC acceptance flow (merge to RC → Jenkins 152 → Docker e2e → upload evidence)",
+          "rcE2eGateHint": "When on, delivery must merge to the latest RC branch, compile on Jenkins 152, run the Docker sandbox e2e, and upload screenshots/videos to Yunxiao attachments.",
+          "cancel": "Cancel",
+          "save": "Save"
+        },
         "VoiceMicrophoneSetting": {
           "systemDefault": "System default",
           "unavailable": "unavailable",

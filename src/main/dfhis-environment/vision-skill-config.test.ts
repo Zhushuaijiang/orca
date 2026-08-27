@@ -36,7 +36,8 @@ function configWith(apiKey: string): DfHisEnvironmentConfig {
     smtpUser: '',
     smtpPassword: '',
     smtpFromName: '',
-    emailCc: ''
+    emailCc: '',
+    hisWorkflow: { rcE2eGate: false }
   }
 }
 

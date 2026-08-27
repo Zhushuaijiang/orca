@@ -5,8 +5,10 @@ import path from 'node:path'
 import { app } from 'electron'
 import type {
   DfHisEnvironmentConfigInput,
-  DfHisEnvironmentConfigSnapshot
+  DfHisEnvironmentConfigSnapshot,
+  DfHisWorkflowGateSettings
 } from '../../shared/dfhis-environment-types'
+import { writeProjectIndexManifest } from './project-index-manifest'
 
 const CONFIG_FILE_NAME = 'dfhis-environment.json'
 const DEFAULT_GITLAB_HOST = 'gitlab.df-mic.com'
@@ -78,6 +80,7 @@ export type DfHisEnvironmentConfig = {
   smtpPassword: string
   smtpFromName: string
   emailCc: string
+  hisWorkflow: DfHisWorkflowGateSettings
 }
 
 function userDataPath(): string {
@@ -109,6 +112,11 @@ function cleanPath(value: unknown): string {
     return path.join(homedir(), rawPath.slice(2))
   }
   return path.normalize(rawPath)
+}
+
+function cleanHisWorkflowGate(value: unknown): DfHisWorkflowGateSettings {
+  const gate = typeof value === 'object' && value !== null ? value : {}
+  return { rcE2eGate: (gate as Record<string, unknown>).rcE2eGate === true }
 }
 
 export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmentConfig {
@@ -158,7 +166,8 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
     smtpPassword: cleanString((config as Record<string, unknown>).smtpPassword),
     smtpFromName:
       cleanString((config as Record<string, unknown>).smtpFromName) || DEFAULT_SMTP_FROM_NAME,
-    emailCc: cleanString((config as Record<string, unknown>).emailCc) || DEFAULT_EMAIL_CC
+    emailCc: cleanString((config as Record<string, unknown>).emailCc) || DEFAULT_EMAIL_CC,
+    hisWorkflow: cleanHisWorkflowGate((config as Record<string, unknown>).hisWorkflow)
   }
 }
 
@@ -210,7 +219,9 @@ function mergeConfigPatch(
     smtpUser: cleanString(patch.smtpUser) || current.smtpUser,
     smtpPassword: cleanString(patch.smtpPassword) || current.smtpPassword,
     smtpFromName: cleanString(patch.smtpFromName) || current.smtpFromName,
-    emailCc: cleanString(patch.emailCc) || current.emailCc
+    emailCc: cleanString(patch.emailCc) || current.emailCc,
+    // Why: boolean gate — `|| current` would make false unwritable, so an explicit patch wins.
+    hisWorkflow: patch.hisWorkflow ?? current.hisWorkflow
   })
 }
 
@@ -228,46 +239,6 @@ export async function saveDfHisEnvironmentConfig(
   await chmod(configPath, 0o600)
   await writeProjectIndexManifest(next)
   return next
-}
-
-export async function writeProjectIndexManifest(config: DfHisEnvironmentConfig): Promise<void> {
-  const projects: Record<string, unknown>[] = []
-  if (config.hisCodeRoot) {
-    projects.push({
-      id: 'his',
-      label: 'HIS / DFHIS',
-      aliases: ['HIS', 'DFHIS', '云HIS'],
-      codeRoots: [config.hisCodeRoot],
-      knowledgeRoots: config.hisFactCardsRoot ? [config.hisFactCardsRoot] : [],
-      historyRoots: config.archiveWorkspacePath ? [config.archiveWorkspacePath] : [],
-      historyPriority: 0,
-      repositoryPatterns: ['df-(?!ygt|web-ygt)[a-z0-9-]+']
-    })
-  }
-  if (config.ygtWorkspaceRoot) {
-    const ygtRoot = path.join(config.ygtWorkspaceRoot, 'df-ygt')
-    const baseRoot = path.join(config.ygtWorkspaceRoot, 'df-base')
-    const codeRoots = [ygtRoot, baseRoot].filter((root) => existsSync(root))
-    if (codeRoots.length > 0) {
-      projects.push({
-        id: 'ygt',
-        label: '医共体 / YGT',
-        aliases: ['医共体', 'YGT'],
-        codeRoots,
-        knowledgeRoots: existsSync(ygtRoot) ? [ygtRoot] : [],
-        historyRoots: config.archiveWorkspacePath ? [config.archiveWorkspacePath] : [],
-        historyPriority: 100,
-        repositoryPatterns: ['df-ygt', 'df-web-ygt', '医共体', 'YGT']
-      })
-    }
-  }
-  const manifestPath = config.projectIndexManifestPath
-  await mkdir(path.dirname(manifestPath), { recursive: true })
-  await writeFile(manifestPath, `${JSON.stringify({ version: 1, projects }, null, 2)}\n`, {
-    encoding: 'utf8',
-    mode: 0o600
-  })
-  await chmod(manifestPath, 0o600)
 }
 
 export function snapshotDfHisEnvironmentConfig(
@@ -306,6 +277,7 @@ export function snapshotDfHisEnvironmentConfig(
     smtpPassword: config.smtpPassword,
     hasSmtpPassword: config.smtpPassword.length > 0,
     smtpFromName: config.smtpFromName,
-    emailCc: config.emailCc
+    emailCc: config.emailCc,
+    hisWorkflow: config.hisWorkflow
   }
 }
