@@ -2,22 +2,58 @@ import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
+import { parseArgs, skillNamesInManifest } from './publish-orca-desktop-release.mjs'
 
 const projectDir = resolve(import.meta.dirname, '../..')
 
 describe('DFHIS release pipeline contract', () => {
-  it('publishes desktop artifacts and the generated skill pack as one verified delivery', () => {
+  it('requires explicit skill-pack publishing and an explicit shrink override', () => {
+    expect(parseArgs([]).publishSkillPack).toBe(false)
+    expect(parseArgs(['--publish-skill-pack']).publishSkillPack).toBe(true)
+    expect(
+      parseArgs(['--publish-skill-pack', '--allow-skill-pack-shrink']).allowSkillPackShrink
+    ).toBe(true)
+    expect(() => parseArgs(['--allow-skill-pack-shrink'])).toThrow(
+      '--allow-skill-pack-shrink requires --publish-skill-pack'
+    )
+  })
+
+  it('counts only valid top-level skills in a generated manifest', () => {
+    expect(
+      skillNamesInManifest({
+        files: [
+          { path: 'skill-a/SKILL.md' },
+          { path: 'skill-a/references/checklist.md' },
+          { path: 'skill-b/SKILL.md' },
+          { path: 'README.md' },
+          { path: '' }
+        ]
+      })
+    ).toEqual(['skill-a', 'skill-b'])
+  })
+
+  it('keeps desktop releases independent from explicit, guarded skill-pack publishing', () => {
     const source = readFileSync(
       join(projectDir, 'config/scripts/publish-orca-desktop-release.mjs'),
       'utf8'
     )
 
+    expect(source).toContain('publishSkillPack: false')
+    expect(source).toContain("arg === '--publish-skill-pack'")
+    expect(source).toContain("arg === '--allow-skill-pack-shrink'")
     expect(source).toContain("run('pnpm', ['run', 'generate:dfhis-skill-pack'])")
     expect(source).toContain('release.dfhis_skill_pack = {')
+    expect(source).toContain('skill_count: skillPackSkillCount')
     expect(source).toContain('sha256sum "$TMP/orca-macos-arm64.zip"')
     expect(source).toContain('sha256sum "$TMP/orca-windows-setup.exe"')
     expect(source).toContain('sha256sum "$TMP/dfhis-skill-pack.json"')
     expect(source).toContain('sha256sum "$TMP/dfhis-skill-pack.zip"')
+    expect(source).toContain('Refusing to shrink live DFHIS skill pack')
+    expect(source).toContain('BACKUP_DIR="$SKILL_ROOT/backups/')
+    expect(source).toContain('sha256sum dfhis-skill-pack.* > SHA256SUMS')
+    expect(source.indexOf('Refusing to shrink live DFHIS skill pack')).toBeLessThan(
+      source.indexOf('mv "$TMP/orca-macos-arm64.zip"')
+    )
     expect(source).toContain('mv -f "$SKILL_JSON_TMP" "$SKILL_ROOT/dfhis-skill-pack.json"')
     expect(source).toContain('mv -f "$SKILL_ZIP_TMP" "$SKILL_ROOT/dfhis-skill-pack.zip"')
     expect(source).toContain('sha256sum "$SKILL_ROOT/dfhis-skill-pack.json"')

@@ -6,6 +6,7 @@ import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 
 const DEFAULT_REMOTE = 'root@192.168.1.10'
 const DEFAULT_REMOTE_DIR =
@@ -13,7 +14,7 @@ const DEFAULT_REMOTE_DIR =
 const DEFAULT_SKILL_PACK_JSON = 'out/dfhis-skill-pack.json'
 const DEFAULT_SKILL_PACK_ZIP = 'out/dfhis-skill-pack.zip'
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const remoteDir = process.env.ORCA_RELEASE_REMOTE_DIR || DEFAULT_REMOTE_DIR
   const args = {
     buildMac: true,
@@ -23,8 +24,11 @@ function parseArgs(argv) {
       process.env.ORCA_DFHIS_SKILL_PACK_REMOTE_DIR || path.posix.join(remoteDir, '..', 'dfhis'),
     skillPackJson: process.env.ORCA_DFHIS_SKILL_PACK_JSON || DEFAULT_SKILL_PACK_JSON,
     skillPackZip: process.env.ORCA_DFHIS_SKILL_PACK_ZIP || DEFAULT_SKILL_PACK_ZIP,
-    publishSkillPack: true,
+    // Desktop releases and the live HIS skill pack have independent lifecycles.
+    // Publishing the pack must be an explicit operator decision.
+    publishSkillPack: false,
     generateSkillPack: true,
+    allowSkillPackShrink: false,
     notes: process.env.ORCA_RELEASE_NOTES || ''
   }
   for (let i = 0; i < argv.length; i += 1) {
@@ -48,8 +52,12 @@ function parseArgs(argv) {
       args.skillPackJson = argv[++i]
     } else if (arg === '--skill-pack-zip') {
       args.skillPackZip = argv[++i]
+    } else if (arg === '--publish-skill-pack') {
+      args.publishSkillPack = true
     } else if (arg === '--skip-skill-pack') {
       args.publishSkillPack = false
+    } else if (arg === '--allow-skill-pack-shrink') {
+      args.allowSkillPackShrink = true
     } else if (arg === '--skip-skill-pack-generation') {
       args.generateSkillPack = false
     } else if (arg === '--notes') {
@@ -57,6 +65,9 @@ function parseArgs(argv) {
     } else {
       throw new Error(`Unknown argument: ${arg}`)
     }
+  }
+  if (args.allowSkillPackShrink && !args.publishSkillPack) {
+    throw new Error('--allow-skill-pack-shrink requires --publish-skill-pack')
   }
   return args
 }
@@ -140,6 +151,17 @@ async function artifactInfo(input) {
     size: info.size,
     sha256: await sha256(input.path)
   }
+}
+
+export function skillNamesInManifest(manifest) {
+  const names = new Set()
+  for (const item of manifest?.files ?? []) {
+    const [name, relativePath] = String(item?.path ?? '').split('/', 2)
+    if (name && relativePath) {
+      names.add(name)
+    }
+  }
+  return [...names].sort()
 }
 
 function verifyMacAppVersion(macApp, version) {
@@ -276,10 +298,16 @@ async function main() {
       })
     }
   }
+  let skillPackSkillCount = 0
   if (args.publishSkillPack) {
     const manifest = JSON.parse(await readFile(skillPackJsonOut, 'utf8'))
+    skillPackSkillCount = skillNamesInManifest(manifest).length
+    if (skillPackSkillCount === 0) {
+      throw new Error('DFHIS skill pack contains no valid top-level skills')
+    }
     release.dfhis_skill_pack = {
       version: manifest.version ?? publishedAt,
+      skill_count: skillPackSkillCount,
       manifest: await artifactInfo({
         path: skillPackJsonOut,
         filename: 'dfhis-skill-pack.json',
@@ -320,15 +348,48 @@ VERSION=${JSON.stringify(version)}
 TMP=${JSON.stringify(remoteTemp)}
 test "$(sha256sum "$TMP/orca-macos-arm64.zip" | awk '{print $1}')" = ${JSON.stringify(expectedMacSha)}
 test "$(sha256sum "$TMP/orca-windows-setup.exe" | awk '{print $1}')" = ${JSON.stringify(expectedWindowsSha)}
+${
+  args.publishSkillPack
+    ? `test "$(sha256sum "$TMP/dfhis-skill-pack.json" | awk '{print $1}')" = ${JSON.stringify(expectedSkillJsonSha)}
+test "$(sha256sum "$TMP/dfhis-skill-pack.zip" | awk '{print $1}')" = ${JSON.stringify(expectedSkillZipSha)}
+NEW_SKILL_COUNT=${JSON.stringify(String(skillPackSkillCount))}
+ALLOW_SKILL_PACK_SHRINK=${args.allowSkillPackShrink ? '1' : '0'}
+if test -f "$SKILL_ROOT/dfhis-skill-pack.json"; then
+  CURRENT_SKILL_COUNT=$(SKILL_MANIFEST="$SKILL_ROOT/dfhis-skill-pack.json" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+manifest = json.loads(Path(os.environ["SKILL_MANIFEST"]).read_text(encoding="utf-8"))
+names = {
+    str(item.get("path") or "").split("/", 1)[0]
+    for item in manifest.get("files", [])
+    if "/" in str(item.get("path") or "")
+}
+print(len(names))
+PY
+)
+  if test "$NEW_SKILL_COUNT" -lt "$CURRENT_SKILL_COUNT" && test "$ALLOW_SKILL_PACK_SHRINK" != 1; then
+    echo "Refusing to shrink live DFHIS skill pack from $CURRENT_SKILL_COUNT to $NEW_SKILL_COUNT skills. Re-run with --allow-skill-pack-shrink only after explicit review." >&2
+    exit 1
+  fi
+  BACKUP_DIR="$SKILL_ROOT/backups/$(date +%Y%m%d-%H%M%S)-before-orca-$VERSION-$$"
+  mkdir -p "$BACKUP_DIR"
+  cp -p "$SKILL_ROOT/dfhis-skill-pack.json" "$BACKUP_DIR/"
+  if test -f "$SKILL_ROOT/dfhis-skill-pack.zip"; then
+    cp -p "$SKILL_ROOT/dfhis-skill-pack.zip" "$BACKUP_DIR/"
+  fi
+  (cd "$BACKUP_DIR" && sha256sum dfhis-skill-pack.* > SHA256SUMS)
+fi`
+    : ''
+}
 mkdir -p "$ROOT/releases/$VERSION"
 mv "$TMP/orca-macos-arm64.zip" "$ROOT/releases/$VERSION/orca-macos-arm64.zip"
 mv "$TMP/orca-windows-setup.exe" "$ROOT/releases/$VERSION/orca-windows-setup.exe"
 mv "$TMP/release.json" "$ROOT/releases/$VERSION/release.json"
 ${
   args.publishSkillPack
-    ? `test "$(sha256sum "$TMP/dfhis-skill-pack.json" | awk '{print $1}')" = ${JSON.stringify(expectedSkillJsonSha)}
-test "$(sha256sum "$TMP/dfhis-skill-pack.zip" | awk '{print $1}')" = ${JSON.stringify(expectedSkillZipSha)}
-mkdir -p "$SKILL_ROOT"
+    ? `mkdir -p "$SKILL_ROOT"
 SKILL_JSON_TMP="$SKILL_ROOT/.dfhis-skill-pack-$VERSION-$$.json.tmp"
 SKILL_ZIP_TMP="$SKILL_ROOT/.dfhis-skill-pack-$VERSION-$$.zip.tmp"
 mv -f "$TMP/dfhis-skill-pack.json" "$SKILL_JSON_TMP"
@@ -336,7 +397,22 @@ mv -f "$TMP/dfhis-skill-pack.zip" "$SKILL_ZIP_TMP"
 mv -f "$SKILL_JSON_TMP" "$SKILL_ROOT/dfhis-skill-pack.json"
 mv -f "$SKILL_ZIP_TMP" "$SKILL_ROOT/dfhis-skill-pack.zip"
 test "$(sha256sum "$SKILL_ROOT/dfhis-skill-pack.json" | awk '{print $1}')" = ${JSON.stringify(expectedSkillJsonSha)}
-test "$(sha256sum "$SKILL_ROOT/dfhis-skill-pack.zip" | awk '{print $1}')" = ${JSON.stringify(expectedSkillZipSha)}`
+test "$(sha256sum "$SKILL_ROOT/dfhis-skill-pack.zip" | awk '{print $1}')" = ${JSON.stringify(expectedSkillZipSha)}
+PUBLISHED_SKILL_COUNT=$(SKILL_MANIFEST="$SKILL_ROOT/dfhis-skill-pack.json" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+manifest = json.loads(Path(os.environ["SKILL_MANIFEST"]).read_text(encoding="utf-8"))
+names = {
+    str(item.get("path") or "").split("/", 1)[0]
+    for item in manifest.get("files", [])
+    if "/" in str(item.get("path") or "")
+}
+print(len(names))
+PY
+)
+test "$PUBLISHED_SKILL_COUNT" = "$NEW_SKILL_COUNT"`
     : ''
 }
 rmdir "$TMP"
@@ -375,7 +451,9 @@ PY
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exit(1)
-})
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })
+}
