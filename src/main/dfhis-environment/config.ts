@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
-import { app } from 'electron'
+import { getAppEnvironment } from '../../shared/app-environment'
 import type {
   DfHisEnvironmentConfigInput,
   DfHisEnvironmentConfigSnapshot,
@@ -84,7 +84,7 @@ export type DfHisEnvironmentConfig = {
 }
 
 function userDataPath(): string {
-  return process.env.ORCA_USER_DATA_PATH?.trim() || app.getPath('userData')
+  return process.env.ORCA_USER_DATA_PATH?.trim() || getAppEnvironment().getPath('userData')
 }
 
 export function getDfHisEnvironmentConfigPath(userDataDirectory = userDataPath()): string {

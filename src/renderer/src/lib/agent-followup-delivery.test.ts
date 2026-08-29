@@ -5,6 +5,7 @@ import {
   sendRuntimePtyInputVerified
 } from '@/runtime/runtime-terminal-inspection'
 import { TUI_AGENT_CONFIG } from '../../../shared/tui-agent-config'
+import { setYunxiaoRequirementPromptGateEnabled } from '../../../shared/yunxiao-requirement-prompt-gate'
 
 vi.mock('@/runtime/runtime-terminal-inspection', () => ({
   inspectRuntimeTerminalProcess: vi.fn(),
@@ -109,6 +110,8 @@ describe('sendFollowupPromptWhenAgentReady — interpreter-wrapped agents', () =
   })
 
   it('gates manual Yunxiao prompts before stdin-after-start delivery', async () => {
+    // Why: the fork gate is settings-gated (default off); sibling fork tests enable it explicitly too.
+    setYunxiaoRequirementPromptGateEnabled(true)
     vi.mocked(inspectRuntimeTerminalProcess).mockResolvedValue({
       foregroundProcess: 'aider',
       hasChildProcesses: true

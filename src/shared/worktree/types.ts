@@ -6,6 +6,7 @@ import type { DiffComment, MobileDiffReviewState } from '../diff-comment-types'
 import type { ManualYunxiaoRequirementGate } from '../yunxiao-requirement-prompt-gate'
 import type { EphemeralVmCheckoutMode } from '../orca-yaml-hook-types'
 import type { BuiltInWorktreeVisibilitySourceId } from '../repo-types'
+import type { WorktreeIdentity } from './identity'
 
 export type WorkspaceLinkedItem = {
   provider: 'github' | 'gitlab' | 'linear' | 'jira' | 'yunxiao'
@@ -62,6 +63,8 @@ export type WorkspaceStatusDefinition = {
 export type Worktree = {
   id: string // `${repoId}::${path}`
   instanceId?: string
+  /** Immutable host/instance identity. Optional while legacy rows migrate. */
+  identity?: WorktreeIdentity
   repoId: string
   /** Durable project identity. Optional while legacy repo-only workspaces migrate. */
   projectId?: string

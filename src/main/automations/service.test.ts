@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Repo } from '../../shared/types'
 import type { YunxiaoWorkItem } from '../../shared/yunxiao-types'
 import { toRuntimeExecutionHostId } from '../../shared/execution-host'
 import { AutomationService } from './service'
+import { installFakeAppEnvironment } from '../../../config/scripts/vitest-host-ports-setup'
 
 const testState = { dir: '' }
 
@@ -22,9 +23,19 @@ vi.mock('electron', () => ({
 
 async function createStore() {
   vi.resetModules()
+  // Why: userData resolves through AppEnvironment; point it at this file's temp dir.
+  installFakeAppEnvironment({ getPath: () => testState.dir })
   const { Store, initDataPath } = await import('../persistence')
   initDataPath()
   return new Store()
+}
+
+/** Simulate registry drift after a record was stored; the create path derives contexts itself. */
+function mutateDataFile(mutate: (state: { automations: Record<string, unknown>[] }) => void): void {
+  const file = join(testState.dir, 'orca-data.json')
+  const state = JSON.parse(readFileSync(file, 'utf-8'))
+  mutate(state)
+  writeFileSync(file, JSON.stringify(state, null, 2), 'utf-8')
 }
 
 const makeRepo = (overrides: Partial<Repo> = {}): Repo => ({
@@ -179,13 +190,15 @@ describe('AutomationService', () => {
     })
     const [, payload] = send.mock.calls[0]
     expect(payload.automation.prompt).toContain('DFHIS-31704')
-    expect(payload.automation.prompt).toContain('direct Yunxiao MCP 流程归档需求')
-    expect(payload.automation.prompt).toContain('所有用户可见进展')
+    // Why: the compact workflow replaced the older "direct Yunxiao MCP" wording (285a3ebe54).
+    expect(payload.automation.prompt).toContain('执行 $yunxiao-requirement-archiver')
+    expect(payload.automation.prompt).toContain('用户可见内容使用中文')
     expect(payload.automation.prompt).toContain('Requirement Contract')
     expect(payload.automation.prompt).toContain('needs_clarification')
-    expect(payload.automation.prompt).toContain('Contract status: needs_clarification')
+    expect(payload.automation.prompt).toContain('阻断时写明合同状态和精确原因')
     expect(payload.automation.prompt).not.toContain('Archive the requirement through HIS MCP')
-    expect(payload.automation.prompt).toContain('dfhis-environment.json')
+    // Why: the code-root chain now names DFHIS Setup instead of the raw dfhis-environment.json path.
+    expect(payload.automation.prompt).toContain('DFHIS Setup hisCodeRoot')
 
     await service.markDispatchResult({
       runId: run.id,
@@ -344,21 +357,24 @@ describe('AutomationService', () => {
       prompt: 'Check the repo',
       agentId: 'claude',
       projectId: 'r1',
-      runContext: {
+      workspaceMode: 'new_per_run',
+      timezone: 'UTC',
+      rrule: 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    mutateDataFile((state) => {
+      state.automations[0].runContext = {
         kind: 'workspace-run',
         projectId: 'project-1',
         hostId: 'local',
         projectHostSetupId: 'missing-setup',
         repoId: 'r1',
         path: '/repo'
-      },
-      workspaceMode: 'new_per_run',
-      timezone: 'UTC',
-      rrule: 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0',
-      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+      }
     })
+    const reloaded = await createStore()
     const send = vi.fn()
-    const service = new AutomationService(store, { tickMs: 60_000 })
+    const service = new AutomationService(reloaded, { tickMs: 60_000 })
     service.setWebContents({
       isDestroyed: () => false,
       send
@@ -382,21 +398,24 @@ describe('AutomationService', () => {
       prompt: 'Check the repo',
       agentId: 'claude',
       projectId: 'r1',
-      runContext: {
+      workspaceMode: 'new_per_run',
+      timezone: 'UTC',
+      rrule: 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0',
+      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+    })
+    mutateDataFile((state) => {
+      state.automations[0].runContext = {
         kind: 'workspace-run',
         projectId: setup.projectId,
         hostId: setup.hostId,
         projectHostSetupId: setup.id,
         repoId: setup.repoId,
         path: '/repo/old'
-      },
-      workspaceMode: 'new_per_run',
-      timezone: 'UTC',
-      rrule: 'FREQ=DAILY;BYHOUR=9;BYMINUTE=0',
-      dtstart: new Date('2026-05-14T00:00:00Z').getTime()
+      }
     })
+    const reloaded = await createStore()
     const send = vi.fn()
-    const service = new AutomationService(store, { tickMs: 60_000 })
+    const service = new AutomationService(reloaded, { tickMs: 60_000 })
     service.setWebContents({
       isDestroyed: () => false,
       send

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { app } from 'electron'
+import { getAppEnvironment } from '../../shared/app-environment'
 import { readDfHisEnvironmentConfigSync } from '../dfhis-environment/config'
 
 const DIRECT_ARCHIVE_SCRIPT_RELATIVE_PATH = path.join(
@@ -18,7 +18,7 @@ export type DirectArchivePayload = {
 }
 
 function getDirectArchiveScriptPath(): string {
-  return app.isPackaged
+  return getAppEnvironment().isPackaged()
     ? path.join(process.resourcesPath, DIRECT_ARCHIVE_SCRIPT_RELATIVE_PATH)
     : path.join(process.cwd(), 'resources', DIRECT_ARCHIVE_SCRIPT_RELATIVE_PATH)
 }

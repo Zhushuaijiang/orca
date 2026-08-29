@@ -1,4 +1,4 @@
-import type { AgentHookEventPayload } from '../../shared/agent-hook-listener'
+import type { AgentHookEventPayload } from '../../shared/agent-hook-listener/listener-event'
 import type { TuiAgent } from '../../shared/types'
 import type { SkillReviewRequest } from './review-queue'
 

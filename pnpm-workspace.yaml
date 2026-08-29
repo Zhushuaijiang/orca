@@ -6,7 +6,7 @@ packages: []
 
 overrides:
   '@modelcontextprotocol/sdk>@hono/node-server': 2.0.10
-  monaco-editor>dompurify: 3.4.12
+  monaco-editor>dompurify: 3.4.13
 
 supportedArchitectures:
   os:
@@ -25,10 +25,13 @@ patchedDependencies:
   '@xterm/addon-webgl@0.20.0-beta.286': config/patches/@xterm__addon-webgl@0.20.0-beta.286.patch
   '@xterm/addon-serialize@0.15.0-beta.287': config/patches/@xterm__addon-serialize@0.15.0-beta.287.patch
   '@xterm/xterm@6.1.0-beta.287': config/patches/@xterm__xterm@6.1.0-beta.287.patch
+  lint-staged@16.4.0: config/patches/lint-staged@16.4.0.patch
+  '@vscode/windows-process-tree@0.8.0': config/patches/@vscode__windows-process-tree@0.8.0.patch
 
 allowBuilds:
   '@parcel/watcher': true
   '@swc/core': true
+  '@vscode/windows-process-tree': false
   agent-browser: true
   cpu-features: true
   electron-winstaller: true

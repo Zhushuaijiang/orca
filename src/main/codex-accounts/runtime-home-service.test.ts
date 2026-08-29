@@ -772,7 +772,9 @@ describe('CodexRuntimeHomeService', () => {
       getDefaultWslDistro: () => null,
       getWslHome: (distro: string) => (distro === 'Debian' ? wslHome : null)
     }))
-    vi.doMock('../../shared/wsl-paths', () => ({
+    vi.doMock('../../shared/wsl-paths', async () => ({
+      // Why spread actual: upstream also routes system-config paths through toLinuxPath.
+      ...(await vi.importActual<typeof import('../../shared/wsl-paths')>('../../shared/wsl-paths')),
       parseWslUncPath: (candidate: string) =>
         candidate === wslRuntimeHomePath
           ? {
@@ -1009,7 +1011,9 @@ describe('CodexRuntimeHomeService', () => {
     const { CodexRuntimeHomeService } = await import('./runtime-home-service')
     const service = new CodexRuntimeHomeService(store as never)
     expect(service.prepareForCodexLaunch()).toBe(getRuntimeCodexHomePath())
-    expect(existsSync(markerPath)).toBe(false)
+    // Why not deleted: upstream records pending scan dates in the marker instead of
+    // dropping it — the unreadable '{}' baseline must simply not read as complete.
+    expect(JSON.parse(readFileSync(markerPath, 'utf-8')).coverage).not.toBe('full')
     service.finishHostSystemDefaultSessionMigrationPass()
     expect(service.beginHostSystemDefaultSessionMigrationLaunch(getRuntimeCodexHomePath())).toBe(
       true
@@ -1037,7 +1041,8 @@ describe('CodexRuntimeHomeService', () => {
     expect(service.beginHostSystemDefaultSessionMigrationLaunch(getRuntimeCodexHomePath())).toBe(
       false
     )
-    expect(existsSync(markerPath)).toBe(false)
+    // Why kept: upstream preserves the completed marker as the backfill baseline instead of deleting it.
+    expect(existsSync(markerPath)).toBe(true)
     service.prepareForCodexLaunch()
     expect(service.beginHostSystemDefaultSessionMigrationLaunch(getRuntimeCodexHomePath())).toBe(
       false
@@ -1056,7 +1061,8 @@ describe('CodexRuntimeHomeService', () => {
     expect(service.beginHostSystemDefaultSessionMigrationLaunch(null, { reattached: true })).toBe(
       false
     )
-    expect(existsSync(markerPath)).toBe(false)
+    // Why kept: upstream preserves the completed marker as the backfill baseline instead of deleting it.
+    expect(existsSync(markerPath)).toBe(true)
     store.updateSettings({
       codexSessionSourceHome: { host: join(testState.fakeHomeDir, 'moved-history'), wsl: {} }
     })
@@ -1095,7 +1101,8 @@ describe('CodexRuntimeHomeService', () => {
     mkdirSync(join(testState.userDataDir, 'codex-session-backfill'), { recursive: true })
     writeFileSync(markerPath, '{}\n', 'utf-8')
     expect(service.prepareForCodexLaunch()).toBe(getRuntimeCodexHomePath())
-    expect(existsSync(markerPath)).toBe(false)
+    // Why not deleted: upstream records pending scan dates in the marker instead of dropping it.
+    expect(JSON.parse(readFileSync(markerPath, 'utf-8')).coverage).not.toBe('full')
     expect(service.beginHostSystemDefaultSessionMigrationLaunch(getRuntimeCodexHomePath())).toBe(
       true
     )

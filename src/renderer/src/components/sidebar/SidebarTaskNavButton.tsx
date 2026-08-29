@@ -44,18 +44,14 @@ function TaskProviderShortcut({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <span
-      role="button"
-      tabIndex={-1}
-      onClick={(e) => {
-        e.stopPropagation()
-        onOpen()
-      }}
-      className="rounded p-0.5 text-muted-foreground/70 transition-colors hover:text-foreground"
+    <button
+      type="button"
+      onClick={onOpen}
+      className="rounded p-0.5 text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-worktree-sidebar-ring"
       aria-label={label}
     >
       {children}
-    </span>
+    </button>
   )
 }
 
@@ -65,7 +61,6 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
   const activeView = useAppStore((s) => s.activeView)
   const repos = useAppStore((s) => s.repos)
   const repoMap = useRepoMap()
-  const hasGitRepo = repos.some((repo) => isGitRepoKind(repo))
   const showTasksButton = useAppStore((s) => s.settings?.showTasksButton !== false)
   const rawVisibleTaskProviders = useAppStore((s) => s.settings?.visibleTaskProviders)
   const defaultTaskSource = useAppStore((s) => s.settings?.defaultTaskSource ?? DEFAULT_TASK_SOURCE)
@@ -126,7 +121,7 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
   ])
 
   const handlePrefetch = React.useCallback(() => {
-    if (!hasGitRepo || resolvedDefaultTaskSource !== 'github') {
+    if (resolvedDefaultTaskSource !== 'github') {
       return
     }
     const activeRepo = activeRepoId ? (repoMap.get(activeRepoId) ?? null) : null
@@ -143,7 +138,6 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
   }, [
     activeRepoId,
     defaultTaskViewPreset,
-    hasGitRepo,
     prefetchWorkItems,
     repoMap,
     repos,
@@ -163,31 +157,34 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <button
-          type="button"
-          onClick={() => {
-            openTaskPage()
-          }}
-          onPointerEnter={handlePrefetch}
-          onFocus={handlePrefetch}
-          aria-disabled={false}
-          aria-current={tasksActive ? 'page' : undefined}
-          data-contextual-tour-target="sidebar-tasks"
-          className={cn(
-            'group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] font-medium tracking-tight transition-colors',
-            tasksActive
-              ? 'bg-worktree-sidebar-accent text-worktree-sidebar-accent-foreground'
-              : 'text-worktree-sidebar-foreground/60 hover:bg-worktree-sidebar-foreground/8'
-          )}
-        >
-          <List
-            className={cn('size-4 shrink-0', !tasksActive && 'text-worktree-sidebar-foreground/30')}
-            strokeWidth={tasksActive ? 2.25 : 1.75}
-          />
-          <span className="flex-1">
-            {translate('auto.components.sidebar.SidebarNav.fee535205b', 'Tasks')}
-          </span>
-          <span className="hidden items-center gap-1 group-hover:flex group-focus-within:flex">
+        {/* Why: shortcuts sit beside the Tasks button, not inside it, so each stays keyboard-reachable. */}
+        <div className="group relative">
+          <button
+            type="button"
+            onClick={() => openTaskPage()}
+            onPointerEnter={handlePrefetch}
+            onFocus={handlePrefetch}
+            aria-current={tasksActive ? 'page' : undefined}
+            data-contextual-tour-target="sidebar-tasks"
+            className={cn(
+              'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] font-medium tracking-tight transition-colors',
+              tasksActive
+                ? 'bg-worktree-sidebar-accent text-worktree-sidebar-accent-foreground'
+                : 'text-worktree-sidebar-foreground/60 group-hover:bg-worktree-sidebar-foreground/8'
+            )}
+          >
+            <List
+              className={cn(
+                'size-4 shrink-0',
+                !tasksActive && 'text-worktree-sidebar-foreground/30'
+              )}
+              strokeWidth={tasksActive ? 2.25 : 1.75}
+            />
+            <span className="flex-1">
+              {translate('auto.components.sidebar.SidebarNav.fee535205b', 'Tasks')}
+            </span>
+          </button>
+          <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 can-hover:pointer-events-none can-hover:opacity-0 can-hover:group-hover:pointer-events-auto can-hover:group-hover:opacity-100 can-hover:group-focus-within:pointer-events-auto can-hover:group-focus-within:opacity-100">
             {visibleTaskProviders.includes('github') ? (
               <TaskProviderShortcut
                 label={translate(
@@ -255,7 +252,7 @@ export function SidebarTaskNavButton(): React.JSX.Element | null {
               </TaskProviderShortcut>
             ) : null}
           </span>
-        </button>
+        </div>
       </ContextMenuTrigger>
       <HideTaskSidebarMenu onHide={hideTasksButton} />
     </ContextMenu>

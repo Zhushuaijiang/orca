@@ -10,6 +10,9 @@ import type { ProjectHostSetup } from '../../../shared/project-types'
 import type { Repo } from '../../../shared/repo-types'
 import { normalizeAutomationPrecheck } from '../../../shared/automation-precheck'
 import { getAutomationLegacyRepoId } from '../../../shared/automation-run-identity'
+import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../../shared/yunxiao-requirement-gate-outcome'
+import { normalizeAutomationYunxiaoTodoPoolSource } from './yunxiao-automation-todo-pool-source'
+import { normalizeYunxiaoRequirementGateOutcomes } from './yunxiao-requirement-contract-normalization'
 import { projectHostSetupProjectionFromRepos } from '../../../shared/project-host-setup-projection'
 import {
   buildTaskSourceContextFromRepo,
@@ -99,6 +102,7 @@ export function normalizeAutomationSessionReuse(automation: Automation): Automat
   return {
     ...automation,
     precheck: normalizeAutomationPrecheck(automation.precheck),
+    yunxiaoTodoPool: normalizeAutomationYunxiaoTodoPoolSource(automation.yunxiaoTodoPool),
     setupDecision,
     reuseSession: automation.workspaceMode === 'existing' && automation.reuseSession === true
   }
@@ -126,8 +130,15 @@ export function getAutomationContextsForRepo(
   const projection = projectHostSetupProjectionFromRepos([repo])
   const projectedProject = projection.projects[0]
   const projectedSetup = projection.setups[0]
+  // Why the host filter first: a repo id can be shared across hosts, and the
+  // contexts must describe the copy this record resolved to, not a sibling's.
+  const repoHostId = getRepoExecutionHostId(repo)
   const setup =
-    projectHostSetups.find((candidate) => candidate.repoId === repo.id) ?? projectedSetup
+    projectHostSetups.find(
+      (candidate) => candidate.repoId === repo.id && candidate.hostId === repoHostId
+    ) ??
+    projectHostSetups.find((candidate) => candidate.repoId === repo.id) ??
+    projectedSetup
   const runContext = setup
     ? buildWorkspaceRunContext({
         projectId: setup.projectId,
@@ -214,6 +225,24 @@ export function backfillLegacyAutomationContexts(
     }
     if (!Object.hasOwn(next, 'terminalPtyId')) {
       next.terminalPtyId = null
+      changed = true
+    }
+    const previousRequirementOutcomesJson = JSON.stringify(next.yunxiaoRequirementOutcomes ?? null)
+    const previousRequirementOutcomeJson = JSON.stringify(next.yunxiaoRequirementOutcome ?? null)
+    const normalizedRequirementOutcomes =
+      normalizeYunxiaoRequirementGateOutcomes(next.yunxiaoRequirementOutcomes) ??
+      normalizeYunxiaoRequirementGateOutcomes(
+        next.yunxiaoRequirementOutcome ? [next.yunxiaoRequirementOutcome] : null
+      ) ??
+      normalizeYunxiaoRequirementGateOutcomes(
+        extractYunxiaoRequirementGateOutcomesFromSnapshot(next.outputSnapshot ?? null)
+      )
+    next.yunxiaoRequirementOutcomes = normalizedRequirementOutcomes
+    next.yunxiaoRequirementOutcome = normalizedRequirementOutcomes?.[0] ?? null
+    if (
+      previousRequirementOutcomesJson !== JSON.stringify(next.yunxiaoRequirementOutcomes ?? null) ||
+      previousRequirementOutcomeJson !== JSON.stringify(next.yunxiaoRequirementOutcome ?? null)
+    ) {
       changed = true
     }
     return next

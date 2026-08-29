@@ -58,19 +58,16 @@ export function readLegacyTerminalScrollbackSettings(
 
 type RetiredGlobalSettings = {
   terminalScrollbackBytes?: unknown
-  enableGitHubAttribution?: unknown
 }
 
 export function stripRetiredGlobalSettings(
   settings: Partial<GlobalSettings> | undefined
 ): Partial<GlobalSettings> {
-  const {
-    terminalScrollbackBytes: _legacyScrollbackBytes,
-    enableGitHubAttribution: _legacyGitHubAttribution,
-    ...rest
-  } = (settings ?? {}) as Partial<GlobalSettings> & RetiredGlobalSettings
+  // Why kept: this fork still ships enableGitHubAttribution as the GitPane toggle.
+  const { terminalScrollbackBytes: _legacyScrollbackBytes, ...rest } = (
+    settings ?? {}
+  ) as Partial<GlobalSettings> & RetiredGlobalSettings
   void _legacyScrollbackBytes
-  void _legacyGitHubAttribution
   return rest
 }
 

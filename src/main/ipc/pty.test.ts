@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- Why: stateful registration helper + shared mocked IPC/node-pty harness keep spawn-env assertions in one focused file. */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir, userInfo } from 'node:os'
@@ -19,6 +19,10 @@ import { AGENT_SESSION_CLAIM_DIGEST_VERSION } from '../../shared/agent-session-h
 import { PtyWriteUnavailableError } from '../providers/pty-write-unavailable-error'
 import { TerminalSessionOwnerUnverifiedError } from '../daemon/daemon-errors'
 import type * as Wsl from '../wsl'
+import * as electron from 'electron'
+import { setYunxiaoRequirementPromptGateEnabled } from '../../shared/yunxiao-requirement-prompt-gate'
+import { installFakeAppEnvironment } from '../../../config/scripts/vitest-host-ports-setup'
+import { setPtyHostBindings } from './pty-host-bindings'
 
 const isWindowsHost = process.platform === 'win32'
 const posixOnlyIt = isWindowsHost ? it.skip : it
@@ -361,6 +365,28 @@ describe('registerPtyHandlers', () => {
   const savedOrcaUserDataPath = process.env.ORCA_USER_DATA_PATH
 
   beforeEach(() => {
+    // Why: pty.ts registers through the injected PtyIpcSurface now, so the mocked ipcMain
+    // must be installed for the shared `handlers` map to keep capturing registrations.
+    setPtyHostBindings({
+      ipc: {
+        handle: handleMock as never,
+        on: onMock as never,
+        removeHandler: removeHandlerMock,
+        removeAllListeners: removeAllListenersMock
+      }
+    })
+    // Why: ported pty modules read app paths/isPackaged through the AppEnvironment port;
+    // back it with the electron mock so suites toggling isPackaged mid-test still hold.
+    const electronAppMock = (
+      vi.mocked(electron) as unknown as {
+        app: { isPackaged: boolean; getPath: (name: string) => string; getVersion: () => string }
+      }
+    ).app
+    installFakeAppEnvironment({
+      getPath: (name) => electronAppMock.getPath(name),
+      isPackaged: () => electronAppMock.isPackaged,
+      getVersion: () => electronAppMock.getVersion()
+    })
     // Why: most PTY spawn tests assert POSIX shell behavior; Windows cases opt into win32 explicitly below.
     Object.defineProperty(process, 'platform', {
       configurable: true,
@@ -1234,6 +1260,9 @@ describe('registerPtyHandlers', () => {
   })
 
   it('rejects bare Yunxiao requirement agent commands at pty spawn', async () => {
+    // Why: the prompt gate is settings-gated and defaults off; enable it for this spawn-rejection case.
+    setYunxiaoRequirementPromptGateEnabled(true)
+    onTestFinished(() => setYunxiaoRequirementPromptGateEnabled(false))
     setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
     registerPtyHandlers(mainWindow as never)
 
@@ -6012,7 +6041,7 @@ describe('registerPtyHandlers', () => {
         await Promise.resolve()
 
         expect(runtime.onPtyExit).toHaveBeenCalledTimes(1)
-        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, undefined)
+        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, { providerExitObserved: true }) // Why: upstream exit reporting records provider-observed exits
         expect(
           mainWindow.webContents.send.mock.calls.filter((call) => call[0] === 'pty:exit')
         ).toEqual([['pty:exit', { id: 'local-pty', code: 0 }]])
@@ -6066,7 +6095,7 @@ describe('registerPtyHandlers', () => {
         await expect(stopPromise).resolves.toBe(true)
 
         expect(runtime.onPtyExit).toHaveBeenCalledTimes(1)
-        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, undefined)
+        expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, { providerExitObserved: true }) // Why: upstream exit reporting records provider-observed exits
         expect(
           mainWindow.webContents.send.mock.calls.filter((call) => call[0] === 'pty:exit')
         ).toEqual([['pty:exit', { id: 'local-pty', code: 0 }]])
@@ -6979,7 +7008,7 @@ describe('registerPtyHandlers', () => {
     await handlers.get('pty:kill')!(null, { id: 'local-pty' })
 
     expect(runtime.onPtyExit).toHaveBeenCalledTimes(1)
-    expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, undefined)
+    expect(runtime.onPtyExit).toHaveBeenCalledWith('local-pty', 0, undefined, { providerExitObserved: true }) // Why: upstream exit reporting records provider-observed exits
     expect(mainWindow.webContents.send.mock.calls.filter((call) => call[0] === 'pty:exit')).toEqual(
       [['pty:exit', { id: 'local-pty', code: 0 }]]
     )
@@ -7227,7 +7256,9 @@ describe('registerPtyHandlers', () => {
         seq: 13,
         rawLength: 'daemon output'.length
       })
-      expect(runtime.onPtyExit).toHaveBeenCalledWith(result.id, 0, undefined, undefined)
+      expect(runtime.onPtyExit).toHaveBeenCalledWith(result.id, 0, undefined, {
+        providerExitObserved: true // Why: upstream exit reporting records provider-observed exits.
+      })
       expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:exit', {
         id: result.id,
         code: 0
@@ -8921,12 +8952,14 @@ describe('registerPtyHandlers', () => {
       persistHostSessionBinding: true
     })
 
+    // Why hostAdmittedMembership: upstream's runtime bindings now record host admission.
     expect(store.persistPtyBinding).toHaveBeenCalledWith({
       worktreeId: 'wt-1',
       tabId: 'tab-headless',
       leafId,
       ptyId: expect.any(String),
-      incarnationId: expect.any(String)
+      incarnationId: expect.any(String),
+      hostAdmittedMembership: true
     })
   })
 
@@ -9189,21 +9222,22 @@ describe('registerPtyHandlers', () => {
         ORCA_WORKTREE_ID: 'repo-1::/tmp'
       }
     }) as Promise<{ id: string }>
-    await Promise.resolve()
-
-    expect(providerSpawn).toHaveBeenCalledTimes(1)
+    // Why waitFor: the ported spawn path reaches the provider one async hop later than a bare microtask.
+    await vi.waitFor(() => expect(providerSpawn).toHaveBeenCalledTimes(1))
     resolveSpawn({ id: 'pty-shared' })
     await expect(Promise.all([runtimeSpawn, rendererSpawn])).resolves.toEqual([
       { id: 'pty-shared' },
       { id: 'pty-shared', isReattach: true }
     ])
     expect(providerSpawn).toHaveBeenCalledTimes(1)
+    // Why hostAdmittedMembership: upstream's runtime bindings now record host admission.
     expect(store.persistPtyBinding).toHaveBeenCalledWith({
       worktreeId: 'repo-1::/tmp',
       tabId: 'tab-race',
       leafId,
       ptyId: 'pty-shared',
-      startupCwd: '/tmp'
+      startupCwd: '/tmp',
+      hostAdmittedMembership: true
     })
   })
 
@@ -11013,12 +11047,14 @@ describe('registerPtyHandlers', () => {
         state: 'attached'
       })
     )
+    // Why hostAdmittedMembership: upstream's runtime bindings now record host admission.
     expect(store.persistPtyBinding).toHaveBeenCalledWith(
       {
         worktreeId: 'wt-remote',
         tabId: 'tab-remote',
         leafId,
-        ptyId: 'ssh:ssh-1@@relay-pty'
+        ptyId: 'ssh:ssh-1@@relay-pty',
+        hostAdmittedMembership: true
       },
       'ssh:ssh-1'
     )
@@ -11165,12 +11201,14 @@ describe('registerPtyHandlers', () => {
         persistHostSessionBinding: true
       })
 
+      // Why hostAdmittedMembership: upstream's runtime bindings now record host admission.
       expect(store.persistPtyBinding).toHaveBeenCalledWith(
         {
           worktreeId: 'wt-remote',
           tabId: 'tab-remote',
           leafId,
-          ptyId: 'ssh:ssh-reattach-ok@@relay-pty'
+          ptyId: 'ssh:ssh-reattach-ok@@relay-pty',
+          hostAdmittedMembership: true
         },
         'ssh:ssh-reattach-ok'
       )
@@ -11850,6 +11888,8 @@ describe('registerPtyHandlers', () => {
     const destroyedListeners: (() => void)[] = []
     const sender = {
       id: 42,
+      // Why: upstream's serializer declarations probe sender liveness before registering.
+      isDestroyed: vi.fn(() => false),
       once: vi.fn((event: string, listener: () => void) => {
         if (event === 'destroyed') {
           destroyedListeners.push(listener)
@@ -12905,6 +12945,11 @@ describe('registerPtyHandlers', () => {
     delete process.env.ORCA_ORIG_ZDOTDIR
     process.env.SHELL = '/bin/zsh'
     delete process.env.ZDOTDIR
+    // Why: the suite's blanket existsSync=true would stamp HOME as an Orca wrapper dir;
+    // model a real HOME — zsh startup files present, no Orca marker file.
+    existsSyncMock.mockImplementation(
+      (pathValue: string) => !pathValue.includes('.orca-shell-wrapper')
+    )
 
     try {
       const [shell, args, options] = await spawnAndGetCall({
@@ -13882,12 +13927,11 @@ describe('registerPtyHandlers', () => {
       const sourceData = '\x1b]10;?\x1b\\\x1b]11;?\x1b\\ready'
       mockProc.emitData(sourceData)
 
-      // Why: the reply leaves the query's own turn so a still-cooked tty cannot
-      // echo it back as text instead of delivering it to the agent (#12112).
-      expect(mockProc.proc.write).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(2)
+      // Why: replies now leave in the accepting turn — withholding them is what let a later
+      // reply overtake a held one (#15559); echo containment moved to output projections.
       expect(mockProc.proc.write).toHaveBeenCalledWith('\x1b]10;rgb:eeee/eeee/eeee\x1b\\')
       expect(mockProc.proc.write).toHaveBeenCalledWith('\x1b]11;rgb:1111/1111/1111\x1b\\')
+      vi.advanceTimersByTime(2)
       expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:data', {
         id: spawnResult.id,
         data: 'ready',
@@ -13922,11 +13966,10 @@ describe('registerPtyHandlers', () => {
       const sourceData = '\x1b]10;?;?\x1b\\ready'
       mockProc.emitData(sourceData)
 
-      // Why: both slots of a duplicate-slot query leave the query's own turn too (#12112).
-      expect(mockProc.proc.write).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(2)
+      // Why: replies now leave in the accepting turn (#15559) — both slots answer immediately.
       expect(mockProc.proc.write).toHaveBeenCalledWith('\x1b]10;rgb:eeee/eeee/eeee\x1b\\')
       expect(mockProc.proc.write).toHaveBeenCalledWith('\x1b]11;rgb:1111/1111/1111\x1b\\')
+      vi.advanceTimersByTime(2)
       expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:data', {
         id: spawnResult.id,
         data: 'ready',
@@ -16713,9 +16756,10 @@ describe('registerPtyHandlers', () => {
           hiddenDeliveryGatedVisiblePtyCount: 1,
           hiddenDeliveryDroppedChars: 'starved visible output'.length
         })
+        // Why redacted id: upstream redacts pty ids in delivery diagnostics.
         expect(warnSpy).toHaveBeenCalledWith(
           '[pty] hidden-delivery gate is dropping bytes for a visible/active pty',
-          expect.objectContaining({ id: result.id, visible: true })
+          expect.objectContaining({ id: redactPtyIdForDiagnostics(result.id), visible: true })
         )
 
         // Unhiding resolves the contradiction.
@@ -17735,6 +17779,9 @@ describe('registerPtyHandlers', () => {
   })
 
   it('gates local Yunxiao pty writes for Orca-launched agent PTYs', async () => {
+    // Why: the write gate follows the settings toggle; enable it to exercise the gated path.
+    setYunxiaoRequirementPromptGateEnabled(true)
+    onTestFinished(() => setYunxiaoRequirementPromptGateEnabled(false))
     setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
     const mockProc = createMockProc()
     spawnMock.mockReturnValue(mockProc.proc)
@@ -17760,6 +17807,9 @@ describe('registerPtyHandlers', () => {
   })
 
   it('gates local Yunxiao pty writes when foreground process is a TUI agent', async () => {
+    // Why: the write gate follows the settings toggle; enable it to exercise the gated path.
+    setYunxiaoRequirementPromptGateEnabled(true)
+    onTestFinished(() => setYunxiaoRequirementPromptGateEnabled(false))
     setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined)
     const provider = installForegroundProcessWriteProvider('/opt/homebrew/bin/codex')
     registerPtyHandlers(mainWindow as never)
@@ -19315,8 +19365,10 @@ describe('registerPtyHandlers', () => {
     await Promise.resolve()
 
     expect(killSpy).toHaveBeenCalled()
+    // Why providerExitObserved: upstream's exit reporting now records whether the provider emitted the exit.
     expect(runtime.onPtyExit).toHaveBeenCalledWith(spawnResult.id, -1, spawnResult.incarnationId, {
-      cause: { kind: 'unknown', reason: 'stop_unverified' }
+      cause: { kind: 'unknown', reason: 'stop_unverified' },
+      providerExitObserved: true
     })
     const listed = await getLocalPtyProvider().listProcesses()
     expect(listed.some((info) => info.id === spawnResult.id)).toBe(false)
@@ -19568,8 +19620,9 @@ describe('registerPtyHandlers', () => {
       )
       expect(responseChannelRegistrations.length).toBe(1)
       // Drain the in-flight requests so the test doesn't leak timers.
+      // Why mainWindowIpcEvent: the ported listener gates responses on the main-window sender, so a null event is dropped.
       for (const requestId of getSentRequestIds()) {
-        listener(null, { requestId, snapshot: null })
+        listener(mainWindowIpcEvent, { requestId, snapshot: null })
       }
       await Promise.all(inflight)
     })
@@ -19582,11 +19635,11 @@ describe('registerPtyHandlers', () => {
       const requestIdA = ids[0]
       const requestIdB = ids[1]
 
-      listener(null, {
+      listener(mainWindowIpcEvent, {
         requestId: requestIdB,
         snapshot: { data: 'B-data', cols: 80, rows: 24 }
       })
-      listener(null, {
+      listener(mainWindowIpcEvent, {
         requestId: requestIdA,
         snapshot: { data: 'A-data', cols: 100, rows: 30, lastTitle: 'A-title' }
       })
@@ -19605,11 +19658,11 @@ describe('registerPtyHandlers', () => {
       const pending = controller.serializeBuffer('pty-1')
       const realRequestId = getSentRequestIds()[0]
 
-      listener(null, {
+      listener(mainWindowIpcEvent, {
         requestId: 'not-a-real-id',
         snapshot: { data: 'irrelevant', cols: 1, rows: 1 }
       })
-      listener(null, { requestId: undefined, snapshot: null })
+      listener(mainWindowIpcEvent, { requestId: undefined, snapshot: null })
 
       let resolved = false
       void pending.then(() => {
@@ -19618,7 +19671,7 @@ describe('registerPtyHandlers', () => {
       await new Promise((r) => setTimeout(r, 0))
       expect(resolved).toBe(false)
 
-      listener(null, { requestId: realRequestId, snapshot: { data: 'ok', cols: 80, rows: 24 } })
+      listener(mainWindowIpcEvent, { requestId: realRequestId, snapshot: { data: 'ok', cols: 80, rows: 24 } })
       await expect(pending).resolves.toEqual({ data: 'ok', cols: 80, rows: 24 })
     })
 
@@ -19638,7 +19691,7 @@ describe('registerPtyHandlers', () => {
       const { listener, controller } = setup()
       const pending = controller.serializeBuffer('pty-bad')
       const requestId = getSentRequestIds()[0]
-      listener(null, { requestId, snapshot: { data: 'ok', cols: 'not-a-number' } })
+      listener(mainWindowIpcEvent, { requestId, snapshot: { data: 'ok', cols: 'not-a-number' } })
       await expect(pending).resolves.toBeNull()
     })
   })

@@ -27,9 +27,11 @@ import { seedCommandCodeSubmittedPromptStatus } from '@/lib/command-code-prompt-
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { LaunchSource } from '../../../shared/telemetry-events'
 import { getConnectionIdFromState } from '@/lib/connection-context'
-import { resolveNativeChatSessionOptionDefaults } from '../../../shared/native-chat-session-option-defaults'
+import { resolveInitialNativeChatSessionOptions } from '@/components/native-chat/native-chat-launch-session-options'
 import { seedNativeChatAppliedSessionOptions } from '@/components/native-chat/native-chat-session-option-cache'
 import { applyYunxiaoRequirementPromptGate } from '../../../shared/yunxiao-requirement-prompt-gate'
+import { canUseStructuredNativeChat } from '@/lib/structured-native-chat-availability'
+import { startStructuredCodexLaunch } from '@/lib/structured-agent-session-launch'
 
 export type LaunchAgentInNewTabArgs = {
   agent: TuiAgent
@@ -57,8 +59,16 @@ export type LaunchAgentInNewTabResult = {
   tabId: string | null
   startupPlan: AgentStartupPlan
   pasteDraftAfterLaunch: boolean
+  /** The host will publish and focus a structured tab asynchronously. */
+  focusAfterMenuClose?: 'structured-session'
   promptDeliveryResult?: Promise<{ delivered: boolean; failureNotified: boolean }>
 } | null
+
+export function shouldQueueTerminalFocusAfterMenuClose(
+  result: NonNullable<LaunchAgentInNewTabResult>
+): boolean {
+  return result.tabId === null && result.focusAfterMenuClose !== 'structured-session'
+}
 
 /**
  * Create a new terminal tab and queue the agent's launch command, optionally
@@ -108,6 +118,21 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
       ? agentArgs
       : resolveTuiAgentLaunchArgs(agent, store.settings?.agentDefaultArgs)
   const agentEnv = resolveTuiAgentLaunchEnv(agent, store.settings?.agentDefaultEnv)
+  const trimmedPrompt = prompt?.trim() ?? ''
+  const gatedPrompt = applyYunxiaoRequirementPromptGate(trimmedPrompt)
+  const hasPrompt = gatedPrompt.trim().length > 0
+  const isFollowupPath = TUI_AGENT_CONFIG[agent].promptInjectionMode === 'stdin-after-start'
+  // Why: the remote host can't infer this client's draft/default view choice, so decide it here for paired tabs too.
+  const viewModePromptDelivery =
+    hasPrompt && isFollowupPath && promptDelivery === 'auto-submit' ? 'draft' : promptDelivery
+  const initialViewModeOptions = {
+    agent,
+    promptDelivery: viewModePromptDelivery,
+    launchDraftText: gatedPrompt,
+    nativeChatTranscriptIsLocalReadable: isNativeChatTranscriptLocalReadable(
+      getConnectionIdFromState(store, worktreeId)
+    )
+  }
   const startupPlanBase = {
     agent,
     cmdOverrides,
@@ -116,15 +141,8 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
     isRemote,
     agentArgs: effectiveAgentArgs,
     agentEnv,
-    sessionOptions: resolveNativeChatSessionOptionDefaults(
-      store.settings?.nativeChatSessionOptions,
-      agent
-    )
+    sessionOptions: resolveInitialNativeChatSessionOptions(store.settings, initialViewModeOptions)
   }
-  const trimmedPrompt = prompt?.trim() ?? ''
-  const gatedPrompt = applyYunxiaoRequirementPromptGate(trimmedPrompt)
-  const hasPrompt = gatedPrompt.trim().length > 0
-  const isFollowupPath = TUI_AGENT_CONFIG[agent].promptInjectionMode === 'stdin-after-start'
   const { startupPlan, pasteDraftAfterLaunch, submitPastedPrompt } = planLaunchAgentStartupPrompt({
     base: startupPlanBase,
     prompt: gatedPrompt.trim(),
@@ -137,17 +155,7 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
     return null
   }
 
-  // Why: the remote host can't infer this client's draft/default view choice, so decide it here for paired tabs too.
-  const viewModePromptDelivery =
-    hasPrompt && isFollowupPath && promptDelivery === 'auto-submit' ? 'draft' : promptDelivery
-  const initialViewModeProps = initialAgentTabViewModeProps(store.settings, {
-    agent,
-    promptDelivery: viewModePromptDelivery,
-    launchDraftText: gatedPrompt,
-    nativeChatTranscriptIsLocalReadable: isNativeChatTranscriptLocalReadable(
-      getConnectionIdFromState(store, worktreeId)
-    )
-  })
+  const initialViewModeProps = initialAgentTabViewModeProps(store.settings, initialViewModeOptions)
 
   const runtimeEnvironmentId = getRuntimeEnvironmentIdForWorktree(store, worktreeId)
   if (isWebRuntimeSessionActive(runtimeEnvironmentId)) {
@@ -175,6 +183,21 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
       ...(pasteDraftAfterLaunch !== null && promptDelivery === 'submit-after-ready'
         ? { promptDeliveryResult: webHostDelivery }
         : {})
+    }
+  }
+
+  const launchDirectStructuredChat =
+    agent === 'codex' &&
+    !hasPrompt &&
+    store.settings?.experimentalNativeChat === true &&
+    canUseStructuredNativeChat(store, worktreeId)
+  if (launchDirectStructuredChat) {
+    startStructuredCodexLaunch(worktreeId)
+    return {
+      tabId: null,
+      startupPlan,
+      pasteDraftAfterLaunch: false,
+      focusAfterMenuClose: 'structured-session'
     }
   }
 

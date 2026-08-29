@@ -6,6 +6,7 @@ import {
 import { getContributorIdentity } from './contributor-identity'
 import { resolveSkillContributionServerOrigin } from './server-origin'
 import { withoutProxyEnv } from './direct-fetch'
+import { cancelUnreadResponseBody } from '../lib/unread-response-body'
 import { resolveSkillContributionUploadToken, runSkillContributionUpload } from './uploader'
 
 const FIRST_RECONNECT_DELAY_MS = 5_000
@@ -181,6 +182,8 @@ async function runChannelLoop(): Promise<void> {
         fetch(url, { headers, signal: controller.signal })
       )
       if (!response.ok || !response.body) {
+        // Why: an unread body can crash undici (orca#8695).
+        await cancelUnreadResponseBody(response)
         throw new Error(`channel request failed with status ${response.status}`)
       }
       const connectedAt = Date.now()

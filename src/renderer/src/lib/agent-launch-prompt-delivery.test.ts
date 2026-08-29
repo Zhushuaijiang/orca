@@ -25,6 +25,7 @@ import {
   deliverLaunchPromptToAgentTab,
   seedNativeChatLaunchDraftForAgentTab
 } from './agent-launch-prompt-delivery'
+import { setYunxiaoRequirementPromptGateEnabled } from '../../../shared/yunxiao-requirement-prompt-gate'
 
 describe('seedNativeChatLaunchDraftForAgentTab', () => {
   beforeEach(() => {
@@ -218,6 +219,23 @@ describe('deliverLaunchPromptToAgentTab', () => {
     expect(mocks.markNativeChatLaunchPromptFailed).toHaveBeenCalledWith('tab-1')
   })
 
+  it('marks a seeded launch prompt failed when paste delivery rejects', async () => {
+    const error = new Error('prompt transport rejected')
+    mocks.pasteDraftWhenAgentReady.mockRejectedValue(error)
+
+    await expect(
+      deliverLaunchPromptToAgentTab({
+        tabId: 'tab-1',
+        agent: 'codex',
+        content: 'Large generated prompt',
+        submit: true,
+        forcePaste: true
+      })
+    ).rejects.toBe(error)
+
+    expect(mocks.markNativeChatLaunchPromptFailed).toHaveBeenCalledWith('tab-1')
+  })
+
   it('treats native-prefill delivery as success without flagging the seeded prompt', async () => {
     // claude delivers via `--prefill` at launch, so paste no-ops (returns false)
     // when forcePaste is false — that is a native delivery, not a failure.
@@ -270,6 +288,8 @@ describe('deliverLaunchPromptToAgentTab', () => {
   })
 
   it('gates manual Yunxiao prompts before post-ready paste delivery', async () => {
+    // Why: the fork gate is settings-gated (default off); sibling fork tests enable it explicitly too.
+    setYunxiaoRequirementPromptGateEnabled(true)
     await deliverLaunchPromptToAgentTab({
       tabId: 'tab-1',
       agent: 'codex',

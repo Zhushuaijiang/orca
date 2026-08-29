@@ -6603,6 +6603,10 @@ describe('connectPanePty', () => {
   })
 
   it('gates Yunxiao startup draft prompts before creating the transport', async () => {
+    // Why: the fork gate is settings-gated (default off); sibling fork tests enable it explicitly too.
+    const { setYunxiaoRequirementPromptGateEnabled } =
+      await import('../../../../shared/yunxiao-requirement-prompt-gate')
+    setYunxiaoRequirementPromptGateEnabled(true)
     const { connectPanePty } = await import('./pty-connection')
     const transport = createMockTransport('pty-codex')
     transportFactoryQueue.push(transport)
@@ -7328,12 +7332,14 @@ describe('connectPanePty', () => {
     sendTerminalInputThroughPane(pane, '\x03')
     await flushAsyncTicks()
 
+    // Why: upstream #13598 keeps the last CSI-u capability while the revalidation read is pending.
     expect(mockStoreState.paneForegroundAgentByPaneKey[paneKey]).toEqual({
       agent: 'droid',
       routingRevoked: true,
-      shellForeground: false
+      shellForeground: false,
+      routingConfirmationPending: true
     })
-    expect(resolveMockPaneWindowsShiftEnterEncoding(mockStoreState, paneKey)).toBe('alt-enter')
+    expect(resolveMockPaneWindowsShiftEnterEncoding(mockStoreState, paneKey)).toBe('csi-u')
 
     await vi.advanceTimersByTimeAsync(350 + 1200 + 6000)
 
@@ -7382,7 +7388,8 @@ describe('connectPanePty', () => {
     foreground = 'cmd.exe'
     sendTerminalInputThroughPane(pane, '\x03')
     await flushAsyncTicks()
-    expect(resolveMockPaneWindowsShiftEnterEncoding(mockStoreState, paneKey)).toBe('alt-enter')
+    // Why: upstream #13598 retains CSI-u while the exit-triggered revalidation read is pending.
+    expect(resolveMockPaneWindowsShiftEnterEncoding(mockStoreState, paneKey)).toBe('csi-u')
     await vi.advanceTimersByTimeAsync(
       VISIBLE_PTY_SETTLE_MS + WRAPPER_RESOLVE_RETRY_MS + SECOND_WRAPPER_RETRY_MS
     )
@@ -20910,8 +20917,9 @@ describe('connectPanePty', () => {
     expect(deps.setRuntimePaneTitle).toHaveBeenCalledWith('tab-1', 1, '\u280b OMP')
     expect(deps.updateTabTitle).toHaveBeenCalledWith('tab-1', '\u280b OMP')
     titleHandler('π: tmp', 'π: tmp')
-    expect(deps.setRuntimePaneTitle).toHaveBeenLastCalledWith('tab-1', 1, 'OMP ready')
-    expect(deps.updateTabTitle).toHaveBeenLastCalledWith('tab-1', 'OMP ready')
+    // Why: matches upstream #16093 — the brand swap keeps the session label instead of collapsing to the idle label.
+    expect(deps.setRuntimePaneTitle).toHaveBeenLastCalledWith('tab-1', 1, 'OMP: tmp')
+    expect(deps.updateTabTitle).toHaveBeenLastCalledWith('tab-1', 'OMP: tmp')
 
     const statusHandler = createdTransportOptions[0]?.onAgentStatus as
       | ((payload: { state: 'working'; prompt: string; agentType: 'pi' }) => void)
@@ -24336,10 +24344,12 @@ describe('connectPanePty', () => {
       })
 
       await vi.advanceTimersByTimeAsync(1)
+      // Why: upstream #13598 keeps the revoked entry's CSI-u capability while its confirmation read is pending.
       expect(mockStoreState.paneForegroundAgentByPaneKey[cacheKey]).toEqual({
         agent: 'droid',
         routingRevoked: true,
-        shellForeground: false
+        shellForeground: false,
+        routingConfirmationPending: true
       })
 
       await vi.advanceTimersByTimeAsync(350)
@@ -24379,12 +24389,14 @@ describe('connectPanePty', () => {
 
       binding.sampleForegroundAgentOnFocus()
 
+      // Why: upstream #13598 keeps the revoked entry's CSI-u capability while its confirmation read is pending.
       expect(mockStoreState.paneForegroundAgentByPaneKey[cacheKey]).toEqual({
         agent: 'pi',
         routingRevoked: true,
-        shellForeground: false
+        shellForeground: false,
+        routingConfirmationPending: true
       })
-      expect(resolveMockPaneWindowsShiftEnterEncoding(mockStoreState, cacheKey)).toBe('alt-enter')
+      expect(resolveMockPaneWindowsShiftEnterEncoding(mockStoreState, cacheKey)).toBe('csi-u')
 
       await vi.advanceTimersByTimeAsync(
         VISIBLE_PTY_SETTLE_MS + WRAPPER_RESOLVE_RETRY_MS + SECOND_WRAPPER_RETRY_MS

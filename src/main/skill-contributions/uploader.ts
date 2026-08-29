@@ -8,6 +8,7 @@ import { fetchRemoteOfficialAggregates } from './remote-pack-aggregates'
 import { getContributorIdentity } from './contributor-identity'
 import { resolveSkillContributionServerOrigin, skillPackUrlForOrigin } from './server-origin'
 import { withoutProxyEnv } from './direct-fetch'
+import { cancelUnreadResponseBody } from '../lib/unread-response-body'
 import {
   aggregateSkillFilesSha256,
   readSkillContributionState,
@@ -122,6 +123,8 @@ export async function runSkillContributionUpload(
         })
       )
       if (!response.ok) {
+        // Why: an unread body can crash undici (orca#8695).
+        await cancelUnreadResponseBody(response)
         result.error = `upload failed with status ${response.status}`
         return result
       }

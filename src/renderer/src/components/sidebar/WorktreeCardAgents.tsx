@@ -25,6 +25,7 @@ import { translate } from '@/i18n/i18n'
 import { activateRetainedAgentRow } from './worktree-card-retained-agent-activation'
 import { shouldShowAgentSessionContextMenu } from './worktree-agent-session-resolution'
 import { WorktreeAgentSessionContextMenu } from './worktree-agent-session-context-menu'
+import { activateStructuredAgentSessionTab } from '@/lib/structured-agent-session-tab-activation'
 
 export const SUPPRESS_WORKTREE_LIST_SCROLL_ADJUSTMENT_EVENT =
   'orca-suppress-worktree-list-scroll-adjustment'
@@ -120,19 +121,6 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
         dismissStaleAgentRowByKey(paneKey)
         return
       }
-      const stateBeforeReveal = useAppStore.getState()
-      const tabsBeforeReveal = stateBeforeReveal.tabsByWorktree[worktreeId] ?? []
-      if (!tabsBeforeReveal.some((t) => t.id === tabId)) {
-        const liveEntry = stateBeforeReveal.agentStatusByPaneKey[paneKey]
-        if (liveEntry?.worktreeId === worktreeId) {
-          // Why: worktree-attributed worker rows can arrive before their tab model; mounting first avoids revealing a fallback shell for the wrong session.
-          requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds: [tabId] })
-          return
-        }
-        dismissStaleAgentRowByKey(paneKey)
-        return
-      }
-      requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds: [tabId] })
       // Why: design-doc rule — every user-initiated worktree switch must route through activateAndRevealWorktree (cross-repo activation + nav history).
       activateAndRevealWorktree(worktreeId)
       const tabs = useAppStore.getState().tabsByWorktree[worktreeId] ?? []
@@ -142,10 +130,11 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
           flashFocusedPane: true,
           scrollToBottomIfOutputSinceLastView: true
         })
-      } else {
+      } else if (!activateStructuredAgentSessionTab({ worktreeId, tabId })) {
         const liveEntry = useAppStore.getState().agentStatusByPaneKey[paneKey]
         if (liveEntry?.worktreeId === worktreeId) {
-          // Why: orchestration worker status can be worktree-attributed before the renderer knows its tab; keep the live row instead of dismissing as stale.
+          // Why: orchestration worker status can be worktree-attributed before the renderer knows its tab; keep the live row and mount its terminal in the background instead of dismissing as stale.
+          requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds: [tabId] })
           return
         }
         dismissStaleAgentRowByKey(paneKey)

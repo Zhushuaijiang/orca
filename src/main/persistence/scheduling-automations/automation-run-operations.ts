@@ -3,14 +3,25 @@ import type {
   Automation,
   AutomationDispatchResult,
   AutomationRun,
-  AutomationRunTrigger
+  AutomationRunStatus,
+  AutomationRunTrigger,
+  AutomationYunxiaoTodoPoolClaim
 } from '../../../shared/automations-types'
 import type { PersistedState } from '../../../shared/persisted-state-types'
+import { isFinalAutomationRunStatus } from '../../../shared/automations-types'
+import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../../shared/yunxiao-requirement-gate-outcome'
 import {
   nextAutomationRunNumber,
   pruneAutomationRuns
 } from '../../../shared/automation-run-retention'
-import type { StoreOwnedPersistedState } from '../loading-store/store-owned-state'
+import type {
+  YunxiaoRequirementGateOutcome,
+  YunxiaoTodoPoolItem,
+  YunxiaoTodoPoolStatus
+} from '../../../shared/yunxiao-types'
+import { normalizeAutomationYunxiaoTodoPoolClaim } from './yunxiao-automation-todo-pool-source'
+import { inferYunxiaoTodoPoolCompletedStatus } from './yunxiao-todo-pool-item-normalization'
+import { normalizeYunxiaoRequirementGateOutcomes } from './yunxiao-requirement-contract-normalization'
 import {
   normalizeAutomationPrecheckResult,
   normalizeAutomationRunOutputSnapshot,
@@ -20,10 +31,32 @@ import {
 } from './automation-context-migration'
 
 export type AutomationRunOperations = {
-  state: StoreOwnedPersistedState
+  state: PersistedState
   flush: () => void
   recordManualRun: () => void
   getWorkspaceDisplayName: (workspaceId: string | null | undefined) => string | null
+  applyYunxiaoRequirementGateOutcome: (args: {
+    runId: string
+    itemIds?: readonly string[]
+    outcome: YunxiaoRequirementGateOutcome
+  }) => YunxiaoTodoPoolItem[]
+  updateYunxiaoTodoPoolClaimStatus: (args: {
+    runId: string
+    itemIds?: readonly string[]
+    excludeItemIds?: readonly string[]
+    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>
+    automationRunStatus?: AutomationRunStatus
+    error?: string | null
+  }) => YunxiaoTodoPoolItem[]
+}
+
+function touchAutomation(state: PersistedState, automationId: string, now: number): void {
+  if (!state.automations.some((entry) => entry.id === automationId)) {
+    return
+  }
+  state.automations = state.automations.map((entry) =>
+    entry.id === automationId ? { ...entry, lastRunAt: now, updatedAt: now } : entry
+  )
 }
 
 export function listAutomationRuns(state: PersistedState, automationId?: string): AutomationRun[] {
@@ -72,6 +105,9 @@ export function createAutomationRun(
     terminalPtyId: null,
     outputSnapshot: null,
     precheckResult: null,
+    yunxiaoTodoPoolClaim: null,
+    yunxiaoRequirementOutcomes: null,
+    yunxiaoRequirementOutcome: null,
     usage: null,
     error: null,
     startedAt: null,
@@ -87,6 +123,43 @@ export function createAutomationRun(
   }
   operations.flush()
   return run
+}
+
+export function recordRepeatedAutomationSkip(
+  operations: AutomationRunOperations,
+  automationId: string,
+  error: string,
+  scheduledFor: number
+): AutomationRun | null {
+  const runs = operations.state.automationRuns ?? []
+  const latest = runs
+    .filter((run) => run.automationId === automationId)
+    .reduce<AutomationRun | null>(
+      (newest, run) => (!newest || run.createdAt > newest.createdAt ? run : newest),
+      null
+    )
+  if (
+    !latest ||
+    latest.status !== 'skipped_unavailable' ||
+    latest.trigger !== 'scheduled' ||
+    latest.error !== error
+  ) {
+    return null
+  }
+  if ((latest.lastOccurrenceAt ?? latest.scheduledFor) === scheduledFor) {
+    return latest
+  }
+  const now = Date.now()
+  const updated: AutomationRun = {
+    ...latest,
+    occurrenceCount: (latest.occurrenceCount ?? 1) + 1,
+    lastOccurrenceAt: scheduledFor
+  }
+  // Replaced, not patched in place: the list projection caches on array identity.
+  operations.state.automationRuns = runs.map((run) => (run.id === latest.id ? updated : run))
+  touchAutomation(operations.state, automationId, now)
+  operations.flush()
+  return updated
 }
 
 export function updateAutomationRun(
@@ -105,6 +178,29 @@ export function updateAutomationRun(
   const workspaceDisplayName = Object.hasOwn(result, 'workspaceDisplayName')
     ? normalizeAutomationRunWorkspaceDisplayName(result.workspaceDisplayName ?? null)
     : null
+  const outputSnapshot = Object.hasOwn(result, 'outputSnapshot')
+    ? normalizeAutomationRunOutputSnapshot(result.outputSnapshot)
+    : normalizeAutomationRunOutputSnapshot(current.outputSnapshot)
+  const snapshotYunxiaoRequirementOutcomes = normalizeYunxiaoRequirementGateOutcomes(
+    extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot)
+  )
+  const resultYunxiaoRequirementOutcomes = Object.hasOwn(result, 'yunxiaoRequirementOutcomes')
+    ? normalizeYunxiaoRequirementGateOutcomes(result.yunxiaoRequirementOutcomes)
+    : null
+  const resultYunxiaoRequirementOutcome = Object.hasOwn(result, 'yunxiaoRequirementOutcome')
+    ? normalizeYunxiaoRequirementGateOutcomes(
+        result.yunxiaoRequirementOutcome ? [result.yunxiaoRequirementOutcome] : null
+      )
+    : null
+  const nextYunxiaoRequirementOutcomes = Object.hasOwn(result, 'yunxiaoRequirementOutcomes')
+    ? (resultYunxiaoRequirementOutcomes ?? snapshotYunxiaoRequirementOutcomes)
+    : Object.hasOwn(result, 'yunxiaoRequirementOutcome')
+      ? (resultYunxiaoRequirementOutcome ?? snapshotYunxiaoRequirementOutcomes)
+      : (snapshotYunxiaoRequirementOutcomes ??
+        normalizeYunxiaoRequirementGateOutcomes(current.yunxiaoRequirementOutcomes) ??
+        normalizeYunxiaoRequirementGateOutcomes(
+          current.yunxiaoRequirementOutcome ? [current.yunxiaoRequirementOutcome] : null
+        ))
   const updated: AutomationRun = {
     ...current,
     status: result.status,
@@ -122,23 +218,44 @@ export function updateAutomationRun(
     terminalPtyId: Object.hasOwn(result, 'terminalPtyId')
       ? normalizeAutomationRunTerminalPtyId(result.terminalPtyId)
       : normalizeAutomationRunTerminalPtyId(current.terminalPtyId),
-    outputSnapshot: Object.hasOwn(result, 'outputSnapshot')
-      ? normalizeAutomationRunOutputSnapshot(result.outputSnapshot)
-      : normalizeAutomationRunOutputSnapshot(current.outputSnapshot),
+    outputSnapshot,
     precheckResult: Object.hasOwn(result, 'precheckResult')
       ? normalizeAutomationPrecheckResult(result.precheckResult)
       : normalizeAutomationPrecheckResult(current.precheckResult),
+    yunxiaoTodoPoolClaim: Object.hasOwn(result, 'yunxiaoTodoPoolClaim')
+      ? normalizeAutomationYunxiaoTodoPoolClaim(result.yunxiaoTodoPoolClaim)
+      : normalizeAutomationYunxiaoTodoPoolClaim(current.yunxiaoTodoPoolClaim),
+    yunxiaoRequirementOutcomes: nextYunxiaoRequirementOutcomes,
+    yunxiaoRequirementOutcome: nextYunxiaoRequirementOutcomes?.[0] ?? null,
     usage: Object.hasOwn(result, 'usage') ? (result.usage ?? null) : (current.usage ?? null),
     error: result.error ?? null,
     startedAt: current.startedAt ?? now,
     dispatchedAt: result.status === 'dispatched' ? now : current.dispatchedAt
   }
-  operations.state.automationRuns[index] = updated
-  const automation = operations.state.automations.find((entry) => entry.id === updated.automationId)
-  if (automation) {
-    automation.lastRunAt = now
-    automation.updatedAt = now
+  // Replaced, not patched in place: the list projection caches on array identity.
+  operations.state.automationRuns = operations.state.automationRuns.map((run) =>
+    run.id === result.runId ? updated : run
+  )
+  const structuredOutcomeItems =
+    updated.yunxiaoRequirementOutcomes?.flatMap((outcome) =>
+      operations.applyYunxiaoRequirementGateOutcome({
+        runId: updated.id,
+        itemIds: updated.yunxiaoTodoPoolClaim?.itemIds,
+        outcome
+      })
+    ) ?? []
+  if (isFinalAutomationRunStatus(updated.status) && updated.yunxiaoTodoPoolClaim) {
+    operations.updateYunxiaoTodoPoolClaimStatus({
+      runId: updated.id,
+      itemIds: updated.yunxiaoTodoPoolClaim.itemIds,
+      excludeItemIds: structuredOutcomeItems.map((item) => item.id),
+      poolStatus:
+        updated.status === 'completed' ? inferYunxiaoTodoPoolCompletedStatus(updated) : 'failed',
+      automationRunStatus: updated.status,
+      error: updated.error
+    })
   }
+  touchAutomation(operations.state, updated.automationId, now)
   operations.flush()
   return updated
 }
@@ -164,4 +281,28 @@ export function snapshotAutomationRunWorkspaceDisplayName(
     operations.flush()
   }
   return updatedCount
+}
+
+export function setAutomationRunYunxiaoTodoPoolClaim(
+  operations: AutomationRunOperations,
+  runId: string,
+  claim: AutomationYunxiaoTodoPoolClaim,
+  title?: string
+): AutomationRun {
+  const index = (operations.state.automationRuns ?? []).findIndex((entry) => entry.id === runId)
+  if (index === -1) {
+    throw new Error('Automation run not found.')
+  }
+  const current = operations.state.automationRuns[index]
+  const updated: AutomationRun = {
+    ...current,
+    title: title?.trim() || current.title,
+    yunxiaoTodoPoolClaim: normalizeAutomationYunxiaoTodoPoolClaim(claim)
+  }
+  // Replaced, not patched in place: the list projection caches on array identity.
+  operations.state.automationRuns = operations.state.automationRuns.map((run) =>
+    run.id === runId ? updated : run
+  )
+  operations.flush()
+  return updated
 }

@@ -1,4 +1,5 @@
 import { aggregateSkillFilesSha256 } from './upload-state'
+import { cancelUnreadResponseBody } from '../lib/unread-response-body'
 
 const FETCH_TIMEOUT_MS = 30_000
 
@@ -14,6 +15,8 @@ export async function fetchRemoteOfficialAggregates(
   try {
     const response = await fetch(skillPackUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
     if (!response.ok) {
+      // Why: an unread body can crash undici (orca#8695).
+      await cancelUnreadResponseBody(response)
       return aggregates
     }
     const manifest = (await response.json()) as RemoteSkillPackManifest

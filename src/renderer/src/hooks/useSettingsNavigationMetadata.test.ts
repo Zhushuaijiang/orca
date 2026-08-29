@@ -39,13 +39,29 @@ describe('settings navigation metadata', () => {
       'orchestration',
       'computer-use',
       'voice',
+      'orca-account',
       'setup-guide',
       'general',
       'dfhis-environment',
       'integrations',
-      'mobile',
-      'git'
+      'mobile'
     ])
+  })
+
+  it('owns nested worker depth under Orchestration on desktop', () => {
+    const sections = buildSettingsNavigationMetadata({
+      isMac: false,
+      isWindows: false,
+      isWebClient: false,
+      repos: [repo]
+    })
+    const agents = sections.find((section) => section.id === 'agents')
+    const orchestration = sections.find((section) => section.id === 'orchestration')
+
+    expect(agents?.searchEntries.map((entry) => entry.title)).not.toContain('Nested worker depth')
+    expect(orchestration?.searchEntries.map((entry) => entry.title)).toContain(
+      'Nested worker depth'
+    )
   })
 
   it('adds the Linear capability section right after Orchestration only when connected', () => {
@@ -81,15 +97,14 @@ describe('settings navigation metadata', () => {
   })
 
   it('puts web-safe AI capability panes at the top while hiding desktop-only panes', () => {
-    expect(ids({ isWebClient: true }).slice(0, 8)).toEqual([
+    expect(ids({ isWebClient: true }).slice(0, 7)).toEqual([
       'agents',
       'accounts',
       'orchestration',
       'setup-guide',
       'general',
       'dfhis-environment',
-      'integrations',
-      'git'
+      'integrations'
     ])
   })
 
@@ -120,6 +135,12 @@ describe('settings navigation metadata', () => {
     expect(shortcuts?.searchEntries.map((entry) => entry.title)).not.toContain('New browser tab')
     expect(shortcuts?.searchEntries.map((entry) => entry.title)).not.toContain(
       'New mobile emulator tab'
+    )
+    const agents = webSections.find((section) => section.id === 'agents')
+    expect(agents?.searchEntries.map((entry) => entry.title)).not.toContain('Nested worker depth')
+    const orchestration = webSections.find((section) => section.id === 'orchestration')
+    expect(orchestration?.searchEntries.map((entry) => entry.title)).not.toContain(
+      'Nested worker depth'
     )
   })
 

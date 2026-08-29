@@ -3967,6 +3967,7 @@ describe('web GitHub preload API', () => {
         'listLabelsBySlug',
         'listProjectViews',
         'listWorkItems',
+        'markPRReadyForReview',
         'mergePR',
         'notifyWorkItemMutated',
         'onPRRefreshEvent',
@@ -4390,7 +4391,11 @@ describe('web GitHub preload API', () => {
     ]
 
     expect(routeCases.map((routeCase) => routeCase.key).sort()).toEqual(
-      Object.keys(GITHUB_WEB_RPC_METHODS).sort()
+      // Why filtered: markPRReadyForReview routes only after a capability check, so it
+      // has its own gated test instead of a plain route case.
+      Object.keys(GITHUB_WEB_RPC_METHODS)
+        .filter((key) => key !== 'markPRReadyForReview')
+        .sort()
     )
 
     for (const routeCase of routeCases) {

@@ -823,6 +823,10 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('gates Yunxiao agent prompts before structured remote session create', async () => {
+    // Why: the fork gate is settings-gated (default off); sibling fork tests enable it explicitly too.
+    const { setYunxiaoRequirementPromptGateEnabled } =
+      await import('../../../../shared/yunxiao-requirement-prompt-gate')
+    setYunxiaoRequirementPromptGateEnabled(true)
     runtimeCall.mockImplementation(async (args: { method: string }) => {
       if (args.method === 'status.get') {
         return {

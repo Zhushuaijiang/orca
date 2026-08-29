@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { RpcDispatcher } from './dispatcher'
 import type { RpcRequest } from './core'
 import type { OrcaRuntimeService } from '../orca-runtime'
 import { TERMINAL_METHODS } from './methods/terminal'
+import { setYunxiaoRequirementPromptGateEnabled } from '../../../shared/yunxiao-requirement-prompt-gate'
 import { CLIPBOARD_TEXT_MEASURE_YIELD_CODE_UNITS } from '../../../shared/clipboard-text'
 import {
   RUNTIME_CAPABILITIES,
@@ -658,6 +659,9 @@ describe('terminal send RPC', () => {
   })
 
   it('gates manual Yunxiao text for guarded terminal sends', async () => {
+    // Why: the prompt gate is settings-gated and defaults off; enable it for this gating case.
+    setYunxiaoRequirementPromptGateEnabled(true)
+    onTestFinished(() => setYunxiaoRequirementPromptGateEnabled(false))
     const runtime = stubRuntime({
       resolveLiveLeafForHandle: vi.fn().mockReturnValue({ ptyId: 'pty-1' }),
       getDriver: vi.fn().mockReturnValue({ kind: 'desktop' }),

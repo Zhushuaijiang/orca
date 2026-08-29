@@ -1,5 +1,6 @@
 import type { DfHisEnvironmentConfig } from '../dfhis-environment/config'
 import { withoutProxyEnv } from './direct-fetch'
+import { cancelUnreadResponseBody } from '../lib/unread-response-body'
 
 // Why: the team server lives on the office LAN; off-LAN clients fall back to the public domain.
 export const EXTERNAL_SKILL_SERVER_ORIGIN = 'https://bot-direct.zhushuaijiang.cn'
@@ -23,7 +24,11 @@ async function probePrimaryOrigin(primaryOrigin: string): Promise<boolean> {
   return withoutProxyEnv(async () => {
     try {
       // Why: any HTTP response — even an error status — proves the LAN server is reachable.
-      await fetch(`${primaryOrigin}/`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) })
+      const response = await fetch(`${primaryOrigin}/`, {
+        signal: AbortSignal.timeout(PROBE_TIMEOUT_MS)
+      })
+      // Why: the probe never reads the body; cancel it or undici can crash (orca#8695).
+      await cancelUnreadResponseBody(response)
       return true
     } catch {
       return false

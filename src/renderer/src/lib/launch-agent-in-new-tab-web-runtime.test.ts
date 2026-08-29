@@ -137,6 +137,10 @@ describe('launchAgentInNewTab paired web runtime', () => {
   })
 
   it('gates manual Yunxiao prompts in both host command and structured prompt payloads', async () => {
+    // Why: the fork gate is settings-gated (default off); sibling fork tests enable it explicitly too.
+    const { setYunxiaoRequirementPromptGateEnabled } =
+      await import('../../../shared/yunxiao-requirement-prompt-gate')
+    setYunxiaoRequirementPromptGateEnabled(true)
     const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
 
     launchAgentInNewTab({

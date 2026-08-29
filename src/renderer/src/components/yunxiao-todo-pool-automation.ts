@@ -5,7 +5,13 @@ import { translate } from '@/i18n/i18n'
 import { getAgentCatalog } from '@/lib/agent-catalog'
 import { useAppStore } from '@/store'
 import { filterEnabledTuiAgents, isTuiAgentEnabled } from '../../../shared/tui-agent-selection'
-import { buildAutomationRrule } from '../../../shared/automation-schedules'
+import { buildAutomationRrule } from '../../../shared/automation-schedule-occurrences'
+import {
+  createAutomationForTarget,
+  listAutomationsForTarget,
+  runAutomationNowForTarget,
+  updateAutomationForTarget
+} from './automations/automation-host-client'
 import {
   getRepoExecutionHostId,
   LOCAL_EXECUTION_HOST_ID,
@@ -184,13 +190,12 @@ export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => vo
     try {
       const input = buildTodoPoolAutomationInput(target)
       const updates: AutomationUpdateInput = input
-      const existing = findTodoPoolAutomation(await window.api.automations.list())
+      // Why: upstream moved desktop automation CRUD onto the runtime RPC surface,
+      // so the todo pool rides the same local-authority client as AutomationsPage.
+      const existing = findTodoPoolAutomation(await listAutomationsForTarget({ kind: 'local' }))
       const automation = existing
-        ? await window.api.automations.update({
-            id: existing.id,
-            updates
-          })
-        : await window.api.automations.create(input)
+        ? await updateAutomationForTarget(existing, updates)
+        : await createAutomationForTarget({ kind: 'local' }, input)
       toast.success(
         translate(
           'auto.components.TaskPage.yunxiaoTodoPoolAutomationConfigured',
@@ -213,7 +218,7 @@ export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => vo
       if (!automation) {
         return
       }
-      await window.api.automations.runNow({ id: automation.id })
+      await runAutomationNowForTarget(automation)
       onTodoPoolChanged()
       toast.success(
         translate(

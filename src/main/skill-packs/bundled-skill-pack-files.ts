@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
 import { access, cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { app } from 'electron'
+import { getAppEnvironment } from '../../shared/app-environment'
 import type {
   BundledSkillPackDefinition,
   BundledSkillPackManifest,
@@ -19,7 +19,7 @@ export async function pathExists(filePath: string): Promise<boolean> {
 }
 
 export function getBundledSkillPackPath(definition: BundledSkillPackDefinition): string {
-  return app.isPackaged
+  return getAppEnvironment().isPackaged()
     ? path.join(process.resourcesPath, definition.bundledResourcePath)
     : path.join(process.cwd(), 'resources', definition.bundledResourcePath)
 }

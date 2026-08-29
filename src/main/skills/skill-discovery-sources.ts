@@ -17,7 +17,11 @@ import {
 } from '../../shared/agent-skill-home-directories'
 import { TUI_AGENT_DISPLAY_NAMES } from '../../shared/tui-agent-display-names'
 import type { SkillProviderRootOverrides } from './skill-provider-destinations'
-import { resolveEnvironmentSkillProviderRoots } from './skill-provider-runtime-roots'
+import {
+  resolveDefaultHermesSkillsRoot,
+  resolveEnvironmentHermesSkillsRoot,
+  resolveEnvironmentSkillProviderRoots
+} from './skill-provider-runtime-roots'
 
 export type SkillScanRoot = Omit<SkillDiscoverySource, 'exists' | 'skippedReason'>
 type SkillDiscoveryPathApi = Pick<typeof posix, 'basename' | 'join'>
@@ -83,6 +87,13 @@ export function buildSkillDiscoverySources(
   const cwd = args.cwd ?? process.cwd()
   const providerRootOverrides =
     args.providerRootOverrides ?? (args.pathApi ? {} : resolveEnvironmentSkillProviderRoots())
+  // Why: HERMES_HOME moves the whole profile tree, so the default home path
+  // finds nothing for `hermes -p <profile>`. Only this process's own host can
+  // read it — a custom pathApi means the home belongs to another host, whose
+  // Hermes install is POSIX-shaped even when this process runs on Windows.
+  const hermesSkillsRoot = args.pathApi
+    ? pathApi.join(home, '.hermes', 'skills')
+    : (resolveEnvironmentHermesSkillsRoot() ?? resolveDefaultHermesSkillsRoot({ homeDir: home }))
   const roots: SkillScanRoot[] = [
     source(
       'home-codex',
@@ -118,9 +129,22 @@ export function buildSkillDiscoverySources(
     ),
     // Why: `npx skills add --global` writes into each agent's own home skills
     // directory, so coverage misses them unless we scan every provider root.
-    // Codex/Claude above keep their dedicated providers and scan order.
+    source(
+      'home-grok',
+      'Grok home',
+      providerRootOverrides.grok ?? pathApi.join(home, '.grok', 'skills'),
+      'home',
+      ['agent-skills'],
+      'grok'
+    ),
+    source('home-hermes', 'Hermes home', hermesSkillsRoot, 'home', ['agent-skills'], 'hermes'),
+    // Codex/Claude above keep their dedicated providers and scan order; grok and
+    // hermes keep their override/env-aware roots.
     ...(Object.entries(AGENT_SKILL_HOME_DIRECTORIES) as [TuiAgent, readonly string[]][])
-      .filter(([agent]) => agent !== 'codex' && agent !== 'claude')
+      .filter(
+        ([agent]) =>
+          agent !== 'codex' && agent !== 'claude' && agent !== 'grok' && agent !== 'hermes'
+      )
       .map(([agent, relativeDirectory]) =>
         source(
           `home-${agent}`,

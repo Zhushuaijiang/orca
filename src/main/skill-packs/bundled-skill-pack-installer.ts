@@ -1,6 +1,6 @@
 import { homedir } from 'node:os'
 import path from 'node:path'
-import { app } from 'electron'
+import { getAppEnvironment } from '../../shared/app-environment'
 import type { DfHisEnvironmentPrerequisiteResult } from '../../shared/dfhis-environment-types'
 import {
   assertBundledSkillPackExists,
@@ -26,7 +26,7 @@ export type {
 } from './bundled-skill-pack-types'
 
 function getAppVersion(): string {
-  return typeof app.getVersion === 'function' ? app.getVersion() : 'unknown'
+  return getAppEnvironment().getVersion()
 }
 
 async function checkBundledSkillPackTarget(

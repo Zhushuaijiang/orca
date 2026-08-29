@@ -24,6 +24,7 @@ import {
   AGENT_SKILL_HOME_DIRECTORIES,
   UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
 } from '../../shared/agent-skill-home-directories'
+import { setAppEnvironment } from '../../shared/app-environment'
 import type { TuiAgent } from '../../shared/types'
 
 vi.mock('electron', () => ({
@@ -35,6 +36,18 @@ vi.mock('electron', () => ({
     handle: vi.fn()
   }
 }))
+
+// Why: the DFHIS modules read paths/version through the AppEnvironment port, not
+// electron's `app`, so install the same fixture values the mock used to provide.
+setAppEnvironment({
+  getPath: () => '/tmp/orca-ygt-env-test-user-data',
+  getVersion: () => '1.4.164-test',
+  isPackaged: () => false,
+  getAppPath: () => process.cwd(),
+  onWillQuit: () => {},
+  exit: () => {},
+  getAppMetrics: () => []
+})
 
 const temporaryDirectories: string[] = []
 

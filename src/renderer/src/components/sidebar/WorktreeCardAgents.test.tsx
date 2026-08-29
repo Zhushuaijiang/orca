@@ -81,25 +81,29 @@ const activationMocks = vi.hoisted(() => ({
   activateTabAndFocusPane: vi.fn()
 }))
 
+// Why: the fork's retained-row activation reads the store imperatively, so the mock needs getState (same shape as WorktreeCardAgents.activation.test.tsx).
+const buildMockStoreState = () => ({
+  agentActivityDisplayMode: mockAgentActivityDisplayMode,
+  acknowledgedAgentsByPaneKey: {},
+  cacheTimerByKey: mockCacheTimerByKey,
+  dropAgentStatus: vi.fn(),
+  dismissRetainedAgent: vi.fn(),
+  acknowledgeAgents: vi.fn(),
+  agentStatusByPaneKey: {},
+  retainedAgentsByPaneKey: {},
+  tabsByWorktree: {},
+  terminalLayoutsByTabId: {},
+  sendPromptToSidebarAgentTarget: vi.fn(),
+  settings: {
+    promptCacheTimerEnabled: mockPromptCacheTimerEnabled,
+    promptCacheTtlMs: mockPromptCacheTtlMs
+  }
+})
 vi.mock('@/store', () => ({
-  useAppStore: (selector: (state: unknown) => unknown) =>
-    selector({
-      agentActivityDisplayMode: mockAgentActivityDisplayMode,
-      acknowledgedAgentsByPaneKey: {},
-      cacheTimerByKey: mockCacheTimerByKey,
-      dropAgentStatus: vi.fn(),
-      dismissRetainedAgent: vi.fn(),
-      acknowledgeAgents: vi.fn(),
-      agentSendPopoverTargetMode: null,
-      agentStatusByPaneKey: {},
-      tabsByWorktree: {},
-      terminalLayoutsByTabId: {},
-      sendPromptToSidebarAgentTarget: vi.fn(),
-      settings: {
-        promptCacheTimerEnabled: mockPromptCacheTimerEnabled,
-        promptCacheTtlMs: mockPromptCacheTtlMs
-      }
-    })
+  useAppStore: Object.assign(
+    (selector: (state: unknown) => unknown) => selector(buildMockStoreState()),
+    { getState: () => buildMockStoreState() }
+  )
 }))
 
 vi.mock('@/lib/worktree-activation', () => ({
@@ -771,7 +775,9 @@ describe('WorktreeCardAgents', () => {
     const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
     const iconTitles = [...markup.matchAll(/title="([^"]+)"/g)].map((match) => match[1])
 
+    // Variety icons stay identity-free; the state label belongs to the shared tooltip.
     expect(iconTitles).toEqual([])
+    expect(markup).toContain('>Working<')
     expect(markup).not.toContain('>5 working<')
     expect(markup).toContain('>+2<')
   })

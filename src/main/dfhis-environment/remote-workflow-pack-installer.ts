@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { app } from 'electron'
+import { getAppEnvironment } from '../../shared/app-environment'
+import { cancelUnreadResponseBody } from '../lib/unread-response-body'
 import { ensureBundledSkillPackInstalled } from '../skill-packs/bundled-skill-pack-installer'
 import { findMissingBundledSkill } from '../skill-packs/bundled-skill-pack-files'
 import { DFHIS_BUNDLED_SKILL_PACK } from './dfhis-workflow-pack-targets'
@@ -32,7 +33,7 @@ type RemoteWorkflowPackCacheMetadata = {
 
 function getRemoteWorkflowPackCacheRoot(): string {
   return path.join(
-    process.env.ORCA_USER_DATA_PATH?.trim() || app.getPath('userData'),
+    process.env.ORCA_USER_DATA_PATH?.trim() || getAppEnvironment().getPath('userData'),
     REMOTE_WORKFLOW_PACK_CACHE_DIRECTORY
   )
 }
@@ -69,7 +70,7 @@ export async function getCachedDfHisWorkflowPackPathIfPresent(): Promise<string 
   // A remote pack is an explicit override for the Orca build that downloaded it.
   // On an app upgrade, fall back to the newer bundled pack unless the user pulls
   // the remote pack again. Legacy caches had no provenance and are treated as stale.
-  if (!metadata || metadata.appVersion !== app.getVersion()) {
+  if (!metadata || metadata.appVersion !== getAppEnvironment().getVersion()) {
     return null
   }
   return (await findMissingBundledSkill(DFHIS_BUNDLED_SKILL_PACK, cachePath)) ? null : cachePath
@@ -138,6 +139,8 @@ async function readManifestText(urlOrPath: string): Promise<string> {
   try {
     const response = await fetch(urlOrPath, { signal: controller.signal })
     if (!response.ok) {
+      // Why: an unread body can crash undici (orca#8695).
+      await cancelUnreadResponseBody(response)
       throw new Error(`HTTP ${response.status} ${response.statusText}`)
     }
     return response.text()
@@ -179,7 +182,7 @@ export async function installRemoteDfHisWorkflowPack(
     await materializeManifest(manifest, cachePath)
     const metadata: RemoteWorkflowPackCacheMetadata = {
       schemaVersion: 1,
-      appVersion: app.getVersion(),
+      appVersion: getAppEnvironment().getVersion(),
       ...(manifest.version ? { manifestVersion: manifest.version } : {})
     }
     await writeFile(
