@@ -6,7 +6,6 @@ import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import {
   notifyVaultSessionRestoreFailure,
   restoreAiVaultSession,
-  scanLatestRestorableVaultSession,
   scanRestorableVaultSessions
 } from './worktree-ai-vault-session-restore'
 import {
@@ -30,7 +29,6 @@ export function useWorktreeVaultSessionRestore({
   menuOpen: boolean
   isMultiContext: boolean
 }): WorktreeVaultSessionRestore {
-  const [vaultRestoreSession, setVaultRestoreSession] = useState<AiVaultSession | null>(null)
   const [vaultRestoreSessions, setVaultRestoreSessions] = useState<AiVaultSession[]>([])
   const recentlyClosedTerminalTabsByWorktree = useAppStore((s) =>
     selectMenuScopedMap(
@@ -43,28 +41,6 @@ export function useWorktreeVaultSessionRestore({
     recentlyClosedTerminalTabsByWorktree[worktreeId] ?? []
   ).some(hasRestorableAgentSession)
   const canRestoreSession = hasRecentlyClosedAgentSession || vaultRestoreSessions.length > 0
-
-  useEffect(() => {
-    if (!menuOpen || isMultiContext || hasRecentlyClosedAgentSession) {
-      setVaultRestoreSession(null)
-      return
-    }
-    let cancelled = false
-    void scanLatestRestorableVaultSession(worktreeId)
-      .then((session) => {
-        if (!cancelled) {
-          setVaultRestoreSession(session)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setVaultRestoreSession(null)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [hasRecentlyClosedAgentSession, isMultiContext, menuOpen, worktreeId])
 
   useEffect(() => {
     if (!menuOpen || isMultiContext || hasRecentlyClosedAgentSession) {
@@ -92,12 +68,12 @@ export function useWorktreeVaultSessionRestore({
     if (restoreRecentlyClosedAgentSession(worktreeId) > 0) {
       return
     }
-    const session = vaultRestoreSession ?? vaultRestoreSessions[0]
+    const session = vaultRestoreSessions[0]
     if (!session) {
       return
     }
     void restoreAiVaultSession(worktreeId, session).catch(notifyVaultSessionRestoreFailure)
-  }, [vaultRestoreSession, vaultRestoreSessions, worktreeId])
+  }, [vaultRestoreSessions, worktreeId])
 
   const handleRestoreSpecificSession = useCallback(
     (session: AiVaultSession) => {
