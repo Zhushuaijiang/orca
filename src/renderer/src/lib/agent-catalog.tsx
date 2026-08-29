@@ -279,6 +279,20 @@ export const getAgentCatalog = createLocalizedCatalog((): AgentCatalogEntry[] =>
     homepageUrl: 'https://github.com/QwenLM/qwen-code'
   },
   {
+    id: 'codebuddy',
+    label: translate('auto.lib.agent.catalog.2ef6d882b1', 'CodeBuddy'),
+    cmd: 'codebuddy',
+    faviconDomain: 'www.codebuddy.cn',
+    homepageUrl: 'https://www.codebuddy.ai/docs/cli/installation'
+  },
+  {
+    id: 'zcode',
+    label: translate('auto.lib.agent.catalog.557f45e4dc', 'ZCode'),
+    cmd: 'zcode',
+    faviconDomain: 'zcode.z.ai',
+    homepageUrl: 'https://zcode.z.ai'
+  },
+  {
     id: 'rovo',
     label: translate('auto.lib.agent.catalog.4e63c7b956', 'Rovo Dev'),
     cmd: 'rovo',

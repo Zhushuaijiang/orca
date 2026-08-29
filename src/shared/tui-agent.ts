@@ -37,3 +37,5 @@ export type TuiAgent =
   | 'ante' // Ante (Antigma Labs)
   | 'trae' // Trae CLI
   | 'prime-agent' // Prime Agent (Prime Intellect)
+  | 'codebuddy' // Tencent CodeBuddy Code
+  | 'zcode' // Zhipu ZCode

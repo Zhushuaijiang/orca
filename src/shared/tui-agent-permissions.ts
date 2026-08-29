@@ -28,7 +28,9 @@ export const YOLO_TUI_AGENT_ARGS: Partial<Record<TuiAgent, string>> = {
   grok: '--permission-mode bypassPermissions',
   devin: '--permission-mode bypass',
   ante: '--yolo',
-  trae: '--yolo'
+  trae: '--yolo',
+  // Why: `-y` is CodeBuddy's short form of --dangerously-skip-permissions.
+  codebuddy: '-y'
 }
 
 export const YOLO_TUI_AGENT_ENV: Partial<Record<TuiAgent, Record<string, string>>> = {

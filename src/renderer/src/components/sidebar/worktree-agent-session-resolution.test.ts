@@ -195,6 +195,33 @@ describe('resolveAgentRowWorkspaceTarget', () => {
     )
   })
 
+  it('carries the linked Yunxiao requirement identity', () => {
+    const linked = {
+      ...state,
+      worktreesByRepo: {
+        'repo-1': [
+          makeWorktree({
+            linkedWorkItem: {
+              provider: 'yunxiao',
+              type: 'issue',
+              number: 0,
+              title: 'DFHIS-31889 requirement',
+              url: 'https://devops.aliyun.com/projex/req/DFHIS-31889',
+              yunxiaoIdentifier: ' DFHIS-31889 '
+            }
+          })
+        ]
+      }
+    }
+
+    expect(resolveAgentRowWorkspaceTarget(linked, 'repo-1::/repo/orca')).toEqual({
+      workspaceId: 'repo-1::/repo/orca',
+      path: '/repo/orca',
+      executionHostId: 'local',
+      yunxiaoRequirementId: 'DFHIS-31889'
+    })
+  })
+
   it('derives an ssh host from the repo connection', () => {
     const remote = {
       ...state,

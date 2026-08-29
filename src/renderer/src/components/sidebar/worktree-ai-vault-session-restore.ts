@@ -156,18 +156,6 @@ export function findRestorableVaultSessions(args: {
     .sort((left, right) => sessionTimestamp(right) - sessionTimestamp(left))
 }
 
-function findCandidate(
-  sessions: readonly AiVaultSession[],
-  state: VaultRestoreState,
-  workspace: AgentRowWorkspaceTarget
-): AiVaultSession | null {
-  return findLatestRestorableVaultSession({
-    sessions,
-    workspace,
-    openSessions: collectOpenAgentSessions(state, workspace.workspaceId)
-  })
-}
-
 function findCandidateSessions(
   sessions: readonly AiVaultSession[],
   state: VaultRestoreState,
@@ -180,23 +168,25 @@ function findCandidateSessions(
   })
 }
 
-export async function scanLatestRestorableVaultSession(
-  workspaceId: string
-): Promise<AiVaultSession | null> {
-  const initialState = useAppStore.getState()
-  const workspace = resolveAgentRowWorkspaceTarget(initialState, workspaceId)
-  if (!workspace) {
-    return null
+async function scanWorkspaceSessions(
+  workspace: AgentRowWorkspaceTarget,
+  force: boolean
+): Promise<AiVaultSession[]> {
+  if (workspace.yunxiaoRequirementId) {
+    return (
+      await window.api.aiVault.searchYunxiaoSessions({
+        yunxiaoId: workspace.yunxiaoRequirementId
+      })
+    ).sessions
   }
-  const scan = (force: boolean) =>
-    window.api.aiVault.listSessions({
+  return (
+    await window.api.aiVault.listSessions({
       limit: VAULT_SESSION_LIMIT,
       scopePaths: [workspace.path],
       executionHostScope: workspace.executionHostId,
       force
     })
-  const cached = findCandidate((await scan(false)).sessions, useAppStore.getState(), workspace)
-  return cached ?? findCandidate((await scan(true)).sessions, useAppStore.getState(), workspace)
+  ).sessions
 }
 
 export async function scanRestorableVaultSessions(workspaceId: string): Promise<AiVaultSession[]> {
@@ -205,21 +195,19 @@ export async function scanRestorableVaultSessions(workspaceId: string): Promise<
   if (!workspace) {
     return []
   }
-  const scan = (force: boolean) =>
-    window.api.aiVault.listSessions({
-      limit: VAULT_SESSION_LIMIT,
-      scopePaths: [workspace.path],
-      executionHostScope: workspace.executionHostId,
-      force
-    })
   const cached = findCandidateSessions(
-    (await scan(false)).sessions,
+    await scanWorkspaceSessions(workspace, false),
     useAppStore.getState(),
     workspace
   )
-  return cached.length > 0
-    ? cached
-    : findCandidateSessions((await scan(true)).sessions, useAppStore.getState(), workspace)
+  if (cached.length > 0 || workspace.yunxiaoRequirementId) {
+    return cached
+  }
+  return findCandidateSessions(
+    await scanWorkspaceSessions(workspace, true),
+    useAppStore.getState(),
+    workspace
+  )
 }
 
 /**

@@ -144,6 +144,40 @@ describe('buildAgentStartupPlan', () => {
     ).toBe("traecli -- 'help me name this config'")
   })
 
+  it('passes the prompt to CodeBuddy as a positional argv behind a `--` separator', () => {
+    expect(
+      buildAgentStartupPlan({
+        agent: 'codebuddy',
+        prompt: 'Summarize the failing tests',
+        cmdOverrides: {},
+        platform: 'linux'
+      })
+    ).toEqual({
+      agent: 'codebuddy',
+      launchCommand: "codebuddy -- 'Summarize the failing tests'",
+      expectedProcess: 'codebuddy',
+      followupPrompt: null,
+      launchConfig: emptyLaunchConfig('codebuddy')
+    })
+  })
+
+  it('launches ZCode first and injects the prompt after startup', () => {
+    expect(
+      buildAgentStartupPlan({
+        agent: 'zcode',
+        prompt: 'Summarize the failing tests',
+        cmdOverrides: {},
+        platform: 'linux'
+      })
+    ).toEqual({
+      agent: 'zcode',
+      launchCommand: 'zcode',
+      expectedProcess: 'zcode',
+      followupPrompt: 'Summarize the failing tests',
+      launchConfig: emptyLaunchConfig('zcode')
+    })
+  })
+
   it('passes the prompt to Prime Agent as a positional argv behind a `--` separator', () => {
     expect(
       buildAgentStartupPlan({

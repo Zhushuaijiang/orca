@@ -866,6 +866,14 @@ describe('formatAgentTypeLabel', () => {
     expect(formatAgentTypeLabel('trae')).toBe('Trae')
   })
 
+  it("maps 'codebuddy' to 'CodeBuddy'", () => {
+    expect(formatAgentTypeLabel('codebuddy')).toBe('CodeBuddy')
+  })
+
+  it("maps 'zcode' to 'ZCode'", () => {
+    expect(formatAgentTypeLabel('zcode')).toBe('ZCode')
+  })
+
   it("maps 'prime-agent' to 'Prime Agent'", () => {
     expect(formatAgentTypeLabel('prime-agent')).toBe('Prime Agent')
   })
@@ -895,6 +903,8 @@ describe('agentTypeToIconAgent', () => {
     expect(agentTypeToIconAgent('command-code')).toBe('command-code')
     expect(agentTypeToIconAgent('ante')).toBe('ante')
     expect(agentTypeToIconAgent('trae')).toBe('trae')
+    expect(agentTypeToIconAgent('codebuddy')).toBe('codebuddy')
+    expect(agentTypeToIconAgent('zcode')).toBe('zcode')
     expect(agentTypeToIconAgent('prime-agent')).toBe('prime-agent')
   })
 

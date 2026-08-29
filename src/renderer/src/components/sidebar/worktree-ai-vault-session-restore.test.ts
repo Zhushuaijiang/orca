@@ -36,7 +36,6 @@ vi.mock('sonner', () => ({
 import {
   findLatestRestorableVaultSession,
   restoreAiVaultSession,
-  scanLatestRestorableVaultSession,
   scanRestorableVaultSessions
 } from './worktree-ai-vault-session-restore'
 
@@ -68,7 +67,7 @@ function session(overrides: Partial<AiVaultSession> = {}): AiVaultSession {
   }
 }
 
-function worktree(): Worktree {
+function worktree(overrides: Partial<Worktree> = {}): Worktree {
   return {
     id: WORKTREE_ID,
     repoId: 'repo-1',
@@ -86,7 +85,8 @@ function worktree(): Worktree {
     isPinned: false,
     sortOrder: 0,
     lastActivityAt: 1,
-    isMainWorktree: false
+    isMainWorktree: false,
+    ...overrides
   }
 }
 
@@ -105,10 +105,13 @@ function storeState(overrides: Record<string, unknown> = {}): Record<string, unk
   }
 }
 
-function stubWindowApi(listSessions: ReturnType<typeof vi.fn>): void {
+function stubWindowApi(
+  listSessions: ReturnType<typeof vi.fn>,
+  searchYunxiaoSessions = vi.fn().mockResolvedValue({ sessions: [] })
+): void {
   vi.stubGlobal('window', {
     api: {
-      aiVault: { listSessions },
+      aiVault: { listSessions, searchYunxiaoSessions },
       agentSession: {
         findLockHolders: mocks.findLockHolders,
         killLockHolder: mocks.killLockHolder
@@ -191,13 +194,20 @@ describe('findLatestRestorableVaultSession', () => {
   })
 })
 
-describe('scanLatestRestorableVaultSession', () => {
-  it('uses the scoped cache and skips a forced scan when it finds a session', async () => {
-    const found = session()
-    const listSessions = vi.fn().mockResolvedValue({ sessions: [found], issues: [], scannedAt: '' })
+describe('scanRestorableVaultSessions', () => {
+  it('returns all cached sessions newest-first', async () => {
+    const older = session({ id: 'older', sessionId: 'older' })
+    const newest = session({
+      id: 'newest',
+      sessionId: 'newest',
+      modifiedAt: '2026-08-08T00:00:00.000Z'
+    })
+    const listSessions = vi
+      .fn()
+      .mockResolvedValue({ sessions: [older, newest], issues: [], scannedAt: '' })
     stubWindowApi(listSessions)
 
-    await expect(scanLatestRestorableVaultSession(WORKTREE_ID)).resolves.toBe(found)
+    await expect(scanRestorableVaultSessions(WORKTREE_ID)).resolves.toEqual([newest, older])
     expect(listSessions).toHaveBeenCalledOnce()
     expect(listSessions).toHaveBeenCalledWith({
       limit: 500,
@@ -215,7 +225,7 @@ describe('scanLatestRestorableVaultSession', () => {
       .mockResolvedValueOnce({ sessions: [found], issues: [], scannedAt: '' })
     stubWindowApi(listSessions)
 
-    await expect(scanLatestRestorableVaultSession(WORKTREE_ID)).resolves.toBe(found)
+    await expect(scanRestorableVaultSessions(WORKTREE_ID)).resolves.toEqual([found])
     expect(listSessions).toHaveBeenNthCalledWith(2, {
       limit: 500,
       scopePaths: ['/repo/orca'],
@@ -223,22 +233,28 @@ describe('scanLatestRestorableVaultSession', () => {
       force: true
     })
   })
-})
 
-describe('scanRestorableVaultSessions', () => {
-  it('returns all cached sessions newest-first', async () => {
-    const older = session({ id: 'older', sessionId: 'older' })
-    const newest = session({
-      id: 'newest',
-      sessionId: 'newest',
-      modifiedAt: '2026-08-08T00:00:00.000Z'
+  it('uses the linked requirement id instead of the shared workspace path', async () => {
+    const found = session({ id: 'matched', sessionId: 'matched' })
+    const linkedWorktree = worktree({
+      linkedWorkItem: {
+        provider: 'yunxiao',
+        type: 'issue',
+        number: 0,
+        title: 'DFHIS-31889 requirement',
+        url: 'https://devops.aliyun.com/projex/req/DFHIS-31889',
+        yunxiaoIdentifier: 'DFHIS-31889'
+      }
     })
-    const listSessions = vi
-      .fn()
-      .mockResolvedValue({ sessions: [older, newest], issues: [], scannedAt: '' })
-    stubWindowApi(listSessions)
+    mocks.getState.mockReturnValue(storeState({ worktreesByRepo: { 'repo-1': [linkedWorktree] } }))
+    const listSessions = vi.fn()
+    const searchYunxiaoSessions = vi.fn().mockResolvedValue({ sessions: [found] })
+    stubWindowApi(listSessions, searchYunxiaoSessions)
 
-    await expect(scanRestorableVaultSessions(WORKTREE_ID)).resolves.toEqual([newest, older])
+    await expect(scanRestorableVaultSessions(WORKTREE_ID)).resolves.toEqual([found])
+    expect(searchYunxiaoSessions).toHaveBeenCalledOnce()
+    expect(searchYunxiaoSessions).toHaveBeenCalledWith({ yunxiaoId: 'DFHIS-31889' })
+    expect(listSessions).not.toHaveBeenCalled()
   })
 })
 

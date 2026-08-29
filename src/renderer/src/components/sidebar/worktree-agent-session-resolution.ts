@@ -39,6 +39,7 @@ export type AgentRowWorkspaceTarget = {
   workspaceId: string
   path: string
   executionHostId: ExecutionHostId
+  yunxiaoRequirementId?: string
 }
 
 export function resolveAgentRowWorkspaceTarget(
@@ -66,10 +67,15 @@ export function resolveAgentRowWorkspaceTarget(
     return null
   }
   const repo = state.repos.find((entry) => entry.id === worktree.repoId) ?? undefined
+  const yunxiaoRequirementId =
+    worktree.linkedWorkItem?.provider === 'yunxiao'
+      ? worktree.linkedWorkItem.yunxiaoIdentifier?.trim()
+      : undefined
   return {
     workspaceId: worktree.id,
     path: worktree.path,
-    executionHostId: getWorktreeExecutionHostId(worktree, repo)
+    executionHostId: getWorktreeExecutionHostId(worktree, repo),
+    ...(yunxiaoRequirementId ? { yunxiaoRequirementId } : {})
   }
 }
 

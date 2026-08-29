@@ -1,56 +1,16 @@
+// Why: the type declarations live in tui-agent-config-types.ts so this record
+// file stays under the oxlint max-lines budget; they are re-exported so the
+// existing `from './tui-agent-config'` import surface is unchanged.
 import type { TuiAgent } from './tui-agent'
+import type { TuiAgentConfig } from './tui-agent-config-types'
 import { getOrcaCliCommandNameForPlatform } from './orca-cli-command-name'
 
-export type AgentPromptInjectionMode =
-  | 'argv'
-  | 'flag-prompt'
-  | 'flag-prompt-interactive'
-  | 'flag-interactive'
-  | 'hermes-query'
-  | 'stdin-after-start'
-
-export type DraftPasteReadySignal =
-  | 'render-quiet-after-bracketed-paste'
-  | 'codex-composer-prompt'
-  | 'render-cursor-after-bracketed-paste'
-  | 'grok-composer-prompt'
-
-export type TuiAgentDetectionRuntime = NodeJS.Platform | 'wsl'
-
-export type TuiAgentConfig = {
-  detectCmd: string
-  /** Additional executable names that identify the same agent on PATH. */
-  detectCmdAliases?: readonly string[]
-  /** Other commands that must also be present before this agent counts as installed. */
-  detectRequiredCommands?: readonly string[]
-  /** Detection runtimes where this launch mode is not available as a detected agent. */
-  detectUnsupportedRuntimes?: readonly TuiAgentDetectionRuntime[]
-  launchCmd: string
-  /** Platform-specific launch command when the public binary name differs. */
-  launchCmdByPlatform?: Partial<Record<NodeJS.Platform, string>>
-  expectedProcess: string
-  promptInjectionMode: AgentPromptInjectionMode
-  /** Option terminator required before positional prompts that may look like CLI syntax. */
-  argvPromptSeparator?: '--'
-  /** Native CLI flag that seeds the input without submitting (e.g. Claude's `--prefill <text>`); preferred over the paste-after-ready path. */
-  draftPromptFlag?: string
-  /** Startup env var that seeds the input without submitting, for agents with no `--prefill`-style flag (e.g. pi); avoids the paste-after-ready race. */
-  draftPromptEnvVar?: string
-  /** Pre-write a trust artifact so the agent's first-launch "trust this folder?" menu doesn't consume the bracketed paste (see agent-trust-presets.ts). */
-  preflightTrust?: 'cursor' | 'copilot' | 'codex'
-  /** Agent-specific signal that the composer is ready for paste, stronger than the default quiet-render window. */
-  draftPasteReadySignal?: DraftPasteReadySignal
-  /** Hard deadline for the agent's composer readiness signal. */
-  draftPasteReadyTimeoutMs?: number
-  /** Delay before one extra blind submit Enter, for agents that render their composer before Enter is live (codex); a no-op if the first Enter landed. */
-  submitRetryDelayMs?: number
-  /** Windows Shift+Enter encoding override; omitted agents keep the legacy Esc+CR path. */
-  windowsShiftEnterEncoding?: 'csi-u'
-  /** Paste newlines for TUIs that read Windows console input records instead of VT paste frames. */
-  windowsInputRecordPasteNewline?: 'alt-enter' | 'csi-u'
-  /** Ctrl+Enter encoding for agents that consume CSI-u without active kitty flags. */
-  ctrlEnterEncoding?: 'csi-u'
-}
+export type {
+  AgentPromptInjectionMode,
+  DraftPasteReadySignal,
+  TuiAgentConfig,
+  TuiAgentDetectionRuntime
+} from './tui-agent-config-types'
 
 export const TUI_AGENT_CONFIG: Record<TuiAgent, TuiAgentConfig> = {
   claude: {
@@ -331,6 +291,25 @@ export const TUI_AGENT_CONFIG: Record<TuiAgent, TuiAgentConfig> = {
     // timeout; its composer glyph lands ~0.6s in.
     draftPasteReadySignal: 'grok-composer-prompt',
     ctrlEnterEncoding: 'csi-u'
+  },
+  codebuddy: {
+    detectCmd: 'codebuddy',
+    // Why: the @tencent-ai/codebuddy-code package also installs a `cbc` symlink.
+    detectCmdAliases: ['cbc'],
+    launchCmd: 'codebuddy',
+    expectedProcess: 'codebuddy',
+    // Why: `codebuddy [prompt]` takes the task as a positional argv, same as Claude/Trae.
+    promptInjectionMode: 'argv',
+    // Why: separator so prompts starting with `-…` aren't parsed as CLI flags.
+    argvPromptSeparator: '--'
+  },
+  zcode: {
+    detectCmd: 'zcode',
+    launchCmd: 'zcode',
+    expectedProcess: 'zcode',
+    // Why: prompt-passing contract unverified (ships with the ZCode desktop ADE), so
+    // start the bare TUI and inject the prompt after startup like kimi/qwen-code.
+    promptInjectionMode: 'stdin-after-start'
   },
   devin: {
     detectCmd: 'devin',

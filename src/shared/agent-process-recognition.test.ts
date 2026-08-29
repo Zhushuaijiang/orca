@@ -166,6 +166,54 @@ describe('agent process recognition', () => {
     })
   })
 
+  it('recognizes CodeBuddy by its binary and cbc alias', () => {
+    expect(recognizeAgentProcess('codebuddy')).toEqual({
+      agent: 'codebuddy',
+      processName: 'codebuddy'
+    })
+    expect(recognizeAgentProcess('/Users/dev/.local/bin/cbc')).toEqual({
+      agent: 'codebuddy',
+      processName: 'cbc'
+    })
+    expect(isExpectedAgentProcess('/usr/local/bin/codebuddy', 'codebuddy')).toBe(true)
+    expect(isRecognizedAgentType('cbc')).toBe(true)
+  })
+
+  it('does not recognize CodeBuddy headless one-shot commands as interactive agents', () => {
+    expect(recognizeAgentProcessFromCommandLine('codebuddy -p "summarize this diff"')).toBeNull()
+    expect(recognizeAgentProcessFromCommandLine('codebuddy --print "review this"')).toBeNull()
+    expect(
+      recognizeAgentProcessFromCommandLine('codebuddy --output-format json "review this"')
+    ).toBeNull()
+    expect(recognizeAgentProcessFromCommandLine('codebuddy --resume abc123')).toEqual({
+      agent: 'codebuddy',
+      processName: 'codebuddy'
+    })
+    // Why: past `--` nothing is a flag, so this is the interactive pane Orca itself launches.
+    expect(
+      recognizeAgentProcessFromCommandLine('codebuddy -- "--print the release notes"')
+    ).toEqual({
+      agent: 'codebuddy',
+      processName: 'codebuddy'
+    })
+  })
+
+  it('recognizes ZCode only by its exact zcode binary name', () => {
+    expect(recognizeAgentProcess('zcode')).toEqual({
+      agent: 'zcode',
+      processName: 'zcode'
+    })
+    expect(recognizeAgentProcess('/opt/homebrew/bin/zcode')).toEqual({
+      agent: 'zcode',
+      processName: 'zcode'
+    })
+    expect(isExpectedAgentProcess('/opt/homebrew/bin/zcode', 'zcode')).toBe(true)
+    expect(isRecognizedAgentType('zcode')).toBe(true)
+    // Why: near-miss names belong to other tools; only the exact binary identifies ZCode.
+    expect(recognizeAgentProcess('z-code')).toBeNull()
+    expect(recognizeAgentProcess('zcode-cli')).toBeNull()
+  })
+
   it('recognizes Mistral Vibe by its installed executable and legacy alias', () => {
     expect(recognizeAgentProcess('/home/dev/.local/bin/vibe')).toEqual({
       agent: 'mistral-vibe',

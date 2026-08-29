@@ -3,14 +3,15 @@ import { isPrimeAgentHeadlessOneShotCommand } from './prime-agent-headless-comma
 import { isPrintModeHeadlessOneShotCommand } from './print-mode-headless-command'
 import type { TuiAgent } from './tui-agent'
 
-// Why: a table (not an if-chain) so adding an agent is one entry; Claude and Trae share
-// the same `--print` one-shot contract, Ante's `--prompt` form and Prime Agent's
-// `--mode` forms need their own matchers.
+// Why: a table (not an if-chain) so adding an agent is one entry; Claude, Trae,
+// and CodeBuddy share the same `--print` one-shot contract, Ante's `--prompt`
+// form and Prime Agent's `--mode` forms need their own matchers.
 const HEADLESS_ONE_SHOT_MATCHERS: Partial<
   Record<TuiAgent, (tokens: readonly string[]) => boolean>
 > = {
   claude: isPrintModeHeadlessOneShotCommand,
   trae: isPrintModeHeadlessOneShotCommand,
+  codebuddy: isPrintModeHeadlessOneShotCommand,
   'prime-agent': isPrimeAgentHeadlessOneShotCommand,
   ante: isAnteHeadlessOneShotCommand
 }
