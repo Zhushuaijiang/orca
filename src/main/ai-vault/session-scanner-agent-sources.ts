@@ -26,6 +26,7 @@ const COPILOT_SESSIONS_DIR = join(
   'session-state'
 )
 const CURSOR_PROJECTS_DIR = join(homedir(), '.cursor', 'projects')
+const CODEBUDDY_PROJECTS_DIR = join(homedir(), '.codebuddy', 'projects')
 const HERMES_SESSIONS_DIR = join(homedir(), '.hermes', 'sessions')
 const ROVO_SESSIONS_DIR = join(homedir(), '.rovodev', 'sessions')
 const OPENCLAW_STATE_DIR = process.env.OPENCLAW_STATE_DIR?.trim() || join(homedir(), '.openclaw')
@@ -253,6 +254,17 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
     // only those (not the sibling agents/*/wire.jsonl transcripts).
     filePredicate: (filePath) =>
       basename(filePath) === 'state.json' && basename(dirname(filePath)).startsWith('session_')
+  },
+  codebuddy: {
+    rootDirs: (options, wslHomeDirs) =>
+      sessionRootDirs(options.codebuddyProjectsDir ?? CODEBUDDY_PROJECTS_DIR, wslHomeDirs, [
+        '.codebuddy',
+        'projects'
+      ]),
+    extensions: ['.jsonl'],
+    // Why: sessions are exactly <encoded-cwd>/<sessionId>.jsonl; the sibling
+    // <sessionId>/ directories hold tool-result artifacts, never sessions.
+    directoryPredicate: (_name, depth) => depth === 0
   }
 }
 

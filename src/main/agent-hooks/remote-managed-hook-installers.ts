@@ -7,6 +7,7 @@ import { geminiHookService } from '../gemini/hook-service'
 import { antigravityHookService } from '../antigravity/hook-service'
 import { cursorHookService } from '../cursor/hook-service'
 import { commandCodeHookService } from '../command-code/hook-service'
+import { codebuddyHookService } from '../codebuddy/hook-service'
 import { copilotHookService } from '../copilot/hook-service'
 import { devinHookService } from '../devin/hook-service'
 import { droidHookService } from '../droid/hook-service'
@@ -55,6 +56,7 @@ const REMOTE_MANAGED_HOOK_INSTALLERS: readonly RemoteManagedHookInstaller[] = [
   ['amp', (sftp, remoteHome) => ampHookService.installRemote(sftp, remoteHome)],
   ['cursor', (sftp, remoteHome) => cursorHookService.installRemote(sftp, remoteHome)],
   ['command-code', (sftp, remoteHome) => commandCodeHookService.installRemote(sftp, remoteHome)],
+  ['codebuddy', (sftp, remoteHome) => codebuddyHookService.installRemote(sftp, remoteHome)],
   ['copilot', (sftp, remoteHome) => copilotHookService.installRemote(sftp, remoteHome)],
   [
     'grok',

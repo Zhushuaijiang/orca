@@ -67,6 +67,10 @@ export function isNewTurnEvent(source: AgentHookSource, eventName: unknown): boo
       return eventName === 'UserPromptSubmit'
     case 'command-code':
       return false
+    case 'codebuddy':
+      // Why: CodeBuddy emits Claude-compatible hook events, so UserPromptSubmit
+      // is its new-turn boundary too.
+      return eventName === 'UserPromptSubmit'
     case 'grok':
       return isGrokEvent(eventName, 'user_prompt_submit')
     case 'copilot': {
@@ -140,6 +144,9 @@ export function extractToolFields(
     // Why: Kimi Code uses Claude's tool_name/tool_input payload fields verbatim.
     // falls through
     case 'kimi':
+    // Why: CodeBuddy Code uses Claude's tool_name/tool_input payload fields verbatim.
+    // falls through
+    case 'codebuddy':
       return extractClaudeToolFields(eventName, hookPayload)
     case 'codex':
       return extractCodexToolFields(eventName, hookPayload)

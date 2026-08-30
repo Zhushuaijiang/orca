@@ -212,6 +212,10 @@ function buildAgentResumeInvocation(
       return `${baseCommand} --resume=${sessionArg}`
     case 'cline':
       return `${baseCommand} --id ${sessionArg}`
+    // Why: `--resume <id>` matches `codebuddy --help` (`-r, --resume [sessionId]`);
+    // transcript files are named `<sessionId>.jsonl`, so the id alone locates them.
+    // falls through
+    case 'codebuddy':
     case 'claude':
     case 'cursor':
     case 'gemini':

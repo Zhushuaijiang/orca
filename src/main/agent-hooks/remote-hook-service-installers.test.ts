@@ -13,6 +13,7 @@ import { DroidHookService, droidHookService } from '../droid/hook-service'
 import { CursorHookService, cursorHookService } from '../cursor/hook-service'
 import { CURSOR_EVENTS, type CursorEvent } from '../cursor/hook-events'
 import { CommandCodeHookService, commandCodeHookService } from '../command-code/hook-service'
+import { codebuddyHookService } from '../codebuddy/hook-service'
 import { GeminiHookService, geminiHookService } from '../gemini/hook-service'
 import { AntigravityHookService, antigravityHookService } from '../antigravity/hook-service'
 import { AmpHookService, ampHookService } from '../amp/hook-service'
@@ -704,6 +705,7 @@ describe('remote hook service installers', () => {
       ['cursor', cursorHookService],
       ['droid', droidHookService],
       ['command-code', commandCodeHookService],
+      ['codebuddy', codebuddyHookService],
       ['grok', grokHookService],
       ['copilot', copilotHookService],
       ['hermes', hermesHookService],

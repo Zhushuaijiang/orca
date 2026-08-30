@@ -87,6 +87,9 @@ vi.mock('../droid/hook-service', () => ({
 vi.mock('../command-code/hook-service', () => ({
   commandCodeHookService: { getStatus: vi.fn(() => ({ agent: 'command-code', state: 'absent' })) }
 }))
+vi.mock('../codebuddy/hook-service', () => ({
+  codebuddyHookService: { getStatus: vi.fn(() => ({ agent: 'codebuddy', state: 'absent' })) }
+}))
 vi.mock('../grok/hook-service', () => ({
   grokHookService: { getStatus: vi.fn(() => ({ agent: 'grok', state: 'absent' })) }
 }))
@@ -271,6 +274,17 @@ describe('agentHooks:kimiStatus IPC', () => {
     const handler = handleHandlers.get('agentHooks:kimiStatus')
     expect(handler).toBeDefined()
     expect(handler!({})).toEqual({ agent: 'kimi', state: 'absent' })
+  })
+})
+
+describe('agentHooks:codebuddyStatus IPC', () => {
+  it('returns CodeBuddy hook installation status', async () => {
+    const { registerAgentHookHandlers } = await import('./agent-hooks')
+    registerAgentHookHandlers()
+
+    const handler = handleHandlers.get('agentHooks:codebuddyStatus')
+    expect(handler).toBeDefined()
+    expect(handler!({})).toEqual({ agent: 'codebuddy', state: 'absent' })
   })
 })
 

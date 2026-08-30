@@ -9,7 +9,8 @@ export const UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY = ['.agents', 'skills'] as con
  * Why: mirrors the community `skills` CLI's `globalSkillsDir` map so an Orca
  * install and `npx skills add --global` land in the same place. Agents without
  * a verified dedicated root (kimi, cline, aider, codebuff, ante, mimo-code)
- * are covered by UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY instead.
+ * are covered by UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY instead. CodeBuddy keeps
+ * a real ~/.codebuddy/skills directory (its installed skills live there).
  */
 export const AGENT_SKILL_HOME_DIRECTORIES: Partial<Record<TuiAgent, readonly string[]>> = {
   claude: ['.claude', 'skills'],
@@ -18,6 +19,7 @@ export const AGENT_SKILL_HOME_DIRECTORIES: Partial<Record<TuiAgent, readonly str
   antigravity: ['.gemini', 'antigravity', 'skills'],
   aug: ['.augment', 'skills'],
   autohand: ['.autohand', 'skills'],
+  codebuddy: ['.codebuddy', 'skills'],
   'command-code': ['.commandcode', 'skills'],
   continue: ['.continue', 'skills'],
   copilot: ['.copilot', 'skills'],

@@ -5,6 +5,7 @@ import { antigravityHookService } from '../antigravity/hook-service'
 import { claudeHookService } from '../claude/hook-service'
 import { codexHookService } from '../codex/hook-service'
 import { commandCodeHookService } from '../command-code/hook-service'
+import { codebuddyHookService } from '../codebuddy/hook-service'
 import { copilotHookService } from '../copilot/hook-service'
 import { cursorHookService } from '../cursor/hook-service'
 import { devinHookService } from '../devin/hook-service'
@@ -46,6 +47,7 @@ export const MANAGED_AGENT_HOOK_INSTALLERS: readonly ManagedAgentHookInstaller[]
   ['cursor', () => cursorHookService.install()],
   ['droid', () => droidHookService.install()],
   ['command-code', () => commandCodeHookService.install()],
+  ['codebuddy', () => codebuddyHookService.install()],
   ['grok', (options) => grokHookService.install(options)],
   ['copilot', () => copilotHookService.install()],
   ['hermes', () => hermesHookService.install()],
@@ -68,6 +70,7 @@ export const MANAGED_AGENT_HOOK_SCRIPT_REFRESHERS: readonly ManagedAgentHookScri
   ['cursor', () => cursorHookService.refreshManagedScripts()],
   ['droid', () => droidHookService.refreshManagedScripts()],
   ['command-code', () => commandCodeHookService.refreshManagedScripts()],
+  ['codebuddy', () => codebuddyHookService.refreshManagedScripts()],
   ['grok', () => grokHookService.refreshManagedScripts()],
   ['copilot', () => copilotHookService.refreshManagedScripts()],
   ['devin', () => devinHookService.refreshManagedScripts()],
@@ -84,6 +87,7 @@ export const MANAGED_AGENT_HOOK_REMOVERS: readonly ManagedAgentHookRemover[] = [
   ['cursor', () => cursorHookService.remove()],
   ['droid', () => droidHookService.remove()],
   ['command-code', () => commandCodeHookService.remove()],
+  ['codebuddy', () => codebuddyHookService.remove()],
   ['grok', () => grokHookService.remove()],
   ['copilot', () => copilotHookService.remove()],
   ['hermes', () => hermesHookService.remove()],
@@ -106,6 +110,7 @@ export const MANAGED_AGENT_HOOK_STATUS_READERS: readonly ManagedAgentHookStatusR
   ['droid', () => droidHookService.getStatus()],
   ['grok', () => grokHookService.getStatus()],
   ['command-code', () => commandCodeHookService.getStatus()],
+  ['codebuddy', () => codebuddyHookService.getStatus()],
   ['copilot', () => copilotHookService.getStatus()],
   ['hermes', () => hermesHookService.getStatus()],
   ['devin', () => devinHookService.getStatus()],

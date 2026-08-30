@@ -27,6 +27,7 @@ const ROUTES = {
   '/hook/prime-agent': 'prime-agent',
   '/hook/droid': 'droid',
   '/hook/command-code': 'command-code',
+  '/hook/codebuddy': 'codebuddy',
   '/hook/grok': 'grok',
   '/hook/copilot': 'copilot',
   '/hook/hermes': 'hermes',
@@ -69,6 +70,9 @@ describe('agent hook extraction boundaries', () => {
       ['prime-agent', 'agent_end', 'done'],
       ['kimi', 'PermissionRequest', 'waiting'],
       ['kimi', 'StopFailure', 'done'],
+      ['codebuddy', 'UserPromptSubmit', 'working'],
+      ['codebuddy', 'PermissionRequest', 'waiting'],
+      ['codebuddy', 'StopFailure', 'done'],
       ['hermes', 'on_session_finalize', 'done'],
       ['hermes', 'on_session_reset', 'done']
     ] as const
@@ -79,7 +83,14 @@ describe('agent hook extraction boundaries', () => {
         agentType: source
       })
     }
-    for (const source of ['devin', 'mimo-code', 'prime-agent', 'kimi', 'hermes'] as const) {
+    for (const source of [
+      'devin',
+      'mimo-code',
+      'prime-agent',
+      'kimi',
+      'hermes',
+      'codebuddy'
+    ] as const) {
       expect(normalizeProviderState(source, 'UnknownEvent')).toBeNull()
     }
   })

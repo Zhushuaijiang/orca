@@ -12,6 +12,7 @@ import { createClaudeSessionResumeState } from './session-scanner-primary-parser
 import { createGeminiJsonlSessionResumeState } from './session-scanner-gemini-parsers'
 import { createCopilotSessionResumeState } from './session-scanner-copilot-parser'
 import { createCursorSessionResumeState } from './session-scanner-cursor-parser'
+import { createCodebuddySessionResumeState } from './session-scanner-codebuddy-parser'
 import { countSubagentTranscripts } from './session-scanner-subagent-transcripts'
 import { countOmpSubagentTranscripts } from './session-scanner-omp-subagent-transcripts'
 import type { ResumableSessionParseState, SessionFileCandidate } from './session-scanner-types'
@@ -56,6 +57,8 @@ function resumableStateFactoryFor(
       return () => createCodexSessionResumeState(candidate.file, candidate.codexHome)
     case 'cursor':
       return () => createCursorSessionResumeState(candidate.file)
+    case 'codebuddy':
+      return () => createCodebuddySessionResumeState(candidate.file)
     case 'copilot':
       return () => createCopilotSessionResumeState(candidate.file)
     case 'droid':

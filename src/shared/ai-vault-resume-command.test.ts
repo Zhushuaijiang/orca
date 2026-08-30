@@ -6,6 +6,17 @@ import {
 } from './ai-vault-resume-command'
 
 describe('buildAiVaultResumeCommand', () => {
+  it('resumes CodeBuddy by session id from the session start directory', () => {
+    expect(
+      buildAiVaultResumeCommand({
+        agent: 'codebuddy',
+        sessionId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+        cwd: '/repo/app',
+        platform: 'darwin'
+      })
+    ).toBe("cd '/repo/app' && codebuddy --resume 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'")
+  })
+
   it('uses Antigravity conversation ids instead of Gemini resume flags', () => {
     expect(
       buildAiVaultResumeCommand({

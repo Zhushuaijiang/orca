@@ -1,5 +1,6 @@
 import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import type { SFTPWrapper } from 'ssh2'
+import type { AgentHookSource } from '../../shared/agent-hook-relay'
 import type { AgentHookInstallState, AgentHookInstallStatus } from '../../shared/agent-hook-types'
 import {
   buildManagedCommandHook,
@@ -61,8 +62,9 @@ const DEFAULT_CLAUDE_HOOK_SERVICE_OPTIONS: ClaudeHookServiceOptions = {
 
 function getManagedScript(
   target: 'local' | 'posix' = 'local',
-  options: { skipWhenDevinImportsClaude?: boolean } = {}
+  options: { skipWhenDevinImportsClaude?: boolean; hookSource?: AgentHookSource } = {}
 ): string {
+  const hookSource = options.hookSource ?? 'claude'
   if (target === 'local' && process.platform === 'win32') {
     return [
       '@echo off',
@@ -86,7 +88,7 @@ function getManagedScript(
           ]
         : []),
       // Why: use curl.exe to avoid an extra PowerShell startup per hook.
-      buildWindowsAgentHookCurlPostCommand('claude'),
+      buildWindowsAgentHookCurlPostCommand(hookSource),
       'exit /b 0',
       ...buildWindowsHookStdinDrainEpilogue(),
       ''
@@ -98,7 +100,7 @@ function getManagedScript(
     // Why: Claude-compatible permission hooks fail closed on empty stdout (#14818).
     'printf "{}\\n"',
     ...buildPosixHookPayloadCapture(),
-    ...buildPosixHookSpoolLines('claude'),
+    ...buildPosixHookSpoolLines(hookSource),
     ...(options.skipWhenDevinImportsClaude
       ? [
           // Why: Devin imports .claude hooks by default; skip Orca's managed hook there so status posts stay attributed to Devin.
@@ -123,7 +125,7 @@ function getManagedScript(
     '  exit 0',
     'fi',
     // Why: keep full hook JSON off the command line and avoid IDS-friendly URL-encoded paths.
-    ...buildPosixAgentHookPostCommand('claude').map((line, index, lines) =>
+    ...buildPosixAgentHookPostCommand(hookSource).map((line, index, lines) =>
       index === lines.length - 1 ? `${line} >/dev/null 2>&1 || spool_hook_event` : line
     ),
     'exit 0',
@@ -136,6 +138,15 @@ export class ClaudeHookService {
 
   constructor(options: ClaudeHookServiceOptions = DEFAULT_CLAUDE_HOOK_SERVICE_OPTIONS) {
     this.options = options
+  }
+
+  // Why: one place resolves this service's managed-script flavor — the Devin
+  // skip is claude-only and the post source follows the compat settings.
+  private buildManagedScript(target: 'local' | 'posix'): string {
+    return getManagedScript(target, {
+      skipWhenDevinImportsClaude: this.options.agent === 'claude',
+      hookSource: this.options.settings.hookSource
+    })
   }
 
   getStatus(): AgentHookInstallStatus {
@@ -188,7 +199,7 @@ export class ClaudeHookService {
   async refreshManagedScripts(): Promise<void> {
     await refreshManagedScriptIfPresent(
       getManagedScriptPath(this.options.settings),
-      getManagedScript('local', { skipWhenDevinImportsClaude: this.options.agent === 'claude' })
+      this.buildManagedScript('local')
     )
     // Why: no agent gate — the statusline script only ever exists for claude, so presence is the gate.
     await refreshManagedScriptIfPresent(
@@ -217,10 +228,7 @@ export class ClaudeHookService {
       hook,
       getManagedScriptFileName(this.options.settings)
     )
-    writeManagedScript(
-      scriptPath,
-      getManagedScript('local', { skipWhenDevinImportsClaude: this.options.agent === 'claude' })
-    )
+    writeManagedScript(scriptPath, this.buildManagedScript('local'))
     // Why: the statusline usage feed is Claude-only — OpenClaude data would be misattributed to the Claude provider.
     if (this.options.agent === 'claude') {
       nextConfig = this.installManagedStatusLine(nextConfig)
@@ -278,11 +286,7 @@ export class ClaudeHookService {
 
       // Why: write scripts before settings to avoid settings pointing to missing scripts.
       // Why: SSH scripts always use POSIX .sh paths, regardless of the local OS.
-      await writeManagedScriptRemote(
-        sftp,
-        remoteScriptPath,
-        getManagedScript('posix', { skipWhenDevinImportsClaude: this.options.agent === 'claude' })
-      )
+      await writeManagedScriptRemote(sftp, remoteScriptPath, this.buildManagedScript('posix'))
       // Why: no statusline install here — this path serves SSH remotes and WSL guests, whose relay hook
       // listener doesn't route /statusline/claude, and an SSH box's Claude login can be a different
       // account than the locally selected one, so its usage must not feed the local bar (live feed is host-local only).

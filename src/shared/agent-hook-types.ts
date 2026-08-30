@@ -13,6 +13,7 @@ export const AGENT_HOOK_TARGETS = [
   'cursor',
   'droid',
   'command-code',
+  'codebuddy',
   'grok',
   'copilot',
   'hermes',

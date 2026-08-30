@@ -17,6 +17,7 @@ import { normalizeCursorEvent } from './providers/cursor-events'
 import { normalizePiCompatibleEvent } from './providers/pi-family-events'
 import { normalizeDroidEvent } from './providers/droid-events'
 import { normalizeCommandCodeEvent } from './providers/command-code-events'
+import { normalizeCodebuddyEvent } from './providers/codebuddy-events'
 import { normalizeGrokEvent } from './providers/grok-events'
 import { normalizeCopilotEvent } from './providers/copilot-events'
 import { normalizeHermesEvent } from './providers/hermes-events'
@@ -126,6 +127,9 @@ export function normalizeProviderEvent(input: {
       )
       break
     }
+    case 'codebuddy':
+      payload = normalizeCodebuddyEvent(state, eventName, promptText, paneKey, hookPayload)
+      break
     case 'grok':
       payload = normalizeGrokEvent(
         state,

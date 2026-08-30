@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
 import { basename, extname, join, win32 } from 'node:path'
+import type { AgentHookSource } from '../../shared/agent-hook-relay'
 import {
   buildManagedCommandHook,
   createManagedCommandMatcher,
@@ -16,9 +17,11 @@ import {
 import { wrapRuntimeHomeHookCommand } from '../agent-hooks/runtime-home-hook-command'
 
 export type ClaudeCompatibleHookSettings = {
-  configDirName: '.claude' | '.openclaude'
-  scriptBaseName: 'claude-hook' | 'openclaude-hook'
+  configDirName: '.claude' | '.openclaude' | '.codebuddy'
+  scriptBaseName: 'claude-hook' | 'openclaude-hook' | 'codebuddy-hook'
   usesWindowsPowerShellLauncher: boolean
+  /** Hook URL source the managed script posts to; defaults to 'claude'. */
+  hookSource?: Extract<AgentHookSource, 'claude' | 'codebuddy'>
 }
 
 export const CLAUDE_HOOK_SETTINGS: ClaudeCompatibleHookSettings = {
@@ -31,6 +34,16 @@ export const OPENCLAUDE_HOOK_SETTINGS: ClaudeCompatibleHookSettings = {
   configDirName: '.openclaude',
   scriptBaseName: 'openclaude-hook',
   usesWindowsPowerShellLauncher: false
+}
+
+// Why: CodeBuddy Code is Claude-hook-shaped (settings.json `hooks` with the same
+// event/matcher schema and stdin payload), but its events must attribute to the
+// CodeBuddy agent row, so the managed script posts to /hook/codebuddy.
+export const CODEBUDDY_HOOK_SETTINGS: ClaudeCompatibleHookSettings = {
+  configDirName: '.codebuddy',
+  scriptBaseName: 'codebuddy-hook',
+  usesWindowsPowerShellLauncher: false,
+  hookSource: 'codebuddy'
 }
 
 export const CLAUDE_EVENTS = [

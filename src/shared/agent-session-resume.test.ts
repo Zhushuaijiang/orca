@@ -28,6 +28,10 @@ describe('agent session resume metadata', () => {
     expect(isResumableTuiAgent('kimi')).toBe(true)
   })
 
+  it('treats CodeBuddy as a resumable TUI agent', () => {
+    expect(isResumableTuiAgent('codebuddy')).toBe(true)
+  })
+
   it.each([
     ['claude', { session_id: 'claude-session' }, { key: 'session_id', id: 'claude-session' }],
     ['codex', { session_id: 'codex-session' }, { key: 'session_id', id: 'codex-session' }],
@@ -94,6 +98,11 @@ describe('agent session resume metadata', () => {
       'kimi',
       { key: 'session_id', id: 'session_431324d7' },
       ['kimi', '--session', 'session_431324d7']
+    ],
+    [
+      'codebuddy',
+      { key: 'session_id', id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee' },
+      ['codebuddy', '--resume', 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee']
     ]
   ] as const)('builds %s resume argv', (agent, providerSession, expected) => {
     expect(getAgentResumeArgv(agent, providerSession)).toEqual(expected)
@@ -130,6 +139,10 @@ describe('agent session resume metadata', () => {
 
   it('rejects devin resume when provider session key is not session_id', () => {
     expect(getAgentResumeArgv('devin', { key: 'conversation_id', id: 'x' })).toBeNull()
+  })
+
+  it('rejects codebuddy resume when provider session key is not session_id', () => {
+    expect(getAgentResumeArgv('codebuddy', { key: 'conversation_id', id: 'x' })).toBeNull()
   })
 
   it('captures the hook transcript_path for native-chat agents (claude/codex)', () => {

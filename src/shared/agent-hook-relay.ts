@@ -48,6 +48,7 @@ const AGENT_HOOK_SOURCES = [
   'prime-agent',
   'droid',
   'command-code',
+  'codebuddy',
   'grok',
   'copilot',
   'hermes',

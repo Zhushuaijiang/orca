@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AI_VAULT_AGENTS } from '../../shared/ai-vault-types'
 import { scanAiVaultSessions } from './session-scanner'
+import { writeCodebuddyScannerFixture } from './session-scanner-codebuddy-fixtures'
 import {
   isolatedScanRoots,
   jsonLines,
@@ -716,6 +717,10 @@ describe('scanAiVaultSessions', () => {
       ])
     )
 
+    // CodeBuddy: <projects>/<encoded-cwd>/<sessionId>.jsonl with top-level
+    // role/content message records and epoch-millis timestamps.
+    await writeCodebuddyScannerFixture(roots.codebuddyProjectsDir)
+
     const result = await scanAiVaultSessions({ ...roots, platform: 'darwin', limit: 20 })
 
     expect(result.issues).toEqual([])
@@ -763,6 +768,9 @@ describe('scanAiVaultSessions', () => {
     expect(commandByAgent.get('droid')).toBe("cd '/tmp/droid' && droid --resume 'droid-session'")
     expect(commandByAgent.get('kimi')).toBe(
       "cd '/tmp/kimi' && kimi --session 'session_kimi-session'"
+    )
+    expect(commandByAgent.get('codebuddy')).toBe(
+      "cd '/tmp/codebuddy' && codebuddy --resume 'dddddddd-eeee-4fff-8a0a-111111111111'"
     )
 
     const ompSession = result.sessions.find((session) => session.agent === 'omp')

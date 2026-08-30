@@ -12,6 +12,7 @@ export function createAgentHooksApi(): NonNullable<Partial<PreloadApi>['agentHoo
       | 'cursor'
       | 'droid'
       | 'command-code'
+      | 'codebuddy'
       | 'grok'
       | 'copilot'
       | 'hermes'
@@ -34,6 +35,7 @@ export function createAgentHooksApi(): NonNullable<Partial<PreloadApi>['agentHoo
     cursorStatus: () => status('cursor'),
     droidStatus: () => status('droid'),
     commandCodeStatus: () => status('command-code'),
+    codebuddyStatus: () => status('codebuddy'),
     grokStatus: () => status('grok'),
     copilotStatus: () => status('copilot'),
     hermesStatus: () => status('hermes'),

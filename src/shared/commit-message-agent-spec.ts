@@ -100,6 +100,7 @@ export const COMMIT_MESSAGE_AGENT_SPECS: Partial<Record<TuiAgent, CommitMessageA
   ...buildSecondaryCommitMessageAgentSpecs({
     BASIC_THINKING_LEVELS,
     OPENAI_THINKING_LEVELS,
+    CLAUDE_THINKING_LEVELS,
     parseCursorModels,
     parseAntigravityModels
   })

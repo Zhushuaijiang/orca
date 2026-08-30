@@ -1,20 +1,43 @@
 import type { TuiAgent } from './tui-agent'
 import type {
-  CommitMessageAgentSpec,
   CommitMessageModel,
+  CommitMessageAgentSpec,
   ThinkingLevel
 } from './commit-message-agent-spec'
 
 type SecondaryAgentSpecDeps = {
   BASIC_THINKING_LEVELS: ThinkingLevel[]
   OPENAI_THINKING_LEVELS: ThinkingLevel[]
+  CLAUDE_THINKING_LEVELS: ThinkingLevel[]
   parseCursorModels: (stdout: string) => CommitMessageModel[]
   parseAntigravityModels: (stdout: string) => CommitMessageModel[]
 }
 
+// Why: CodeBuddy documents its supported --model ids in `codebuddy --help`
+// (frontier models first, matching the help order). There is no list subcommand.
+const CODEBUDDY_MODEL_CATALOG: readonly { id: string; label: string }[] = [
+  { id: 'hy4-preview', label: 'Hunyuan 4 Preview' },
+  { id: 'hy4-preview-x', label: 'Hunyuan 4 Preview X' },
+  { id: 'hy3', label: 'Hunyuan 3' },
+  { id: 'hy3-x', label: 'Hunyuan 3 X' },
+  { id: 'glm-5.3', label: 'GLM 5.3' },
+  { id: 'glm-5.3-flash', label: 'GLM 5.3 Flash' },
+  { id: 'glm-5.2', label: 'GLM 5.2' },
+  { id: 'glm-5.1', label: 'GLM 5.1' },
+  { id: 'glm-5v-turbo', label: 'GLM 5V Turbo' },
+  { id: 'minimax-m3', label: 'MiniMax M3' },
+  { id: 'minimax-m2.7', label: 'MiniMax M2.7' },
+  { id: 'kimi-k3-1', label: 'Kimi K3.1' },
+  { id: 'kimi-k2.7', label: 'Kimi K2.7' },
+  { id: 'kimi-k2.6', label: 'Kimi K2.6' },
+  { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+  { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash' }
+]
+
 export function buildSecondaryCommitMessageAgentSpecs({
   BASIC_THINKING_LEVELS,
   OPENAI_THINKING_LEVELS,
+  CLAUDE_THINKING_LEVELS,
   parseCursorModels,
   parseAntigravityModels
 }: SecondaryAgentSpecDeps): Partial<Record<TuiAgent, CommitMessageAgentSpec>> {
@@ -107,6 +130,38 @@ export function buildSecondaryCommitMessageAgentSpecs({
           ],
           defaultThinkingLevel: 'on'
         }
+      ],
+      defaultModelId: 'default'
+    },
+    codebuddy: {
+      id: 'codebuddy',
+      label: 'CodeBuddy',
+      binary: 'codebuddy',
+      // Why: CodeBuddy's -p/--print is a boolean flag (Claude-shaped) and reads
+      // the prompt from stdin when no positional prompt is given — verified live
+      // with `echo <prompt> | codebuddy -p --output-format text`. Stdin keeps
+      // large staged diffs off argv, same rationale as the Claude spec.
+      promptDelivery: 'stdin',
+      buildArgs: ({ model, thinkingLevel }) => [
+        '-p',
+        '--output-format',
+        'text',
+        ...(model && model !== 'default' ? ['--model', model] : []),
+        '--permission-mode',
+        'plan',
+        ...(thinkingLevel ? ['--effort', thinkingLevel] : [])
+      ],
+      modelSource: 'static',
+      // Why: `codebuddy --help` prints the supported --model catalog on this
+      // install; --effort is a session-level flag (minimal..max) documented for
+      // every model, so each entry shares the Claude-style effort levels.
+      models: [
+        { id: 'default', label: 'Config default' },
+        ...CODEBUDDY_MODEL_CATALOG.map((model) => ({
+          ...model,
+          thinkingLevels: CLAUDE_THINKING_LEVELS,
+          defaultThinkingLevel: 'low'
+        }))
       ],
       defaultModelId: 'default'
     },

@@ -45,6 +45,7 @@ export type AgentHooksApi = {
   cursorStatus: () => Promise<AgentHookInstallStatus>
   droidStatus: () => Promise<AgentHookInstallStatus>
   commandCodeStatus: () => Promise<AgentHookInstallStatus>
+  codebuddyStatus: () => Promise<AgentHookInstallStatus>
   grokStatus: () => Promise<AgentHookInstallStatus>
   copilotStatus: () => Promise<AgentHookInstallStatus>
   hermesStatus: () => Promise<AgentHookInstallStatus>

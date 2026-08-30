@@ -8,6 +8,7 @@ import { parseDevinSessionContent } from './session-scanner-devin-parser'
 import { parseDroidSessionContent } from './session-scanner-droid-parser'
 import { parseMessageGraphSessionContent } from './session-scanner-graph-parsers'
 import { parseClaudeSessionContent } from './session-scanner-primary-parsers'
+import { parseCodebuddySessionContent } from './session-scanner-codebuddy-parser'
 import { parseGeminiSessionContent } from './session-scanner-gemini-parsers'
 import { parseCopilotSessionContent } from './session-scanner-copilot-parser'
 import { parseCursorSessionContent } from './session-scanner-cursor-parser'
@@ -54,6 +55,18 @@ export function remoteSessionSources(
       // top-level sessions carrying the parent's sessionId.
       partitionSubagentTranscripts: partitionSubagentTranscriptPaths
     },
+    // Same depth-0 prune as the local source: sessions are exactly
+    // <encoded-cwd>/<sessionId>.jsonl; sibling <sessionId>/ dirs are artifacts.
+    source(
+      'codebuddy',
+      remoteHome,
+      hostPlatform,
+      ['.codebuddy', 'projects'],
+      ['.jsonl'],
+      parseCodebuddySessionContent,
+      undefined,
+      (_name, depth) => depth === 0
+    ),
     remoteAntigravitySource(remoteHome, hostPlatform),
     source(
       'gemini',

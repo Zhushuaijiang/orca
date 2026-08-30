@@ -33,6 +33,7 @@ describe('COMMIT_MESSAGE_AGENT_SPECS', () => {
       'amp',
       'antigravity',
       'claude',
+      'codebuddy',
       'codex',
       'copilot',
       'cursor',
@@ -567,6 +568,78 @@ describe('buildArgs (OpenCode)', () => {
     })
 
     expect(args).not.toContain('--variant')
+  })
+})
+
+describe('buildArgs (CodeBuddy)', () => {
+  const spec = getCommitMessageAgentSpec('codebuddy')!
+
+  it('prints text from stdin like the Claude spec, never via argv', () => {
+    const prompt = `PROMPT ${'x'.repeat(1024)}`
+    const args = spec.buildArgs({ prompt, model: 'hy3' })
+
+    expect(spec.promptDelivery).toBe('stdin')
+    expect(args).toEqual([
+      '-p',
+      '--output-format',
+      'text',
+      '--model',
+      'hy3',
+      '--permission-mode',
+      'plan'
+    ])
+    expect(args).not.toContain(prompt)
+  })
+
+  it('omits --model for the config default', () => {
+    expect(spec.buildArgs({ prompt: 'PROMPT', model: 'default' })).not.toContain('--model')
+  })
+
+  it('appends --effort when a thinking level is supplied', () => {
+    const args = spec.buildArgs({ prompt: 'PROMPT', model: 'glm-5.3', thinkingLevel: 'high' })
+    expect(args).toEqual([
+      '-p',
+      '--output-format',
+      'text',
+      '--model',
+      'glm-5.3',
+      '--permission-mode',
+      'plan',
+      '--effort',
+      'high'
+    ])
+  })
+
+  it('lists the help-documented model catalog with shared effort levels', () => {
+    const models = COMMIT_MESSAGE_AGENT_SPECS.codebuddy?.models ?? []
+    expect(models.map((m) => m.id)).toEqual([
+      'default',
+      'hy4-preview',
+      'hy4-preview-x',
+      'hy3',
+      'hy3-x',
+      'glm-5.3',
+      'glm-5.3-flash',
+      'glm-5.2',
+      'glm-5.1',
+      'glm-5v-turbo',
+      'minimax-m3',
+      'minimax-m2.7',
+      'kimi-k3-1',
+      'kimi-k2.7',
+      'kimi-k2.6',
+      'deepseek-v4-pro',
+      'deepseek-v4-flash'
+    ])
+    expect(COMMIT_MESSAGE_AGENT_SPECS.codebuddy?.defaultModelId).toBe('default')
+    expect(models[1]?.thinkingLevels?.map((l) => l.id)).toEqual([
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max'
+    ])
+    expect(models[1]?.defaultThinkingLevel).toBe('low')
   })
 })
 

@@ -16,6 +16,7 @@ import { antigravityHookService } from '../antigravity/hook-service'
 import { cursorHookService } from '../cursor/hook-service'
 import { droidHookService } from '../droid/hook-service'
 import { commandCodeHookService } from '../command-code/hook-service'
+import { codebuddyHookService } from '../codebuddy/hook-service'
 import { grokHookService } from '../grok/hook-service'
 import { copilotHookService } from '../copilot/hook-service'
 import { hermesHookService } from '../hermes/hook-service'
@@ -214,6 +215,19 @@ export function registerAgentHookHandlers(
     } catch (err) {
       return {
         agent: 'command-code',
+        state: 'error',
+        configPath: '',
+        managedHooksPresent: false,
+        detail: err instanceof Error ? err.message : String(err)
+      }
+    }
+  })
+  ipcMain.handle('agentHooks:codebuddyStatus', (): AgentHookInstallStatus => {
+    try {
+      return codebuddyHookService.getStatus()
+    } catch (err) {
+      return {
+        agent: 'codebuddy',
         state: 'error',
         configPath: '',
         managedHooksPresent: false,
