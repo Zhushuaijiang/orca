@@ -7,6 +7,8 @@ import { parseGrokSessionFile } from './session-scanner-grok-parser'
 import { parseMessageGraphSessionFile, parseRovoSessionFile } from './session-scanner-graph-parsers'
 import { parseKimiSessionFile } from './session-scanner-kimi-parser'
 import { parseCodebuddySessionFile } from './session-scanner-codebuddy-parser'
+import { parseZcodeSqliteSession } from './session-scanner-zcode-sqlite'
+import { splitZcodeSqliteCandidate } from './session-scanner-zcode-sqlite-paths'
 import { splitOpenCodeSqliteCandidate } from './session-scanner-opencode-sqlite-paths'
 import { parseOpenCodeSqliteSessionViaWorker } from './session-scanner-opencode-sqlite-worker-spawn'
 import { parseClaudeSessionFile } from './session-scanner-primary-parsers'
@@ -82,5 +84,18 @@ export async function parseAgentSessionFile(
       return parseKimiSessionFile(candidate.file, platform)
     case 'codebuddy':
       return parseCodebuddySessionFile(candidate.file, platform)
+    case 'zcode': {
+      // Why: ZCode sessions are read from SQLite via a synthetic
+      // <dbPath>#<sessionId> candidate path. A bare db path is not a session.
+      const sqliteCandidate = splitZcodeSqliteCandidate(candidate.file.path)
+      if (sqliteCandidate) {
+        return parseZcodeSqliteSession({
+          dbPath: sqliteCandidate.dbPath,
+          sessionId: sqliteCandidate.sessionId,
+          platform
+        })
+      }
+      return null
+    }
   }
 }

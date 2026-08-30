@@ -4,11 +4,14 @@ import type {
   AiVaultSession
 } from '../../shared/ai-vault-types'
 import { LOCAL_EXECUTION_HOST_ID, type ExecutionHostId } from '../../shared/execution-host'
+import { basename } from 'node:path'
 import { wslGatedStat } from '../native-chat/wsl-transcript-fs-access'
 import { parseAgentSessionFile } from './session-scanner-agent-parser'
 import { withFullFirstUserPromptCapture } from './session-scanner-first-user-prompt-capture'
 import { parseOpenCodeSqliteSession } from './session-scanner-opencode-sqlite'
 import { splitOpenCodeSqliteCandidate } from './session-scanner-opencode-sqlite-paths'
+import { parseZcodeSqliteSession } from './session-scanner-zcode-sqlite'
+import { splitZcodeSqliteCandidate } from './session-scanner-zcode-sqlite-paths'
 import type { FileWithMtime } from './session-scanner-types'
 
 export type ReadAiVaultFirstUserPromptArgs = {
@@ -82,6 +85,26 @@ async function parseSessionForFullFirstUserPrompt(args: {
       return parseOpenCodeSqliteSession({
         dbPath: args.filePath,
         sessionId: args.sessionId,
+        platform: process.platform
+      })
+    }
+  }
+
+  // Why: same shape as OpenCode — ZCode rows carry the db path plus a row id,
+  // and the earliest user turn is only readable from a full in-process parse.
+  if (args.agent === 'zcode') {
+    const fromSynthetic = splitZcodeSqliteCandidate(args.filePath)
+    if (fromSynthetic) {
+      return parseZcodeSqliteSession({
+        dbPath: fromSynthetic.dbPath,
+        sessionId: fromSynthetic.sessionId,
+        platform: process.platform
+      })
+    }
+    if (args.sessionId && basename(args.filePath).toLowerCase().endsWith('.sqlite')) {
+      return parseZcodeSqliteSession({
+        dbPath: args.filePath,
+        sessionId: args.sessionId.trim(),
         platform: process.platform
       })
     }

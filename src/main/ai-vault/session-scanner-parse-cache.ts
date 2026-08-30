@@ -42,9 +42,9 @@ type SessionParseCacheEntry = {
 
 // Incremental append-parsing applies only to transcripts that are append-only
 // JSONL line-folds. Whole-JSON documents (grok/rovo/devin/hermes/gemini-json)
-// are rewritten in place, Kimi reads a state doc plus a sibling wire file, and
-// OpenCode reads SQLite rows or a doc plus a message dir — those formats keep
-// unchanged-file reuse only and re-parse whole when they change.
+// are rewritten in place, Kimi reads a state doc plus a sibling wire file,
+// OpenCode and ZCode read SQLite rows or a doc plus a message dir — those
+// formats keep unchanged-file reuse only and re-parse whole when they change.
 // Returns a factory (not a state) so steady-state resumes, which clone the
 // cached state instead, never pay for a throwaway accumulator.
 function resumableStateFactoryFor(
@@ -82,6 +82,7 @@ function resumableStateFactoryFor(
     case 'cline':
     case 'kimi':
     case 'opencode':
+    case 'zcode':
     case 'rovo':
       return null
   }

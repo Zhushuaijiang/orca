@@ -4,6 +4,7 @@ import {
   AGENT_SESSION_CODEBUDDY_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_KIMI_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_OMP_RESUME_PATH_RUNTIME_CAPABILITY,
+  AGENT_SESSION_ZCODE_RESUME_RUNTIME_CAPABILITY,
   RUNTIME_CAPABILITIES
 } from '../../../shared/protocol-version'
 import { agentResumeHostAuthorityCapability } from './agent-resume-host-authority-capability'
@@ -18,6 +19,12 @@ describe('agentResumeHostAuthorityCapability', () => {
   it('gates CodeBuddy resume behind its own capability', () => {
     expect(agentResumeHostAuthorityCapability('codebuddy')).toBe(
       AGENT_SESSION_CODEBUDDY_RESUME_RUNTIME_CAPABILITY
+    )
+  })
+
+  it('gates ZCode resume behind its own capability', () => {
+    expect(agentResumeHostAuthorityCapability('zcode')).toBe(
+      AGENT_SESSION_ZCODE_RESUME_RUNTIME_CAPABILITY
     )
   })
 
@@ -39,6 +46,10 @@ describe('agentResumeHostAuthorityCapability', () => {
 
   it('advertises the CodeBuddy resume capability from the host', () => {
     expect(RUNTIME_CAPABILITIES).toContain(AGENT_SESSION_CODEBUDDY_RESUME_RUNTIME_CAPABILITY)
+  })
+
+  it('advertises the ZCode resume capability from the host', () => {
+    expect(RUNTIME_CAPABILITIES).toContain(AGENT_SESSION_ZCODE_RESUME_RUNTIME_CAPABILITY)
   })
 
   it('pins the gate for every resumable agent so a new member is a deliberate decision', () => {
@@ -63,7 +74,8 @@ describe('agentResumeHostAuthorityCapability', () => {
       copilot: undefined,
       omp: AGENT_SESSION_OMP_RESUME_PATH_RUNTIME_CAPABILITY,
       kimi: AGENT_SESSION_KIMI_RESUME_RUNTIME_CAPABILITY,
-      codebuddy: AGENT_SESSION_CODEBUDDY_RESUME_RUNTIME_CAPABILITY
+      codebuddy: AGENT_SESSION_CODEBUDDY_RESUME_RUNTIME_CAPABILITY,
+      zcode: AGENT_SESSION_ZCODE_RESUME_RUNTIME_CAPABILITY
     })
   })
 })

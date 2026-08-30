@@ -17,6 +17,17 @@ describe('buildAiVaultResumeCommand', () => {
     ).toBe("cd '/repo/app' && codebuddy --resume 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'")
   })
 
+  it('resumes ZCode by persisted session id (sess_...)', () => {
+    expect(
+      buildAiVaultResumeCommand({
+        agent: 'zcode',
+        sessionId: 'sess_431324d7-2165-42f0-9ecd-9f93437b3201',
+        cwd: '/repo/app',
+        platform: 'darwin'
+      })
+    ).toBe("cd '/repo/app' && zcode --resume 'sess_431324d7-2165-42f0-9ecd-9f93437b3201'")
+  })
+
   it('uses Antigravity conversation ids instead of Gemini resume flags', () => {
     expect(
       buildAiVaultResumeCommand({

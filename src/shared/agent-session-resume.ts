@@ -17,7 +17,8 @@ export const RESUMABLE_TUI_AGENTS = [
   'prime-agent',
   'copilot',
   'kimi',
-  'codebuddy'
+  'codebuddy',
+  'zcode'
 ] as const satisfies readonly TuiAgent[]
 
 export type ResumableTuiAgent = (typeof RESUMABLE_TUI_AGENTS)[number]
@@ -299,5 +300,8 @@ export function getAgentResumeArgv(
     // are named <sessionId>.jsonl, so no Claude-style path caveat applies.
     case 'codebuddy':
       return providerSession.key === 'session_id' ? ['codebuddy', '--resume', id] : null
+    // Why: ZCode resumes a persisted session by id (`--resume <sessionId>`).
+    case 'zcode':
+      return providerSession.key === 'session_id' ? ['zcode', '--resume', id] : null
   }
 }

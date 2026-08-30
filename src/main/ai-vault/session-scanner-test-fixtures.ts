@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import Database from '../sqlite/sync-database'
 
 export function isolatedScanRoots(root: string) {
   return {
@@ -26,7 +27,10 @@ export function isolatedScanRoots(root: string) {
     droidProjectsDir: join(root, 'droid-projects'),
     clineSessionsDir: join(root, 'cline-sessions'),
     kimiSessionsDir: join(root, 'kimi-sessions'),
-    codebuddyProjectsDir: join(root, 'codebuddy-projects')
+    codebuddyProjectsDir: join(root, 'codebuddy-projects'),
+    // Why: prevent the ZCode scanner from picking up the real
+    // ~/.zcode/cli/db/db.sqlite during tests.
+    zcodeDbDir: join(root, 'zcode-db')
   }
 }
 
@@ -137,4 +141,70 @@ export function writeAntigravityScannerFixture(
       content: 'Done'
     }
   ])
+}
+
+// ZCode: one SQLite db (db.sqlite) under the injected db dir, holding one
+// session row plus column-shape message/part rows for the preview.
+export async function writeZcodeScannerFixture(dbDir: string): Promise<string> {
+  await mkdir(dbDir, { recursive: true })
+  const dbPath = join(dbDir, 'db.sqlite')
+  const db = new Database(dbPath)
+  db.exec(`
+    CREATE TABLE session (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      workspace_id TEXT,
+      parent_id TEXT,
+      slug TEXT NOT NULL,
+      directory TEXT NOT NULL,
+      path TEXT,
+      title TEXT NOT NULL,
+      version TEXT NOT NULL,
+      share_url TEXT,
+      summary_additions INTEGER,
+      summary_deletions INTEGER,
+      summary_files INTEGER,
+      summary_diffs TEXT,
+      revert TEXT,
+      permission TEXT,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL,
+      time_compacting INTEGER,
+      time_archived INTEGER
+    );
+    CREATE TABLE message (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES session(id),
+      role TEXT NOT NULL,
+      text TEXT,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL
+    );
+    CREATE TABLE part (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL REFERENCES message(id),
+      session_id TEXT NOT NULL,
+      type TEXT,
+      text TEXT,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL
+    );
+  `)
+  db.prepare(
+    `INSERT INTO session (id, project_id, slug, directory, title, version,
+       time_created, time_updated)
+     VALUES ('sess_zcode-session', 'proj-1', 'slug', '/tmp/zcode', 'ZCode vault title', '0.16.5',
+       1777634012000, 1777634013000)`
+  ).run()
+  db.prepare(
+    `INSERT INTO message (id, session_id, role, text, time_created, time_updated)
+     VALUES ('zmsg_1', 'sess_zcode-session', 'user', NULL, 1777634012000, 1777634012000)`
+  ).run()
+  db.prepare(
+    `INSERT INTO part (id, message_id, session_id, type, text, time_created, time_updated)
+     VALUES ('zprt_1', 'zmsg_1', 'sess_zcode-session', 'text', 'ZCode vault title',
+       1777634012000, 1777634012000)`
+  ).run()
+  db.close()
+  return dbPath
 }

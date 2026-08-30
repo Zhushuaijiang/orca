@@ -216,6 +216,9 @@ function buildAgentResumeInvocation(
     // transcript files are named `<sessionId>.jsonl`, so the id alone locates them.
     // falls through
     case 'codebuddy':
+    // Why: `zcode --resume <sessionId>` resumes a persisted session (sess_...).
+    // falls through
+    case 'zcode':
     case 'claude':
     case 'cursor':
     case 'gemini':

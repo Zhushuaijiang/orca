@@ -37,6 +37,9 @@ export type AiVaultScanOptions = {
   droidProjectsDir?: string
   clineSessionsDir?: string
   kimiSessionsDir?: string
+  // Why: ZCode stores sessions in SQLite under ~/.zcode/cli/db; tests inject a
+  // temp dir here so they don't depend on the real ~/.zcode.
+  zcodeDbDir?: string
   limit?: number
   unlimited?: boolean
   limitPerAgent?: number

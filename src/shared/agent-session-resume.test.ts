@@ -32,6 +32,10 @@ describe('agent session resume metadata', () => {
     expect(isResumableTuiAgent('codebuddy')).toBe(true)
   })
 
+  it('treats ZCode as a resumable TUI agent', () => {
+    expect(isResumableTuiAgent('zcode')).toBe(true)
+  })
+
   it.each([
     ['claude', { session_id: 'claude-session' }, { key: 'session_id', id: 'claude-session' }],
     ['codex', { session_id: 'codex-session' }, { key: 'session_id', id: 'codex-session' }],
@@ -103,6 +107,11 @@ describe('agent session resume metadata', () => {
       'codebuddy',
       { key: 'session_id', id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee' },
       ['codebuddy', '--resume', 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee']
+    ],
+    [
+      'zcode',
+      { key: 'session_id', id: 'sess_431324d7-2165-42f0-9ecd-9f93437b3201' },
+      ['zcode', '--resume', 'sess_431324d7-2165-42f0-9ecd-9f93437b3201']
     ]
   ] as const)('builds %s resume argv', (agent, providerSession, expected) => {
     expect(getAgentResumeArgv(agent, providerSession)).toEqual(expected)
@@ -143,6 +152,10 @@ describe('agent session resume metadata', () => {
 
   it('rejects codebuddy resume when provider session key is not session_id', () => {
     expect(getAgentResumeArgv('codebuddy', { key: 'conversation_id', id: 'x' })).toBeNull()
+  })
+
+  it('rejects zcode resume when provider session key is not session_id', () => {
+    expect(getAgentResumeArgv('zcode', { key: 'conversation_id', id: 'x' })).toBeNull()
   })
 
   it('captures the hook transcript_path for native-chat agents (claude/codex)', () => {
