@@ -203,6 +203,43 @@ describe('resolveAiVaultSessionWorktreeInfo', () => {
       worktreeId: worktree.id
     })
   })
+
+  it('uses the Yunxiao requirement id to disambiguate workspace instances sharing a path', () => {
+    const rootWorkspace = makeWorktree({
+      id: 'repo-1::workspace-root',
+      displayName: 'yunxiao',
+      path: '/workspace/yunxiao'
+    })
+    const requirementWorkspace = makeWorktree({
+      id: 'repo-1::workspace-dfhis-32238',
+      displayName: 'DFHIS-32238 【新安人民】医院组套药房修复',
+      path: '/workspace/yunxiao'
+    })
+    const session = {
+      ...baseSession,
+      agent: 'kimi' as const,
+      cwd: '/workspace/yunxiao',
+      title: 'Process the next actionable Yunxiao todo pool requirement',
+      previewMessages: [
+        {
+          role: 'assistant' as const,
+          text: 'Yunxiao todo pool claim: DFHIS-32238',
+          timestamp: null
+        }
+      ]
+    }
+
+    expect(
+      resolveAiVaultSessionWorktreeInfo({
+        session,
+        worktrees: [rootWorkspace, requirementWorkspace],
+        activeWorktreeId: null
+      })
+    ).toMatchObject({
+      label: requirementWorkspace.displayName,
+      worktreeId: requirementWorkspace.id
+    })
+  })
 })
 
 describe('canJumpToAiVaultSessionWorktree', () => {

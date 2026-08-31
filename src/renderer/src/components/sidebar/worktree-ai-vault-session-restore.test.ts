@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   launchSession: vi.fn(),
   activateWorktree: vi.fn(),
   activateFolder: vi.fn(),
+  activateTabAndFocusPane: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   findLockHolders: vi.fn(),
@@ -28,6 +29,9 @@ vi.mock('@/lib/launch-ai-vault-session', () => ({
 vi.mock('@/lib/worktree-activation', () => ({
   activateAndRevealWorktree: mocks.activateWorktree,
   activateAndRevealFolderWorkspace: mocks.activateFolder
+}))
+vi.mock('@/lib/activate-tab-and-focus-pane', () => ({
+  activateTabAndFocusPane: mocks.activateTabAndFocusPane
 }))
 vi.mock('sonner', () => ({
   toast: { success: mocks.toastSuccess, error: mocks.toastError }
@@ -256,6 +260,71 @@ describe('scanRestorableVaultSessions', () => {
     expect(searchYunxiaoSessions).toHaveBeenCalledWith({ yunxiaoId: 'DFHIS-31889' })
     expect(listSessions).not.toHaveBeenCalled()
   })
+
+  it('uses an automation workspace name instead of scanning its shared path', async () => {
+    const found = session({ id: 'matched', sessionId: 'matched' })
+    const automationWorkspace = worktree({
+      displayName: 'DFHIS-32238 【新安人民】医院组套药房修复',
+      automationProvenance: {
+        kind: 'created-by-automation',
+        automationId: 'automation-1',
+        automationNameSnapshot: '云效待办池',
+        automationRunId: 'run-1',
+        automationRunTitleSnapshot: 'DFHIS-32238 【新安人民】医院组套药房修复',
+        createdAt: 1,
+        executionTargetType: 'local',
+        executionTargetId: 'local',
+        projectId: 'repo-1'
+      }
+    })
+    mocks.getState.mockReturnValue(
+      storeState({ worktreesByRepo: { 'repo-1': [automationWorkspace] } })
+    )
+    const listSessions = vi.fn()
+    const searchYunxiaoSessions = vi.fn().mockResolvedValue({ sessions: [found] })
+    stubWindowApi(listSessions, searchYunxiaoSessions)
+
+    await expect(scanRestorableVaultSessions(WORKTREE_ID)).resolves.toEqual([found])
+    expect(searchYunxiaoSessions).toHaveBeenCalledWith({ yunxiaoId: 'DFHIS-32238' })
+    expect(listSessions).not.toHaveBeenCalled()
+  })
+
+  it('keeps the matching sleeping session in the restore menu', async () => {
+    const found = session({ id: 'matched', sessionId: 'sleeping-session' })
+    const linkedWorktree = worktree({
+      linkedWorkItem: {
+        provider: 'yunxiao',
+        type: 'issue',
+        number: 0,
+        title: 'DFHIS-32238 requirement',
+        url: 'https://devops.aliyun.com/projex/req/DFHIS-32238',
+        yunxiaoIdentifier: 'DFHIS-32238'
+      }
+    })
+    mocks.getState.mockReturnValue(
+      storeState({
+        worktreesByRepo: { 'repo-1': [linkedWorktree] },
+        sleepingAgentSessionsByPaneKey: {
+          'tab-existing:11111111-1111-4111-8111-111111111111': {
+            paneKey: 'tab-existing:11111111-1111-4111-8111-111111111111',
+            tabId: 'tab-existing',
+            worktreeId: WORKTREE_ID,
+            agent: 'kimi',
+            providerSession: { key: 'session_id', id: found.sessionId },
+            prompt: '',
+            state: 'done',
+            capturedAt: 1,
+            updatedAt: 1,
+            origin: 'live'
+          }
+        }
+      })
+    )
+    const searchYunxiaoSessions = vi.fn().mockResolvedValue({ sessions: [found] })
+    stubWindowApi(vi.fn(), searchYunxiaoSessions)
+
+    await expect(scanRestorableVaultSessions(WORKTREE_ID)).resolves.toEqual([found])
+  })
 })
 
 describe('restoreAiVaultSession', () => {
@@ -285,5 +354,46 @@ describe('restoreAiVaultSession', () => {
     expect(mocks.findLockHolders).toHaveBeenCalledWith(restored.sessionId)
     expect(mocks.killLockHolder).toHaveBeenCalledWith(501)
     expect(mocks.prepareSession).toHaveBeenCalledWith(restored)
+  })
+
+  it('focuses the existing tab for a matching sleeping session', async () => {
+    const restored = session({ sessionId: 'sleeping-session' })
+    const paneKey = 'tab-existing:11111111-1111-4111-8111-111111111111'
+    mocks.getState.mockReturnValue(
+      storeState({
+        tabsByWorktree: {
+          [WORKTREE_ID]: [{ id: 'tab-existing', worktreeId: WORKTREE_ID }]
+        },
+        sleepingAgentSessionsByPaneKey: {
+          [paneKey]: {
+            paneKey,
+            tabId: 'tab-existing',
+            worktreeId: WORKTREE_ID,
+            agent: 'kimi',
+            providerSession: { key: 'session_id', id: restored.sessionId },
+            prompt: '',
+            state: 'done',
+            capturedAt: 1,
+            updatedAt: 1,
+            origin: 'live'
+          }
+        }
+      })
+    )
+
+    await expect(restoreAiVaultSession(WORKTREE_ID, restored)).resolves.toBe(true)
+
+    expect(mocks.activateWorktree).toHaveBeenCalledWith(WORKTREE_ID)
+    expect(mocks.activateTabAndFocusPane).toHaveBeenCalledWith(
+      'tab-existing',
+      '11111111-1111-4111-8111-111111111111',
+      {
+        ackPaneKeyOnSuccess: paneKey,
+        flashFocusedPane: true,
+        scrollToBottomIfOutputSinceLastView: true
+      }
+    )
+    expect(mocks.findLockHolders).not.toHaveBeenCalled()
+    expect(mocks.launchSession).not.toHaveBeenCalled()
   })
 })

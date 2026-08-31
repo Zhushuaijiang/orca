@@ -24,6 +24,7 @@ import {
 } from '../../../../shared/cross-platform-path'
 import { parseWslUncPath } from '../../../../shared/wsl-paths'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
+import { resumeSleepingWorkspaceSession } from '@/lib/sleeping-workspace-session-restore'
 import {
   resolveAgentRowWorkspaceTarget,
   type AgentRowWorkspaceTarget
@@ -44,7 +45,6 @@ type VaultRestoreState = Pick<
   | 'repos'
   | 'retainedAgentsByPaneKey'
   | 'settings'
-  | 'sleepingAgentSessionsByPaneKey'
   | 'tabsByWorktree'
   | 'worktreesByRepo'
 >
@@ -78,11 +78,6 @@ function collectOpenAgentSessions(
         agent: retained.agentType,
         sessionId: retained.entry.providerSession.id
       })
-    }
-  }
-  for (const sleeping of Object.values(state.sleepingAgentSessionsByPaneKey)) {
-    if (sleeping.worktreeId === workspaceId) {
-      identities.push({ agent: sleeping.agent, sessionId: sleeping.providerSession.id })
     }
   }
   for (const [tabId, startup] of Object.entries(state.pendingStartupByTabId)) {
@@ -233,6 +228,16 @@ export async function restoreAiVaultSession(
   const workspace = resolveAgentRowWorkspaceTarget(state, workspaceId)
   if (!workspace || !sessionBelongsToWorkspace(session, workspace)) {
     return false
+  }
+  if (resumeSleepingWorkspaceSession(workspace.workspaceId, session)) {
+    toast.success(
+      translate(
+        'auto.components.sidebar.WorktreeContextMenu.agentSessionRestored',
+        '{{value0}} session restored',
+        { value0: aiVaultAgentLabel(session.agent) }
+      )
+    )
+    return true
   }
   await releaseAgentSessionLockIfNeeded(session)
   const preparedSession = await prepareAiVaultSessionForResume(session)

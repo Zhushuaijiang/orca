@@ -15,6 +15,10 @@ import {
 import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
+import {
+  resolveAiVaultSessionYunxiaoRequirementId,
+  resolveWorktreeYunxiaoRequirementId
+} from '@/lib/workspace-yunxiao-requirement'
 import { aiVaultWorktreeCompactPath } from './ai-vault-session-worktree-affordances'
 
 export {
@@ -45,6 +49,7 @@ type WorktreeCandidate = {
   // Precomputed so a 500-session scan doesn't re-normalize ~500 roots per session.
   ownsNormalizedCwd: (normalizedCwd: string) => boolean
   normalizedPathLength: number
+  yunxiaoRequirementId: string | null
 }
 
 export function resolveAiVaultSessionWorktreeInfo({
@@ -91,9 +96,15 @@ function resolveWorktreeInfoFromCandidates(
   const matched = candidates
     .filter((candidate) => candidate.ownsNormalizedCwd(normalizedCwd))
     .filter((candidate) => !sessionHostId || candidate.hostId === sessionHostId)
-    .sort(compareWorktreeCandidates)
+  const sessionRequirementId = resolveAiVaultSessionYunxiaoRequirementId(session)
+  const requirementMatched = sessionRequirementId
+    ? matched.filter((candidate) => candidate.yunxiaoRequirementId === sessionRequirementId)
+    : []
+  const ranked = (requirementMatched.length > 0 ? requirementMatched : matched).sort(
+    compareWorktreeCandidates
+  )
 
-  const best = matched[0]
+  const best = ranked[0]
   if (!best) {
     return {
       status: 'unavailable',
@@ -243,7 +254,8 @@ function makeWorktreeCandidate(
     source,
     ownsNormalizedCwd: (normalizedCwd) =>
       ownsCwd(normalizedCwd) || (ownsCwdViaWslAlias?.(normalizedCwd) ?? false),
-    normalizedPathLength: normalizeRuntimePathForComparison(path).length
+    normalizedPathLength: normalizeRuntimePathForComparison(path).length,
+    yunxiaoRequirementId: resolveWorktreeYunxiaoRequirementId(worktree)
   }
 }
 

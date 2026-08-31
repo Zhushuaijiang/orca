@@ -11,6 +11,10 @@ import { folderWorkspaceKey, parseWorkspaceKey } from '../../../../shared/worksp
 import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import type { AiVaultSessionResumeTargetState } from '../right-sidebar/ai-vault-session-resume'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
+import {
+  resolveFolderWorkspaceYunxiaoRequirementId,
+  resolveWorktreeYunxiaoRequirementId
+} from '@/lib/workspace-yunxiao-requirement'
 
 // Why: rows only get the session menu when a resume identity exists — without
 // a provider session id no vault transcript can be matched, so the row keeps
@@ -54,12 +58,14 @@ export function resolveAgentRowWorkspaceTarget(
     if (!folder) {
       return null
     }
+    const yunxiaoRequirementId = resolveFolderWorkspaceYunxiaoRequirementId(folder)
     return {
       workspaceId: folderWorkspaceKey(folder.id),
       path: folder.folderPath,
       executionHostId:
         normalizeExecutionHostId(folder.executionHostId) ??
-        (folder.connectionId ? toSshExecutionHostId(folder.connectionId) : LOCAL_EXECUTION_HOST_ID)
+        (folder.connectionId ? toSshExecutionHostId(folder.connectionId) : LOCAL_EXECUTION_HOST_ID),
+      ...(yunxiaoRequirementId ? { yunxiaoRequirementId } : {})
     }
   }
   const worktree = findWorktreeById(state.worktreesByRepo, workspaceId)
@@ -67,10 +73,7 @@ export function resolveAgentRowWorkspaceTarget(
     return null
   }
   const repo = state.repos.find((entry) => entry.id === worktree.repoId) ?? undefined
-  const yunxiaoRequirementId =
-    worktree.linkedWorkItem?.provider === 'yunxiao'
-      ? worktree.linkedWorkItem.yunxiaoIdentifier?.trim()
-      : undefined
+  const yunxiaoRequirementId = resolveWorktreeYunxiaoRequirementId(worktree)
   return {
     workspaceId: worktree.id,
     path: worktree.path,

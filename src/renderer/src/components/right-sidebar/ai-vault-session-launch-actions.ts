@@ -29,6 +29,7 @@ import { prepareAiVaultSessionContinuation } from './ai-vault-session-continuati
 import type { AgentSessionContinuationRequest } from '@/lib/agent-session-continuation'
 import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import { activateAiVaultStructuredSession } from '@/lib/activate-ai-vault-structured-session'
+import { resumeSleepingWorkspaceSession } from '@/lib/sleeping-workspace-session-restore'
 
 export function useAiVaultSessionLaunchActions({
   activeWorktree,
@@ -109,6 +110,10 @@ export function useAiVaultSessionLaunchActions({
             { value0: agentLabel(session.agent) }
           )
         )
+      }
+      if (resumeSleepingWorkspaceSession(targetId.worktreeId, session)) {
+        showQueuedToast()
+        return
       }
       void prepareAiVaultSessionForResume(session)
         .then((preparedSession) => {

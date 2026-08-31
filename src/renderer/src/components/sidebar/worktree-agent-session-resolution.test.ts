@@ -222,6 +222,37 @@ describe('resolveAgentRowWorkspaceTarget', () => {
     })
   })
 
+  it('derives the Yunxiao requirement identity from an automation workspace name', () => {
+    const automationWorkspace = {
+      ...state,
+      worktreesByRepo: {
+        'repo-1': [
+          makeWorktree({
+            displayName: 'DFHIS-32238 【新安人民】医院组套药房修复',
+            automationProvenance: {
+              kind: 'created-by-automation',
+              automationId: 'automation-1',
+              automationNameSnapshot: '云效待办池',
+              automationRunId: 'run-1',
+              automationRunTitleSnapshot: 'DFHIS-32238 【新安人民】医院组套药房修复',
+              createdAt: 1,
+              executionTargetType: 'local',
+              executionTargetId: 'local',
+              projectId: 'repo-1'
+            }
+          })
+        ]
+      }
+    }
+
+    expect(resolveAgentRowWorkspaceTarget(automationWorkspace, 'repo-1::/repo/orca')).toEqual({
+      workspaceId: 'repo-1::/repo/orca',
+      path: '/repo/orca',
+      executionHostId: 'local',
+      yunxiaoRequirementId: 'DFHIS-32238'
+    })
+  })
+
   it('derives an ssh host from the repo connection', () => {
     const remote = {
       ...state,
@@ -237,6 +268,20 @@ describe('resolveAgentRowWorkspaceTarget', () => {
       workspaceId: 'folder:folder-1',
       path: '/folders/notes',
       executionHostId: 'local'
+    })
+  })
+
+  it('derives the Yunxiao requirement identity from a folder workspace name', () => {
+    const namedFolder = {
+      ...state,
+      folderWorkspaces: [makeFolderWorkspace({ name: 'DFHIS-32238 医院组套药房修复' })]
+    }
+
+    expect(resolveAgentRowWorkspaceTarget(namedFolder, 'folder:folder-1')).toEqual({
+      workspaceId: 'folder:folder-1',
+      path: '/folders/notes',
+      executionHostId: 'local',
+      yunxiaoRequirementId: 'DFHIS-32238'
     })
   })
 

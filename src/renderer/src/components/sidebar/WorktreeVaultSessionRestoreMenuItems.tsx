@@ -34,11 +34,12 @@ export function WorktreeVaultSessionRestoreMenuItems({
         <DropdownMenuSubContent className="w-72">
           {sessions.map((session) => (
             <DropdownMenuItem
-              key={session.sessionId}
+              key={session.id}
               onSelect={() => onRestoreSpecificSession(session)}
+              title={session.title || session.sessionId}
             >
               <div className="flex min-w-0 flex-col">
-                <span className="truncate text-sm">{session.title || 'Untitled'}</span>
+                <span className="truncate font-mono text-sm">{session.sessionId}</span>
                 <span className="truncate text-xs text-muted-foreground">
                   {aiVaultAgentLabel(session.agent)} · {session.modifiedAt}
                 </span>
