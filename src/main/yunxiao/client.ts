@@ -6,7 +6,11 @@ import type {
   YunxiaoRequirementResult
 } from '../../shared/yunxiao-types'
 import { callTool, type McpToolCallResult, openMcpSession } from './mcp-http-transport'
-import { getHisMcpConnection, getOfficialYunxiaoConnection } from './mcp-connections'
+import {
+  getHisMcpConnection,
+  getHisMcpToolToken,
+  getOfficialYunxiaoConnection
+} from './mcp-connections'
 import { callStdioTool } from './mcp-stdio-transport'
 import { runDirectYunxiaoArchive } from './direct-archive-runner'
 import {
@@ -208,6 +212,7 @@ async function archiveMessage(workItemIdOrUrl: string, dispatch: boolean, review
     {
       message,
       session_id: agentSessionId,
+      mcp_token: getHisMcpToolToken(connection),
       ...(dispatch ? {} : { expert: DEFAULT_EXPERT }),
       debug: false,
       timeout_seconds: dispatch ? 600 : 1800
@@ -241,6 +246,7 @@ export async function createYunxiaoRequirement(
       {
         message: buildCreateRequirementMessage({ ...args, title }),
         session_id: `orca-yunxiao-create-${randomUUID()}`,
+        mcp_token: getHisMcpToolToken(connection),
         expert: DEFAULT_EXPERT,
         debug: false,
         timeout_seconds: 1800

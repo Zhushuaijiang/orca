@@ -18,6 +18,18 @@ export function getHisMcpConnection(): McpConnection {
   return { url, bearerToken, hasQueryToken }
 }
 
+// HIS MCP v1.27+ requires mcp_token in every tools/call arguments alongside the URL/bearer auth.
+export function getHisMcpToolToken(connection: McpConnection): string {
+  if (connection.bearerToken) {
+    return connection.bearerToken
+  }
+  try {
+    return new URL(connection.url).searchParams.get('t')?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
 function appendToolsetQuery(url: URL): string {
   if (!url.searchParams.has('toolsets')) {
     url.searchParams.set('toolsets', 'organization-management,project-management')
