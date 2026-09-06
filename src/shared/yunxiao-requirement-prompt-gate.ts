@@ -32,6 +32,7 @@ export type ManualYunxiaoRequirementGate = {
 const SKIP_MARKERS = [
   YUNXIAO_GATE_MARKER,
   'Yunxiao todo pool claim:',
+  'Orca Yunxiao review handoff',
   'yunxiaoRequirementOutcomes',
   'You are working inside Orca, a multi-agent IDE. You are a dispatched worker.'
 ]

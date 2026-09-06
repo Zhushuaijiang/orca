@@ -2269,6 +2269,8 @@
         "yunxiaoTodoPoolAdded": "Added to todo pool.",
         "yunxiaoConfigureAutomation": "Configure",
         "yunxiaoRunNextAutomation": "Run next",
+        "yunxiaoReviewHandoff": "Review handoff",
+        "yunxiaoReviewHandoffUpdated": "Review handoff updated.",
         "yunxiaoTodoPoolAutomationName": "Yunxiao todo pool",
         "yunxiaoTodoPoolAutomationNoTarget": "Choose a workspace before configuring the Yunxiao todo pool automation.",
         "yunxiaoTodoPoolAutomationConfigured": "Yunxiao todo pool automation configured. Use Run next to start the next item.",

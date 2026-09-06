@@ -1985,6 +1985,8 @@
         "yunxiaoTodoPoolAdded": "Added to todo pool.",
         "yunxiaoConfigureAutomation": "配置自动化",
         "yunxiaoRunNextAutomation": "立即运行",
+        "yunxiaoReviewHandoff": "审核接力",
+        "yunxiaoReviewHandoffUpdated": "已更新审核接力。",
         "yunxiaoTodoPoolAutomationName": "云效待办池",
         "yunxiaoTodoPoolAutomationNoTarget": "配置云效待办池自动化前，请先选择一个工作区。",
         "yunxiaoTodoPoolAutomationConfigured": "已配置云效待办池自动化，点“立即运行”开始捞取下一条。",

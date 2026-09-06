@@ -3,6 +3,7 @@
  * completion bookkeeping, and focus restoration. */
 import { useEffect } from 'react'
 import { launchAgentBackgroundSession } from '@/lib/launch-agent-background-session'
+import { maybeLaunchYunxiaoReviewHandoff } from '@/lib/yunxiao-review-handoff-launch'
 import { submitPromptToAgentPtyWhenReady } from '@/lib/agent-paste-draft'
 import { findReusableAutomationSession } from '@/lib/automation-session-reuse'
 import { observeExistingAutomationSession } from '@/lib/automation-session-observer'
@@ -347,6 +348,20 @@ export function useAutomationDispatchEvents(): void {
           let pendingExitCode: number | null = null
           let pendingDone = false
           let completionMarked = false
+          let implementerPaneKey: string | null = null
+          const launchReviewHandoff = (
+            outputSnapshot: ReturnType<typeof getOutputSnapshot>
+          ): void => {
+            void maybeLaunchYunxiaoReviewHandoff({
+              automation,
+              run,
+              worktreeId: worktree.id,
+              implementerPaneKey,
+              outputSnapshot
+            }).catch((error) => {
+              console.error('[automations] Failed to launch Yunxiao review handoff:', error)
+            })
+          }
           let unsubscribeAgentStatus = (): void => {}
           let unsubscribeSessionObserver = (): void => {}
           let releaseReuseDispatchTab = (): void => {}
@@ -377,6 +392,7 @@ export function useAutomationDispatchEvents(): void {
                 precheckResult,
                 error: null
               })
+              launchReviewHandoff(outputSnapshot)
             } catch (error) {
               releaseTerminalOwnership()
               throw error
@@ -423,6 +439,9 @@ export function useAutomationDispatchEvents(): void {
                 precheckResult,
                 error: code === 0 ? null : `Automation process exited with code ${code}.`
               })
+              if (code === 0) {
+                launchReviewHandoff(outputSnapshot)
+              }
             } catch (error) {
               releaseTerminalOwnership()
               throw error
@@ -542,6 +561,7 @@ export function useAutomationDispatchEvents(): void {
                   if (!submitted) {
                     cleanupRunObservers()
                   } else {
+                    implementerPaneKey = reusableSession.paneKey
                     let reuseSawWorking = false
                     const handleReusableAgentStatus = (payload: { state: string }): void => {
                       if (payload.state === 'working') {
@@ -638,6 +658,7 @@ export function useAutomationDispatchEvents(): void {
             throw new Error('Unable to build an agent launch plan.')
           }
           terminalOwnership = result.terminalOwnership
+          implementerPaneKey = result.paneKey
           if (automation.reuseSession) {
             // Why: the first fresh launch is the seed for later reuse and must
             // survive completion under the same policy as an already-reused tab.

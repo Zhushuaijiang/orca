@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
+import type { AutomationYunxiaoReviewHandoff } from '../../../shared/automations-types'
 import type {
   YunxiaoTodoPoolStatus,
   YunxiaoWorkItemCategory,
   YunxiaoWorkItemFacet
 } from '../../../shared/types'
 import { TodoPoolFilters, WorkItemFilters } from './task-page-yunxiao-work-item-filters'
+import { TaskPageYunxiaoReviewHandoffControl } from './task-page-yunxiao-review-handoff-control'
 import type { YunxiaoListView, YunxiaoRelationFilter } from './task-page-yunxiao-work-item-model'
 
 type TaskPageYunxiaoWorkItemToolbarProps = {
@@ -40,6 +42,8 @@ type TaskPageYunxiaoWorkItemToolbarProps = {
   onCreateRequirement: () => void
   onConfigureTodoPoolAutomation: () => void
   onRunNextTodoPoolAutomation: () => void
+  reviewHandoff: AutomationYunxiaoReviewHandoff
+  onReviewHandoffChange: (next: AutomationYunxiaoReviewHandoff) => void
   onRefresh: () => void
 }
 
@@ -55,6 +59,7 @@ export function TaskPageYunxiaoWorkItemToolbar({
   onQuerySubmit,
   onRefresh,
   onRelationChange,
+  onReviewHandoffChange,
   onRunNextTodoPoolAutomation,
   onSprintChange,
   onStatusIdsChange,
@@ -62,6 +67,7 @@ export function TaskPageYunxiaoWorkItemToolbar({
   onViewChange,
   queryInput,
   relation,
+  reviewHandoff,
   runningTodoPoolAutomation = false,
   selectedCount,
   shownCount,
@@ -154,6 +160,10 @@ export function TaskPageYunxiaoWorkItemToolbar({
         ) : null}
         {view === 'todo-pool' ? (
           <>
+            <TaskPageYunxiaoReviewHandoffControl
+              reviewHandoff={reviewHandoff}
+              onReviewHandoffChange={onReviewHandoffChange}
+            />
             <Button
               variant="outline"
               size="sm"

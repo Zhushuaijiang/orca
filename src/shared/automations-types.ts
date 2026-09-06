@@ -91,10 +91,16 @@ export type AutomationPrecheck = {
   timeoutSeconds: number
 }
 
+export type AutomationYunxiaoReviewHandoff = {
+  enabled: boolean
+  agentId: TuiAgent
+}
+
 export type AutomationYunxiaoTodoPoolSource = {
   kind: 'yunxiao-todo-pool'
   statuses: YunxiaoTodoPoolStatus[]
   batchSize: number
+  reviewHandoff?: AutomationYunxiaoReviewHandoff | null
 }
 
 export type AutomationYunxiaoTodoPoolClaim = {

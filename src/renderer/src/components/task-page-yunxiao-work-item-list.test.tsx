@@ -28,8 +28,10 @@ vi.mock('./yunxiao-todo-pool-automation', () => ({
   useYunxiaoTodoPoolAutomation: () => ({
     configureTodoPoolAutomation: vi.fn(),
     configuringTodoPoolAutomation: false,
+    reviewHandoff: { enabled: true, agentId: 'grok' },
     runNextTodoPoolAutomation: vi.fn(),
-    runningTodoPoolAutomation: false
+    runningTodoPoolAutomation: false,
+    updateReviewHandoff: vi.fn()
   })
 }))
 

@@ -1,7 +1,9 @@
 import type {
+  AutomationYunxiaoReviewHandoff,
   AutomationYunxiaoTodoPoolClaim,
   AutomationYunxiaoTodoPoolSource
 } from '../../../shared/automations-types'
+import { isTuiAgent } from '../../../shared/tui-agent-config'
 import { DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES } from '../../../shared/yunxiao-types'
 import {
   normalizeOptionalNonEmptyString,
@@ -34,7 +36,24 @@ export function normalizeAutomationYunxiaoTodoPoolSource(
   return {
     kind: 'yunxiao-todo-pool',
     statuses: normalizedStatuses,
-    batchSize
+    batchSize,
+    reviewHandoff: normalizeAutomationYunxiaoReviewHandoff(candidate.reviewHandoff)
+  }
+}
+
+function normalizeAutomationYunxiaoReviewHandoff(
+  value: unknown
+): AutomationYunxiaoReviewHandoff | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const candidate = value as Partial<AutomationYunxiaoReviewHandoff>
+  if (!isTuiAgent(candidate.agentId)) {
+    return null
+  }
+  return {
+    enabled: candidate.enabled !== false,
+    agentId: candidate.agentId
   }
 }
 

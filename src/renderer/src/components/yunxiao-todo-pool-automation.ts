@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { translate } from '@/i18n/i18n'
 import { getAgentCatalog } from '@/lib/agent-catalog'
 import { useAppStore } from '@/store'
+import { resolveYunxiaoReviewHandoff } from '../../../shared/yunxiao-review-handoff'
 import { filterEnabledTuiAgents, isTuiAgentEnabled } from '../../../shared/tui-agent-selection'
 import { buildAutomationRrule } from '../../../shared/automation-schedule-occurrences'
 import {
@@ -26,7 +27,8 @@ import { projectHostSetupProjectionFromRepos } from '../../../shared/project-hos
 import type {
   Automation,
   AutomationCreateInput,
-  AutomationUpdateInput
+  AutomationUpdateInput,
+  AutomationYunxiaoReviewHandoff
 } from '../../../shared/automations-types'
 import { DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES } from '../../../shared/yunxiao-types'
 import type { GlobalSettings, ProjectHostSetup, Repo, TuiAgent } from '../../../shared/types'
@@ -131,7 +133,8 @@ function resolveTodoPoolAutomationTarget(): TodoPoolAutomationTarget | null {
 }
 
 export function buildTodoPoolAutomationInput(
-  target: TodoPoolAutomationTarget
+  target: TodoPoolAutomationTarget,
+  reviewHandoff?: AutomationYunxiaoReviewHandoff | null
 ): AutomationCreateInput {
   const state = useAppStore.getState()
   const runContext = buildRunContext({
@@ -146,7 +149,8 @@ export function buildTodoPoolAutomationInput(
     yunxiaoTodoPool: {
       kind: 'yunxiao-todo-pool',
       statuses: [...DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES],
-      batchSize: 1
+      batchSize: 1,
+      reviewHandoff: resolveYunxiaoReviewHandoff(reviewHandoff)
     },
     agentId: getDefaultAgent(state.settings),
     runContext,
@@ -168,12 +172,35 @@ export function buildTodoPoolAutomationInput(
 export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => void }): {
   configureTodoPoolAutomation: () => Promise<Automation | null>
   runNextTodoPoolAutomation: () => Promise<void>
+  reviewHandoff: AutomationYunxiaoReviewHandoff
+  updateReviewHandoff: (next: AutomationYunxiaoReviewHandoff) => Promise<void>
   configuringTodoPoolAutomation: boolean
   runningTodoPoolAutomation: boolean
 } {
   const { onTodoPoolChanged } = args
   const [configuringTodoPoolAutomation, setConfiguringTodoPoolAutomation] = useState(false)
   const [runningTodoPoolAutomation, setRunningTodoPoolAutomation] = useState(false)
+  const [reviewHandoff, setReviewHandoff] = useState<AutomationYunxiaoReviewHandoff>(() =>
+    resolveYunxiaoReviewHandoff(null)
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    void listAutomationsForTarget({ kind: 'local' })
+      .then((automations) => {
+        if (cancelled) {
+          return
+        }
+        const existing = findTodoPoolAutomation(automations)
+        if (existing) {
+          setReviewHandoff(resolveYunxiaoReviewHandoff(existing.yunxiaoTodoPool?.reviewHandoff))
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const configureTodoPoolAutomation = useCallback(async (): Promise<Automation | null> => {
     const target = resolveTodoPoolAutomationTarget()
@@ -188,7 +215,7 @@ export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => vo
     }
     setConfiguringTodoPoolAutomation(true)
     try {
-      const input = buildTodoPoolAutomationInput(target)
+      const input = buildTodoPoolAutomationInput(target, reviewHandoff)
       const updates: AutomationUpdateInput = input
       // Why: upstream moved desktop automation CRUD onto the runtime RPC surface,
       // so the todo pool rides the same local-authority client as AutomationsPage.
@@ -196,6 +223,7 @@ export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => vo
       const automation = existing
         ? await updateAutomationForTarget(existing, updates)
         : await createAutomationForTarget({ kind: 'local' }, input)
+      setReviewHandoff(resolveYunxiaoReviewHandoff(automation.yunxiaoTodoPool?.reviewHandoff))
       toast.success(
         translate(
           'auto.components.TaskPage.yunxiaoTodoPoolAutomationConfigured',
@@ -208,6 +236,28 @@ export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => vo
       return null
     } finally {
       setConfiguringTodoPoolAutomation(false)
+    }
+  }, [reviewHandoff])
+
+  const updateReviewHandoff = useCallback(async (next: AutomationYunxiaoReviewHandoff) => {
+    const resolved = resolveYunxiaoReviewHandoff(next)
+    setReviewHandoff(resolved)
+    try {
+      const existing = findTodoPoolAutomation(await listAutomationsForTarget({ kind: 'local' }))
+      if (!existing?.yunxiaoTodoPool) {
+        return
+      }
+      await updateAutomationForTarget(existing, {
+        yunxiaoTodoPool: {
+          ...existing.yunxiaoTodoPool,
+          reviewHandoff: resolved
+        }
+      })
+      toast.success(
+        translate('auto.components.TaskPage.yunxiaoReviewHandoffUpdated', 'Review handoff updated.')
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
     }
   }, [])
 
@@ -236,6 +286,8 @@ export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => vo
   return {
     configureTodoPoolAutomation,
     runNextTodoPoolAutomation,
+    reviewHandoff,
+    updateReviewHandoff,
     configuringTodoPoolAutomation,
     runningTodoPoolAutomation
   }

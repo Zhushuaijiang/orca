@@ -71,11 +71,24 @@ const YunxiaoTodoPoolStatus = z.enum([
   'dismissed'
 ])
 
+const AutomationYunxiaoReviewHandoff = z
+  .object({
+    enabled: OptionalBoolean,
+    agentId: TuiAgent
+  })
+  .transform((value) => ({
+    enabled: value.enabled !== false,
+    agentId: value.agentId
+  }))
+  .nullable()
+  .optional()
+
 const AutomationYunxiaoTodoPoolSource = z
   .object({
     kind: z.literal('yunxiao-todo-pool'),
     statuses: z.array(YunxiaoTodoPoolStatus).min(1).optional(),
-    batchSize: OptionalPositiveInt.optional()
+    batchSize: OptionalPositiveInt.optional(),
+    reviewHandoff: AutomationYunxiaoReviewHandoff
   })
   .transform((value) => {
     const statuses: SharedYunxiaoTodoPoolStatus[] = value.statuses?.length
@@ -84,7 +97,8 @@ const AutomationYunxiaoTodoPoolSource = z
     return {
       kind: value.kind,
       statuses,
-      batchSize: Math.min(Math.max(value.batchSize ?? 1, 1), 10)
+      batchSize: Math.min(Math.max(value.batchSize ?? 1, 1), 10),
+      reviewHandoff: value.reviewHandoff ?? null
     }
   })
   .nullable()

@@ -64,6 +64,9 @@ describe('Yunxiao requirement prompt gate', () => {
     expect(shouldApplyYunxiaoRequirementPromptGate('Yunxiao todo pool claim:\nDFHIS-31732')).toBe(
       false
     )
+    expect(
+      shouldApplyYunxiaoRequirementPromptGate('Orca Yunxiao review handoff: DFHIS-31732')
+    ).toBe(false)
   })
 
   it('does not rewrite dispatched worker prompts', () => {
