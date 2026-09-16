@@ -24,6 +24,10 @@ import {
   pullAndEnsureDfHisWorkflowPack
 } from '../dfhis-environment/dfhis-workflow-pack-installer'
 import {
+  checkMagicApiSkillPackPrerequisite,
+  pullAndEnsureMagicApiSkillPack
+} from '../dfhis-environment/magic-api-skill-pack'
+import {
   checkGitPrerequisite,
   checkPythonPrerequisite,
   ensureDfHisCliPrerequisitesInstalled,
@@ -161,7 +165,8 @@ export async function checkDfHisEnvironment(): Promise<DfHisEnvironmentCheckResu
     dfhisWorkflowPack,
     hisCodeRoot,
     hisWorkflowCatalog,
-    archiveWorkspace
+    archiveWorkspace,
+    magicApiSkillPack
   ] = await Promise.all([
     checkGitPrerequisite(),
     checkPythonPrerequisite(),
@@ -171,7 +176,8 @@ export async function checkDfHisEnvironment(): Promise<DfHisEnvironmentCheckResu
     checkDfHisWorkflowPackPrerequisites(),
     checkHisCodeRootPrerequisite(),
     checkHisWorkflowCatalogPrerequisite(),
-    checkArchiveWorkspacePrerequisite()
+    checkArchiveWorkspacePrerequisite(),
+    checkMagicApiSkillPackPrerequisite()
   ])
   return {
     checkedAt: new Date().toISOString(),
@@ -184,6 +190,7 @@ export async function checkDfHisEnvironment(): Promise<DfHisEnvironmentCheckResu
       yunxiaoMcpTools,
       hisMcpTools,
       ...dfhisWorkflowPack,
+      ...(magicApiSkillPack ? [magicApiSkillPack] : []),
       hisCodeRoot,
       hisWorkflowCatalog,
       archiveWorkspace
@@ -222,6 +229,7 @@ export async function installDfHisEnvironment(
     ...(await ensureDfHisCliPrerequisitesInstalled()),
     await installGitLabAccess(config),
     ...(await pullAndEnsureDfHisWorkflowPack(config.dfhisSkillPackUrl)),
+    ...(await pullAndEnsureMagicApiSkillPack(config.magicApiSkillPackUrl)),
     describeYgtCompanyEnvironmentStatus(),
     await ensureArchiveWorkspace(config)
   ]

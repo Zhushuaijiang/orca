@@ -6,6 +6,7 @@ import { getAppEnvironment } from '../../shared/app-environment'
 import { cancelUnreadResponseBody } from '../lib/unread-response-body'
 import { ensureBundledSkillPackInstalled } from '../skill-packs/bundled-skill-pack-installer'
 import { findMissingBundledSkill } from '../skill-packs/bundled-skill-pack-files'
+import type { EnvironmentBundledSkillPackDefinition } from '../skill-packs/bundled-skill-pack-types'
 import { DFHIS_BUNDLED_SKILL_PACK } from './dfhis-workflow-pack-targets'
 
 type RemoteWorkflowPackFile = {
@@ -17,13 +18,12 @@ type RemoteWorkflowPackFile = {
 
 type RemoteWorkflowPackManifest = {
   schemaVersion: 1
-  skillPackId: 'dfhis'
+  skillPackId: string
   version?: string
   files: RemoteWorkflowPackFile[]
 }
 
 const REMOTE_WORKFLOW_PACK_FETCH_TIMEOUT_MS = 30_000
-const REMOTE_WORKFLOW_PACK_CACHE_DIRECTORY = 'dfhis-workflow-pack-cache'
 
 type RemoteWorkflowPackCacheMetadata = {
   schemaVersion: 1
@@ -31,25 +31,45 @@ type RemoteWorkflowPackCacheMetadata = {
   manifestVersion?: string
 }
 
-function getRemoteWorkflowPackCacheRoot(): string {
+/** Per-pack knobs for the shared remote pull/install path. A pack without an
+ * app-bundled copy (remote-only) keeps its pull cache across app upgrades,
+ * because the cache is the only source left to repair from. */
+export type RemoteSkillPackOptions = {
+  cacheDirectoryName: string
+  packId: string
+  label: string
+  definition: EnvironmentBundledSkillPackDefinition
+  retainCacheAcrossAppUpgrades?: boolean
+}
+
+const DFHIS_REMOTE_PACK: RemoteSkillPackOptions = {
+  cacheDirectoryName: 'dfhis-workflow-pack-cache',
+  packId: 'dfhis',
+  label: 'DFHIS workflow pack',
+  definition: DFHIS_BUNDLED_SKILL_PACK
+}
+
+function getRemoteWorkflowPackCacheRoot(cacheDirectoryName: string): string {
   return path.join(
     process.env.ORCA_USER_DATA_PATH?.trim() || getAppEnvironment().getPath('userData'),
-    REMOTE_WORKFLOW_PACK_CACHE_DIRECTORY
+    cacheDirectoryName
   )
 }
 
-function getCachedDfHisWorkflowPackPath(): string {
-  return path.join(getRemoteWorkflowPackCacheRoot(), 'dfhis')
+function getCachedSkillPackPath(options: RemoteSkillPackOptions): string {
+  return path.join(getRemoteWorkflowPackCacheRoot(options.cacheDirectoryName), options.packId)
 }
 
-function getCachedDfHisWorkflowPackMetadataPath(): string {
-  return path.join(getRemoteWorkflowPackCacheRoot(), 'metadata.json')
+function getCachedSkillPackMetadataPath(options: RemoteSkillPackOptions): string {
+  return path.join(getRemoteWorkflowPackCacheRoot(options.cacheDirectoryName), 'metadata.json')
 }
 
-async function readCacheMetadata(): Promise<RemoteWorkflowPackCacheMetadata | null> {
+async function readCacheMetadata(
+  options: RemoteSkillPackOptions
+): Promise<RemoteWorkflowPackCacheMetadata | null> {
   try {
     const metadata = JSON.parse(
-      await readFile(getCachedDfHisWorkflowPackMetadataPath(), 'utf8')
+      await readFile(getCachedSkillPackMetadataPath(options), 'utf8')
     ) as Partial<RemoteWorkflowPackCacheMetadata>
     if (
       metadata.schemaVersion !== 1 ||
@@ -64,29 +84,43 @@ async function readCacheMetadata(): Promise<RemoteWorkflowPackCacheMetadata | nu
   }
 }
 
-export async function getCachedDfHisWorkflowPackPathIfPresent(): Promise<string | null> {
-  const cachePath = getCachedDfHisWorkflowPackPath()
-  const metadata = await readCacheMetadata()
+export async function getCachedRemoteSkillPackPathIfPresent(
+  options: RemoteSkillPackOptions
+): Promise<string | null> {
+  const cachePath = getCachedSkillPackPath(options)
+  const metadata = await readCacheMetadata(options)
   // A remote pack is an explicit override for the Orca build that downloaded it.
   // On an app upgrade, fall back to the newer bundled pack unless the user pulls
   // the remote pack again. Legacy caches had no provenance and are treated as stale.
-  if (!metadata || metadata.appVersion !== getAppEnvironment().getVersion()) {
+  if (
+    !metadata ||
+    (!options.retainCacheAcrossAppUpgrades &&
+      metadata.appVersion !== getAppEnvironment().getVersion())
+  ) {
     return null
   }
-  return (await findMissingBundledSkill(DFHIS_BUNDLED_SKILL_PACK, cachePath)) ? null : cachePath
+  return (await findMissingBundledSkill(options.definition, cachePath)) ? null : cachePath
 }
 
-function parseManifest(value: unknown): RemoteWorkflowPackManifest {
+export function getCachedDfHisWorkflowPackPathIfPresent(): Promise<string | null> {
+  return getCachedRemoteSkillPackPathIfPresent(DFHIS_REMOTE_PACK)
+}
+
+function parseManifest(
+  value: unknown,
+  expectedPackId: string,
+  label: string
+): RemoteWorkflowPackManifest {
   if (!value || typeof value !== 'object') {
-    throw new Error('Remote DFHIS skill pack manifest is not an object.')
+    throw new Error(`Remote ${label} manifest is not an object.`)
   }
   const manifest = value as Partial<RemoteWorkflowPackManifest>
   if (
     manifest.schemaVersion !== 1 ||
-    manifest.skillPackId !== 'dfhis' ||
+    manifest.skillPackId !== expectedPackId ||
     !Array.isArray(manifest.files)
   ) {
-    throw new Error('Remote DFHIS skill pack manifest has an unsupported schema.')
+    throw new Error(`Remote ${label} manifest has an unsupported schema.`)
   }
   return manifest as RemoteWorkflowPackManifest
 }
@@ -99,7 +133,7 @@ function normalizeManifestFilePath(filePath: string): string {
     normalized.startsWith('../') ||
     path.posix.isAbsolute(normalized)
   ) {
-    throw new Error(`Remote DFHIS skill pack contains an unsafe file path: ${filePath}`)
+    throw new Error(`Remote skill pack contains an unsafe file path: ${filePath}`)
   }
   return normalized
 }
@@ -111,17 +145,17 @@ function decodeFile(file: RemoteWorkflowPackFile): Buffer {
   if (typeof file.content === 'string') {
     return Buffer.from(file.content, 'utf8')
   }
-  throw new Error(`Remote DFHIS skill pack file has no content: ${file.path}`)
+  throw new Error(`Remote skill pack file has no content: ${file.path}`)
 }
 
 function assertSha256(file: RemoteWorkflowPackFile, content: Buffer): void {
   if (!/^[a-fA-F0-9]{64}$/.test(file.sha256)) {
-    throw new Error(`Remote DFHIS skill pack file has invalid sha256: ${file.path}`)
+    throw new Error(`Remote skill pack file has invalid sha256: ${file.path}`)
   }
   const actual = createHash('sha256').update(content).digest('hex')
   if (actual.toLowerCase() !== file.sha256.toLowerCase()) {
     throw new Error(
-      `Remote DFHIS skill pack hash mismatch for ${file.path}: expected ${file.sha256}, got ${actual}`
+      `Remote skill pack hash mismatch for ${file.path}: expected ${file.sha256}, got ${actual}`
     )
   }
 }
@@ -163,20 +197,25 @@ async function materializeManifest(
   }
 }
 
-export async function installRemoteDfHisWorkflowPack(
+export async function installRemoteSkillPack(
   urlOrPath: string,
+  options: RemoteSkillPackOptions,
   homeDirectory?: string
 ): Promise<string[]> {
   const trimmedUrl = urlOrPath.trim()
   if (!trimmedUrl) {
-    throw new Error('DFHIS skill pack URL is not configured.')
+    throw new Error(`${options.label} URL is not configured.`)
   }
 
-  const manifest = parseManifest(JSON.parse(await readManifestText(trimmedUrl)))
-  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'orca-dfhis-skill-pack-'))
+  const manifest = parseManifest(
+    JSON.parse(await readManifestText(trimmedUrl)),
+    options.packId,
+    options.label
+  )
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'orca-skill-pack-'))
   try {
     await materializeManifest(manifest, temporaryDirectory)
-    const cachePath = getCachedDfHisWorkflowPackPath()
+    const cachePath = getCachedSkillPackPath(options)
     await rm(cachePath, { recursive: true, force: true })
     await mkdir(path.dirname(cachePath), { recursive: true })
     await materializeManifest(manifest, cachePath)
@@ -186,15 +225,22 @@ export async function installRemoteDfHisWorkflowPack(
       ...(manifest.version ? { manifestVersion: manifest.version } : {})
     }
     await writeFile(
-      getCachedDfHisWorkflowPackMetadataPath(),
+      getCachedSkillPackMetadataPath(options),
       `${JSON.stringify(metadata, null, 2)}\n`,
       'utf8'
     )
     return [
-      `Downloaded DFHIS workflow pack${manifest.version ? ` ${manifest.version}` : ''}.`,
-      ...(await ensureBundledSkillPackInstalled(DFHIS_BUNDLED_SKILL_PACK, homeDirectory, cachePath))
+      `Downloaded ${options.label}${manifest.version ? ` ${manifest.version}` : ''}.`,
+      ...(await ensureBundledSkillPackInstalled(options.definition, homeDirectory, cachePath))
     ]
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true })
   }
+}
+
+export function installRemoteDfHisWorkflowPack(
+  urlOrPath: string,
+  homeDirectory?: string
+): Promise<string[]> {
+  return installRemoteSkillPack(urlOrPath, DFHIS_REMOTE_PACK, homeDirectory)
 }

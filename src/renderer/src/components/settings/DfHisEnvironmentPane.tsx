@@ -86,7 +86,13 @@ export function DfHisEnvironmentPane(): JSX.Element {
       yunxiaoMcpUrl: current.yunxiaoMcpUrl || snapshot.yunxiaoMcpUrl,
       yunxiaoAccessToken: current.yunxiaoAccessToken || snapshot.yunxiaoAccessToken,
       hisMcpUrl: current.hisMcpUrl || snapshot.hisMcpUrl,
-      hisMcpToken: current.hisMcpToken || snapshot.hisMcpToken
+      hisMcpToken: current.hisMcpToken || snapshot.hisMcpToken,
+      magicApiEnvironments: current.magicApiEnvironments || snapshot.magicApiEnvironments,
+      magicApiBaseUrl: current.magicApiBaseUrl || snapshot.magicApiBaseUrl,
+      magicApiUsername: current.magicApiUsername || snapshot.magicApiUsername,
+      magicApiPassword: current.magicApiPassword || snapshot.magicApiPassword,
+      magicApiVersion: current.magicApiVersion || snapshot.magicApiVersion,
+      magicApiSkillPackUrl: current.magicApiSkillPackUrl || snapshot.magicApiSkillPackUrl
     }))
     setPathsForm((current) => ({
       hisCodeRoot: current.hisCodeRoot || snapshot.hisCodeRoot,

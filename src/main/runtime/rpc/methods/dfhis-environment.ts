@@ -43,6 +43,10 @@ import {
 } from '../../../dfhis-environment/kimi-relay-prerequisites'
 import { ensureVisionSkillInstalled } from '../../../dfhis-environment/vision-skill-config'
 import { describeYgtCompanyEnvironmentStatus } from '../../../dfhis-environment/ygt-company-environment'
+import {
+  checkMagicApiSkillPackPrerequisite,
+  pullAndEnsureMagicApiSkillPack
+} from '../../../dfhis-environment/magic-api-skill-pack'
 
 const DfHisEnvironmentConfigInputSchema = z
   .object({
@@ -62,6 +66,12 @@ const DfHisEnvironmentConfigInputSchema = z
     projectCodeGraphPath: OptionalPlainString,
     projectKnowledgeIndexPath: OptionalPlainString,
     dfhisSkillPackUrl: OptionalPlainString,
+    magicApiEnvironments: OptionalPlainString,
+    magicApiBaseUrl: OptionalPlainString,
+    magicApiUsername: OptionalPlainString,
+    magicApiPassword: OptionalPlainString,
+    magicApiVersion: OptionalPlainString,
+    magicApiSkillPackUrl: OptionalPlainString,
     relayExecModel: OptionalPlainString,
     relayExecApiKey: OptionalPlainString,
     visionApiKey: OptionalPlainString,
@@ -184,7 +194,8 @@ async function checkDfHisEnvironment() {
     hisWorkflowCatalog,
     archiveWorkspace,
     kimiCli,
-    relayExecModel
+    relayExecModel,
+    magicApiSkillPack
   ] = await Promise.all([
     checkGitPrerequisite(),
     checkPythonPrerequisite(),
@@ -196,7 +207,8 @@ async function checkDfHisEnvironment() {
     checkHisWorkflowCatalogPrerequisite(),
     checkArchiveWorkspacePrerequisite(),
     checkKimiCliPrerequisite(),
-    checkRelayExecModelPrerequisite(config)
+    checkRelayExecModelPrerequisite(config),
+    checkMagicApiSkillPackPrerequisite()
   ])
   return {
     checkedAt: new Date().toISOString(),
@@ -209,6 +221,7 @@ async function checkDfHisEnvironment() {
       yunxiaoMcpTools,
       hisMcpTools,
       ...dfhisWorkflowPack,
+      ...(magicApiSkillPack ? [magicApiSkillPack] : []),
       hisCodeRoot,
       hisWorkflowCatalog,
       archiveWorkspace,
@@ -249,6 +262,7 @@ async function installDfHisEnvironment(
     ...(await ensureDfHisCliPrerequisitesInstalled()),
     await installGitLabAccess(config),
     ...(await pullAndEnsureDfHisWorkflowPack(config.dfhisSkillPackUrl)),
+    ...(await pullAndEnsureMagicApiSkillPack(config.magicApiSkillPackUrl)),
     describeYgtCompanyEnvironmentStatus(),
     await ensureArchiveWorkspace(config),
     ...(await ensureKimiRelayInstalled(config)),

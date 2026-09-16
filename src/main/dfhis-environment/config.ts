@@ -70,6 +70,12 @@ export type DfHisEnvironmentConfig = {
   projectCodeGraphPath: string
   projectKnowledgeIndexPath: string
   dfhisSkillPackUrl: string
+  magicApiEnvironments: string
+  magicApiBaseUrl: string
+  magicApiUsername: string
+  magicApiPassword: string
+  magicApiVersion: string
+  magicApiSkillPackUrl: string
   relayExecModel: string
   relayExecApiKey: string
   visionApiKey: string
@@ -153,6 +159,12 @@ export function normalizeDfHisEnvironmentConfig(value: unknown): DfHisEnvironmen
     dfhisSkillPackUrl:
       cleanString((config as Record<string, unknown>).dfhisSkillPackUrl) ||
       DEFAULT_DFHIS_SKILL_PACK_URL,
+    magicApiEnvironments: cleanString((config as Record<string, unknown>).magicApiEnvironments),
+    magicApiBaseUrl: cleanString((config as Record<string, unknown>).magicApiBaseUrl),
+    magicApiUsername: cleanString((config as Record<string, unknown>).magicApiUsername),
+    magicApiPassword: cleanString((config as Record<string, unknown>).magicApiPassword),
+    magicApiVersion: cleanString((config as Record<string, unknown>).magicApiVersion),
+    magicApiSkillPackUrl: cleanString((config as Record<string, unknown>).magicApiSkillPackUrl),
     relayExecModel:
       cleanString((config as Record<string, unknown>).relayExecModel) || DEFAULT_RELAY_EXEC_MODEL,
     relayExecApiKey: cleanString((config as Record<string, unknown>).relayExecApiKey),
@@ -209,6 +221,12 @@ function mergeConfigPatch(
     projectKnowledgeIndexPath:
       cleanPath(patch.projectKnowledgeIndexPath) || current.projectKnowledgeIndexPath,
     dfhisSkillPackUrl: cleanString(patch.dfhisSkillPackUrl) || current.dfhisSkillPackUrl,
+    magicApiEnvironments: cleanString(patch.magicApiEnvironments) || current.magicApiEnvironments,
+    magicApiBaseUrl: cleanString(patch.magicApiBaseUrl) || current.magicApiBaseUrl,
+    magicApiUsername: cleanString(patch.magicApiUsername) || current.magicApiUsername,
+    magicApiPassword: cleanString(patch.magicApiPassword) || current.magicApiPassword,
+    magicApiVersion: cleanString(patch.magicApiVersion) || current.magicApiVersion,
+    magicApiSkillPackUrl: cleanString(patch.magicApiSkillPackUrl) || current.magicApiSkillPackUrl,
     relayExecModel: cleanString(patch.relayExecModel) || current.relayExecModel,
     relayExecApiKey: cleanString(patch.relayExecApiKey) || current.relayExecApiKey,
     visionApiKey: cleanString(patch.visionApiKey) || current.visionApiKey,
@@ -264,6 +282,13 @@ export function snapshotDfHisEnvironmentConfig(
     projectCodeGraphPath: config.projectCodeGraphPath,
     projectKnowledgeIndexPath: config.projectKnowledgeIndexPath,
     dfhisSkillPackUrl: config.dfhisSkillPackUrl,
+    magicApiEnvironments: config.magicApiEnvironments,
+    magicApiBaseUrl: config.magicApiBaseUrl,
+    magicApiUsername: config.magicApiUsername,
+    magicApiPassword: config.magicApiPassword,
+    hasMagicApiPassword: config.magicApiPassword.length > 0,
+    magicApiVersion: config.magicApiVersion,
+    magicApiSkillPackUrl: config.magicApiSkillPackUrl,
     relayExecModel: config.relayExecModel,
     relayExecApiKey: config.relayExecApiKey,
     hasRelayExecApiKey: config.relayExecApiKey.length > 0,

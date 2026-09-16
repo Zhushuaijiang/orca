@@ -6,6 +6,12 @@ export type DfHisWorkflowPackPrerequisiteId =
   | 'dfhis-workflow-pack-agent-skills'
   | `dfhis-workflow-pack-${TuiAgent}`
 
+/** Why: the MagicAPI pack mirrors the DFHIS pack homes; rows are aggregated into
+ * one `oapi-develop-skill-pack` entry, but the per-home target ids stay typed. */
+export type DfHisMagicApiSkillPackPrerequisiteId =
+  | 'oapi-develop-skill-pack'
+  | `oapi-develop-skill-pack-${TuiAgent}`
+
 export type DfHisEnvironmentPrerequisiteId =
   | 'git'
   | 'python'
@@ -14,6 +20,7 @@ export type DfHisEnvironmentPrerequisiteId =
   | 'his-mcp'
   | 'yunxiao-mcp-tools'
   | 'his-mcp-tools'
+  | DfHisMagicApiSkillPackPrerequisiteId
   | DfHisWorkflowPackPrerequisiteId
   | 'his-code-root'
   | 'his-workflow-catalog'
@@ -60,6 +67,12 @@ export type DfHisEnvironmentConfigInput = {
   projectCodeGraphPath?: string
   projectKnowledgeIndexPath?: string
   dfhisSkillPackUrl?: string
+  magicApiEnvironments?: string
+  magicApiBaseUrl?: string
+  magicApiUsername?: string
+  magicApiPassword?: string
+  magicApiVersion?: string
+  magicApiSkillPackUrl?: string
   relayExecModel?: string
   relayExecApiKey?: string
   visionApiKey?: string
@@ -93,6 +106,13 @@ export type DfHisEnvironmentConfigSnapshot = {
   projectCodeGraphPath: string
   projectKnowledgeIndexPath: string
   dfhisSkillPackUrl: string
+  magicApiEnvironments: string
+  magicApiBaseUrl: string
+  magicApiUsername: string
+  magicApiPassword: string
+  hasMagicApiPassword: boolean
+  magicApiVersion: string
+  magicApiSkillPackUrl: string
   relayExecModel: string
   relayExecApiKey: string
   hasRelayExecApiKey: boolean

@@ -18,6 +18,10 @@ export function getDfHisEnvironmentPaneSearchEntries(): SettingsSearchEntry[] {
         translate('auto.components.settings.DfHisEnvironmentPane.searchKeywordHis', 'his'),
         translate('auto.components.settings.DfHisEnvironmentPane.searchKeywordMcp', 'mcp'),
         translate(
+          'auto.components.settings.DfHisEnvironmentPane.searchKeywordMagicApi',
+          'magicapi'
+        ),
+        translate(
           'auto.components.settings.DfHisEnvironmentPane.searchKeywordPrerequisites',
           'prerequisites'
         )
