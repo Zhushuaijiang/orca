@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { JsonStringifyByteLimitError } from './node-bounded-json-stringify'
 import { readNodeFileSyncWithinLimit } from './node-bounded-file-reader'
@@ -247,10 +247,19 @@ function readEnvironmentStore(userDataPath: string): RuntimeEnvironmentStore {
         .sort((a, b) => a.name.localeCompare(b.name))
     }
   } catch {
-    throw new RuntimeEnvironmentStoreError(
-      'runtime_error',
-      `Could not read Orca environments at ${path}; the file is invalid.`
-    )
+    // Why: this read sits on the window-open critical path, so a corrupt store (torn
+    // write, ACL surprise) must degrade to empty — quarantining the original beside
+    // it for recovery — instead of failing every launch with an unhandled rejection.
+    quarantineInvalidEnvironmentStore(path)
+    return { version: 1, environments: [] }
+  }
+}
+
+function quarantineInvalidEnvironmentStore(path: string): void {
+  try {
+    renameSync(path, `${path}.corrupt-${Date.now()}`)
+  } catch {
+    // Best-effort: an unremovable file still degrades to the empty store above.
   }
 }
 

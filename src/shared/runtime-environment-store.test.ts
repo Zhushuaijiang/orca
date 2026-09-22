@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, truncateSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync, truncateSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -177,14 +177,30 @@ describe('runtime environment store', () => {
     })
   })
 
-  it('rejects an oversized sparse environment store before parsing it', () => {
+  it('degrades a torn store read to empty and quarantines the original beside it', () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-env-store-corrupt-'))
+    tempDirs.push(userDataPath)
+    writeFileSync(getEnvironmentStorePath(userDataPath), '{"version":1,"environments":[{"id":"to')
+
+    expect(listEnvironments(userDataPath)).toEqual([])
+    expect(existsSync(getEnvironmentStorePath(userDataPath))).toBe(false)
+    expect(
+      readdirSync(userDataPath).some((name) => name.startsWith('orca-environments.json.corrupt-'))
+    ).toBe(true)
+  })
+
+  it('degrades an oversized sparse environment store to empty and quarantines it', () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-env-store-bound-'))
     tempDirs.push(userDataPath)
     const path = getEnvironmentStorePath(userDataPath)
     writeFileSync(path, '{"version":1,"environments":[]}')
     truncateSync(path, MAX_RUNTIME_ENVIRONMENT_STORE_FILE_BYTES + 1)
 
-    expect(() => listEnvironments(userDataPath)).toThrow(RuntimeEnvironmentStoreError)
+    expect(listEnvironments(userDataPath)).toEqual([])
+    expect(existsSync(path)).toBe(false)
+    expect(
+      readdirSync(userDataPath).some((name) => name.startsWith('orca-environments.json.corrupt-'))
+    ).toBe(true)
   })
 
   it('rejects an oversized write without replacing the durable environment list', () => {
