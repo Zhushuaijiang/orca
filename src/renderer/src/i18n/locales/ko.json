@@ -11657,7 +11657,9 @@
             "sessionHostMismatchUnsupported": "이 세션은 다른 호스트에 속합니다. 재개하려면 같은 호스트의 워크스페이스를 여세요.",
             "prepareSessionResumeFailed": "Could not prepare this session for resume.",
             "sessionDeleted": "세션이 삭제되었습니다",
-            "sessionDeleteFailed": "세션을 삭제하지 못했습니다"
+            "sessionDeleteFailed": "세션을 삭제하지 못했습니다",
+            "oversizedRecordSessions": "{{count}}개 세션에서 한도를 초과한 transcript 레코드를 건너뛰었습니다(앞 10 MiB만 읽음)",
+            "moreNotices": "…그 외 알림 {{count}}건"
           },
           "AiVaultPanelControls": {
             "scanningSessions": "세션 스캔 중",

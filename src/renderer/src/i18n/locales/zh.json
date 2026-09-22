@@ -11728,7 +11728,9 @@
             "sessionHostMismatchUnsupported": "此会话属于其他主机。请打开同一主机上的工作区以恢复它。",
             "prepareSessionResumeFailed": "无法为恢复准备此会话。",
             "sessionDeleted": "会话已删除",
-            "sessionDeleteFailed": "无法删除会话"
+            "sessionDeleteFailed": "无法删除会话",
+            "oversizedRecordSessions": "{{count}} 个会话存在超过 10 MiB 的转录记录被跳过（只读前 10 MiB）",
+            "moreNotices": "…还有 {{count}} 条通知"
           },
           "AiVaultPanelControls": {
             "scanningSessions": "正在扫描会话",

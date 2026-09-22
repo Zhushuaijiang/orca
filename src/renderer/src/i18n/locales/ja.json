@@ -11652,7 +11652,9 @@
             "sessionHostMismatchUnsupported": "このセッションは別のホストに属しています。再開するには同じホスト上のワークスペースを開いてください。",
             "prepareSessionResumeFailed": "このセッションを再開用に準備できませんでした。",
             "sessionDeleted": "セッションを削除しました",
-            "sessionDeleteFailed": "セッションを削除できませんでした"
+            "sessionDeleteFailed": "セッションを削除できませんでした",
+            "oversizedRecordSessions": "{{count}} 件のセッションで上限を超える transcript レコードをスキップしました（先頭 10 MiB のみ読み込み）",
+            "moreNotices": "…ほか {{count}} 件の通知"
           },
           "AiVaultPanelControls": {
             "scanningSessions": "セッションをスキャンしています",

@@ -1,10 +1,10 @@
 import type React from 'react'
 import type { AiVaultListResult } from '../../../../shared/ai-vault-types'
 import {
-  aiVaultScanNoticeIssues,
   blockingAiVaultScanIssue,
   skippedAiVaultTranscriptCount,
-  skippedAiVaultTranscriptReasons
+  skippedAiVaultTranscriptReasons,
+  summarizeAiVaultScanNotices
 } from './ai-vault-scan-issue-state'
 import { translate } from '@/i18n/i18n'
 
@@ -17,6 +17,8 @@ export function AiVaultScanIssueBanners({
 }): React.JSX.Element {
   const blocking = blockingAiVaultScanIssue(scanResult)
   const skippedTranscriptCount = skippedAiVaultTranscriptCount(scanResult)
+  const { oversizedSessionCount, otherNotices, otherNoticesDropped } =
+    summarizeAiVaultScanNotices(scanResult)
 
   return (
     <>
@@ -25,7 +27,16 @@ export function AiVaultScanIssueBanners({
           {blocking.message}
         </div>
       ) : null}
-      {aiVaultScanNoticeIssues(scanResult).map((issue) => (
+      {oversizedSessionCount > 0 ? (
+        <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
+          {translate(
+            'auto.components.right.sidebar.AiVaultPanel.oversizedRecordSessions',
+            '{{count}} sessions had oversized transcript records skipped (kept to the first 10 MiB)',
+            { count: oversizedSessionCount }
+          )}
+        </div>
+      ) : null}
+      {otherNotices.map((issue) => (
         <div
           // Message is part of the key: one host can report several distinct
           // messages for the same path, and a colliding key drops those rows.
@@ -37,6 +48,15 @@ export function AiVaultScanIssueBanners({
           {issue.message}
         </div>
       ))}
+      {otherNoticesDropped > 0 ? (
+        <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
+          {translate(
+            'auto.components.right.sidebar.AiVaultPanel.moreNotices',
+            '…and {{count}} more notices',
+            { count: otherNoticesDropped }
+          )}
+        </div>
+      ) : null}
       {skippedTranscriptCount > 0 ? (
         <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
           {translate(

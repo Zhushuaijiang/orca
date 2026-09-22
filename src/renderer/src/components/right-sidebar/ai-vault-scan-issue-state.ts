@@ -23,6 +23,40 @@ export function aiVaultScanNoticeIssues(result: AiVaultListResult | null): AiVau
   return result.issues.filter((issue) => Boolean(issue.kind) && issue !== blocking)
 }
 
+// Why: the scanner emits one oversized-record notice per affected session, so a
+// vault with hundreds of huge transcripts would wall the panel in identical
+// rows. They collapse into one counted summary; other notices stay per-row.
+export function isOversizedRecordNotice(message: string): boolean {
+  return message.startsWith('Skipped ') && message.includes('oversized transcript record')
+}
+
+const OTHER_NOTICE_LIMIT = 3
+
+export type AiVaultScanNoticeSummary = {
+  oversizedSessionCount: number
+  otherNotices: AiVaultScanIssue[]
+  otherNoticesDropped: number
+}
+
+export function summarizeAiVaultScanNotices(
+  result: AiVaultListResult | null
+): AiVaultScanNoticeSummary {
+  const oversizedPaths = new Set<string>()
+  const otherNotices: AiVaultScanIssue[] = []
+  for (const issue of aiVaultScanNoticeIssues(result)) {
+    if (isOversizedRecordNotice(issue.message)) {
+      oversizedPaths.add(`${issue.executionHostId ?? 'local'}:${issue.agent}:${issue.path}`)
+    } else {
+      otherNotices.push(issue)
+    }
+  }
+  return {
+    oversizedSessionCount: oversizedPaths.size,
+    otherNotices: otherNotices.slice(0, OTHER_NOTICE_LIMIT),
+    otherNoticesDropped: Math.max(0, otherNotices.length - OTHER_NOTICE_LIMIT)
+  }
+}
+
 export function skippedAiVaultTranscriptCount(result: AiVaultListResult | null): number {
   return result ? result.issues.filter((issue) => !issue.kind).length : 0
 }

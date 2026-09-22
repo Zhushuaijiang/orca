@@ -13475,7 +13475,9 @@
             "sessionDeleteFailed": "Couldn't delete the session",
             "resumeInChatConflict": "Another chat is already holding this conversation.",
             "resumeInChatTranscriptMissing": "This conversation's history could not be loaded, so it cannot be resumed in chat.",
-            "resumeInChatFailed": "Could not resume this session in a new chat."
+            "resumeInChatFailed": "Could not resume this session in a new chat.",
+            "oversizedRecordSessions": "{{count}} sessions had oversized transcript records skipped (kept to the first 10 MiB)",
+            "moreNotices": "…and {{count}} more notices"
           },
           "AiVaultPanelControls": {
             "scanningSessions": "Scanning sessions",

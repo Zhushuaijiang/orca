@@ -3,6 +3,7 @@ import type { AiVaultListResult } from '../../../../shared/ai-vault-types'
 import {
   aiVaultScanNoticeIssues,
   blockingAiVaultScanIssue,
+  summarizeAiVaultScanNotices,
   skippedAiVaultTranscriptCount,
   skippedAiVaultTranscriptReasons
 } from './ai-vault-scan-issue-state'
@@ -167,6 +168,58 @@ describe('skippedAiVaultTranscriptReasons', () => {
 
   it('reports nothing before the first scan', () => {
     expect(skippedAiVaultTranscriptReasons(null)).toEqual([])
+  })
+})
+
+describe('summarizeAiVaultScanNotices', () => {
+  const oversizedNotice = (path: string, bytes: string): AiVaultListResult['issues'][number] => ({
+    agent: 'claude',
+    kind: 'notice',
+    path,
+    message: `Skipped 3 oversized transcript records over the 10.0 MiB limit (${bytes}). The rest of the session was read.`
+  })
+
+  it('collapses oversized-record notices into one counted summary', () => {
+    const summary = summarizeAiVaultScanNotices(
+      result(
+        [{ id: 'a' }],
+        [
+          oversizedNotice('/home/x/.claude/a.jsonl', '12.0 MiB'),
+          oversizedNotice('/home/x/.claude/b.jsonl', '14.0 MiB')
+        ]
+      )
+    )
+
+    expect(summary.oversizedSessionCount).toBe(2)
+    expect(summary.otherNotices).toEqual([])
+    expect(summary.otherNoticesDropped).toBe(0)
+  })
+
+  it('counts distinct sessions, not repeated notices for one path', () => {
+    const summary = summarizeAiVaultScanNotices(
+      result([{ id: 'a' }], [
+        oversizedNotice('/home/x/.codex/one.jsonl', '11.0 MiB at byte 1'),
+        oversizedNotice('/home/x/.codex/one.jsonl', '12.0 MiB at byte 2')
+      ])
+    )
+
+    expect(summary.oversizedSessionCount).toBe(1)
+  })
+
+  it('keeps non-oversized notices per-row with a dropped count past the cap', () => {
+    const notice = (message: string): AiVaultListResult['issues'][number] => ({
+      agent: 'codex',
+      kind: 'scope',
+      path: '/scope',
+      message
+    })
+    const summary = summarizeAiVaultScanNotices(
+      result([{ id: 'a' }], [notice('n1'), notice('n2'), notice('n3'), notice('n4')])
+    )
+
+    expect(summary.oversizedSessionCount).toBe(0)
+    expect(summary.otherNotices.map((issue) => issue.message)).toEqual(['n1', 'n2', 'n3'])
+    expect(summary.otherNoticesDropped).toBe(1)
   })
 })
 
