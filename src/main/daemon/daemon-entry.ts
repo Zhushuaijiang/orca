@@ -13,6 +13,7 @@ import { warmWindowsConptyOnce } from './windows-conpty-warmup'
 import { warmPwshAvailabilityCache } from '../pwsh'
 import { createDaemonFileLog, createNoopDaemonFileLog } from './daemon-file-log'
 import { PROTOCOL_VERSION } from './types'
+import { detectOwnCgroupScopeUnit } from './daemon-cgroup-scope'
 import {
   DAEMON_EXIT_ENDPOINT_OCCUPIED,
   DaemonEndpointUnavailableError
@@ -25,6 +26,7 @@ import { MacosLoginSessionDeathWatch } from './macos-login-session-death-watch'
 import { readCurrentProcessMacSystemResolverHealth } from '../network/macos-system-resolver-health'
 import { readCurrentDaemonReadyIdentity } from './daemon-ready-identity'
 import { publishDaemonPidFile } from './daemon-spawner'
+import { isNativePtyException } from './daemon-native-pty-exception'
 
 export type ParsedDaemonArgs = {
   socketPath: string
@@ -149,15 +151,7 @@ async function main(): Promise<void> {
   // crash the daemon — masking those would hide real issues.
   process.on('uncaughtException', (err) => {
     const msg = err?.message ?? ''
-    const isNativeError =
-      err?.name === 'Error' &&
-      (msg.includes('pty') ||
-        msg.includes('Pty') ||
-        msg.includes('EIO') ||
-        msg.includes('EPIPE') ||
-        msg.includes('EBADF') ||
-        msg.includes('ENXIO'))
-    if (isNativeError) {
+    if (isNativePtyException(err)) {
       daemonLog.log('uncaught-exception-suppressed', { name: err?.name, message: msg })
       console.error('[daemon] Native PTY exception (suppressed):', err)
       return
@@ -275,11 +269,14 @@ async function main(): Promise<void> {
       ? {
           publishEndpointOwnership: () =>
             publishDaemonPidFile(pidPath, {
-              pid: process.pid,
               ...readyIdentity,
               ...(entryPath ? { entryPath } : {}),
               ...(appVersion ? { appVersion } : {}),
               ...(spawnerExecPath ? { spawnerExecPath } : {}),
+              // Why detect rather than trust the launcher's intent: this is the ground truth of
+              // where the daemon's own cgroup landed, verified from inside the process that
+              // matters. See daemon-cgroup-scope.ts.
+              cgroupUnit: detectOwnCgroupScopeUnit(),
               launchNonce
             })
         }

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { AiVaultScope, AiVaultSession } from '../../../../shared/ai-vault-types'
 
 // Why: index hits live outside the recency-capped scan list; the main process
 // owns the incremental transcript index, so the tab queries it per keystroke.
@@ -28,4 +28,23 @@ export function useYunxiaoSessionSearch(active: boolean, query: string): AiVault
   }, [active, query])
 
   return hits
+}
+
+// Index hits live outside both the recency-capped scan list and the transcript
+// search index; merge them by id and let the shared yunxiao matcher re-filter
+// the combined list in the panel.
+export function useYunxiaoAugmentedSessions(
+  base: readonly AiVaultSession[],
+  scope: AiVaultScope,
+  query: string
+): readonly AiVaultSession[] {
+  const active = scope === 'yunxiao' && query.trim().length > 0
+  const yunxiaoHits = useYunxiaoSessionSearch(active, query)
+  return useMemo(() => {
+    if (!active || yunxiaoHits.length === 0) {
+      return base
+    }
+    const known = new Set(base.map((session) => session.id))
+    return [...base, ...yunxiaoHits.filter((hit) => !known.has(hit.id))]
+  }, [base, yunxiaoHits, active])
 }

@@ -34,6 +34,10 @@ function scopedScanOptions(claudeProjectsDir: string, extra: Partial<AiVaultScan
     droidSessionsDir: '/nonexistent/droid',
     droidProjectsDir: '/nonexistent/droid-projects',
     kimiSessionsDir: '/nonexistent/kimi',
+    codebuddyProjectsDir: '/nonexistent/codebuddy',
+    // Why: an absent dir would fall back to the real ~/.zcode store and leak
+    // the developer's own ZCode sessions into this scan.
+    zcodeDbDir: '/nonexistent/zcode',
     ...extra
   } satisfies AiVaultScanOptions
 }

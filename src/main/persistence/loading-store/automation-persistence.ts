@@ -30,6 +30,7 @@ import {
 import {
   createAutomationRun as createAutomationRunOperation,
   listAutomationRuns as listAutomationRunsOperation,
+  listAutomationRunsPage as listAutomationRunsOperationPage,
   recordRepeatedAutomationSkip as recordRepeatedAutomationSkipOperation,
   setAutomationRunYunxiaoTodoPoolClaim as setAutomationRunYunxiaoTodoPoolClaimOperation,
   snapshotAutomationRunWorkspaceDisplayName as snapshotAutomationRunWorkspaceDisplayNameOperation,
@@ -130,6 +131,15 @@ export class AutomationPersistence {
     return listAutomationRunsOperation(
       this[automationPersistenceContext].runtime.state,
       automationId
+    )
+  }
+
+  listAutomationRunsPage(automationId?: string, limit?: number, cursor?: string) {
+    return listAutomationRunsOperationPage(
+      this[automationPersistenceContext].runtime.state,
+      automationId,
+      limit,
+      cursor
     )
   }
 
@@ -258,7 +268,7 @@ export function getAutomationRunWorkspaceDisplayName(
 }
 
 export function installAutomationPersistenceContext(
-  target: object,
+  target: AutomationPersistence,
   source: AutomationPersistence
 ): void {
   Object.defineProperty(target, automationPersistenceContext, {

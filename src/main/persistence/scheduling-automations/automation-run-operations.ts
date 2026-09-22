@@ -1,14 +1,16 @@
 import { randomUUID } from 'node:crypto'
+import { isFinalAutomationRunStatus } from '../../../shared/automations-types'
+import { invalidateLocalWorktreeMetadataPruneInputs } from '../../local-worktree-metadata-prune-gate'
 import type {
   Automation,
   AutomationDispatchResult,
   AutomationRun,
   AutomationRunStatus,
+  AutomationRunsPage,
   AutomationRunTrigger,
   AutomationYunxiaoTodoPoolClaim
 } from '../../../shared/automations-types'
 import type { PersistedState } from '../../../shared/persisted-state-types'
-import { isFinalAutomationRunStatus } from '../../../shared/automations-types'
 import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../../shared/yunxiao-requirement-gate-outcome'
 import {
   nextAutomationRunNumber,
@@ -22,6 +24,10 @@ import type {
 import { normalizeAutomationYunxiaoTodoPoolClaim } from './yunxiao-automation-todo-pool-source'
 import { inferYunxiaoTodoPoolCompletedStatus } from './yunxiao-todo-pool-item-normalization'
 import { normalizeYunxiaoRequirementGateOutcomes } from './yunxiao-requirement-contract-normalization'
+import {
+  compareAutomationRunsNewestFirst,
+  paginateAutomationRuns
+} from '../../../shared/automation-run-cursor'
 import {
   normalizeAutomationPrecheckResult,
   normalizeAutomationRunOutputSnapshot,
@@ -59,14 +65,27 @@ function touchAutomation(state: PersistedState, automationId: string, now: numbe
   )
 }
 
-export function listAutomationRuns(state: PersistedState, automationId?: string): AutomationRun[] {
+function sortedAutomationRuns(state: PersistedState, automationId?: string): AutomationRun[] {
   const runs = state.automationRuns ?? []
   return [...(automationId ? runs.filter((run) => run.automationId === automationId) : runs)]
     .map((run) => ({
       ...run,
       precheckResult: normalizeAutomationPrecheckResult(run.precheckResult)
     }))
-    .sort((left, right) => right.createdAt - left.createdAt)
+    .sort(compareAutomationRunsNewestFirst)
+}
+
+export function listAutomationRuns(state: PersistedState, automationId?: string): AutomationRun[] {
+  return sortedAutomationRuns(state, automationId)
+}
+
+export function listAutomationRunsPage(
+  state: PersistedState,
+  automationId: string | undefined,
+  limit = 100,
+  cursor?: string
+): AutomationRunsPage {
+  return paginateAutomationRuns(sortedAutomationRuns(state, automationId), limit, cursor)
 }
 
 export function createAutomationRun(
@@ -254,6 +273,10 @@ export function updateAutomationRun(
       automationRunStatus: updated.status,
       error: updated.error
     })
+  }
+  if (!isFinalAutomationRunStatus(current.status) && isFinalAutomationRunStatus(updated.status)) {
+    // Why: only a non-final run pins its workspace, so finishing releases the claim (#17775).
+    invalidateLocalWorktreeMetadataPruneInputs()
   }
   touchAutomation(operations.state, updated.automationId, now)
   operations.flush()

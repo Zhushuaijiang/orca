@@ -7,6 +7,7 @@ import {
   UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
 } from '../../shared/agent-skill-home-directories'
 import { removeManagedKimiHooks, tomlBasicString } from '../kimi/kimi-hook-config-toml'
+import { createManagedCommandMatcher } from '../agent-hooks/installer-utils'
 import { getAgentMemoryFilePath } from './memory-store'
 import { SKILL_REVIEW_WRITE_GUARD_SCRIPT } from './write-guard-script'
 
@@ -133,7 +134,11 @@ async function prepareKimiStagingHome(
   const configPath = path.join(stagingHome, 'config.toml')
   const current = existsSync(configPath) ? await readFile(configPath, 'utf8') : ''
   // Why: 剥掉 Orca managed hooks（评审会话不该回贴 Orca），只挂 PreToolUse 写保护。
-  const { text: stripped } = removeManagedKimiHooks(current)
+  // Same ownership test as kimi/hook-service.ts so the strip never eats user hooks.
+  const { text: stripped } = removeManagedKimiHooks(
+    current,
+    createManagedCommandMatcher('kimi-hook.sh')
+  )
   const guardBlock = [
     '# >>> orca-skill-review-guard (managed by Orca; do not edit) >>>',
     '[[hooks]]',

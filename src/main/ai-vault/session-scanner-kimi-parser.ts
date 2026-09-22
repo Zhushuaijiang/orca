@@ -22,6 +22,7 @@ import {
 } from './session-scanner-kimi-paths'
 import type { FileWithMtime, SessionAccumulator } from './session-scanner-types'
 import { addTokenUsage } from './session-scanner-token-values'
+import type { TranscriptMessageSink } from './session-transcript-consumers'
 import {
   asRecord,
   extractContentText,
@@ -38,7 +39,8 @@ import {
 // session_index.jsonl; model/messages/tokens come from the wire transcript.
 export async function parseKimiSessionFile(
   file: FileWithMtime,
-  platform: NodeJS.Platform = process.platform
+  platform: NodeJS.Platform = process.platform,
+  messages?: TranscriptMessageSink
 ): Promise<AiVaultSession | null> {
   let stateRecord: Record<string, unknown> | null
   try {
@@ -59,7 +61,12 @@ export async function parseKimiSessionFile(
   }
 
   const sessionId = kimiSessionIdFromStatePath(file.path)
-  const accumulator = createAccumulator({ agent: 'kimi', file, sessionId })
+  const accumulator = createAccumulator({
+    agent: 'kimi',
+    file,
+    sessionId,
+    messages
+  })
 
   // Why: Kimi sessions are work-dir-scoped — the resume command must `cd` into
   // the original directory or the CLI rejects it. That path lives only in the

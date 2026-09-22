@@ -93,12 +93,14 @@ export function syncSystemConfigIntoManagedCodexHome(
   }
   // Why: the baseline advances only after a successful mirror; recording an
   // unpromoted runtime change as Orca-written would strand it forever.
-  snapshotCodexRuntimeSettingsBaseline(
-    homes.runtimeHomePath,
-    new Map(
+  snapshotCodexRuntimeSettingsBaseline(homes.runtimeHomePath, {
+    conflicts: new Map(
       [...promotionPlan.conflicts].filter(([key]) => mirrorResult.preservedConflictKeys.has(key))
-    )
-  )
+    ),
+    // Why: this pass made the runtime's marketplace and plugin tables canonical,
+    // so a later source config that lacks one is a removal, not an addition.
+    mirroredRegistrations: true
+  })
 }
 
 /**
@@ -275,4 +277,16 @@ function mergeSystemCodexConfigIntoRuntime(runtimeConfig: string, systemConfig: 
       )
       .map((section) => section.block)
   ])
+}
+
+// Why: Codex reads this config inside WSL, so relative path settings must anchor to the
+// Linux-side home (verbatim copy breaks load, os error 2).
+export function prepareWslRuntimeSeedConfig(
+  configContents: string,
+  sourceHomePath: string
+): string {
+  return prepareSystemConfigForFreshRuntimeMirror(
+    configContents,
+    parseWslUncPath(sourceHomePath)?.linuxPath ?? sourceHomePath
+  )
 }

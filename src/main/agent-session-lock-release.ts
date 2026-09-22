@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { getProcessTableSnapshot } from '../shared/process-table-snapshot'
+import { getProcessTableSnapshot } from '../shared/process-table-snapshot-reader'
 import {
   matchAgentSessionLockHolders,
   type AgentSessionLockHolder

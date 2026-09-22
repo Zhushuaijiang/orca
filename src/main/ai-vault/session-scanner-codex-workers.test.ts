@@ -111,6 +111,9 @@ describe('scanAiVaultSessions Codex worker sessions', () => {
       cursorProjectsDir: join(root, 'cursor-projects'),
       opencodeStorageDir: join(root, 'opencode-storage'),
       opencodeDbPaths: [],
+      // Why: an absent dir would fall back to the real ~/.zcode store and leak
+      // the developer's own ZCode sessions into this scan.
+      zcodeDbDir: join(root, 'zcode-db'),
       grokSessionsDir: join(root, 'grok-sessions'),
       devinTranscriptsDir: join(root, 'devin-transcripts'),
       hermesSessionsDir: join(root, 'hermes-sessions'),

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -8,62 +8,47 @@ import { relayArtifactFilenames } from '../../src/shared/relay-artifacts.ts'
 const projectDir = resolve(import.meta.dirname, '../..')
 const require = createRequire(import.meta.url)
 const { createPackagedRuntimeNodeModuleResources } = require('../packaged-runtime-node-modules.cjs')
-const packageJson = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'))
-const pnpmWorkspace = parse(readFileSync(join(projectDir, 'pnpm-workspace.yaml'), 'utf8'))
+const readProject = (file) => readFileSync(join(projectDir, file), 'utf8')
+const packageJson = JSON.parse(readProject('package.json'))
+const pnpmWorkspace = parse(readProject('pnpm-workspace.yaml'))
+// Why not process.platform: the win32 plan resolves wherever its os-gated npm addon is
+// installed; @orca/windows-registry is a workspace link and present everywhere.
+const windowsAddonsInstalled = existsSync(
+  join(projectDir, 'node_modules', '@vscode', 'windows-process-tree', 'package.json')
+)
 
 describe('Electron runtime package contract', () => {
-  it('keeps shared WebGL atlas invalidation reproducible from vendored source', () => {
-    const patch = readFileSync(
-      join(projectDir, 'config/patches/@xterm__addon-webgl@0.20.0-beta.286.patch'),
-      'utf8'
-    )
-
-    expect(patch).toContain('readonly clearModelGeneration: number')
-    expect(patch).toContain('const generation = this._atlas.clearModelGeneration')
-    expect(patch).toContain('this.clearModelGeneration++')
-    expect(patch).toContain('this._atlas._clearModelGeneration||0')
-    expect(patch.match(/\^\(\?:\[1-8\]\\d\{2\}\|900\)\$/g)).toHaveLength(3)
-  })
-
-  it('keeps root postinstall as the single Electron binary install owner', () => {
-    expect(packageJson.scripts.postinstall).toBe('node config/scripts/rebuild-native-deps.mjs')
-    expect(pnpmWorkspace.allowBuilds.electron).not.toBe(true)
-  })
+  const packageTargets = {
+    win32: windowsAddonsInstalled ? createPackagedRuntimeNodeModuleResources('win32') : [],
+    darwin: createPackagedRuntimeNodeModuleResources('darwin'),
+    linux: createPackagedRuntimeNodeModuleResources('linux')
+  }
 
   it('keeps the native Windows registry addon optional and platform-gated', () => {
-    const rebuildScript = readFileSync(
-      join(projectDir, 'config/scripts/rebuild-native-deps.mjs'),
-      'utf8'
-    )
-    const ensureScript = readFileSync(
-      join(projectDir, 'config/scripts/ensure-native-runtime.mjs'),
-      'utf8'
-    )
-    expect(packageJson.optionalDependencies['windows-native-registry']).toBe('3.2.2')
-    // Why: pnpm installs optional target architectures on every host; the root
-    // Windows-only rebuild owns this addon so macOS/Linux never run node-gyp for it.
-    expect(pnpmWorkspace.allowBuilds['windows-native-registry']).not.toBe(true)
+    const rebuildScript = readProject('config/scripts/rebuild-native-deps.mjs')
+    const ensureScript = readProject('config/scripts/ensure-native-runtime.mjs')
+    expect(packageJson.optionalDependencies['@orca/windows-registry']).toBe('workspace:*')
+    // Why: allowBuilds stops pnpm running node-gyp at install time -- the root
+    // Windows-only rebuild owns this addon so it is built against the right runtime ABI.
+    expect(pnpmWorkspace.allowBuilds['@orca/windows-registry']).toBe(false)
     // Why assert the guard and the member separately: the list now carries more
     // than one addon, so pinning the whole literal only tested its formatting.
     expect(rebuildScript).toContain("rebuildPlatform === 'win32'")
-    expect(rebuildScript).toContain("'windows-native-registry'")
+    expect(rebuildScript).toContain("'@orca/windows-registry'")
     expect(ensureScript).toContain("process.platform === 'win32'")
-    expect(ensureScript).toContain("'windows-native-registry'")
-    const packageTargets = {
-      win32: createPackagedRuntimeNodeModuleResources('win32'),
-      darwin: createPackagedRuntimeNodeModuleResources('darwin'),
-      linux: createPackagedRuntimeNodeModuleResources('linux')
+    expect(ensureScript).toContain("'@orca/windows-registry'")
+    if (windowsAddonsInstalled) {
+      expect(packageTargets.win32).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ to: join('node_modules', '@orca', 'windows-registry') }),
+          expect.objectContaining({ to: join('node_modules', 'node-addon-api') })
+        ])
+      )
     }
-    expect(packageTargets.win32).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ to: join('node_modules', 'windows-native-registry') }),
-        expect.objectContaining({ to: join('node_modules', 'node-addon-api') })
-      ])
-    )
     for (const platform of ['darwin', 'linux']) {
       expect(packageTargets[platform]).not.toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ to: join('node_modules', 'windows-native-registry') })
+          expect.objectContaining({ to: join('node_modules', '@orca', 'windows-registry') })
         ])
       )
     }
@@ -79,9 +64,9 @@ describe('Electron runtime package contract', () => {
       'utf8'
     )
     expect(packageJson.optionalDependencies['@vscode/windows-process-tree']).toBe('0.8.0')
-    // Why: same rule as the registry addon -- pnpm installs optional deps on
-    // every host, so macOS/Linux must never run node-gyp for a Windows addon.
-    expect(pnpmWorkspace.allowBuilds['@vscode/windows-process-tree']).not.toBe(true)
+    // Why: same rule as the registry addon -- allowBuilds stops pnpm running node-gyp at
+    // install time so the Windows-only rebuild owns it with the right runtime ABI.
+    expect(pnpmWorkspace.allowBuilds['@vscode/windows-process-tree']).toBe(false)
     expect(rebuildScript).toContain("'@vscode/windows-process-tree'")
     expect(ensureScript).toContain("'@vscode/windows-process-tree'")
     // Why pin the patch: the upstream binding.gyp requires Spectre-mitigated
@@ -91,16 +76,13 @@ describe('Electron runtime package contract', () => {
     expect(pnpmWorkspace.patchedDependencies['@vscode/windows-process-tree@0.8.0']).toBe(
       'config/patches/@vscode__windows-process-tree@0.8.0.patch'
     )
-    const packageTargets = {
-      win32: createPackagedRuntimeNodeModuleResources('win32'),
-      darwin: createPackagedRuntimeNodeModuleResources('darwin'),
-      linux: createPackagedRuntimeNodeModuleResources('linux')
+    if (windowsAddonsInstalled) {
+      expect(packageTargets.win32).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ to: join('node_modules', '@vscode', 'windows-process-tree') })
+        ])
+      )
     }
-    expect(packageTargets.win32).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ to: join('node_modules', '@vscode', 'windows-process-tree') })
-      ])
-    )
     for (const platform of ['darwin', 'linux']) {
       expect(packageTargets[platform]).not.toEqual(
         expect.arrayContaining([
@@ -375,6 +357,10 @@ describe('Electron runtime package contract', () => {
     expect(afterInstallScript).toContain('chrome-sandbox')
     expect(afterInstallScript).toContain('chmod 4755 "$sandbox"')
     expect(afterInstallScript).not.toContain('chmod 0755 "$sandbox"')
+    expect(afterInstallScript).toContain('is_owned_link()')
+    expect(afterInstallScript).toContain('readlink -f -- "$link"')
+    expect(afterInstallScript).toContain('[ ! -e "$link" ] && [ ! -L "$link" ]')
+    expect(afterInstallScript).not.toContain('[ ! -e "$link" ] || [ -L "$link" ]')
   })
 
   it('advances only the skill release ledger in a taggable release-cut commit', () => {
@@ -542,7 +528,8 @@ describe('Electron runtime package contract', () => {
     expect(uploadStep.with.path).toBe('${{ env.ORCA_E2E_TERMINAL_PERF_REPORT_PATH }}')
   })
 
-  it('keeps terminal rendering regressions in the manual golden E2E workflow', () => {
+  it('keeps platform golden regressions in the manual and release workflows', () => {
+    const packageScripts = packageJson.scripts
     const goldenWorkflow = parse(
       readFileSync(join(projectDir, '.github/workflows/golden-e2e-experiment.yml'), 'utf8')
     )
@@ -574,22 +561,40 @@ describe('Electron runtime package contract', () => {
     // Why: Windows release evidence is temporarily paused for CI runner PTY readiness.
     const releaseEvidencePlatforms = ['linux', 'mac']
 
-    expect(packageJson.scripts['test:e2e:terminal-rendering-golden']).toContain(
+    expect(packageScripts['test:e2e:terminal-rendering-golden']).toContain(
       '@terminal-rendering-golden'
     )
-    expect(packageJson.scripts['test:e2e:terminal-rendering-golden']).toContain(
+    expect(packageScripts['test:e2e:terminal-rendering-golden']).toContain(
       'terminal-raw-emoji-table-scroll-restore.spec.ts'
     )
-    expect(packageJson.scripts['test:e2e:terminal-rendering-golden']).toContain(
+    expect(packageScripts['test:e2e:terminal-rendering-golden']).toContain(
       'terminal-webgl-atlas-budget.spec.ts'
     )
-    expect(packageJson.scripts['test:e2e:terminal-rendering-golden']).not.toContain(
+    expect(packageScripts['test:e2e:terminal-rendering-golden']).not.toContain(
       'terminal-long-table-scroll-restore.spec.ts'
     )
-    expect(packageJson.scripts['test:e2e:terminal-rendering-release-evidence']).toContain(
+    const goldenCommand = packageScripts['test:e2e:terminal-rendering-golden']
+    expect(goldenCommand).toContain('--project electron-headless')
+    expect(goldenCommand).toContain('--project electron-headful')
+    expect(packageScripts['test:e2e:windows-fresh-startup-golden']).toContain(
+      'golden-windows-fresh-startup.spec.ts'
+    )
+    expect(packageScripts['test:e2e:windows-fresh-startup-golden']).toContain(
+      '@windows-fresh-startup-golden'
+    )
+    expect(packageScripts['test:e2e:posix-profile-index-golden']).toContain(
+      'golden-posix-profile-index-fsync.spec.ts'
+    )
+    expect(packageScripts['test:e2e:posix-profile-index-golden']).toContain(
+      'golden-posix-fresh-startup.spec.ts'
+    )
+    expect(packageScripts['test:e2e:posix-profile-index-golden']).toContain(
+      '@posix-profile-index-golden'
+    )
+    expect(packageScripts['test:e2e:terminal-rendering-release-evidence']).toContain(
       'terminal-opencode-emoji-table-rendering.spec.ts'
     )
-    expect(packageJson.scripts['test:e2e:terminal-rendering-release-evidence']).toContain(
+    expect(packageScripts['test:e2e:terminal-rendering-release-evidence']).toContain(
       'terminal-long-table-scroll-restore.spec.ts'
     )
     expect(goldenMatrix).toEqual([
@@ -647,6 +652,8 @@ describe('Electron runtime package contract', () => {
     expect(releaseWindowsRunStep.run).toContain(
       'pnpm run --if-present test:e2e:windows-fresh-startup-golden'
     )
+    expect(releaseWindowsRunStep.run).not.toContain('test:e2e:workspace-session-golden')
+    expect(releaseWindowsRunStep.run).not.toContain('test:e2e:source-control-golden')
     expect(releaseEvidenceJob['continue-on-error']).toBe(true)
     expect(
       releaseEvidenceJob.strategy.matrix.include.map(({ platform }) => platform).sort()

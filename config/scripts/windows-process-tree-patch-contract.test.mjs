@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { parseAllDocuments } from 'yaml'
 import { describe, expect, it } from 'vitest'
 
 const projectDir = resolve(import.meta.dirname, '../..')
@@ -16,9 +17,9 @@ describe('Windows process-tree patch contract', () => {
     const patchHash = createHash('sha256')
       .update(patchBytes.toString('utf8').replaceAll('\r\n', '\n'))
       .digest('hex')
-    const lockfile = readFileSync(join(projectDir, 'pnpm-lock.yaml'), 'utf8')
-    // Why substring, not `hash: ${...}`: pnpm 10 nests the hash under a `hash:` key,
-    // pnpm 11 records it bare — assert the sync, not the lockfile serialization.
-    expect(lockfile).toContain(patchHash)
+    const lockfile = parseAllDocuments(readFileSync(join(projectDir, 'pnpm-lock.yaml'), 'utf8'))
+      .map((document) => document.toJS())
+      .find((document) => document.patchedDependencies)
+    expect(lockfile.patchedDependencies['@vscode/windows-process-tree@0.8.0']).toBe(patchHash)
   })
 })

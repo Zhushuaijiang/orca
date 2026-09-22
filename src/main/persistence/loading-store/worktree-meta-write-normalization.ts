@@ -6,30 +6,23 @@ import { isWorkspaceLinkedItemSourceContextMatch } from '../../../shared/workspa
 import { getYunxiaoRequirementCompletionGate } from '../../../shared/yunxiao-requirement-review-policy'
 import { DEFAULT_WORKSPACE_STATUS_ID } from '../../../shared/workspace-statuses'
 import type { WorktreeMeta } from '../../../shared/worktree/meta-types'
+import { WORKTREE_META_PERSISTED_DEFAULTS } from '../../../shared/worktree/meta-persisted-defaults'
+import { normalizeGitHubPRSuppressionUpdate } from '../../../shared/worktree/github-pr-suppression'
 
 type WorktreeMetaIdentity = {
   instanceId: string
   hostId: ExecutionHostId
 }
 
+// Why spread the shared table: it is what the serializer omits and the loader re-fills, so the two
+// must never drift.
 function createDefaultWorktreeMeta(): WorktreeMeta {
   return {
+    ...WORKTREE_META_PERSISTED_DEFAULTS,
     instanceId: randomUUID(),
     displayName: '',
     comment: '',
-    linkedIssue: null,
-    linkedPR: null,
-    linkedLinearIssue: null,
-    linkedGitLabMR: null,
-    linkedGitLabIssue: null,
-    linkedBitbucketPR: null,
-    linkedAzureDevOpsPR: null,
-    linkedGiteaPR: null,
-    linkedWorkItem: null,
-    linkedTaskSourceContext: null,
-    isArchived: false,
     isUnread: false,
-    isPinned: false,
     sortOrder: Date.now(),
     lastActivityAt: 0,
     workspaceStatus: DEFAULT_WORKSPACE_STATUS_ID
@@ -44,7 +37,8 @@ export function mergeWorktreeMetaForWrite(
 ): WorktreeMeta {
   const updated = {
     ...(existing ?? createDefaultWorktreeMeta()),
-    ...coerceManualYunxiaoWorktreeCompletion(existing, updates),
+    // Yunxiao gate coerces last so it rules over the status the sanitized updates carry.
+    ...coerceManualYunxiaoWorktreeCompletion(existing, normalizeGitHubPRSuppressionUpdate(updates)),
     ...identity
   }
   updated.linkedWorkItem = normalizeWorkspaceLinkedItem(updated.linkedWorkItem)

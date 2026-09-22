@@ -30,6 +30,7 @@ import { useAppStore } from '@/store'
 import { recordTerminalUserInputForLeaf } from './terminal-input-activity'
 import { applyYunxiaoRequirementTerminalPasteGate } from './yunxiao-terminal-paste-gate'
 import {
+  copyTerminalPaneMenuAgentSessionId,
   copyTerminalPaneMenuPaneId,
   copyTerminalPaneMenuSelection,
   copyTerminalPaneMenuTerminalId
@@ -41,6 +42,8 @@ import {
 } from './terminal-pane-menu-agent-session-actions'
 import { useTerminalPaneSplitActions } from './use-terminal-pane-split-actions'
 import { useTerminalContextMenuTrigger } from './use-terminal-context-menu-trigger'
+import { makePaneKey } from '../../../../shared/stable-pane-id'
+import { resolvePaneAgentSessionId } from './pane-agent-session-id'
 
 type UseTerminalPaneContextMenuDeps = {
   managerRef: React.RefObject<PaneManager | null>
@@ -76,6 +79,7 @@ type TerminalMenuState = {
   onSelectAll: () => void
   onCopyTerminalId: () => Promise<void>
   onCopyPaneId: () => Promise<void>
+  onCopyAgentSessionId: () => Promise<void>
   onPaste: () => Promise<void>
   onSplitRight: () => void
   onSplitDown: () => void
@@ -255,6 +259,7 @@ export function useTerminalPaneContextMenu({
     paneCwdRef,
     contextPaneIdRef,
     tabId,
+    worktreeId,
     fallbackCwd,
     resolveMenuPane
   })
@@ -284,6 +289,14 @@ export function useTerminalPaneContextMenu({
 
   const onCopyTerminalId = async (): Promise<void> =>
     copyTerminalPaneMenuTerminalId(resolveMenuPane(), tabId)
+
+  const onCopyAgentSessionId = async (): Promise<void> => {
+    const pane = resolveMenuPane()
+    const sessionId = pane
+      ? resolvePaneAgentSessionId(useAppStore.getState(), makePaneKey(tabId, pane.leafId))
+      : null
+    return copyTerminalPaneMenuAgentSessionId(pane, sessionId)
+  }
 
   const onPaste = async (): Promise<void> => pasteResolvedPane('context-menu')
 
@@ -390,6 +403,7 @@ export function useTerminalPaneContextMenu({
     onSelectAll,
     onCopyTerminalId,
     onCopyPaneId,
+    onCopyAgentSessionId,
     onPaste,
     onSplitRight,
     onSplitDown,

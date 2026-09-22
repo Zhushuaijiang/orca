@@ -1,20 +1,14 @@
-import {
-  CLIENT_PLATFORM,
-  ensureAgentStartupInTerminal,
-  type LinkedWorkItemSummary
-} from '@/lib/new-workspace'
+import { ensureAgentStartupInTerminal, type LinkedWorkItemSummary } from '@/lib/new-workspace'
 import { seedNativeChatLaunchDraftForAgentTab } from '@/lib/agent-launch-prompt-delivery'
+import { preflightAgentTrust } from '@/lib/agent-trust-preflight'
 import { createBrowserUuid } from '@/lib/browser-uuid'
 import { buildAgentStartupPlan } from '@/lib/tui-agent-startup'
 import { tuiAgentToAgentKind } from '@/lib/telemetry'
 import { activateAndRevealFolderWorkspace } from '@/lib/worktree-activation'
 import { isWorkItemLookupText } from '@/lib/work-item-lookup-text'
-import { TUI_AGENT_CONFIG } from '../../../../shared/tui-agent-config'
-import { isWindowsAbsolutePathLike } from '../../../../shared/cross-platform-path'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
-import { isWslUncPath } from '../../../../shared/wsl-paths'
 import { resolveLocalWindowsAgentStartupShell } from '../../../../shared/windows-terminal-shell'
 import type { LaunchSource } from '../../../../shared/telemetry-events'
 import type { SessionOptionValue } from '../../../../shared/native-chat-session-options'
@@ -24,15 +18,21 @@ import {
   getLinkedItemDisplayName,
   toFolderWorkspaceLinkedTask
 } from './folder-workspace-composer-helpers'
+import { planAgentSessionLaunch } from '@/lib/agent-session-launch-plan'
+import { beginStructuredAgentSessionProvisionalLaunch } from '@/lib/structured-agent-session-provisional-tab'
+import { getNewWorkspaceProjectGroupHostId } from '@/lib/new-workspace-project-options'
+import { useAppStore } from '@/store'
 import {
   buildFolderWorkspaceLinkedStartupPlan,
+  getFolderWorkspaceAgentLaunchPlatform,
   resolveFolderWorkspaceLaunchDraft
-} from './folder-workspace-linked-startup-plan'
+} from './folder-workspace-agent-startup'
 
 export {
   buildFolderWorkspaceLinkedStartupPlan,
+  getFolderWorkspaceAgentLaunchPlatform,
   resolveFolderWorkspaceLaunchDraft
-} from './folder-workspace-linked-startup-plan'
+} from './folder-workspace-agent-startup'
 
 type FolderWorkspaceCreateInput = {
   projectGroupId: string
@@ -64,39 +64,6 @@ type SubmitFolderWorkspaceCreateParams = {
   runtimeEnvironmentId?: string | null
   createFolderWorkspace: (input: FolderWorkspaceCreateInput) => Promise<FolderWorkspace | null>
   onOpenChange: (open: boolean) => void
-}
-
-export function getFolderWorkspaceAgentLaunchPlatform(
-  projectGroup: Pick<ProjectGroup, 'connectionId' | 'parentPath'>
-): NodeJS.Platform {
-  const parentPath = projectGroup.parentPath?.trim() ?? ''
-  if (projectGroup.connectionId) {
-    return isWindowsAbsolutePathLike(parentPath) ? 'win32' : 'linux'
-  }
-  return parentPath && isWslUncPath(parentPath) ? 'linux' : CLIENT_PLATFORM
-}
-
-async function preflightFolderWorkspaceAgentTrust(args: {
-  agent: TuiAgent | null
-  workspacePath: string | null
-  connectionId?: string | null
-}): Promise<void> {
-  if (!args.agent || !window.api.agentTrust?.markTrusted) {
-    return
-  }
-  const preflight = TUI_AGENT_CONFIG[args.agent].preflightTrust
-  if (!preflight || !args.workspacePath) {
-    return
-  }
-  try {
-    await window.api.agentTrust.markTrusted({
-      preset: preflight,
-      workspacePath: args.workspacePath,
-      ...(args.connectionId ? { connectionId: args.connectionId } : {})
-    })
-  } catch {
-    // Best-effort: the user can still accept the agent trust prompt manually.
-  }
 }
 
 export async function submitFolderWorkspaceCreate({
@@ -170,6 +137,20 @@ export async function submitFolderWorkspaceCreate({
     quickAgent && linkedWorkItem
       ? resolveFolderWorkspaceLaunchDraft(linkedWorkItem, note, promptSeed)
       : null
+  const plan = quickAgent
+    ? planAgentSessionLaunch(useAppStore.getState(), {
+        agent: quickAgent,
+        workspace: {
+          kind: 'folder',
+          runtimeEnvironmentId,
+          executionHostId: getNewWorkspaceProjectGroupHostId(projectGroup)
+        },
+        prompt: launchDraftPrompt ?? submitPrompt,
+        promptDelivery: launchDraftPrompt ? 'draft' : 'auto-submit',
+        initialSessionOptions: startupPlan?.sessionOptions
+      })
+    : null
+  const structuredLaunch = plan?.route === 'structured-native-chat'
   // Why: the pending badge should only appear when the submitted prompt can
   // actually produce the first agent message that names the workspace.
   const pendingFirstAgentMessageRename =
@@ -193,11 +174,13 @@ export async function submitFolderWorkspaceCreate({
   if (!workspace) {
     return false
   }
-  await preflightFolderWorkspaceAgentTrust({
-    agent: quickAgent,
-    workspacePath: workspace.folderPath,
-    connectionId: workspace.connectionId ?? projectGroup.connectionId
-  })
+  if (!structuredLaunch) {
+    await preflightAgentTrust({
+      agent: quickAgent,
+      workspacePath: workspace.folderPath,
+      connectionId: workspace.connectionId ?? projectGroup.connectionId
+    })
+  }
   if (startupPlan && !startupPlan.launchToken) {
     // Why: delayed delivery must target the exact pane spawned from this queued
     // startup, so both halves share one renderer-session token.
@@ -229,11 +212,32 @@ export async function submitFolderWorkspaceCreate({
       : undefined
   onOpenChange(false)
   try {
-    const activation = activateAndRevealFolderWorkspace(workspace.id, {
-      ...(startup ? { startup } : {}),
-      runtimeEnvironmentId
-    })
+    const activationHolder: {
+      value: ReturnType<typeof activateAndRevealFolderWorkspace>
+    } = { value: false }
+    const revealWorkspace = (): boolean => {
+      activationHolder.value = activateAndRevealFolderWorkspace(workspace.id, {
+        agent: quickAgent,
+        ...(!structuredLaunch && startup ? { startup } : {}),
+        ...(structuredLaunch ? { providesInitialSurface: true } : {}),
+        runtimeEnvironmentId
+      })
+      return activationHolder.value !== false
+    }
+    const structuredLaunchAccepted = structuredLaunch
+    if (plan?.route === 'structured-native-chat') {
+      beginStructuredAgentSessionProvisionalLaunch({
+        plan,
+        hooks: {},
+        target: { worktreeId: folderWorkspaceKey(workspace.id) },
+        beforeOpen: revealWorkspace
+      })
+    } else {
+      revealWorkspace()
+    }
+    const activation = activationHolder.value
     if (
+      !structuredLaunchAccepted &&
       quickAgent &&
       startupPlan &&
       launchDraftPrompt &&
@@ -249,6 +253,7 @@ export async function submitFolderWorkspaceCreate({
       })
     }
     if (
+      !structuredLaunchAccepted &&
       startupPlan &&
       (startupPlan.followupPrompt || startupPlan.draftPrompt) &&
       activation !== false

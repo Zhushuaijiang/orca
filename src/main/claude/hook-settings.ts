@@ -15,11 +15,14 @@ import {
   type HooksConfig
 } from '../agent-hooks/installer-utils'
 import { wrapRuntimeHomeHookCommand } from '../agent-hooks/runtime-home-hook-command'
+import { wrapWindowsDirectCmdHookCommand } from '../agent-hooks/windows-direct-cmd-hook-command'
+import { isGitBashAvailable } from '../git-bash'
+import { claudeVersionSupportsSessionEnd } from './claude-session-end-hook-capability'
 
 export type ClaudeCompatibleHookSettings = {
   configDirName: '.claude' | '.openclaude' | '.codebuddy'
   scriptBaseName: 'claude-hook' | 'openclaude-hook' | 'codebuddy-hook'
-  usesWindowsPowerShellLauncher: boolean
+  usesWindowsCompatLauncher: boolean
   /** Hook URL source the managed script posts to; defaults to 'claude'. */
   hookSource?: Extract<AgentHookSource, 'claude' | 'codebuddy'>
 }
@@ -27,13 +30,13 @@ export type ClaudeCompatibleHookSettings = {
 export const CLAUDE_HOOK_SETTINGS: ClaudeCompatibleHookSettings = {
   configDirName: '.claude',
   scriptBaseName: 'claude-hook',
-  usesWindowsPowerShellLauncher: true
+  usesWindowsCompatLauncher: true
 }
 
 export const OPENCLAUDE_HOOK_SETTINGS: ClaudeCompatibleHookSettings = {
   configDirName: '.openclaude',
   scriptBaseName: 'openclaude-hook',
-  usesWindowsPowerShellLauncher: false
+  usesWindowsCompatLauncher: false
 }
 
 // Why: CodeBuddy Code is Claude-hook-shaped (settings.json `hooks` with the same
@@ -42,7 +45,7 @@ export const OPENCLAUDE_HOOK_SETTINGS: ClaudeCompatibleHookSettings = {
 export const CODEBUDDY_HOOK_SETTINGS: ClaudeCompatibleHookSettings = {
   configDirName: '.codebuddy',
   scriptBaseName: 'codebuddy-hook',
-  usesWindowsPowerShellLauncher: false,
+  usesWindowsCompatLauncher: false,
   hookSource: 'codebuddy'
 }
 
@@ -112,6 +115,15 @@ export const CLAUDE_EVENTS = [
   }
 ] as const
 
+const CLAUDE_SESSION_END_EVENT = {
+  eventName: 'SessionEnd',
+  definition: { hooks: [{ type: 'command', command: '' }] }
+} as const
+
+export type ApplyManagedClaudeHooksOptions = {
+  claudeVersion?: string
+}
+
 export function getConfigPath(settings = CLAUDE_HOOK_SETTINGS): string {
   return join(homedir(), settings.configDirName, 'settings.json')
 }
@@ -166,16 +178,31 @@ export function getManagedCommand(
 
 export function getManagedLifecycleHook(
   scriptPath: string,
-  settings = CLAUDE_HOOK_SETTINGS
+  settings = CLAUDE_HOOK_SETTINGS,
+  options: WindowsManagedLifecycleHookOptions = {}
 ): HookCommandConfig {
-  if (process.platform !== 'win32' || !settings.usesWindowsPowerShellLauncher) {
+  if (process.platform !== 'win32' || !settings.usesWindowsCompatLauncher) {
     return buildManagedCommandHook(getManagedCommand(scriptPath, { neutralJsonWhenMissing: true }))
   }
-  return getWindowsManagedLifecycleHook(scriptPath)
+  return getWindowsManagedLifecycleHook(scriptPath, options)
 }
 
+export type WindowsManagedLifecycleHookOptions = { gitBashAvailable?: boolean }
+
 // Why: some Claude-compatible consumers ignore `args`, so the invocation must be self-contained.
-export function getWindowsManagedLifecycleHook(scriptPath: string): HookCommandConfig {
+export function getWindowsManagedLifecycleHook(
+  scriptPath: string,
+  options: WindowsManagedLifecycleHookOptions = {}
+): HookCommandConfig {
+  // Why (#18875): the encoded launcher cost a PowerShell start-up per hook event. Take the direct
+  // path only where the host can parse `||` — Git Bash can, Windows PowerShell 5.1 cannot.
+  const directCommand =
+    (options.gitBashAvailable ?? isGitBashAvailable())
+      ? wrapWindowsDirectCmdHookCommand(scriptPath)
+      : null
+  if (directCommand) {
+    return { type: 'command', command: directCommand, timeout: MANAGED_HOOK_TIMEOUT_SECONDS }
+  }
   const scriptFileName = win32.basename(scriptPath)
   // Why: runtime profile resolution keeps the managed entry portable across users (STA-3348).
   const quotedRelativePath = quotePowerShellString(`.orca\\agent-hooks\\${scriptFileName}`)
@@ -208,12 +235,15 @@ export function getRemoteManagedCommand(scriptPath: string): string {
 export function applyManagedHooks(
   config: HooksConfig,
   hook: HookCommandConfig,
-  scriptFileName = getManagedScriptFileName()
+  scriptFileName = getManagedScriptFileName(),
+  options: ApplyManagedClaudeHooksOptions = {}
 ): HooksConfig {
   const nextHooks = { ...config.hooks }
   const isManagedCommand = createManagedCommandMatcher(scriptFileName)
+  const sessionEndCapable = claudeVersionSupportsSessionEnd(options.claudeVersion)
+  const events = sessionEndCapable ? [...CLAUDE_EVENTS, CLAUDE_SESSION_END_EVENT] : CLAUDE_EVENTS
 
-  for (const event of CLAUDE_EVENTS) {
+  for (const event of events) {
     const current = Array.isArray(nextHooks[event.eventName]) ? nextHooks[event.eventName] : []
     const cleaned = removeManagedCommands(current, isManagedCommand)
     const definition: HookDefinition = {
@@ -221,6 +251,16 @@ export function applyManagedHooks(
       hooks: [hook]
     }
     nextHooks[event.eventName] = [...cleaned, definition]
+  }
+
+  if (!sessionEndCapable) {
+    const current = Array.isArray(nextHooks.SessionEnd) ? nextHooks.SessionEnd : []
+    const cleaned = removeManagedCommands(current, isManagedCommand)
+    if (cleaned.length === 0) {
+      delete nextHooks.SessionEnd
+    } else {
+      nextHooks.SessionEnd = cleaned
+    }
   }
 
   return { ...config, hooks: nextHooks }

@@ -178,7 +178,10 @@ function createSettings(overrides: TestSettingsOverrides = {}): GlobalSettings {
     agentStatusHooksEnabled,
     tabAutoGenerateTitle,
     enableGitHubAttribution: overrides.enableGitHubAttribution ?? true
-  }
+    // SAFETY: spreading `overrides` (Partial<GlobalSettings>) widens required settings props to
+    // include undefined in this literal's inferred type. Every required prop is explicitly
+    // defaulted above, so the runtime value is a complete GlobalSettings.
+  } as GlobalSettings
 }
 
 function getSystemCodexHomePath(): string {
@@ -2874,7 +2877,7 @@ describe('CodexRuntimeHomeService', () => {
   })
 
   it('anchors WSL seed rewrites to the Linux-side home parsed from the UNC source', async () => {
-    const { prepareWslRuntimeSeedConfig } = await import('./runtime-home-service')
+    const { prepareWslRuntimeSeedConfig } = await import('../codex/codex-config-mirror')
 
     // Why: real UNC sources cannot back live fs operations in tests, so pin
     // the UNC -> Linux-side anchor translation on the extracted seed function.

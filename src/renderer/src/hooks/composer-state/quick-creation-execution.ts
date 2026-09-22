@@ -47,6 +47,7 @@ import { resolveQuickCreateLinkedWorkItemPrompt } from '@/lib/linked-work-item-c
 import { buildQuickComposerStartup } from './quick-startup-plan'
 import { buildQuickCreationRequest } from './quick-creation-request'
 import type { PendingSmartGitHubSubmitResolution } from './source-selection-decisions'
+import { planAgentSessionLaunch } from '@/lib/agent-session-launch-plan'
 
 export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
   const {
@@ -107,6 +108,7 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         submitLinkedPR,
         workspaceName,
         nameWasGenerated,
+        nameIsAutoManaged,
         submitCompareBaseRef,
         submitPushTarget,
         effectiveSetupDecision,
@@ -194,6 +196,25 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         }
       }
 
+      const promptDelivery = quickDraftPrompt ? 'draft' : 'auto-submit'
+      // Why: the verdict is persisted on the request as data and re-entered once the worktree exists.
+      const agentLaunchRoute = agent
+        ? planAgentSessionLaunch(useAppStore.getState(), {
+            agent,
+            workspace: {
+              kind: selectedRepoIsGit ? 'git-worktree' : 'folder',
+              repoId,
+              executionHostId: ephemeralVmRecipe
+                ? 'runtime:pending-ephemeral-vm'
+                : (workspaceRunContext?.hostId ?? selectedRepoExecutionHostId ?? undefined)
+            },
+            prompt: quickDraftPrompt ?? quickPrompt,
+            promptDelivery,
+            initialSessionOptions: startupPlan?.sessionOptions
+          }).route
+        : 'terminal-tui'
+      const structuredLaunch = agentLaunchRoute === 'structured-native-chat'
+
       const request = buildQuickCreationRequest({
         repoId,
         ephemeralVmRecipe,
@@ -206,6 +227,7 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         workspaceName,
         nameWasGenerated,
         displayName: createDisplayName,
+        displayNameKind: createDisplayName ? (nameIsAutoManaged ? 'generated' : 'user') : undefined,
         selectedRepoIsGit,
         baseBranch: submitBaseBranch,
         compareBaseRef: submitCompareBaseRef,
@@ -217,6 +239,7 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         linkedPR: submitLinkedPR,
         pushTarget: submitPushTarget,
         agent,
+        agentLaunchRoute,
         linkedLinearIssue,
         linkedLinearIssueWorkspaceId,
         linkedLinearIssueOrganizationUrlKey,
@@ -226,13 +249,14 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         linkedGitLabMR,
         linkedGitLabIssue,
         includeGitLabLinks: smartGitHubResolution.kind === 'none',
-        startup: backendStartup,
+        startup: structuredLaunch ? undefined : backendStartup,
         issueCommand,
         pendingFirstAgentMessageRename,
         note: trimmedNote,
         startupPlan,
         quickPrompt,
         launchDraftPrompt: quickDraftPrompt,
+        promptDelivery,
         quickTelemetry,
         suppressTerminalFocusOnCompletion: createMultiple
       })

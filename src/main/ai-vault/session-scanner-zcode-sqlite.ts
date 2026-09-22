@@ -13,6 +13,7 @@ import { readZcodeDatabase } from './session-scanner-zcode-sqlite-open'
 import { normalizeTitleText } from './session-scanner-values'
 import type SyncDatabase from '../sqlite/sync-database'
 import { columnExists, tableExists } from '../opencode-usage/schema-helpers'
+import type { TranscriptMessageSink } from './session-transcript-consumers'
 
 // Why: ZCode persists sessions in one SQLite DB (~/.zcode/cli/db/db.sqlite) with
 // an OpenCode-family three-table schema. Only the session columns above were
@@ -218,6 +219,7 @@ export async function parseZcodeSqliteSession(args: {
   dbPath: string
   sessionId: string
   platform: NodeJS.Platform
+  messages?: TranscriptMessageSink
 }): Promise<AiVaultSession | null> {
   return readZcodeDatabase({
     dbPath: args.dbPath,
@@ -231,8 +233,9 @@ function readSession(args: {
   dbPath: string
   sessionId: string
   platform: NodeJS.Platform
+  messages?: TranscriptMessageSink
 }): AiVaultSession | null {
-  const { db, dbPath, sessionId, platform } = args
+  const { db, dbPath, sessionId, platform, messages } = args
   if (
     !tableExists(db, 'session') ||
     !columnExists(db, 'session', 'time_created') ||
@@ -266,7 +269,8 @@ function readSession(args: {
       mtimeMs,
       modifiedAt: new Date(mtimeMs).toISOString()
     },
-    sessionId
+    sessionId,
+    messages
   })
   accumulator.title = normalizeTitleText(row.title ?? '')
   accumulator.cwd = row.directory

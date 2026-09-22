@@ -17,6 +17,7 @@ import type { FileContent } from './editor-panel-content-types'
 import { ExternalFileChangeBanner } from './ExternalFileChangeBanner'
 import type { useMarkdownDocuments } from './useMarkdownDocuments'
 import { EditorMarkdownFileSurface } from './EditorMarkdownFileSurface'
+import type { MarkdownRenderState } from './markdown-render-mode'
 
 const noopEditorContentChange = (_content: string): void => {}
 const noopEditorSave = async (_content: string): Promise<boolean> => false
@@ -29,6 +30,7 @@ export function EditorEditFileSurface({
   editorViewStateKey,
   diffViewStateKey,
   pdfViewStateKey,
+  pdfPreferenceKey,
   fileContent,
   diffContent,
   editBuffer,
@@ -39,6 +41,7 @@ export function EditorEditFileSurface({
   isCsv,
   isNotebook,
   mdViewMode,
+  inlineMarkdownRenderState,
   isChangesMode,
   sideBySide,
   showMarkdownTableOfContents,
@@ -59,6 +62,7 @@ export function EditorEditFileSurface({
   editorViewStateKey: string
   diffViewStateKey: string
   pdfViewStateKey: string
+  pdfPreferenceKey: string
   fileContent: FileContent | undefined
   diffContent: GitDiffResult | undefined
   editBuffer: string | undefined
@@ -69,6 +73,7 @@ export function EditorEditFileSurface({
   isCsv: boolean
   isNotebook: boolean
   mdViewMode: MarkdownViewMode
+  inlineMarkdownRenderState: MarkdownRenderState | null
   isChangesMode: boolean
   sideBySide: boolean
   showMarkdownTableOfContents: boolean
@@ -98,6 +103,7 @@ export function EditorEditFileSurface({
     return (
       <EditorFileLoadErrorView
         message={fileContent.loadError}
+        code={fileContent.loadErrorCode}
         onRetry={() => reloadContent(activeFile)}
       />
     )
@@ -109,6 +115,7 @@ export function EditorEditFileSurface({
           content={fileContent.content}
           filePath={activeFile.filePath}
           mimeType={fileContent.mimeType}
+          preferenceKey={pdfPreferenceKey}
           scrollCacheKey={pdfViewStateKey}
         />
       )
@@ -210,6 +217,7 @@ export function EditorEditFileSurface({
       editorViewStateKey={editorViewStateKey}
       currentContent={currentContent}
       mdViewMode={mdViewMode}
+      inlineMarkdownRenderState={inlineMarkdownRenderState}
       showMarkdownTableOfContents={showMarkdownTableOfContents}
       showMarkdownFrontmatter={showMarkdownFrontmatter}
       onCloseMarkdownTableOfContents={onCloseMarkdownTableOfContents}

@@ -4,7 +4,7 @@ import type {
   DfHisEnvironmentInstallResult,
   DfHisEnvironmentPrerequisiteResult
 } from '../../../../shared/dfhis-environment-types'
-import { defineMethod, type RpcMethod } from '../core'
+import { defineMethod } from '../core'
 import { OptionalBoolean, OptionalPlainString } from '../schemas'
 import { getHisMcpConnection, getOfficialYunxiaoConnection } from '../../../yunxiao/mcp-connections'
 import {
@@ -277,7 +277,7 @@ async function installDfHisEnvironment(
   }
 }
 
-export const DFHIS_ENVIRONMENT_METHODS: RpcMethod[] = [
+export const DFHIS_ENVIRONMENT_METHODS = [
   defineMethod({
     name: 'dfhisEnvironment.getConfig',
     params: null,

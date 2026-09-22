@@ -20,23 +20,34 @@ describe('windows-process-tree node-addon-api gyp path', () => {
       join(projectDir, 'config/scripts/build-windows-process-tree-relay-addon.mjs'),
       'utf8'
     )
-    expect(buildScript).toContain(
-      "for (const header of ['napi.h', 'napi-inl.h', 'napi-inl.deprecated.h'])"
-    )
-    expect(buildScript).toContain("import { createRequire } from 'node:module'")
-    expect(buildScript).toContain("import { dirname, join, resolve } from 'node:path'")
-    expect(buildScript).toContain(
-      "createRequire(join(PACKAGE_DIR, 'package.json')).resolve('node-addon-api/package.json')"
-    )
+    expect(buildScript).toContain('stageWindowsProcessTreeNodeAddonApiHeaders(PACKAGE_DIR)')
     expect(buildScript).toContain('Repaired un-applied pnpm patch hunks before build.')
+    const rebuildHelper = readFileSync(
+      join(projectDir, 'config/scripts/windows-process-tree-gyp-rebuild.mjs'),
+      'utf8'
+    )
+    expect(rebuildHelper).toContain("createRequire(join(packageDir, 'package.json'))")
+    expect(rebuildHelper).toContain("resolve('node-addon-api/package.json')")
+    expect(rebuildHelper).toContain("'napi.h'")
+    expect(rebuildHelper).toContain("'napi-inl.h'")
+    expect(rebuildHelper).toContain("'napi-inl.deprecated.h'")
+    const rebuildScript = readFileSync(
+      join(projectDir, 'config/scripts/rebuild-native-deps.mjs'),
+      'utf8'
+    )
+    expect(rebuildScript).toContain('stageWindowsProcessTreeNodeAddonApiHeaders()')
   })
 
-  it('resolves node_addon_api.gyp to a real file from the package directory', () => {
-    const resolved = execFileSync(process.execPath, ['-p', RESOLVED_GYP], {
-      cwd: PACKAGE_DIR,
-      encoding: 'utf8'
-    }).trim()
-    expect(isAbsolute(resolved)).toBe(true)
-    expect(existsSync(resolved)).toBe(true)
-  })
+  // The installed Windows dependency is exercised by the Windows CI lane.
+  it.runIf(process.platform === 'win32')(
+    'resolves node_addon_api.gyp to a real file from the package directory',
+    () => {
+      const resolved = execFileSync(process.execPath, ['-p', RESOLVED_GYP], {
+        cwd: PACKAGE_DIR,
+        encoding: 'utf8'
+      }).trim()
+      expect(isAbsolute(resolved)).toBe(true)
+      expect(existsSync(resolved)).toBe(true)
+    }
+  )
 })

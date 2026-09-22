@@ -8,6 +8,7 @@ import type {
   ResumableSessionParseState,
   SessionAccumulator
 } from './session-scanner-types'
+import type { TranscriptMessageSink } from './session-transcript-consumers'
 import {
   accumulatorFoldResumeState,
   addPreviewContent,
@@ -36,13 +37,14 @@ type ParserSessionOptions = {
 // and OpenAI-style usage under providerData on function_call records.
 export async function parseCodebuddySessionFile(
   file: FileWithMtime,
-  platform: NodeJS.Platform = process.platform
+  platform: NodeJS.Platform = process.platform,
+  messages?: TranscriptMessageSink
 ): Promise<AiVaultSession | null> {
   const lines = createInterface({
     input: openTranscriptReadStream(file.path, { encoding: 'utf-8' }, 'scan'),
     crlfDelay: Infinity
   })
-  return parseCodebuddySessionLines({ file, lines, platform })
+  return parseCodebuddySessionLines({ file, lines, platform, messages })
 }
 
 export async function parseCodebuddySessionContent(
@@ -154,9 +156,17 @@ function detailTokensTotal(value: unknown, key: string): number {
   return value.reduce((total, item) => total + numberValue(asRecord(item)?.[key]), 0)
 }
 
-export function createCodebuddySessionResumeState(file: FileWithMtime): ResumableSessionParseState {
+export function createCodebuddySessionResumeState(
+  file: FileWithMtime,
+  messages?: TranscriptMessageSink
+): ResumableSessionParseState {
   return accumulatorFoldResumeState(
-    createAccumulator({ agent: 'codebuddy', file, sessionId: sessionIdFromFileName(file.path) }),
+    createAccumulator({
+      agent: 'codebuddy',
+      file,
+      sessionId: sessionIdFromFileName(file.path),
+      messages
+    }),
     consumeCodebuddyRecordLine
   )
 }
@@ -166,8 +176,9 @@ async function parseCodebuddySessionLines(args: {
   lines: AsyncIterable<string> | Iterable<string>
   platform: NodeJS.Platform
   options?: ParserSessionOptions
+  messages?: TranscriptMessageSink
 }): Promise<AiVaultSession | null> {
-  const state = createCodebuddySessionResumeState(args.file)
+  const state = createCodebuddySessionResumeState(args.file, args.messages)
   for await (const line of args.lines) {
     state.consumeLine(line)
   }

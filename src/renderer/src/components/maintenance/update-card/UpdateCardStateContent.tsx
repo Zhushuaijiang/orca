@@ -21,7 +21,6 @@ export function UpdateCardStateContent({
   linuxPackageRecovery,
   isLocalBuild,
   isDfhis,
-  cachedVersion,
   hasStartedDownload,
   prefersReducedMotion,
   mediaFailed,
@@ -42,7 +41,6 @@ export function UpdateCardStateContent({
   } | null
   isLocalBuild: boolean
   isDfhis: boolean
-  cachedVersion: string | null
   hasStartedDownload: boolean
   prefersReducedMotion: boolean
   mediaFailed: boolean
@@ -73,9 +71,14 @@ export function UpdateCardStateContent({
   if (linuxPackageRecovery) {
     return (
       <LinuxPackageInstallRecoveryCard
+        key={`${linuxPackageRecovery.recovery.packageType}:${linuxPackageRecovery.recovery.version}:${linuxPackageRecovery.recovery.reason}`}
         recovery={linuxPackageRecovery.recovery}
         diagnostic={linuxPackageRecovery.diagnostic}
-        releaseUrl={isLocalBuild ? undefined : getReleaseNotesUrlForVersion(cachedVersion)}
+        releaseUrl={
+          isLocalBuild
+            ? undefined
+            : getReleaseNotesUrlForVersion(linuxPackageRecovery.recovery.version)
+        }
         onClose={onCollapse}
       />
     )
@@ -133,6 +136,7 @@ export function UpdateCardStateContent({
       onMediaLoad={onMediaLoad}
       onUpdate={onUpdate}
       onClose={onDismiss}
+      externallyManaged={status.externallyManaged}
     />
   ) : (
     <UpdateAvailableSimpleContent
@@ -140,6 +144,7 @@ export function UpdateCardStateContent({
       releaseUrl={releaseUrl}
       onUpdate={onUpdate}
       onClose={onDismiss}
+      externallyManaged={status.externallyManaged}
     />
   )
 }

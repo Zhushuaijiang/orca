@@ -3,7 +3,7 @@ import type { YunxiaoTodoPoolUpdateArgs, YunxiaoWorkItem } from '../../../../sha
 import { archiveYunxiaoRequirement, createYunxiaoRequirement } from '../../../yunxiao/client'
 import { listYunxiaoRequirementFieldOptions } from '../../../yunxiao/requirement-field-options'
 import { listYunxiaoWorkItems } from '../../../yunxiao/work-item-list'
-import { defineMethod, type RpcMethod } from '../core'
+import { defineMethod } from '../core'
 import { OptionalBoolean, OptionalFiniteNumber, OptionalString, requiredString } from '../schemas'
 
 const YunxiaoWorkItemCategory = z.enum(['Req', 'Task', 'Bug', 'all']).optional()
@@ -77,7 +77,7 @@ const YunxiaoTodoPoolUpdate = z.object({
     .default({})
 })
 
-export const YUNXIAO_METHODS: RpcMethod[] = [
+export const YUNXIAO_METHODS = [
   defineMethod({
     name: 'yunxiao.listWorkItems',
     params: YunxiaoListWorkItems,

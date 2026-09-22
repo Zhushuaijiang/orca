@@ -26,6 +26,7 @@ import {
 } from './normalize-loaded-state-collections'
 import { normalizeYunxiaoTodoPool } from '../scheduling-automations/yunxiao-todo-pool-ordering'
 import { normalizeRetiredNameRegistryMap } from './retired-name-registry-normalization'
+import { hydrateWorktreeMetaAliasProjection } from './worktree-meta-alias-projection'
 
 export function normalizeLoadedProfileState(
   parsed: PersistedState,
@@ -36,6 +37,8 @@ export function normalizeLoadedProfileState(
   const { defaults, migratedExternalVisibility, osc52ClipboardNoticePending } = terminal
   const { normalizedOnboarding, normalizedProjectGroups, loadedCompactWorktreeCards } = profile
   const projectCatalog = normalizeLoadedProjectCatalog(parsed, markNeedsSave)
+  // Ordered: the host partitions drop the global fields this slice already owns.
+  const workspaceSession = normalizeLoadedLocalSession(parsed, defaults, markNeedsSave)
 
   return {
     ...defaults,
@@ -52,6 +55,13 @@ export function normalizeLoadedProfileState(
     folderWorkspaceDiffComments: normalizeFolderWorkspaceDiffComments(
       parsed.folderWorkspaceDiffComments
     ),
+    // Rebuilds the identity rows the serializer left to the locator map, and restores the shared
+    // object reference JSON.parse splits. Not `markNeedsSave`: this IS the canonical on-disk shape.
+    // Conditional so a file with no identity map keeps none, rather than gaining an own key whose
+    // value is `undefined`.
+    ...(parsed.worktreeMetaByIdentity === undefined
+      ? {}
+      : { worktreeMetaByIdentity: hydrateWorktreeMetaAliasProjection(parsed) }),
     worktreeLineageById: parsed.worktreeLineageById ?? {},
     mobileClientTabSelectionsByDeviceId: normalizePersistedMobileClientTabSelections(
       parsed.mobileClientTabSelectionsByDeviceId
@@ -70,9 +80,14 @@ export function normalizeLoadedProfileState(
       markNeedsSave
     ),
     // Why: volatile schema; zod-validate workspaceSession at read so a bad payload falls to defaults, not a renderer crash.
-    workspaceSession: normalizeLoadedLocalSession(parsed, defaults, markNeedsSave),
+    workspaceSession,
     // Why: per-host session partitions, validated independently; 'local' stays in workspaceSession for downgrade compat.
-    workspaceSessionsByHostId: normalizeLoadedHostSessions(parsed, defaults, markNeedsSave),
+    workspaceSessionsByHostId: normalizeLoadedHostSessions(
+      parsed,
+      defaults,
+      workspaceSession,
+      markNeedsSave
+    ),
     sshTargets: (parsed.sshTargets ?? []).map(normalizeSshTarget),
     deletedSshConfigAliases: Array.isArray(parsed.deletedSshConfigAliases)
       ? parsed.deletedSshConfigAliases.filter((alias): alias is string => typeof alias === 'string')
