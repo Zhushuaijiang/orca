@@ -32,6 +32,11 @@ import type {
 } from '../../../shared/automations-types'
 import { DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES } from '../../../shared/yunxiao-types'
 import type { GlobalSettings, ProjectHostSetup, Repo, TuiAgent } from '../../../shared/types'
+import {
+  loadYunxiaoReviewHandoffPreference,
+  restoreYunxiaoReviewHandoffPreference,
+  saveYunxiaoReviewHandoffPreference
+} from './yunxiao-review-handoff-preference'
 
 type TodoPoolAutomationTarget = {
   repo: Repo
@@ -180,20 +185,26 @@ export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => vo
   const { onTodoPoolChanged } = args
   const [configuringTodoPoolAutomation, setConfiguringTodoPoolAutomation] = useState(false)
   const [runningTodoPoolAutomation, setRunningTodoPoolAutomation] = useState(false)
-  const [reviewHandoff, setReviewHandoff] = useState<AutomationYunxiaoReviewHandoff>(() =>
-    resolveYunxiaoReviewHandoff(null)
-  )
+  const [reviewHandoff, setReviewHandoff] = useState(loadYunxiaoReviewHandoffPreference)
 
   useEffect(() => {
     let cancelled = false
     void listAutomationsForTarget({ kind: 'local' })
-      .then((automations) => {
-        if (cancelled) {
-          return
-        }
-        const existing = findTodoPoolAutomation(automations)
-        if (existing) {
-          setReviewHandoff(resolveYunxiaoReviewHandoff(existing.yunxiaoTodoPool?.reviewHandoff))
+      .then(async (automations) => {
+        const automation = findTodoPoolAutomation(automations)
+        const restored = await restoreYunxiaoReviewHandoffPreference(
+          automation,
+          async (handoff) => {
+            if (!automation?.yunxiaoTodoPool) {
+              return
+            }
+            await updateAutomationForTarget(automation, {
+              yunxiaoTodoPool: { ...automation.yunxiaoTodoPool, reviewHandoff: handoff }
+            })
+          }
+        )
+        if (!cancelled && restored) {
+          setReviewHandoff(restored)
         }
       })
       .catch(() => {})
@@ -242,6 +253,7 @@ export function useYunxiaoTodoPoolAutomation(args: { onTodoPoolChanged: () => vo
   const updateReviewHandoff = useCallback(async (next: AutomationYunxiaoReviewHandoff) => {
     const resolved = resolveYunxiaoReviewHandoff(next)
     setReviewHandoff(resolved)
+    saveYunxiaoReviewHandoffPreference(resolved)
     try {
       const existing = findTodoPoolAutomation(await listAutomationsForTarget({ kind: 'local' }))
       if (!existing?.yunxiaoTodoPool) {
