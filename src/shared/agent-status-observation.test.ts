@@ -121,4 +121,19 @@ describe('AgentStatusObservationSequencer', () => {
     expect(first).not.toBe(second)
     expect(first.startsWith('main-agent-hooks:')).toBe(true)
   })
+
+  it('does not throw when crypto.randomUUID is missing, like a LAN HTTP web client', () => {
+    const realCrypto = globalThis.crypto
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: { getRandomValues: realCrypto.getRandomValues.bind(realCrypto) }
+    })
+    try {
+      const id = createAgentStatusAuthorityId('renderer')
+      expect(id.startsWith('renderer:')).toBe(true)
+      expect(id.length).toBeGreaterThan('renderer:'.length)
+    } finally {
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: realCrypto })
+    }
+  })
 })

@@ -1,5 +1,4 @@
-import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http'
 import { extname, isAbsolute, posix, relative, resolve } from 'node:path'
 
@@ -52,15 +51,15 @@ async function handleStaticRequest(
     return
   }
 
-  let fileStat
+  // Why readFile instead of createReadStream: Electron's asar vfs can stat a packed
+  // web-index.html (HEAD 200 + Content-Length) then fail the GET stream. The old
+  // handler flipped to 500 without clearing Content-Length, so browsers hung on an
+  // empty body. The bundled web client is a small SPA; buffering it is asar-safe.
+  let body: Buffer
   try {
-    fileStat = await stat(absolutePath)
-  } catch {
-    writeHttpStatus(response, 404)
-    return
-  }
-  if (!fileStat.isFile()) {
-    writeHttpStatus(response, 404)
+    body = await readFile(absolutePath)
+  } catch (error) {
+    writeHttpStatus(response, statusForReadError(error))
     return
   }
 
@@ -69,7 +68,7 @@ async function handleStaticRequest(
     'Content-Type',
     STATIC_WEB_CONTENT_TYPES.get(extname(absolutePath)) ?? 'application/octet-stream'
   )
-  response.setHeader('Content-Length', fileStat.size)
+  response.setHeader('Content-Length', body.byteLength)
   response.setHeader(
     'Cache-Control',
     pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache'
@@ -78,16 +77,7 @@ async function handleStaticRequest(
     response.end()
     return
   }
-
-  const stream = createReadStream(absolutePath)
-  stream.on('error', () => {
-    if (!response.headersSent) {
-      writeHttpStatus(response, 500)
-      return
-    }
-    response.destroy()
-  })
-  stream.pipe(response)
+  response.end(body)
 }
 
 function parseStaticPathname(rawUrl: string | undefined): string | null {
@@ -133,7 +123,22 @@ function isAllowedStaticWebPath(pathname: string): boolean {
   )
 }
 
+function statusForReadError(error: unknown): number {
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : ''
+  if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'EISDIR') {
+    return 404
+  }
+  return 500
+}
+
 function writeHttpStatus(response: ServerResponse, statusCode: number): void {
+  if (response.headersSent) {
+    response.destroy()
+    return
+  }
   response.statusCode = statusCode
+  response.removeHeader('Content-Length')
+  response.removeHeader('Content-Type')
+  response.removeHeader('Cache-Control')
   response.end()
 }

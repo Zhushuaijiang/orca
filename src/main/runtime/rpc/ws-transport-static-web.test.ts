@@ -40,6 +40,19 @@ describe('WebSocketTransport static web client', () => {
     expect(assetResponse.status).toBe(200)
     expect(assetResponse.headers.get('cache-control')).toContain('immutable')
     await expect(assetResponse.text()).resolves.toBe('console.log("web")')
+
+    const rootResponse = await fetch(`http://127.0.0.1:${transport.resolvedPort}/`)
+    expect(rootResponse.status).toBe(200)
+    await expect(rootResponse.text()).resolves.toBe('<html>web</html>')
+
+    const headResponse = await fetch(`http://127.0.0.1:${transport.resolvedPort}/web-index.html`, {
+      method: 'HEAD'
+    })
+    expect(headResponse.status).toBe(200)
+    expect(headResponse.headers.get('content-length')).toBe(
+      String(Buffer.byteLength('<html>web</html>'))
+    )
+    await expect(headResponse.text()).resolves.toBe('')
   })
 
   it('serves web assets when a reverse-proxy path prefix is forwarded', async () => {

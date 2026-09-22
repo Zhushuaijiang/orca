@@ -179,5 +179,13 @@ export class AgentStatusObservationSequencer {
  *  authority's revision counter starts over, so its observations must not be comparable
  *  with the ones it emitted before (including any rehydrated from disk). */
 export function createAgentStatusAuthorityId(role: string): string {
-  return `${role}:${globalThis.crypto.randomUUID()}`
+  const cryptoApi = globalThis.crypto
+  // Why: LAN web clients are plain HTTP, so browsers hide crypto.randomUUID
+  // (secure-context-only). This id is minted at renderer import time; throwing
+  // here blanks the whole web-index page.
+  const id =
+    typeof cryptoApi?.randomUUID === 'function'
+      ? cryptoApi.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return `${role}:${id}`
 }
