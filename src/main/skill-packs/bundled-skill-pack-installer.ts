@@ -13,6 +13,7 @@ import {
   readManifest,
   writeManifest
 } from './bundled-skill-pack-files'
+import { planSkillSync } from './bundled-skill-pack-sync'
 import type {
   BundledSkillPackDefinition,
   BundledSkillPackTarget,
@@ -29,9 +30,23 @@ function getAppVersion(): string {
   return getAppEnvironment().getVersion()
 }
 
+function sameSkillHashes(
+  left: Record<string, string> | undefined,
+  right: Record<string, string>
+): boolean {
+  const current = left ?? {}
+  const currentKeys = Object.keys(current)
+  const nextKeys = Object.keys(right)
+  return (
+    currentKeys.length === nextKeys.length &&
+    nextKeys.every((name) => current[name] === right[name])
+  )
+}
+
 async function checkBundledSkillPackTarget(
   definition: EnvironmentBundledSkillPackDefinition,
   target: EnvironmentBundledSkillPackDefinition['targets'][number],
+  sourceDirectory: string,
   sourceHash: string,
   sourceFiles: readonly string[],
   homeDirectory: string
@@ -62,17 +77,27 @@ async function checkBundledSkillPackTarget(
       fixable: true
     }
   }
-  const manifest = await readManifest(definition, targetDirectory)
-  if (installedHash === sourceHash) {
+  const plan = await planSkillSync(definition, sourceDirectory, targetDirectory, sourceHash)
+  if (installedHash === sourceHash || (plan.copy.length === 0 && plan.preserve.length === 0)) {
     return {
       id: target.id,
       label: target.label,
       status: 'ok',
-      summary: manifest
+      summary: (await readManifest(definition, targetDirectory))
         ? 'Installed and current'
         : 'Installed; manifest will be refreshed on repair',
       detail: targetDirectory,
       fixable: true
+    }
+  }
+  if (plan.copy.length === 0) {
+    return {
+      id: target.id,
+      label: target.label,
+      status: 'invalid',
+      summary: 'Installed pack has local modifications',
+      detail: targetDirectory,
+      fixable: false
     }
   }
 
@@ -80,16 +105,11 @@ async function checkBundledSkillPackTarget(
     id: target.id,
     label: target.label,
     status: 'invalid',
-    summary:
-      manifest?.packageHash === sourceHash
-        ? 'Installed pack has local modifications'
-        : manifest
-          ? 'Installed pack is outdated'
-          : 'Legacy pack differs from bundled version',
+    summary: (await readManifest(definition, targetDirectory))
+      ? 'Installed pack is outdated'
+      : 'Legacy pack differs from bundled version',
     detail: targetDirectory,
-    // Why: packageHash match means the bundled source hasn't changed since install;
-    // the disk difference is a user edit, not a stale pack — never overwrite it.
-    fixable: manifest?.packageHash !== sourceHash
+    fixable: true
   }
 }
 
@@ -105,18 +125,42 @@ async function installBundledSkillPackTarget(
   const current = await checkBundledSkillPackTarget(
     definition,
     target,
+    sourceDirectory,
     sourceHash,
     sourceFiles,
     homeDirectory
   )
-  if (current.status === 'ok') {
+  const plan = await planSkillSync(definition, sourceDirectory, targetDirectory, sourceHash)
+  const manifest = await readManifest(definition, targetDirectory)
+  const hashesMatch = sameSkillHashes(manifest?.skillHashes, plan.skillHashes)
+  if (plan.copy.length === 0) {
+    if (!hashesMatch || manifest?.packageHash !== sourceHash) {
+      await writeManifest(
+        definition,
+        target,
+        targetDirectory,
+        sourceHash,
+        getAppVersion(),
+        plan.skillHashes
+      )
+    }
+    if (plan.preserve.length > 0 || (current.status === 'invalid' && !current.fixable)) {
+      return `${target.label} has local modifications; leaving ${targetDirectory} unchanged.`
+    }
     return `${target.label} is installed and current at ${targetDirectory}.`
   }
-  if (current.status === 'invalid' && !current.fixable) {
-    return `${target.label} has local modifications; leaving ${targetDirectory} unchanged.`
+  await copyBundledSkillPack(definition, sourceDirectory, targetDirectory, plan.copy)
+  await writeManifest(
+    definition,
+    target,
+    targetDirectory,
+    sourceHash,
+    getAppVersion(),
+    plan.skillHashes
+  )
+  if (plan.preserve.length > 0) {
+    return `Updated ${target.label}; kept local modifications in ${plan.preserve.join(', ')}.`
   }
-  await copyBundledSkillPack(definition, sourceDirectory, targetDirectory)
-  await writeManifest(definition, target, targetDirectory, sourceHash, getAppVersion())
   return `Installed ${target.label} to ${targetDirectory}.`
 }
 
@@ -146,7 +190,14 @@ export async function checkBundledSkillPackPrerequisites(
   const sourceHash = await hashPackDirectory(definition, sourceDirectory, sourceFiles)
   return Promise.all(
     definition.targets.map((target) =>
-      checkBundledSkillPackTarget(definition, target, sourceHash, sourceFiles, homeDirectory)
+      checkBundledSkillPackTarget(
+        definition,
+        target,
+        sourceDirectory,
+        sourceHash,
+        sourceFiles,
+        homeDirectory
+      )
     )
   )
 }

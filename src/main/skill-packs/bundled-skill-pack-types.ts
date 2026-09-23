@@ -32,6 +32,9 @@ export type BundledSkillPackManifest = {
   skillPackId?: string
   source?: 'app-bundle'
   packageHash: string
+  // Upstream hash of each skill at the last install that skill was accepted.
+  // A skill whose files no longer match this hash was edited locally.
+  skillHashes?: Record<string, string>
   providerTarget: string
   installedAt: string
   orcaVersion: string

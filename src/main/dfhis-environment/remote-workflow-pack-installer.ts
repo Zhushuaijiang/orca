@@ -46,7 +46,11 @@ const DFHIS_REMOTE_PACK: RemoteSkillPackOptions = {
   cacheDirectoryName: 'dfhis-workflow-pack-cache',
   packId: 'dfhis',
   label: 'DFHIS workflow pack',
-  definition: DFHIS_BUNDLED_SKILL_PACK
+  definition: DFHIS_BUNDLED_SKILL_PACK,
+  // Why: Orca releases ship frequently, and the DFHIS skills inside the app
+  // lag the pack pulled from the team server. Keep that download after an
+  // upgrade so the new app does not put the older bundled skills back.
+  retainCacheAcrossAppUpgrades: true
 }
 
 function getRemoteWorkflowPackCacheRoot(cacheDirectoryName: string): string {
@@ -89,9 +93,9 @@ export async function getCachedRemoteSkillPackPathIfPresent(
 ): Promise<string | null> {
   const cachePath = getCachedSkillPackPath(options)
   const metadata = await readCacheMetadata(options)
-  // A remote pack is an explicit override for the Orca build that downloaded it.
-  // On an app upgrade, fall back to the newer bundled pack unless the user pulls
-  // the remote pack again. Legacy caches had no provenance and are treated as stale.
+  // A remote pack overrides the copy baked into the app. Packs that opt in keep
+  // that download across upgrades; the bundled copy is often older than the
+  // server pack. Legacy caches had no provenance and are treated as stale.
   if (
     !metadata ||
     (!options.retainCacheAcrossAppUpgrades &&

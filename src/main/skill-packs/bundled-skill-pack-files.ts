@@ -85,6 +85,20 @@ export async function hashPackDirectory(
   return hash.digest('hex')
 }
 
+function skillHashesFromManifest(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  const hashes: Record<string, string> = {}
+  for (const [name, hash] of Object.entries(value)) {
+    if (!name || typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash)) {
+      return undefined
+    }
+    hashes[name] = hash
+  }
+  return hashes
+}
+
 export async function readManifest(
   definition: BundledSkillPackDefinition,
   targetDirectory: string
@@ -106,19 +120,23 @@ export async function readManifest(
     ) {
       return null
     }
-    return manifest as BundledSkillPackManifest
+    const skillHashes = skillHashesFromManifest(manifest.skillHashes)
+    return {
+      ...(manifest as BundledSkillPackManifest),
+      ...(skillHashes ? { skillHashes } : { skillHashes: undefined })
+    }
   } catch {
     return null
   }
 }
 
-export async function copyBundledSkillPack(
-  definition: BundledSkillPackDefinition,
-  sourceDirectory: string,
-  targetDirectory: string
-): Promise<void> {
-  await mkdir(targetDirectory, { recursive: true })
-  const sourceEntries = await readdir(sourceDirectory, { withFileTypes: true })
+export async function listBundledSkillNames(sourceDirectory: string): Promise<string[]> {
+  let sourceEntries
+  try {
+    sourceEntries = await readdir(sourceDirectory, { withFileTypes: true })
+  } catch {
+    return []
+  }
   const skillNames = (
     await Promise.all(
       sourceEntries
@@ -131,8 +149,30 @@ export async function copyBundledSkillPack(
   )
     .filter((entry) => entry.isSkill)
     .map((entry) => entry.name)
+  return skillNames.sort((left, right) => left.localeCompare(right, 'en'))
+}
+
+export async function hashSkillDirectory(
+  definition: BundledSkillPackDefinition,
+  skillDirectory: string
+): Promise<string> {
+  return hashPackDirectory(
+    definition,
+    skillDirectory,
+    await listPackFiles(definition, skillDirectory)
+  )
+}
+
+export async function copyBundledSkillPack(
+  definition: BundledSkillPackDefinition,
+  sourceDirectory: string,
+  targetDirectory: string,
+  skillNames?: readonly string[]
+): Promise<void> {
+  await mkdir(targetDirectory, { recursive: true })
+  const names = skillNames ? [...skillNames] : await listBundledSkillNames(sourceDirectory)
   await Promise.all(
-    skillNames.map((skillName) => {
+    names.map((skillName) => {
       const skillSourceDirectory = path.join(sourceDirectory, skillName)
       return cp(skillSourceDirectory, path.join(targetDirectory, skillName), {
         recursive: true,
@@ -180,13 +220,15 @@ export async function writeManifest(
   target: BundledSkillPackTarget,
   targetDirectory: string,
   packageHash: string,
-  orcaVersion: string
+  orcaVersion: string,
+  skillHashes?: Record<string, string>
 ): Promise<void> {
   const manifest: BundledSkillPackManifest = {
     schemaVersion: 1,
     skillPackId: definition.id,
     source: 'app-bundle',
     packageHash,
+    ...(skillHashes ? { skillHashes } : {}),
     providerTarget: target.providerTarget,
     installedAt: new Date().toISOString(),
     orcaVersion
