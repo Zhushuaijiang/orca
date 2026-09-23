@@ -488,6 +488,19 @@ describe('WslHookRelayManager', () => {
     manager.disposeAll()
   })
 
+  it('retries the localized Wsl/Service/E_UNEXPECTED text', async () => {
+    const waitForSentinel = vi
+      .fn()
+      .mockRejectedValueOnce(startupError(1, '灾难性故障\r\n错误代码: Wsl/Service/E_UNEXPECTED'))
+      .mockImplementationOnce(async () => guestTransport())
+    const { manager, deps } = createManager({ waitForSentinel })
+    manager.ensureForDistro('Ubuntu')
+    await vi.waitFor(() => expect(deps.installHooks).toHaveBeenCalledTimes(1))
+    expect(deps.spawnRelay).toHaveBeenCalledTimes(2)
+    expect(deps.runInstall).not.toHaveBeenCalled()
+    manager.disposeAll()
+  })
+
   it('retries a bounded number of times on catastrophic wsl.exe failures', async () => {
     const waitForSentinel = vi
       .fn()

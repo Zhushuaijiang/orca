@@ -11,10 +11,14 @@ import {
   runPtySpawnHealthProbe
 } from './pty-subprocess/spawn-preflight'
 import { createDaemonPtySubprocessHandle } from './pty-subprocess/subprocess-handle'
+import { wslPtyStartupShouldRetry } from './pty-subprocess/wsl-pty-startup'
 import type { StartupCommandDelivery } from '../../shared/codex-startup-delivery'
 import type { TuiAgent } from '../../shared/tui-agent'
 
 const PTY_SPAWN_HEALTH_RETRY_ATTEMPTS = 2
+const WSL_SERVICE_FAILURE_ATTEMPTS = 3
+const WSL_SERVICE_FAILURE_OBSERVE_MS = 1500
+const WSL_SERVICE_FAILURE_RETRY_DELAY_MS = 1000
 
 export type PtySubprocessOptions = {
   sessionId: string
@@ -82,26 +86,28 @@ export async function createPtySubprocess(opts: PtySubprocessOptions): Promise<S
     throw new TerminalAttachCanceledError(opts.sessionId)
   }
 
-  let spawned: SpawnedDaemonPty
-  try {
-    spawned = spawnNativeDaemonPty({
-      shellPath: launch.shellPath,
-      shellArgs: launch.shellArgs,
-      spawnCwd: launch.spawnCwd,
-      env,
-      cols: size.cols,
-      rows: size.rows,
-      windowsFallbackAttempts: launch.windowsFallbackAttempts,
-      onMacosTccSpawnStrategy: opts.onMacosTccSpawnStrategy
-    })
-  } catch (error) {
-    if (process.platform === 'win32') {
-      throw formatPtySpawnError(error, launch.shellPath, launch.spawnCwd)
+  const spawnPty = (): SpawnedDaemonPty => {
+    try {
+      return spawnNativeDaemonPty({
+        shellPath: launch.shellPath,
+        shellArgs: launch.shellArgs,
+        spawnCwd: launch.spawnCwd,
+        env,
+        cols: size.cols,
+        rows: size.rows,
+        windowsFallbackAttempts: launch.windowsFallbackAttempts,
+        onMacosTccSpawnStrategy: opts.onMacosTccSpawnStrategy
+      })
+    } catch (error) {
+      if (process.platform === 'win32') {
+        throw formatPtySpawnError(error, launch.shellPath, launch.spawnCwd)
+      }
+      throw error
     }
-    throw error
   }
 
-  return createDaemonPtySubprocessHandle({
+  let spawned = spawnPty()
+  let handle = createDaemonPtySubprocessHandle({
     process: spawned.process,
     shellPath: spawned.shellPath,
     spawnCwd: spawned.spawnCwd,
@@ -113,4 +119,48 @@ export async function createPtySubprocess(opts: PtySubprocessOptions): Promise<S
     sessionId: opts.sessionId,
     startupAgentRecognition: launch.startupAgentRecognition
   })
+  if (!isWslShellPath(spawned.shellPath)) {
+    return handle
+  }
+
+  // Why: wsl.exe dies in a few hundred ms with E_UNEXPECTED under spawn load, and
+  // Chinese Windows prints 灾难性故障 instead of "Catastrophic failure".
+  const observeMs = process.env.VITEST ? 0 : WSL_SERVICE_FAILURE_OBSERVE_MS
+  const retryDelayMs = process.env.VITEST ? 0 : WSL_SERVICE_FAILURE_RETRY_DELAY_MS
+  for (let attempt = 1; attempt < WSL_SERVICE_FAILURE_ATTEMPTS; attempt++) {
+    if (!(await wslPtyStartupShouldRetry(spawned.process, observeMs))) {
+      return handle
+    }
+    if (opts.isCanceled?.()) {
+      throw new TerminalAttachCanceledError(opts.sessionId)
+    }
+    try {
+      spawned.process.kill()
+    } catch {
+      // The failed wsl.exe has already exited.
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+    if (opts.isCanceled?.()) {
+      throw new TerminalAttachCanceledError(opts.sessionId)
+    }
+    spawned = spawnPty()
+    handle = createDaemonPtySubprocessHandle({
+      process: spawned.process,
+      shellPath: spawned.shellPath,
+      spawnCwd: spawned.spawnCwd,
+      env,
+      startupCommandDeliveredInShellArgs:
+        spawned.startupCommandDeliveredInShellArgs ?? launch.startupCommandDeliveredInShellArgs,
+      reportsChildExitStatus: spawned.reportsChildExitStatus,
+      requestedCwd: opts.cwd,
+      sessionId: opts.sessionId,
+      startupAgentRecognition: launch.startupAgentRecognition
+    })
+  }
+  return handle
+}
+
+function isWslShellPath(shellPath: string): boolean {
+  const name = shellPath.replace(/\\/g, '/').split('/').pop()?.toLowerCase()
+  return name === 'wsl.exe' || name === 'wsl'
 }

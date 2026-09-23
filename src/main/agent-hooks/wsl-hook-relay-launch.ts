@@ -7,6 +7,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { getAppEnvironment } from '../../shared/app-environment'
+import { isTransientWslServiceFailure } from '../../shared/wsl-service-failure'
 
 import type { MultiplexerTransport } from '../ssh/ssh-channel-multiplexer'
 import {
@@ -240,7 +241,7 @@ export async function launchWslRelayWithInstall(options: {
         return
       }
       if (
-        /catastrophic failure/i.test(failure.stderr) &&
+        isTransientWslServiceFailure(failure.stderr) &&
         transientRetries < TRANSIENT_RETRY_LIMIT
       ) {
         transientRetries++
