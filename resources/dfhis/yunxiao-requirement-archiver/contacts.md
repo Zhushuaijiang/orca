@@ -6,11 +6,11 @@
 
 ## 联系人列表
 
+可分配人选以 `yunxiao-contacts` 为准。陆继勇、陈洁已离职，本文件不再收录，不得分配需求。
+
 | 姓名 | userId（用于 update_work_item.assignedTo / participants） | memberId（用于组织管理 API） |
 |------|------|------|
-| 陈洁 | `5fbb502fe24b94a4ec7f8b16` | `64d328d9a0c93ee74468a864` |
 | 陈体云 | `665ffde22067c6f595f49ef1` | `665fff06e619f63d83e205cd` |
-| 陆继勇 | `64f1a1143f15d5487d836236` | `64f1a11438d942876f45715e` |
 | 杨国栋 | `661d075301039df69676cc02` | `661d07537c94f98525259dc7` |
 | 郭宏东 | `64f15a8ee7be53b98de4c821` | `64f15a8fdba61e96ebf64a99` |
 
