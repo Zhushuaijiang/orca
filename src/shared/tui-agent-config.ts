@@ -1,5 +1,6 @@
 import type { TuiAgent } from './tui-agent'
 import { getOrcaCliCommandNameForPlatform } from './orca-cli-command-name'
+import { CODEBUDDY_TUI_AGENT_CONFIG } from './tui-agent-config-codebuddy'
 import type { TuiAgentConfig } from './tui-agent-config-types'
 
 export type {
@@ -308,15 +309,7 @@ const TUI_AGENT_CONFIG_SOURCE: Record<TuiAgent, TuiAgentConfigSource> = {
     draftPasteReadySignal: 'grok-composer-prompt',
     ctrlEnterEncoding: 'csi-u'
   },
-  codebuddy: {
-    detectCmd: 'codebuddy',
-    // Why: the @tencent-ai/codebuddy-code package also installs a `cbc` symlink.
-    detectCmdAliases: ['cbc'],
-    // Why: `codebuddy [prompt]` takes the task as a positional argv, same as Claude/Trae.
-    promptInjectionMode: 'argv',
-    // Why: separator so prompts starting with `-…` aren't parsed as CLI flags.
-    argvPromptSeparator: '--'
-  },
+  codebuddy: CODEBUDDY_TUI_AGENT_CONFIG,
   muse: {
     detectCmd: 'muse',
     launchCmd: 'muse --trust-workspace',
