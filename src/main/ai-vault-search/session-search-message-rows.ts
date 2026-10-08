@@ -64,7 +64,8 @@ function* textChunks(text: string): Generator<string> {
         end = split
       }
     }
-    yield text.slice(start, end)
+    // Copy the slice so a buffered row cannot retain the entire multi-MB message.
+    yield Buffer.from(text.slice(start, end), 'utf16le').toString('utf16le')
     start = end
   }
 }
@@ -81,7 +82,12 @@ export function* searchMessageRows(
     if (message.role === 'tool') {
       yield {
         ...message,
-        text: sliceAtCodeUnitLimit(message.text, TOOL_ROW_CHARS)
+        text:
+          message.text.length > TOOL_ROW_CHARS
+            ? Buffer.from(sliceAtCodeUnitLimit(message.text, TOOL_ROW_CHARS), 'utf16le').toString(
+                'utf16le'
+              )
+            : message.text
       }
       continue
     }

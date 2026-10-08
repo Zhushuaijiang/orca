@@ -17,19 +17,10 @@ import {
   searchMessageRows
 } from './session-search-message-rows'
 
-/**
- * How much decoded text one transaction may carry.
- *
- * A file's rows are buffered in memory and written in one transaction, so the
- * whole read is either in the index or not. The ceiling is what keeps that
- * promise affordable: at the measured 26 MB of transcript per second it caps a
- * single commit near a second and the WAL it produces near 64 MB, and it is far
- * above the largest real transcript (the 40-session benchmark corpus is 10.5 MB
- * in total), so an ordinary file never reaches it. Above the ceiling the read is
- * cut into chunks that each leave the index consistent — but only a read that
- * can name its session chunks at all. See `add`.
- */
-export const SESSION_SEARCH_COMMIT_CHARS = 32 * 1024 * 1024
+// Eight concurrent reads share a 384 MB heap; each buffer must leave room for decoding and caches.
+export const SESSION_SEARCH_COMMIT_CHARS = 4 * 1024 * 1024
+// Short messages still allocate row objects, even when their text barely grows the character count.
+const SESSION_SEARCH_COMMIT_ROWS = 4096
 
 /**
  * The cursor of a file whose rows are a prefix, written by a chunk of a read
@@ -360,7 +351,7 @@ export class SessionSearchIndexWriter {
         for (const row of searchMessageRows([message])) {
           buffer.push(row)
           bufferedChars += row.text.length
-          if (bufferedChars < this.commitChars) {
+          if (bufferedChars < this.commitChars && buffer.length < SESSION_SEARCH_COMMIT_ROWS) {
             continue
           }
           // Publishing a chunk under a session nothing can identify is worse
