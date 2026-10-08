@@ -606,7 +606,10 @@ describe('dfhis-environment', () => {
     expect(checkYunxiaoMcpPrerequisite()).toMatchObject({
       id: 'yunxiao-mcp',
       status: 'missing',
-      command: 'export YUNXIAO_ACCESS_TOKEN=...'
+      command:
+        process.platform === 'win32'
+          ? 'setx YUNXIAO_ACCESS_TOKEN ...'
+          : 'export YUNXIAO_ACCESS_TOKEN=...'
     })
 
     process.env.YUNXIAO_ACCESS_TOKEN = 'secret-token'
@@ -620,7 +623,7 @@ describe('dfhis-environment', () => {
       id: 'his-mcp',
       status: 'missing',
       summary: 'HIS MCP credentials are required for business-semantics verification',
-      command: 'export HIS_MCP_TOKEN=...'
+      command: process.platform === 'win32' ? 'setx HIS_MCP_TOKEN ...' : 'export HIS_MCP_TOKEN=...'
     })
 
     process.env.HIS_MCP_TOKEN = 'secret-token'
@@ -661,8 +664,10 @@ describe('dfhis-environment', () => {
     expect(JSON.stringify(checkYunxiaoMcpPrerequisite())).not.toContain('yunxiao-secret')
     expect(JSON.stringify(checkHisMcpPrerequisite())).not.toContain('his-secret')
 
-    const mode = (await stat(getDfHisEnvironmentConfigPath(userDataDirectory))).mode & 0o777
-    expect(mode).toBe(0o600)
+    if (process.platform !== 'win32') {
+      const mode = (await stat(getDfHisEnvironmentConfigPath(userDataDirectory))).mode & 0o777
+      expect(mode).toBe(0o600)
+    }
   })
 
   it('checks configured fallback code and archive workspace paths', async () => {

@@ -6,8 +6,8 @@ describe('isZCodeHeadlessOneShotCommand', () => {
   it.each([
     [['zcode', '--prompt', 'fix the bug']],
     [['zcode', '-p', 'fix the bug']],
-    [['zcode', '--print', 'fix the bug']],
-    [['zcode', '--max-turns', '3']],
+    [['zcode', '--target', 'terminal']],
+    [['zcode', '--target=terminal']],
     [['zcode', '--prompt=ship it']],
     [['zcode', '--surface', 'terminal', '--prompt', 'ship it']]
   ])('treats %j as a headless one-shot', (tokens) => {
@@ -19,6 +19,10 @@ describe('isZCodeHeadlessOneShotCommand', () => {
     [['zcode']],
     [['zcode', '--resume', 'sess_1234']],
     [['zcode', '--continue']],
+    [['zcode', '--print', 'fix the bug']],
+    [['zcode', '--max-turns', '3']],
+    [['zcode', '--json']],
+    [['zcode', '--output-format', 'json']],
     // Why: `--` ends option parsing, so a positional prompt reading like a
     // flag is still a prompt.
     [['zcode', '--', '--prompt']],
