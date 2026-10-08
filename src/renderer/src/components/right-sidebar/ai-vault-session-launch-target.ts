@@ -11,6 +11,7 @@ import {
   isKnownAiVaultResumeWorkspaceTarget,
   type AiVaultSessionResumeTargetState
 } from './ai-vault-session-resume'
+import { resolveAiVaultSessionWorktreeInfo } from './ai-vault-session-worktree'
 
 export function resolveAiVaultTargetWorkspacePath(
   state: AiVaultSessionResumeTargetState,
@@ -36,13 +37,25 @@ export type AiVaultSessionLaunchTarget =
   | { status: 'ready'; worktreeId: string }
 
 export function resolveAiVaultSessionLaunchTarget(args: {
+  session?: AiVaultSession
   sessionFilePath: string | null
   sessionExecutionHostId?: AiVaultSession['executionHostId'] | null
   activeWorktreeId: string | null
   targetWorktreeId?: string
   targetState: AiVaultSessionResumeTargetState
 }): AiVaultSessionLaunchTarget {
-  const targetWorktreeId = args.targetWorktreeId ?? args.activeWorktreeId
+  const sessionWorktreeId =
+    args.session && !args.targetWorktreeId
+      ? resolveAiVaultSessionWorktreeInfo({
+          session: args.session,
+          repos: args.targetState.repos,
+          worktrees: Object.values(args.targetState.worktreesByRepo)
+            .flat()
+            .filter((worktree) => !worktree.isArchived),
+          activeWorktreeId: args.activeWorktreeId
+        })?.worktreeId
+      : null
+  const targetWorktreeId = args.targetWorktreeId ?? sessionWorktreeId ?? args.activeWorktreeId
   if (
     !targetWorktreeId ||
     !isKnownAiVaultResumeWorkspaceTarget(args.targetState, targetWorktreeId)

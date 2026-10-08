@@ -47,6 +47,7 @@ vi.mock('sonner', () => ({
 }))
 
 import { useAiVaultSessionLaunchActions } from './ai-vault-session-launch-actions'
+import { resolveAiVaultSessionLaunchTarget } from './ai-vault-session-launch-target'
 
 const ROOT_WORKSPACE_ID = 'repo-1::workspace-root'
 const REQUIREMENT_WORKSPACE_ID = 'repo-1::workspace-dfhis-32238'
@@ -104,68 +105,98 @@ describe('useAiVaultSessionLaunchActions', () => {
     vi.clearAllMocks()
   })
 
-  it('wakes a sleeping session in its requested workspace instance', () => {
-    const rootWorkspace = makeWorktree(ROOT_WORKSPACE_ID, 'yunxiao')
-    const requirementWorkspace = makeWorktree(
-      REQUIREMENT_WORKSPACE_ID,
-      'DFHIS-32238 【新安人民】医院组套药房修复'
-    )
+  it('honors an explicitly selected workspace when a requirement workspace also matches', () => {
+    const rootWorkspace = {
+      ...makeWorktree(ROOT_WORKSPACE_ID, 'yunxiao'),
+      hostId: 'local'
+    } satisfies Worktree
+    const requirementWorkspace = {
+      ...makeWorktree(REQUIREMENT_WORKSPACE_ID, 'DFHIS-32238 requirement'),
+      hostId: 'local'
+    } satisfies Worktree
     const session = makeSession()
-    const repo = {
-      id: 'repo-1',
-      path: '/workspace/yunxiao',
-      displayName: 'yunxiao',
-      badgeColor: '#737373',
-      addedAt: 1,
-      connectionId: null,
-      executionHostId: 'local'
-    } satisfies Repo
-    const targetState: AiVaultSessionResumeTargetState = {
-      folderWorkspaces: [],
-      projectGroups: [],
-      repos: [repo],
-      worktreesByRepo: { 'repo-1': [rootWorkspace, requirementWorkspace] }
-    }
-    mocks.getState.mockReturnValue({
-      activeWorktreeId: ROOT_WORKSPACE_ID,
-      sleepingAgentSessionsByPaneKey: {
-        [PANE_KEY]: {
-          paneKey: PANE_KEY,
-          tabId: 'tab-existing',
-          worktreeId: REQUIREMENT_WORKSPACE_ID,
-          agent: 'kimi',
-          providerSession: { key: 'session_id', id: session.sessionId },
-          prompt: '',
-          state: 'done',
-          capturedAt: 1,
-          updatedAt: 1,
-          origin: 'live'
+    expect(
+      resolveAiVaultSessionLaunchTarget({
+        session,
+        sessionFilePath: session.filePath,
+        sessionExecutionHostId: session.executionHostId,
+        activeWorktreeId: REQUIREMENT_WORKSPACE_ID,
+        targetWorktreeId: ROOT_WORKSPACE_ID,
+        targetState: {
+          folderWorkspaces: [],
+          projectGroups: [],
+          repos: [],
+          worktreesByRepo: { 'repo-1': [rootWorkspace, requirementWorkspace] }
         }
-      },
-      tabsByWorktree: {
-        [REQUIREMENT_WORKSPACE_ID]: [{ id: 'tab-existing', worktreeId: REQUIREMENT_WORKSPACE_ID }]
-      },
-      worktreesByRepo: targetState.worktreesByRepo,
-      repos: targetState.repos,
-      folderWorkspaces: []
-    })
-
-    const { result } = renderHook(() =>
-      useAiVaultSessionLaunchActions({
-        activeWorktree: rootWorkspace,
-        activeWorktreeId: ROOT_WORKSPACE_ID,
-        targetState
       })
-    )
-    act(() => result.current.handleResume(session, REQUIREMENT_WORKSPACE_ID))
-
-    expect(mocks.activateWorktree).toHaveBeenCalledWith(REQUIREMENT_WORKSPACE_ID)
-    expect(mocks.activateTabAndFocusPane).toHaveBeenCalledWith(
-      'tab-existing',
-      '11111111-1111-4111-8111-111111111111',
-      expect.objectContaining({ ackPaneKeyOnSuccess: PANE_KEY })
-    )
-    expect(mocks.prepareSession).not.toHaveBeenCalled()
-    expect(mocks.launchSession).not.toHaveBeenCalled()
+    ).toEqual({ status: 'ready', worktreeId: ROOT_WORKSPACE_ID })
   })
+
+  it.each([undefined, REQUIREMENT_WORKSPACE_ID])(
+    'wakes a sleeping session in its requirement workspace (target: %s)',
+    (targetWorktreeId) => {
+      const rootWorkspace = makeWorktree(ROOT_WORKSPACE_ID, 'yunxiao')
+      const requirementWorkspace = makeWorktree(
+        REQUIREMENT_WORKSPACE_ID,
+        'DFHIS-32238 【新安人民】医院组套药房修复'
+      )
+      const session = makeSession()
+      const repo = {
+        id: 'repo-1',
+        path: '/workspace/yunxiao',
+        displayName: 'yunxiao',
+        badgeColor: '#737373',
+        addedAt: 1,
+        connectionId: null,
+        executionHostId: 'local'
+      } satisfies Repo
+      const targetState: AiVaultSessionResumeTargetState = {
+        folderWorkspaces: [],
+        projectGroups: [],
+        repos: [repo],
+        worktreesByRepo: { 'repo-1': [rootWorkspace, requirementWorkspace] }
+      }
+      mocks.getState.mockReturnValue({
+        activeWorktreeId: ROOT_WORKSPACE_ID,
+        sleepingAgentSessionsByPaneKey: {
+          [PANE_KEY]: {
+            paneKey: PANE_KEY,
+            tabId: 'tab-existing',
+            worktreeId: REQUIREMENT_WORKSPACE_ID,
+            agent: 'kimi',
+            providerSession: { key: 'session_id', id: session.sessionId },
+            prompt: '',
+            state: 'done',
+            capturedAt: 1,
+            updatedAt: 1,
+            origin: 'live'
+          }
+        },
+        tabsByWorktree: {
+          [REQUIREMENT_WORKSPACE_ID]: [{ id: 'tab-existing', worktreeId: REQUIREMENT_WORKSPACE_ID }]
+        },
+        worktreesByRepo: targetState.worktreesByRepo,
+        repos: targetState.repos,
+        folderWorkspaces: []
+      })
+
+      const { result } = renderHook(() =>
+        useAiVaultSessionLaunchActions({
+          activeWorktree: rootWorkspace,
+          activeWorktreeId: ROOT_WORKSPACE_ID,
+          targetState
+        })
+      )
+      act(() => result.current.handleResume(session, targetWorktreeId))
+
+      expect(mocks.activateWorktree).toHaveBeenCalledWith(REQUIREMENT_WORKSPACE_ID)
+      expect(mocks.activateTabAndFocusPane).toHaveBeenCalledWith(
+        'tab-existing',
+        '11111111-1111-4111-8111-111111111111',
+        expect.objectContaining({ ackPaneKeyOnSuccess: PANE_KEY })
+      )
+      expect(mocks.prepareSession).not.toHaveBeenCalled()
+      expect(mocks.launchSession).not.toHaveBeenCalled()
+    }
+  )
 })

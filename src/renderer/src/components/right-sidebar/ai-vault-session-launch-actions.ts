@@ -91,6 +91,7 @@ export function useAiVaultSessionLaunchActions({
         return
       }
       const targetId = resolveAiVaultSessionLaunchTargetOrNotify({
+        session,
         sessionFilePath: session.filePath,
         sessionExecutionHostId: session.executionHostId,
         activeWorktreeId: activeWorktreeId ?? activeWorktree?.id ?? null,
@@ -156,19 +157,20 @@ export function useAiVaultSessionLaunchActions({
       if (!isAgentSessionHandleProvider(session.agent)) {
         return
       }
-      const worktreeId = targetWorktreeId ?? activeWorktreeId ?? activeWorktree?.id ?? null
-      if (!worktreeId) {
-        toast.error(
-          translate(
-            'auto.components.right.sidebar.AiVaultPanel.openWorkspaceBeforeResuming',
-            'Open a workspace before resuming a session.'
-          )
-        )
+      const target = resolveAiVaultSessionLaunchTargetOrNotify({
+        session,
+        sessionFilePath: session.filePath,
+        sessionExecutionHostId: session.executionHostId,
+        activeWorktreeId: activeWorktreeId ?? activeWorktree?.id ?? null,
+        targetWorktreeId,
+        targetState
+      })
+      if (!target) {
         return
       }
-      void resumeAiVaultSessionInNewChat(session, session.agent, worktreeId)
+      void resumeAiVaultSessionInNewChat(session, session.agent, target.worktreeId)
     },
-    [activeWorktree?.id, activeWorktreeId]
+    [activeWorktree?.id, activeWorktreeId, targetState]
   )
 
   const handleContinueInNewSession = useCallback(
