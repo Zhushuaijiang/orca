@@ -168,6 +168,9 @@ describe('agent session resume metadata', () => {
     expect(
       extractAgentProviderSession('codex', { session_id: 'xs', transcriptPath: '/x/r.jsonl' })
     ).toEqual({ key: 'session_id', id: 'xs', transcriptPath: '/x/r.jsonl' })
+    expect(
+      extractAgentProviderSession('codebuddy', { session_id: 'bs', transcript_path: '/b/r.jsonl' })
+    ).toEqual({ key: 'session_id', id: 'bs', transcriptPath: '/b/r.jsonl' })
   })
 
   it('does not attach transcript_path for non-native-chat agents', () => {

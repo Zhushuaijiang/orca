@@ -71,10 +71,6 @@ export function isNewTurnEvent(source: AgentHookSource, eventName: unknown): boo
       return eventName === 'UserPromptSubmit'
     case 'command-code':
       return false
-    case 'codebuddy':
-      // Why: CodeBuddy emits Claude-compatible hook events, so UserPromptSubmit
-      // is its new-turn boundary too.
-      return eventName === 'UserPromptSubmit'
     case 'grok':
       return isGrokEvent(eventName, 'user_prompt_submit')
     case 'copilot': {
