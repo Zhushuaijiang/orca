@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { verifyDfhisMacArchive } from './dfhis-mac-archive.mjs'
+import { preserveMacDownload } from './dfhis-windows-only-release.mjs'
 
 const DEFAULT_REMOTE = 'root@192.168.1.10'
 const DEFAULT_REMOTE_DIR =
@@ -45,6 +46,9 @@ export function parseArgs(argv) {
       args.buildMac = false
     } else if (arg === '--mac-evidence') {
       args.macEvidence = argv[++i]
+    } else if (arg === '--windows-only') {
+      args.windowsOnly = true
+      args.buildMac = false
     } else if (arg === '--remote') {
       args.remote = argv[++i]
     } else if (arg === '--remote-dir') {
@@ -74,6 +78,9 @@ export function parseArgs(argv) {
   }
   if (args.allowSkillPackShrink && !args.publishSkillPack) {
     throw new Error('--allow-skill-pack-shrink requires --publish-skill-pack')
+  }
+  if (args.windowsOnly && (args.macArchive || args.macApp || args.macEvidence)) {
+    throw new Error('--windows-only cannot be combined with macOS artifact options.')
   }
   return args
 }
@@ -229,6 +236,19 @@ async function main() {
   const version = packageJson.version
   const macApp = args.macApp || 'dist/mac-arm64/Orca.app'
   const windowsExe = args.windowsExe || (await newestWindowsExe())
+  const preservedMac = args.windowsOnly
+    ? preserveMacDownload(
+        JSON.parse(
+          runText(
+            'ssh',
+            sshArgs([
+              args.remote,
+              `cat ${JSON.stringify(path.posix.join(args.remoteDir, 'latest.json'))}`
+            ])
+          )
+        )
+      )
+    : null
 
   if (args.publishSkillPack && args.generateSkillPack) {
     run('pnpm', ['run', 'generate:dfhis-skill-pack'])
@@ -237,7 +257,7 @@ async function main() {
   if (args.buildMac) {
     await buildMacApp()
   }
-  if (!args.macArchive && !existsSync(macApp)) {
+  if (!args.windowsOnly && !args.macArchive && !existsSync(macApp)) {
     throw new Error(`macOS app not found: ${macApp}`)
   }
   if (!windowsExe || !existsSync(windowsExe)) {
@@ -260,7 +280,7 @@ async function main() {
       version,
       runText('git', ['rev-parse', 'HEAD'])
     )
-  } else {
+  } else if (!args.windowsOnly) {
     verifyMacAppVersion(macApp, version)
     verifyMacEntitlements(macApp)
   }
@@ -287,7 +307,7 @@ async function main() {
   const skillPackZipOut = path.join(stageDir, 'dfhis-skill-pack.zip')
   if (args.macArchive) {
     await copyFile(args.macArchive, macZip)
-  } else {
+  } else if (!args.windowsOnly) {
     run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', macApp, macZip])
   }
   await copyFile(windowsSource, windowsOut)
@@ -306,12 +326,14 @@ async function main() {
     published_at: publishedAt,
     notes: args.notes,
     downloads: {
-      macos: await artifactInfo({
-        path: macZip,
-        filename: 'orca-macos-arm64.zip',
-        downloadName: `orca-macos-arm64-${version}.zip`,
-        version
-      }),
+      macos:
+        preservedMac ??
+        (await artifactInfo({
+          path: macZip,
+          filename: 'orca-macos-arm64.zip',
+          downloadName: `orca-macos-arm64-${version}.zip`,
+          version
+        })),
       windows: await artifactInfo({
         path: windowsOut,
         filename: 'orca-windows-setup.exe',
@@ -351,7 +373,9 @@ async function main() {
 
   const remoteTemp = `/tmp/orca-desktop-release-${version}-${Date.now()}`
   remoteCommand(args, `mkdir -p ${JSON.stringify(remoteTemp)}`)
-  const uploadFiles = [macZip, windowsOut, releaseJson]
+  const uploadFiles = args.windowsOnly
+    ? [windowsOut, releaseJson]
+    : [macZip, windowsOut, releaseJson]
   if (args.publishSkillPack) {
     uploadFiles.push(skillPackJsonOut, skillPackZipOut)
   }
@@ -368,7 +392,7 @@ ROOT=${JSON.stringify(args.remoteDir)}
 SKILL_ROOT=${JSON.stringify(args.remoteSkillPackDir)}
 VERSION=${JSON.stringify(version)}
 TMP=${JSON.stringify(remoteTemp)}
-test "$(sha256sum "$TMP/orca-macos-arm64.zip" | awk '{print $1}')" = ${JSON.stringify(expectedMacSha)}
+${args.windowsOnly ? '' : `test "$(sha256sum "$TMP/orca-macos-arm64.zip" | awk '{print $1}')" = ${JSON.stringify(expectedMacSha)}`}
 test "$(sha256sum "$TMP/orca-windows-setup.exe" | awk '{print $1}')" = ${JSON.stringify(expectedWindowsSha)}
 ${
   args.publishSkillPack
@@ -406,7 +430,7 @@ fi`
     : ''
 }
 mkdir -p "$ROOT/releases/$VERSION"
-mv "$TMP/orca-macos-arm64.zip" "$ROOT/releases/$VERSION/orca-macos-arm64.zip"
+${args.windowsOnly ? '' : 'mv "$TMP/orca-macos-arm64.zip" "$ROOT/releases/$VERSION/orca-macos-arm64.zip"'}
 mv "$TMP/orca-windows-setup.exe" "$ROOT/releases/$VERSION/orca-windows-setup.exe"
 mv "$TMP/release.json" "$ROOT/releases/$VERSION/release.json"
 ${
@@ -447,6 +471,15 @@ root = Path(os.environ["ROOT"])
 version = os.environ["VERSION"]
 release_path = root / "releases" / version / "release.json"
 release = json.loads(release_path.read_text(encoding="utf-8"))
+${
+  args.windowsOnly
+    ? `previous = json.loads((root / "latest.json").read_text(encoding="utf-8"))
+live_mac = previous["downloads"]["macos"]
+expected_mac = release["downloads"]["macos"]
+if any(live_mac.get(key) != expected_mac.get(key) for key in ("path", "sha256", "size")):
+    raise RuntimeError("macOS download changed during Windows publication; refusing stale metadata")`
+    : ''
+}
 manifest_path = root / "releases.json"
 try:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
