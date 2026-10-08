@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { isHeadlessOneShotAgentCommand } from './agent-headless-command'
-import { isZcodeHeadlessOneShotCommand } from './zcode-headless-command'
+import { isZCodeHeadlessOneShotCommand } from './zcode-headless-command'
 
-describe('isZcodeHeadlessOneShotCommand', () => {
+describe('isZCodeHeadlessOneShotCommand', () => {
   it.each([
     [['zcode', '--prompt', 'fix the bug']],
     [['zcode', '-p', 'fix the bug']],
@@ -11,7 +11,7 @@ describe('isZcodeHeadlessOneShotCommand', () => {
     [['zcode', '--prompt=ship it']],
     [['zcode', '--surface', 'terminal', '--prompt', 'ship it']]
   ])('treats %j as a headless one-shot', (tokens) => {
-    expect(isZcodeHeadlessOneShotCommand(tokens)).toBe(true)
+    expect(isZCodeHeadlessOneShotCommand(tokens)).toBe(true)
     expect(isHeadlessOneShotAgentCommand('zcode', tokens)).toBe(true)
   })
 
@@ -24,7 +24,7 @@ describe('isZcodeHeadlessOneShotCommand', () => {
     [['zcode', '--', '--prompt']],
     [['zcode', '--surface', 'terminal']]
   ])('treats %j as a live TUI session', (tokens) => {
-    expect(isZcodeHeadlessOneShotCommand(tokens)).toBe(false)
+    expect(isZCodeHeadlessOneShotCommand(tokens)).toBe(false)
     expect(isHeadlessOneShotAgentCommand('zcode', tokens)).toBe(false)
   })
 })

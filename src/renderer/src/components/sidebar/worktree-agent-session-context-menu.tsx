@@ -28,8 +28,8 @@ import {
 } from '../right-sidebar/ai-vault-session-path-actions'
 import { openAiVaultSessionLogInOrca } from '../right-sidebar/ai-vault-session-log-open'
 import { AgentSessionContinuationDialog } from '@/components/agent-session-continuation/AgentSessionContinuationDialog'
+import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import {
-  CLOSE_ALL_CONTEXT_MENUS_EVENT,
   shouldSuppressContextMenuFollowUpClick,
   WORKTREE_CONTEXT_MENU_SCOPE_ATTR
 } from './WorktreeContextMenu'

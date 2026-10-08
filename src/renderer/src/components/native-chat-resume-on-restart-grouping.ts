@@ -3,6 +3,8 @@ import type { AgentSessionWorkspaceKind } from '../../../shared/agent-session-re
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { projectGroupIdFromRepoId } from '../../../shared/folder-workspace-worktree'
 import type { RepoIcon } from '../../../shared/repo-icon'
+import type { AgentSessionRestartActivity } from '../../../shared/agent-session-restart-activity'
+import type { StructuredAgentId } from '../../../shared/agent-session-provider-handle'
 
 /**
  * The offered chats, arranged the way the sidebar arranges workspaces: project/repo, then workspace,
@@ -15,7 +17,9 @@ import type { RepoIcon } from '../../../shared/repo-icon'
 export type ResumeCandidate = {
   sessionId: string
   workspaceId: string
-  agent: 'claude' | 'codex'
+  /** Any agent the host registered; a client without the registered-agents capability gets
+   *  only Claude's and Codex's offers. */
+  agent: StructuredAgentId
   trigger: 'quit' | 'update'
   latestPrompt: string
   recordedAt: number
@@ -23,6 +27,20 @@ export type ResumeCandidate = {
   executionHostId?: ExecutionHostId
   workspaceKind?: AgentSessionWorkspaceKind
   model?: string
+  /** What the chat was doing, snapshotted by the host as it stopped; an older host omits it. */
+  activity?: AgentSessionRestartActivity
+}
+
+/** An offer that was acted on and did not end with the agent carrying on. The host keeps it until
+ *  the user sends in the chat, retries successfully, dismisses it, or closes the chat. */
+export type ResumeFailure = ResumeCandidate & {
+  failedAt: number
+  outcome: 'refused' | 'unconfirmed'
+  /** The host's or provider's refusal code, verbatim; or, for a resume request lost before the
+   *  host reserved anything, this side's own `agent_session_restart_request_failed`. */
+  reason: string
+  /** Whether a retry would run at all; an older host omits it and the reason decides alone. */
+  retryable?: boolean
 }
 
 export type ResumeWorkspaceGroup = {

@@ -1,6 +1,7 @@
 import type { IssueSourcePreference } from '../../shared/repo-types'
 import {
   acquire,
+  glabHostEnvOptions,
   glabHostnameArgs,
   glabRepoExecOptions,
   glabExecFileAsync,
@@ -27,17 +28,10 @@ export async function closeMR(
     async (projectRef, repoFlag) => {
       await acquire()
       try {
-        await glabExecFileAsync(
-          [
-            'mr',
-            'close',
-            String(iid),
-            '-R',
-            repoFlag,
-            ...glabHostnameArgs(projectRef, connectionId)
-          ],
-          glabRepoExecOptions(repoPath, connectionId, localGitOptions)
-        )
+        await glabExecFileAsync(['mr', 'close', String(iid), '-R', repoFlag], {
+          ...glabRepoExecOptions(repoPath, connectionId, localGitOptions),
+          ...glabHostEnvOptions(projectRef, connectionId)
+        })
         return { ok: true }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -71,17 +65,10 @@ export async function reopenMR(
     async (projectRef, repoFlag) => {
       await acquire()
       try {
-        await glabExecFileAsync(
-          [
-            'mr',
-            'reopen',
-            String(iid),
-            '-R',
-            repoFlag,
-            ...glabHostnameArgs(projectRef, connectionId)
-          ],
-          glabRepoExecOptions(repoPath, connectionId, localGitOptions)
-        )
+        await glabExecFileAsync(['mr', 'reopen', String(iid), '-R', repoFlag], {
+          ...glabRepoExecOptions(repoPath, connectionId, localGitOptions),
+          ...glabHostEnvOptions(projectRef, connectionId)
+        })
         return { ok: true }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -120,6 +107,7 @@ export async function mergeMR(
         await glabExecFileAsync(
           [
             'api',
+            // Why (main): only `api` defines --hostname; `mr` subcommands reject it (#12193).
             ...glabHostnameArgs(projectRef, connectionId),
             '-X',
             'PUT',
@@ -129,7 +117,10 @@ export async function mergeMR(
             '-f',
             'should_remove_source_branch=false'
           ],
-          glabRepoExecOptions(repoPath, connectionId, localGitOptions)
+          {
+            ...glabRepoExecOptions(repoPath, connectionId, localGitOptions),
+            ...glabHostEnvOptions(projectRef, connectionId)
+          }
         )
         return { ok: true }
       } catch (err) {

@@ -7,6 +7,7 @@ import {
   assertYunxiaoRequirementAgentCommandGated,
   ensureDfHisWorkflowPackCurrentForPrompt
 } from './runtime-yunxiao-requirement-gate'
+import type { Worktree } from '../../shared/worktree/types'
 
 export class OrcaRuntimeWithSplitTerminal extends OrcaRuntimeWithStopExplicitlyClosedTabPtys {
   async splitTerminal(
@@ -21,13 +22,15 @@ export class OrcaRuntimeWithSplitTerminal extends OrcaRuntimeWithStopExplicitlyC
       // workspace, for splits the user never asked to see.
       surfaceOwner?: false
       telemetrySource?: TerminalPaneSplitSource
-    } = {}
+    } = {},
+    // Internal creation evidence; RPC and preload callers never supply it.
+    createdWorktree?: Worktree
   ): Promise<RuntimeTerminalSplit> {
     await ensureDfHisWorkflowPackCurrentForPrompt(opts.command)
     assertYunxiaoRequirementAgentCommandGated(opts.command)
     const livePty = this.getLivePtyForHandle(handle)
     if (livePty) {
-      return await this.splitPtyBackedTerminal(livePty.pty, opts)
+      return await this.splitPtyBackedTerminal(livePty.pty, opts, createdWorktree)
     }
     this.assertGraphReady()
     const { leaf } = this.getLiveLeafForHandle(handle)

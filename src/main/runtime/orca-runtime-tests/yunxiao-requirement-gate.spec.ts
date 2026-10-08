@@ -54,10 +54,14 @@ describe('Yunxiao requirement gate', () => {
     })
 
     const [terminal] = (await runtime.listTerminals()).terminals
-    await runtime.sendTerminal(terminal.handle, {
-      text: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
-      enter: true
-    })
+    await runtime.sendTerminal(
+      terminal.handle,
+      {
+        text: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
+        enter: true
+      },
+      { inputKind: 'driving' }
+    )
 
     expect(writes[0]).toContain('Orca Yunxiao requirement workflow gate')
     expect(writes[0]).toContain('原始用户请求：')
@@ -101,7 +105,7 @@ describe('Yunxiao requirement gate', () => {
 
     const [terminal] = (await runtime.listTerminals()).terminals
     const text = 'echo https://devops.aliyun.com/projex/req/DFHIS-31732'
-    await runtime.sendTerminal(terminal.handle, { text })
+    await runtime.sendTerminal(terminal.handle, { text }, { inputKind: 'driving' })
 
     expect(writes).toEqual([text])
   })
@@ -360,9 +364,13 @@ describe('Yunxiao requirement gate', () => {
     })
     const { handle } = await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`)
 
-    await runtime.sendTerminal(handle, {
-      text: 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'
-    })
+    await runtime.sendTerminal(
+      handle,
+      {
+        text: 'Orca Yunxiao requirement workflow gate\n\n原始用户请求：\nDFHIS-31732'
+      },
+      { inputKind: 'driving' }
+    )
 
     expect(ensureDfHisWorkflowPackInstalled).toHaveBeenCalledOnce()
     expect(order).toEqual(['ensure-pack', 'write'])
@@ -390,7 +398,9 @@ describe('Yunxiao requirement gate', () => {
       })
       const { handle } = await runtime.createTerminal(`path:${TEST_WORKTREE_PATH}`)
 
-      const sendPromise = runtime.sendTerminalAgentPrompt(handle, 'DFHIS-31732')
+      const sendPromise = runtime.sendTerminalAgentPrompt(handle, 'DFHIS-31732', {
+        inputKind: 'driving'
+      })
       await vi.runAllTimersAsync()
       await expect(sendPromise).resolves.toMatchObject({ accepted: true })
 

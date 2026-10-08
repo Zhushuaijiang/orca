@@ -56,7 +56,11 @@ import type { YunxiaoTodoPoolClaimOperations } from './yunxiao-todo-pool-claims'
 
 type AutomationPersistenceRuntime = Pick<
   StoreRuntimeState,
-  'automationListProjectionCache' | 'state' | 'storageAuthority'
+  | 'automationListProjectionCache'
+  | 'dirtyProfileStateDomains'
+  | 'pendingAutomationRunsAfter'
+  | 'state'
+  | 'storageAuthority'
 >
 
 const automationPersistenceContext = Symbol('AutomationPersistence')
@@ -216,7 +220,10 @@ export class AutomationPersistence {
   advanceAutomationNextRun(id: string, now = Date.now()): Automation {
     return advanceAutomationNextRunOperation(
       this[automationPersistenceContext].runtime.state,
-      () => this[automationPersistenceContext].flushBarriers.flush(),
+      () => {
+        markAutomationDefinitionDomain(this)
+        this[automationPersistenceContext].flushBarriers.flush()
+      },
       id,
       now
     )
@@ -233,16 +240,31 @@ export function getAutomationDefinitionOperations(
   return {
     state: owner[automationPersistenceContext].runtime.state,
     storageAuthority: owner[automationPersistenceContext].runtime.storageAuthority,
-    flush: () => owner[automationPersistenceContext].flushBarriers.flush(),
+    flush: () => {
+      markAutomationDefinitionDomain(owner)
+      owner[automationPersistenceContext].flushBarriers.flush()
+    },
     recordCreated: () =>
-      owner[automationPersistenceContext].preferences.recordFeatureInteraction('automation-created')
+      owner[automationPersistenceContext].preferences.recordFeatureInteraction(
+        'automation-created'
+      ),
+    recordAutomationRunsMutation: (runs) => {
+      owner[automationPersistenceContext].runtime.pendingAutomationRunsAfter = runs
+      owner[automationPersistenceContext].runtime.dirtyProfileStateDomains?.add('automationRuns')
+    }
   }
 }
 
 export function getAutomationRunOperations(owner: AutomationPersistence): AutomationRunOperations {
   return {
     state: owner[automationPersistenceContext].runtime.state,
-    flush: () => owner[automationPersistenceContext].flushBarriers.flush(),
+    flush: () => {
+      markAutomationDomains(owner)
+      owner[automationPersistenceContext].flushBarriers.flush()
+    },
+    recordAutomationRunsMutation: (runs) => {
+      owner[automationPersistenceContext].runtime.pendingAutomationRunsAfter = runs
+    },
     recordManualRun: () =>
       owner[automationPersistenceContext].preferences.recordFeatureInteraction('automation-run'),
     getWorkspaceDisplayName: (workspaceId) =>
@@ -265,6 +287,18 @@ export function getAutomationRunWorkspaceDisplayName(
     owner[automationPersistenceContext].runtime.state.worktreeMeta[workspaceId]?.displayName ??
       getWorktreePathBasenameFromId(workspaceId)
   )
+}
+
+function markAutomationDomains(owner: AutomationPersistence): void {
+  const dirtyDomains = owner[automationPersistenceContext].runtime.dirtyProfileStateDomains
+  if (dirtyDomains !== null) {
+    dirtyDomains.add('automations')
+    dirtyDomains.add('automationRuns')
+  }
+}
+
+function markAutomationDefinitionDomain(owner: AutomationPersistence): void {
+  owner[automationPersistenceContext].runtime.dirtyProfileStateDomains?.add('automations')
 }
 
 export function installAutomationPersistenceContext(

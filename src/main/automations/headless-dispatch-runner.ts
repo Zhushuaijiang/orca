@@ -9,7 +9,10 @@ import {
   formatAutomationPrecheckFailure
 } from '../../shared/automation-precheck'
 import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../shared/yunxiao-requirement-gate-outcome'
-import type { HeadlessAutomationDispatcher } from './headless-dispatch'
+import type {
+  HeadlessAutomationDispatcher,
+  HeadlessAutomationDispatchLaunch
+} from './headless-dispatch'
 import type { AutomationRunTargetResult } from './run-target-resolution'
 import type { AutomationRunWriter } from './automation-run-writer'
 
@@ -43,52 +46,9 @@ export async function runHeadlessAutomationDispatch(
       error: formatAutomationPrecheckFailure(precheckResult)
     })
   }
+  let launch: HeadlessAutomationDispatchLaunch
   try {
-    const launch = await ctx.dispatcher({ automation, run, target })
-    const launchRunTarget = {
-      workspaceId: launch.workspaceId,
-      workspaceDisplayName: launch.workspaceDisplayName ?? null,
-      terminalSessionId: launch.terminalSessionId,
-      terminalPaneKey: launch.terminalPaneKey ?? null,
-      terminalPtyId: launch.terminalPtyId ?? null
-    }
-    const updated = runs.updateRun({
-      runId: run.id,
-      status: 'dispatched',
-      ...launchRunTarget,
-      error: null
-    })
-    if (!launch.completion) {
-      // Why: a dispatcher that reports no completion promise would otherwise
-      // leave the run at 'dispatched' for the process lifetime.
-      ctx.watchRun(updated)
-      return updated
-    }
-    void launch.completion
-      .then((completion) => {
-        const outputSnapshot = completion.outputSnapshot ?? null
-        return ctx.markDispatchResult({
-          runId: run.id,
-          status: completion.status,
-          ...launchRunTarget,
-          precheckResult,
-          outputSnapshot,
-          yunxiaoRequirementOutcomes:
-            completion.yunxiaoRequirementOutcomes ??
-            extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot),
-          yunxiaoRequirementOutcome: completion.yunxiaoRequirementOutcome ?? null,
-          error: completion.error ?? null
-        })
-      })
-      .catch((error) =>
-        ctx.markDispatchResult({
-          runId: run.id,
-          status: 'dispatch_failed',
-          ...launchRunTarget,
-          error: describeDispatchError(error)
-        })
-      )
-    return updated
+    launch = await ctx.dispatcher({ automation, run, target })
   } catch (error) {
     return runs.updateRun({
       runId: run.id,
@@ -97,4 +57,53 @@ export async function runHeadlessAutomationDispatch(
       error: describeDispatchError(error)
     })
   }
+  const launchRunTarget = {
+    workspaceId: launch.workspaceId,
+    workspaceDisplayName: launch.workspaceDisplayName ?? null,
+    terminalSessionId: launch.terminalSessionId,
+    terminalPaneKey: launch.terminalPaneKey ?? null,
+    terminalPtyId: launch.terminalPtyId ?? null
+  }
+  const updated = runs.updateRun({
+    runId: run.id,
+    status: 'dispatched',
+    ...launchRunTarget,
+    // Kept here: a watched run's completion is written without it.
+    ...(precheckResult ? { precheckResult } : {}),
+    error: null
+  })
+  // Observe the launched agent even while persistence is stalled or rejects its acknowledgement.
+  if (!launch.completion) {
+    ctx.watchRun({ ...run, ...launchRunTarget, status: 'dispatched', error: null })
+  } else {
+    void launch.completion
+      .then(
+        (completion) => {
+          // Why (fork): yunxiao gate outcomes ride the run completion; a dispatcher without
+          // them falls back to extracting from the output snapshot.
+          const outputSnapshot = completion.outputSnapshot ?? null
+          return ctx.markDispatchResult({
+            runId: run.id,
+            status: completion.status,
+            ...launchRunTarget,
+            precheckResult,
+            outputSnapshot,
+            yunxiaoRequirementOutcomes:
+              completion.yunxiaoRequirementOutcomes ??
+              extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot),
+            yunxiaoRequirementOutcome: completion.yunxiaoRequirementOutcome ?? null,
+            error: completion.error ?? null
+          })
+        },
+        (error) =>
+          ctx.markDispatchResult({
+            runId: run.id,
+            status: 'dispatch_failed',
+            ...launchRunTarget,
+            error: describeDispatchError(error)
+          })
+      )
+      .catch((error) => console.error('[automations] Failed to persist run completion:', error))
+  }
+  return updated
 }

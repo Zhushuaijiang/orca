@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
-import { basename, dirname, extname, join, relative } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { pathSegments } from './session-file-discovery'
 import { resolveAbsoluteDirOverride } from '../../shared/absolute-dir-override'
 import type { AiVaultAgent } from '../../shared/ai-vault-types'
 import type { AiVaultDeletableAgent } from '../../shared/ai-vault-session-deletion'
@@ -12,6 +13,7 @@ import {
 import { cursorChatMetaPath } from './session-scanner-cursor-chat-meta'
 import { devinSessionsDbDependencyPath } from './session-scanner-devin-db'
 import { resolveKimiSessionsDir } from './session-scanner-kimi-paths'
+import { resolveMuseSessionsDir } from './session-scanner-muse-paths'
 import { OMP_SESSION_ARTIFACT_DIR_PATTERN } from './session-scanner-omp-subagent-transcripts'
 import {
   claudeProjectsRootDirs,
@@ -106,13 +108,33 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
     rootDirs: (options, wslHomeDirs) =>
       claudeProjectsRootDirs({
         claudeProjectsDir: options.claudeProjectsDir,
-        wslHomeDirs
+        wslHomeDirs,
+        claudeProfileProjectsDirs: options.claudeProfileProjectsDirs
       }),
     extensions: ['.jsonl'],
     // Why: Task subagent transcripts under `<session>/subagents/` share the parent
     // sessionId and aren't independently resumable, so they'd just duplicate the
     // parent as untitled rows; prune the subtree and read them on demand under
     // their parent instead.
+    directoryPredicate: (name) => name !== SUBAGENT_DIR_NAME
+  },
+  qoder: {
+    rootDirs: (options, wslHomeDirs) =>
+      sessionRootDirs(
+        options.qoderProjectsDir ?? join(homedir(), '.qoder', 'projects'),
+        wslHomeDirs,
+        ['.qoder', 'projects']
+      ),
+    extensions: ['.jsonl'],
+    directoryPredicate: (name) => name !== SUBAGENT_DIR_NAME
+  },
+  codebuddy: {
+    rootDirs: (options, wslHomeDirs) => [
+      options.codebuddyProjectsDir ?? CODEBUDDY_PROJECTS_DIR,
+      ...wslHomeDirs.map((homeDir) => join(homeDir, '.codebuddy', 'projects'))
+    ],
+    extensions: ['.jsonl'],
+    // Nested subagent transcripts are not independent top-level conversations.
     directoryPredicate: (name) => name !== SUBAGENT_DIR_NAME
   },
   codex: {
@@ -193,6 +215,18 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
         'sessions'
       ]),
     extensions: ['.json'],
+    filePredicate: (filePath) => basename(filePath).startsWith('session_')
+  },
+  jcode: {
+    rootDirs: (options, wslHomeDirs) =>
+      sessionRootDirs(
+        options.jcodeSessionsDir ??
+          join(process.env.JCODE_HOME?.trim() || join(homedir(), '.jcode'), 'sessions'),
+        wslHomeDirs,
+        ['.jcode', 'sessions']
+      ),
+    extensions: ['.json'],
+    // Why: skip the live .journal.jsonl appends and consolidated backups.
     filePredicate: (filePath) => basename(filePath).startsWith('session_')
   },
   rovo: {
@@ -288,16 +322,19 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
     filePredicate: (filePath) =>
       basename(filePath) === 'state.json' && basename(dirname(filePath)).startsWith('session_')
   },
-  codebuddy: {
+  muse: {
     rootDirs: (options, wslHomeDirs) =>
-      sessionRootDirs(options.codebuddyProjectsDir ?? CODEBUDDY_PROJECTS_DIR, wslHomeDirs, [
-        '.codebuddy',
-        'projects'
+      sessionRootDirs(resolveMuseSessionsDir(options.museSessionsDir), wslHomeDirs, [
+        '.local',
+        'share',
+        'muse',
+        'sessions'
       ]),
     extensions: ['.jsonl'],
-    // Why: sessions are exactly <encoded-cwd>/<sessionId>.jsonl; the sibling
-    // <sessionId>/ directories hold tool-result artifacts, never sessions.
-    directoryPredicate: (_name, depth) => depth === 0
+    // Why: each Muse session is <root>/YYYY/MM/DD/<uuid>/session.jsonl;
+    // match only those (not sibling .log/.sqlite3 sidecars or the .msp-view
+    // materialized projection).
+    filePredicate: (filePath) => basename(filePath) === 'session.jsonl'
   }
 }
 
@@ -307,27 +344,5 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
  * predicate. This is the delete validator's accept rule, so a path no scan
  * would ever list can't become a delete target either.
  */
-export function isDiscoverableSessionFile(
-  source: AiVaultAgentSource,
-  rootDir: string,
-  filePath: string
-): boolean {
-  if (!source.extensions.includes(extname(filePath).toLowerCase())) {
-    return false
-  }
-  if (source.filePredicate && !source.filePredicate(filePath)) {
-    return false
-  }
-  const { directoryPredicate } = source
-  if (!directoryPredicate) {
-    return true
-  }
-  // Indexed like walkSessionFiles: depth 0 is a child of rootDir.
-  return pathSegments(relative(rootDir, dirname(filePath)))
-    .filter(Boolean)
-    .every((name, depth) => directoryPredicate(name, depth))
-}
 
-function pathSegments(filePath: string): string[] {
-  return filePath.split(/[\\/]/)
-}
+export { isDiscoverableSessionFile } from './session-file-discovery'

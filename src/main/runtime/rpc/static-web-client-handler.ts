@@ -28,6 +28,9 @@ async function handleStaticRequest(
   request: IncomingMessage,
   response: ServerResponse
 ): Promise<void> {
+  if (response.destroyed) {
+    return
+  }
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     response.setHeader('Allow', 'GET, HEAD')
     writeHttpStatus(response, 405)
@@ -59,7 +62,13 @@ async function handleStaticRequest(
   try {
     body = await readFile(absolutePath)
   } catch (error) {
+    if (response.destroyed) {
+      return
+    }
     writeHttpStatus(response, statusForReadError(error))
+    return
+  }
+  if (response.destroyed) {
     return
   }
 
@@ -134,6 +143,9 @@ function statusForReadError(error: unknown): number {
 }
 
 function writeHttpStatus(response: ServerResponse, statusCode: number): void {
+  if (response.destroyed) {
+    return
+  }
   if (response.headersSent) {
     response.destroy()
     return

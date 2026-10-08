@@ -1,9 +1,9 @@
 // The restart-resume offer: list it, act on it, or turn it down.
 //
 // Each method reaches for records on disk this process may not have opened yet, so each builds the
-// host the way hold and reveal do. Listing is read-only and takes nothing live; acting goes through
-// the host's single resume path, which re-derives eligibility rather than trusting the ids it is
-// given.
+// host the way hold and reveal do. Listing takes nothing live and spends no live offer; acting goes
+// through the host's single resume path, which re-derives eligibility rather than trusting the ids
+// it is given. Every method acts only on offers for agents the calling client can show.
 
 import { defineMethod } from '../core'
 import {
@@ -11,7 +11,12 @@ import {
   requireStructuredHost,
   structuredCallerFor
 } from './structured-agent-session-gate'
-import { RestartResumableParams, RestartResumeParams } from './structured-agent-session-schemas'
+import {
+  ContinueInterruptedParams,
+  RestartResumableParams,
+  RestartResumeParams
+} from './structured-agent-session-schemas'
+import { structuredAgentsReadBy } from './structured-agent-session-policy'
 
 export const STRUCTURED_AGENT_SESSION_RESTART_RESUME_METHODS = [
   defineMethod({
@@ -19,7 +24,13 @@ export const STRUCTURED_AGENT_SESSION_RESTART_RESUME_METHODS = [
     params: RestartResumableParams,
     handler: async (_params, ctx) => {
       await ensureStructuredHostInstalled(ctx)
-      return { sessions: await requireStructuredHost(ctx).restartResume.list() }
+      const host = requireStructuredHost(ctx)
+      const audience = structuredAgentsReadBy(ctx, host.knownAgentIds())
+      return {
+        sessions: await host.restartResume.list(audience),
+        // Acted-on offers whose agent did not carry on. Optional on the wire; older clients ignore it.
+        failed: await host.restartResume.listFailures(audience)
+      }
     }
   }),
   defineMethod({
@@ -27,13 +38,22 @@ export const STRUCTURED_AGENT_SESSION_RESTART_RESUME_METHODS = [
     // not call this method, so the status-bar entry can reopen the offer later.
     name: 'agentSession.restartResumableDismiss',
     params: RestartResumableParams,
-    handler: async (_params, ctx) => {
+    handler: async (params, ctx) => {
       await ensureStructuredHostInstalled(ctx)
       const host = requireStructuredHost(ctx)
-      const dismissed = await host.restartResume.dismiss()
-      // clearAll is the authoritative mutation: it removes pending and in-flight records, so a
-      // second read would only add a new failure point after the user's explicit dismissal.
-      return { dismissed, sessions: [] }
+      // Offers this client was never shown stay for a client that can show them.
+      const audience = structuredAgentsReadBy(ctx, host.knownAgentIds())
+      const dismissed = await host.restartResume.dismiss(params.sessionIds, audience)
+      if (params.sessionIds === undefined) {
+        // The dismissal removed every pending and in-flight record this client sees, so a second
+        // read would only add a new failure point after the user's explicit dismissal.
+        return { dismissed, sessions: [], failed: [] }
+      }
+      return {
+        dismissed,
+        sessions: await host.restartResume.list(audience),
+        failed: await host.restartResume.listFailures(audience)
+      }
     }
   }),
   defineMethod({
@@ -47,25 +67,33 @@ export const STRUCTURED_AGENT_SESSION_RESTART_RESUME_METHODS = [
       const host = requireStructuredHost(ctx)
       return host.restartResume.continueAfterRestart(
         params.sessionIds,
-        structuredCallerFor(ctx).callerKey
+        structuredCallerFor(ctx).callerKey,
+        structuredAgentsReadBy(ctx, host.knownAgentIds())
       )
     }
   }),
   defineMethod({
-    // Reattach only, no send. No Orca surface calls it now — the desktop prompt's single action is
-    // resume-and-continue — but it is a PUBLISHED wire method, so dropping it is a wire removal an
-    // older or non-desktop client would meet as an unknown method.
-    name: 'agentSession.restartResume',
-    params: RestartResumeParams,
+    // Continue on a reply an Orca stop cut off: the same continuation, bound to the cut turn
+    // instead of an offer. Clients gate it on AGENT_SESSION_CONTINUE_INTERRUPTED_RUNTIME_CAPABILITY.
+    // It names one chat the client shows, as a send does, so no agent audience applies.
+    name: 'agentSession.continueInterrupted',
+    params: ContinueInterruptedParams,
     handler: async (params, ctx) => {
       await ensureStructuredHostInstalled(ctx)
       const host = requireStructuredHost(ctx)
-      return {
-        results: await host.restartResume.resume(
-          params.sessionIds,
-          structuredCallerFor(ctx).callerKey
-        )
-      }
+      return host.restartResume.continueInterrupted(params.sessionId, params.turnItemId)
+    }
+  }),
+  defineMethod({
+    // Reattach only, no send. Reattaching is nothing now — an agent starts only for work — so this
+    // answers that nothing was resumed. No Orca surface calls it, but it is a PUBLISHED wire
+    // method, so dropping it is a wire removal an older client would meet as an unknown method.
+    name: 'agentSession.restartResume',
+    params: RestartResumeParams,
+    handler: async (_params, ctx) => {
+      await ensureStructuredHostInstalled(ctx)
+      requireStructuredHost(ctx)
+      return { results: [] }
     }
   })
 ]

@@ -2026,7 +2026,7 @@ describe('registerPtyHandlers', () => {
     getSelectedCodexHomePath?: (
       target?: { runtime?: 'host' | 'wsl'; wslDistro?: string | null },
       launchEnv?: NodeJS.ProcessEnv,
-      launchContext?: { workspacePath?: string; launchAgent?: TuiAgent }
+      launchContext?: { unavailableManagedHomePath?: string; launchesCodex?: boolean }
     ) => string | null,
     getSettings?: () => {
       enableGitHubAttribution?: boolean
@@ -2892,7 +2892,7 @@ describe('registerPtyHandlers', () => {
         (
           _target?: { runtime?: 'host' | 'wsl'; wslDistro?: string | null },
           _launchEnv?: NodeJS.ProcessEnv,
-          _launchContext?: { workspacePath?: string; launchAgent?: TuiAgent }
+          _launchContext?: { unavailableManagedHomePath?: string; launchesCodex?: boolean }
         ) => null
       )
 
@@ -2908,7 +2908,7 @@ describe('registerPtyHandlers', () => {
       )
 
       expect(resolveHome.mock.calls[0]?.[0]).toEqual({ runtime: 'host' })
-      expect(resolveHome.mock.calls[0]?.[2]).toEqual({ workspacePath, launchAgent: 'codex' })
+      expect(resolveHome.mock.calls[0]?.[2]).toEqual({ launchesCodex: true })
       expect(resolveHome.mock.invocationCallOrder[0]).toBeLessThan(
         spawnMock.mock.invocationCallOrder[0]!
       )
@@ -3750,7 +3750,7 @@ describe('registerPtyHandlers', () => {
         getSelectedCodexHomePath?: (
           target?: { runtime?: 'host' | 'wsl'; wslDistro?: string | null },
           launchEnv?: NodeJS.ProcessEnv,
-          launchContext?: { workspacePath?: string; launchAgent?: TuiAgent }
+          launchContext?: { unavailableManagedHomePath?: string; launchesCodex?: boolean }
         ) => string | null,
         getSettings?: () => {
           enableGitHubAttribution?: boolean
@@ -3812,7 +3812,7 @@ describe('registerPtyHandlers', () => {
         getSelectedCodexHomePath?: (
           target?: { runtime?: 'host' | 'wsl'; wslDistro?: string | null },
           launchEnv?: NodeJS.ProcessEnv,
-          launchContext?: { workspacePath?: string; launchAgent?: TuiAgent }
+          launchContext?: { unavailableManagedHomePath?: string; launchesCodex?: boolean }
         ) => string | null,
         getSettings?: () => {
           enableGitHubAttribution?: boolean
@@ -4441,7 +4441,7 @@ describe('registerPtyHandlers', () => {
           (
             _target?: { runtime?: 'host' | 'wsl'; wslDistro?: string | null },
             _launchEnv?: NodeJS.ProcessEnv,
-            _launchContext?: { workspacePath?: string; launchAgent?: TuiAgent }
+            _launchContext?: { unavailableManagedHomePath?: string; launchesCodex?: boolean }
           ) => null
         )
 
@@ -4453,7 +4453,7 @@ describe('registerPtyHandlers', () => {
         })
 
         expect(resolveHome.mock.calls[0]?.[0]).toEqual({ runtime: 'host' })
-        expect(resolveHome.mock.calls[0]?.[2]).toEqual({ workspacePath, launchAgent: 'codex' })
+        expect(resolveHome.mock.calls[0]?.[2]).toEqual({ launchesCodex: true })
       })
 
       it('injects explicit proxy settings on the daemon path', async () => {

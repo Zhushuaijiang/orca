@@ -23,7 +23,7 @@ import { getServeUpdateHandoffFailure } from '../serve-update-handoff'
 import { recordUpdaterLifecycle } from '../updater-lifecycle-diagnostics'
 import { AUTO_UPDATE_CHECK_INTERVAL_MS } from './updater-state'
 import { UpdaterDownloadInstall } from './updater-download-install'
-import type { UpdateInstallMode } from './updater-state'
+import type { PreQuitCleanupFailureMode, UpdateInstallMode } from './updater-state'
 
 export type UpdaterSetupOptions = {
   getLastUpdateCheckAt?: () => number | null
@@ -35,6 +35,7 @@ export type UpdaterSetupOptions = {
   setDismissedUpdateNudgeId?: (id: string | null) => void
   getReleaseChannelOverride?: () => ReleaseChannel | null
   installMode?: UpdateInstallMode
+  onBeforeQuitFailure?: PreQuitCleanupFailureMode
 }
 
 function getPackageJsonPath(): string | undefined {
@@ -126,6 +127,7 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     this.mainWindowRef = mainWindow
     initDfhisUpdater((status) => this.sendStatus(status))
     this.onBeforeQuitCleanup = opts?.onBeforeQuit ?? null
+    this.onBeforeQuitFailure = opts?.onBeforeQuitFailure ?? 'continue'
     this.persistLastUpdateCheckAt = opts?.setLastUpdateCheckAt ?? null
     this._getLastUpdateCheckAt = opts?.getLastUpdateCheckAt ?? null
     this._getPendingUpdateNudgeId = opts?.getPendingUpdateNudgeId ?? null

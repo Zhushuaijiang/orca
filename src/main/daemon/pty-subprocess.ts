@@ -86,9 +86,11 @@ export async function createPtySubprocess(opts: PtySubprocessOptions): Promise<S
     throw new TerminalAttachCanceledError(opts.sessionId)
   }
 
-  const spawnPty = (): SpawnedDaemonPty => {
+  // Why (fork): the WSL startup retry re-spawns, so the spawn+format block is a closure;
+  // main's spawnNativeDaemonPty is async, hence the awaited Promise return type.
+  const spawnPty = async (): Promise<SpawnedDaemonPty> => {
     try {
-      return spawnNativeDaemonPty({
+      return await spawnNativeDaemonPty({
         shellPath: launch.shellPath,
         shellArgs: launch.shellArgs,
         spawnCwd: launch.spawnCwd,
@@ -106,7 +108,7 @@ export async function createPtySubprocess(opts: PtySubprocessOptions): Promise<S
     }
   }
 
-  let spawned = spawnPty()
+  let spawned = await spawnPty()
   let handle = createDaemonPtySubprocessHandle({
     process: spawned.process,
     shellPath: spawned.shellPath,
@@ -143,7 +145,7 @@ export async function createPtySubprocess(opts: PtySubprocessOptions): Promise<S
     if (opts.isCanceled?.()) {
       throw new TerminalAttachCanceledError(opts.sessionId)
     }
-    spawned = spawnPty()
+    spawned = await spawnPty()
     handle = createDaemonPtySubprocessHandle({
       process: spawned.process,
       shellPath: spawned.shellPath,

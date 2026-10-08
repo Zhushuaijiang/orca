@@ -1,14 +1,19 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
 import { OrcaRuntimeWithResolveTerminalPane } from './orca-runtime-resolve-terminal-pane'
+import { wrapTerminalBracketedPasteText } from '../../shared/terminal-bracketed-paste-text'
 import { PROVEN_ABSENT_LEAF_PTY_TTL_MS } from './orca-runtime-core'
 import { pruneExpiredProvenAbsentLeafPtyVerdicts } from './proven-absent-leaf-pty-verdicts'
 import type { RuntimeTerminalSend } from '../../shared/runtime-types'
+import type { TerminalInputKind } from '../../shared/terminal-input-kind'
 import type { RuntimeAgentPromptWriteOptions } from './runtime-terminal-contracts'
 import {
   assertTerminalInputWithinLimitWithYield,
   buildTerminalSendPayload
 } from './terminal-send-payload'
-import { buildAgentPromptPasteBytes } from '../../shared/agent-prompt-injection'
+import {
+  agentPromptTakesLeadLine,
+  buildAgentPromptPasteBytes
+} from '../../shared/agent-prompt-injection'
 import { applyYunxiaoRequirementPromptGate } from '../../shared/yunxiao-requirement-prompt-gate'
 import {
   applyYunxiaoRequirementGateForRawTerminalSend,
@@ -106,7 +111,9 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
       reserveWrite?: (ptyId: string) => void
       afterWrite?: (ptyId: string) => void | Promise<void>
       suffixFailureError?: string
-    } = {}
+      inputKind: TerminalInputKind
+      requireWriteSettlement?: true
+    }
   ): Promise<RuntimeTerminalSend> {
     const pty = this.getLivePtyForHandle(handle)
     if (pty) {
@@ -124,11 +131,20 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
         throw new Error('invalid_terminal_send')
       }
       await assertTerminalInputWithinLimitWithYield(effectiveAction.text)
-      await this.writeTerminalAction(pty.pty.ptyId, effectiveAction, payload, options)
+      const writeSettlement = await this.writeTerminalAction(
+        pty.pty.ptyId,
+        effectiveAction,
+        payload,
+        options
+      )
       return {
         handle,
-        accepted: true,
-        bytesWritten: Buffer.byteLength(payload, 'utf8')
+        accepted: !writeSettlement || writeSettlement.outcome === 'accepted',
+        ...(writeSettlement ? { writeSettlement } : {}),
+        bytesWritten:
+          !writeSettlement || writeSettlement.outcome === 'accepted'
+            ? Buffer.byteLength(payload, 'utf8')
+            : 0
       }
     }
 
@@ -155,29 +171,51 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
       throw new Error('terminal_not_writable')
     }
 
-    await this.writeTerminalAction(leaf.ptyId, effectiveAction, payload, options)
+    const writeSettlement = await this.writeTerminalAction(
+      leaf.ptyId,
+      effectiveAction,
+      payload,
+      options
+    )
 
     return {
       handle,
-      accepted: true,
-      bytesWritten: Buffer.byteLength(payload, 'utf8')
+      accepted: !writeSettlement || writeSettlement.outcome === 'accepted',
+      ...(writeSettlement ? { writeSettlement } : {}),
+      bytesWritten:
+        !writeSettlement || writeSettlement.outcome === 'accepted'
+          ? Buffer.byteLength(payload, 'utf8')
+          : 0
     }
   }
 
   async sendTerminalAgentPrompt(
     handle: string,
     prompt: string,
-    options: RuntimeAgentPromptWriteOptions = {}
+    options: RuntimeAgentPromptWriteOptions
   ): Promise<RuntimeTerminalSend> {
     await ensureDfHisWorkflowPackCurrentForPrompt(prompt)
     const gatedPrompt = applyYunxiaoRequirementPromptGate(prompt)
-    const payload = buildAgentPromptPasteBytes(gatedPrompt)
+    // Why the consuming agent: the foreground process reads the bytes; launchAgent covers startup.
+    const payloadFor = (ptyId: string): string => {
+      // Why: a launch prompt replaced the desktop's draft paste, so it sends that paste's bytes.
+      if (options.inputKind === 'launch') {
+        return wrapTerminalBracketedPasteText(gatedPrompt)
+      }
+      const pty = this.ptysById.get(ptyId)
+      const agent = pty?.foregroundAgent ?? pty?.launchAgent
+      return buildAgentPromptPasteBytes(
+        gatedPrompt,
+        agentPromptTakesLeadLine(agent) ? options.leadLine : undefined
+      )
+    }
     const pty = this.getLivePtyForHandle(handle)
     if (pty) {
       if (!pty.pty.connected) {
         throw new Error('terminal_not_writable')
       }
       markManualYunxiaoRequirementGateForWorktree(this.store, pty.pty.worktreeId, prompt)
+      const payload = payloadFor(pty.pty.ptyId)
       await assertTerminalInputWithinLimitWithYield(payload)
       const generation = this.getPtyLifecycleGeneration(pty.pty.ptyId)
       const delivery = await this.serializeAgentPromptSubmission(
@@ -186,13 +224,10 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
         async () => {
           this.assertLiveTerminalHandleTargetsPty(handle, pty.pty.ptyId)
           this.assertAgentPromptGeneration(pty.pty.ptyId, generation)
-          return await this.writeTerminalAgentPrompt(
-            handle,
-            pty.pty.ptyId,
-            generation,
-            payload,
-            { ...options, promptForSchedule: prompt }
-          )
+          return await this.writeTerminalAgentPrompt(handle, pty.pty.ptyId, generation, payload, {
+            ...options,
+            promptForSchedule: prompt
+          })
         }
       )
       const bytesWritten = Buffer.byteLength(payload, 'utf8') + delivery.submits
@@ -209,6 +244,7 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
       throw new Error('terminal_not_writable')
     }
     markManualYunxiaoRequirementGateForWorktree(this.store, leaf.worktreeId, prompt)
+    const payload = payloadFor(leaf.ptyId)
     await assertTerminalInputWithinLimitWithYield(payload)
     // Why: same absence gate as sendTerminal — a stale graph mirror must not
     // accept a prompt into a void; unknown liveness still proceeds.

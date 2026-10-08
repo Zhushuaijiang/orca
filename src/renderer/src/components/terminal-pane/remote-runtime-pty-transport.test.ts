@@ -1997,7 +1997,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       expect(handleEvents.getWebSessionTerminalHandleSubscriberCountForTests()).toBe(1)
 
       const listCallsAfterBound = hostListCalls
-      await expect(transport.sendInputAccepted?.('retry while reconnecting')).resolves.toBe(false)
+      await expect(transport.sendInputAccepted?.('retry while reconnecting', 'driving')).resolves.toBe(false)
       await vi.advanceTimersByTimeAsync(16_000)
 
       // The accepted-snapshot listener already owns recovery. User input must
@@ -2811,7 +2811,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     if (!sendInputAccepted) {
       throw new Error('Expected acknowledged remote terminal input')
     }
-    const pendingSend = sendInputAccepted('sent-before-rebind')
+    const pendingSend = sendInputAccepted('sent-before-rebind', 'driving')
     await vi.waitFor(() =>
       expect(runtimeCall).toHaveBeenCalledWith(expect.objectContaining({ method: 'terminal.send' }))
     )
@@ -2878,7 +2878,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     if (!sendInputAccepted) {
       throw new Error('Expected acknowledged remote terminal input')
     }
-    const pendingSend = sendInputAccepted('sent-before-close')
+    const pendingSend = sendInputAccepted('sent-before-close', 'driving')
     await vi.waitFor(() =>
       expect(runtimeCall).toHaveBeenCalledWith(expect.objectContaining({ method: 'terminal.send' }))
     )
@@ -2975,7 +2975,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       if (!sendInputAccepted) {
         throw new Error('Expected acknowledged remote terminal input')
       }
-      const pendingSend = sendInputAccepted('sent-before-stream-end')
+      const pendingSend = sendInputAccepted('sent-before-stream-end', 'driving')
       await vi.waitFor(() =>
         expect(runtimeCall).toHaveBeenCalledWith(
           expect.objectContaining({ method: 'terminal.send' })
@@ -3069,7 +3069,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       if (!sendInputAccepted) {
         throw new Error('Expected acknowledged remote terminal input')
       }
-      const pendingSend = sendInputAccepted('sent-before-stream-end')
+      const pendingSend = sendInputAccepted('sent-before-stream-end', 'driving')
       await vi.waitFor(() =>
         expect(runtimeCall).toHaveBeenCalledWith(
           expect.objectContaining({ method: 'terminal.send' })
@@ -3354,7 +3354,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     if (!sendInputAccepted) {
       throw new Error('Expected acknowledged remote terminal input')
     }
-    const sends = Promise.all([sendInputAccepted('first'), sendInputAccepted('second')])
+    const sends = Promise.all([sendInputAccepted('first', 'driving'), sendInputAccepted('second', 'driving')])
     await vi.waitFor(() => expect(hostListCalls).toBe(1))
     await expect(sends).resolves.toEqual([false, false])
 
@@ -3632,7 +3632,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         callbacks: { onWriteUnavailable }
       })
       await vi.waitFor(() => expect(transport.getPtyId()).toBe('remote:env-1@@terminal-1'))
-      expect(transport.sendInput('x')).toBe(true)
+      expect(transport.sendInput('x', 'driving')).toBe(true)
       await vi.advanceTimersByTimeAsync(8)
 
       await vi.waitFor(() => expect(onWriteUnavailable).toHaveBeenCalledOnce())
@@ -3675,7 +3675,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         callbacks: { onWriteUnavailable, onError }
       })
       await vi.waitFor(() => expect(transport.getPtyId()).toBe('remote:env-1@@terminal-1'))
-      expect(transport.sendInput('x')).toBe(true)
+      expect(transport.sendInput('x', 'driving')).toBe(true)
       await vi.advanceTimersByTimeAsync(8)
 
       await vi.waitFor(() => expect(onWriteUnavailable).toHaveBeenCalledOnce())
@@ -3720,7 +3720,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         callbacks: { onWriteUnavailable: oldWriteUnavailable }
       })
       await vi.waitFor(() => expect(transport.getPtyId()).toBe('remote:env-1@@terminal-1'))
-      expect(transport.sendInput('old')).toBe(true)
+      expect(transport.sendInput('old', 'driving')).toBe(true)
       await vi.advanceTimersByTimeAsync(8)
       await vi.waitFor(() =>
         expect(runtimeCall).toHaveBeenCalledWith(
@@ -3777,7 +3777,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         callbacks: {}
       })
       await vi.waitFor(() => expect(transport.getPtyId()).toBe('remote:env-1@@terminal-old'))
-      expect(transport.sendInput('queued-for-old')).toBe(true)
+      expect(transport.sendInput('queued-for-old', 'driving')).toBe(true)
 
       resolvedPaneHandle = 'terminal-new'
       transport.attach({
@@ -3894,7 +3894,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       subscriptionSendBinary.mockClear()
 
       // Why: replacement input stays disabled until terminal.resolvePane proves the new handle belongs to this pane.
-      expect(transport.sendInput('x')).toBe(false)
+      expect(transport.sendInput('x', 'driving')).toBe(false)
       vi.advanceTimersByTime(8)
 
       const inputFrames = subscriptionSendBinary.mock.calls
@@ -5250,7 +5250,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       })
 
       expect(transport.isConnected()).toBe(false)
-      expect(transport.sendInput(`detached-${cycle}`)).toBe(false)
+      expect(transport.sendInput(`detached-${cycle}`, 'driving')).toBe(false)
       expect(unsubscribeByEpoch[cycle]).toHaveBeenCalledTimes(1)
       await vi.waitFor(() => expect(runtimeSubscribe).toHaveBeenCalledTimes(cycle + 2))
       await vi.waitFor(() => expect(latestSubscribePayload().terminal).toBe('terminal-1'))
@@ -5326,7 +5326,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       expect(disconnectedState?.phase).toBe('disconnected')
       expect(transport.getPtyId()).toBe('remote:env-1@@terminal-1')
       expect(transport.isConnected()).toBe(false)
-      expect(transport.sendInput('must not reach a stale socket')).toBe(false)
+      expect(transport.sendInput('must not reach a stale socket', 'driving')).toBe(false)
       expect(onError).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(5 * 60_000)
       expect(runtimeSubscribe).toHaveBeenCalledTimes(callsAtCutoff)
@@ -5375,7 +5375,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     subscriptionCallbacks?.onClose?.()
     await vi.waitFor(() => expect(runtimeSubscribe).toHaveBeenCalledTimes(2))
     expect(transport.claimViewport?.(101, 33)).toBe(true)
-    const accepted = transport.sendInputAccepted?.('\x03')
+    const accepted = transport.sendInputAccepted?.('\x03', 'driving')
     await Promise.resolve()
     rejectReconnect(new Error('reconnect failed'))
 
@@ -5394,7 +5394,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     const { streamId } = latestSubscribePayload()
 
     expect(transport.claimViewport?.(101, 33)).toBe(true)
-    const accepted = transport.sendInputAccepted?.('x')
+    const accepted = transport.sendInputAccepted?.('x', 'driving')
     subscriptionCallbacks?.onResponse({
       ok: true,
       result: { type: 'end', streamId }
@@ -5533,7 +5533,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       })
       await vi.waitFor(() => expect(runtimeSubscribe).toHaveBeenCalled())
       expect(transport.claimViewport?.(101, 33)).toBe(true)
-      expect(transport.sendInput('x')).toBe(true)
+      expect(transport.sendInput('x', 'driving')).toBe(true)
       await vi.advanceTimersByTimeAsync(8)
       expect(runtimeCall).not.toHaveBeenCalledWith(
         expect.objectContaining({ method: 'terminal.send' })
@@ -5572,8 +5572,8 @@ describe('createRemoteRuntimePtyTransport', () => {
       runtimeCall.mockClear()
       subscriptionSendBinary.mockClear()
 
-      expect(transport.sendInput('a')).toBe(true)
-      expect(transport.sendInput('b')).toBe(true)
+      expect(transport.sendInput('a', 'driving')).toBe(true)
+      expect(transport.sendInput('b', 'driving')).toBe(true)
       expect(runtimeCall).not.toHaveBeenCalled()
 
       await vi.runOnlyPendingTimersAsync()
@@ -5604,8 +5604,8 @@ describe('createRemoteRuntimePtyTransport', () => {
       runtimeCall.mockClear()
       subscriptionSendBinary.mockClear()
 
-      expect(transport.sendInput('a')).toBe(true)
-      expect(transport.sendInput('b')).toBe(true)
+      expect(transport.sendInput('a', 'driving')).toBe(true)
+      expect(transport.sendInput('b', 'driving')).toBe(true)
       await vi.runOnlyPendingTimersAsync()
 
       expect(runtimeCall).not.toHaveBeenCalled()
@@ -5635,14 +5635,14 @@ describe('createRemoteRuntimePtyTransport', () => {
       subscriptionSendBinary.mockClear()
 
       const chunk = 'x'.repeat(TERMINAL_INPUT_CHUNK_MAX_BYTES)
-      expect(transport.sendInput(chunk)).toBe(true)
+      expect(transport.sendInput(chunk, 'driving')).toBe(true)
       expect(subscriptionSendBinary).toHaveBeenCalledTimes(1)
       let frame = decodeTerminalStreamFrame(subscriptionSendBinary.mock.calls[0][0])
       expect(frame?.opcode).toBe(TerminalStreamOpcode.Input)
       expect(frame?.streamId).toBe(streamId)
       expect(frame ? decodeTerminalStreamText(frame.payload) : '').toBe(chunk)
 
-      expect(transport.sendInput('tail')).toBe(true)
+      expect(transport.sendInput('tail', 'driving')).toBe(true)
       await vi.runOnlyPendingTimersAsync()
 
       expect(runtimeCall).not.toHaveBeenCalled()
@@ -5678,7 +5678,7 @@ describe('createRemoteRuntimePtyTransport', () => {
 
     await transport.connect({ url: '', callbacks: {} })
 
-    await expect(transport.sendInputAccepted?.('\x03')).resolves.toBe(true)
+    await expect(transport.sendInputAccepted?.('\x03', 'driving')).resolves.toBe(true)
     expect(runtimeCall).toHaveBeenCalledWith({
       selector: 'env-1',
       method: 'terminal.send',
@@ -5718,8 +5718,8 @@ describe('createRemoteRuntimePtyTransport', () => {
       await transport.connect({ url: '', callbacks: {} })
       subscriptionSendBinary.mockClear()
 
-      expect(transport.sendInput('a')).toBe(true)
-      await expect(transport.sendInputAccepted?.('\x03')).resolves.toBe(true)
+      expect(transport.sendInput('a', 'driving')).toBe(true)
+      await expect(transport.sendInputAccepted?.('\x03', 'driving')).resolves.toBe(true)
       await vi.runOnlyPendingTimersAsync()
 
       expect(runtimeCall).toHaveBeenCalledWith({
@@ -5762,7 +5762,7 @@ describe('createRemoteRuntimePtyTransport', () => {
 
     await transport.connect({ url: '', callbacks: {} })
 
-    await expect(transport.sendInputAccepted?.('\x03')).resolves.toBe(false)
+    await expect(transport.sendInputAccepted?.('\x03', 'driving')).resolves.toBe(false)
   })
 
   it('splits large acknowledged remote input before terminal.send RPCs', async () => {
@@ -5794,7 +5794,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     await transport.connect({ url: '', callbacks: {} })
 
     const chunk = '😀'.repeat(TERMINAL_INPUT_CHUNK_MAX_BYTES / 4)
-    await expect(transport.sendInputAccepted?.(`${chunk}tail`)).resolves.toBe(true)
+    await expect(transport.sendInputAccepted?.(`${chunk}tail`, 'driving')).resolves.toBe(true)
 
     const sendCalls = runtimeCall.mock.calls.filter((call) => call[0].method === 'terminal.send')
     expect(sendCalls).toHaveLength(2)
@@ -5834,7 +5834,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       await transport.connect({ url: '', callbacks: {} })
       runtimeCall.mockClear()
 
-      const accepted = transport.sendInputAccepted?.(text)
+      const accepted = transport.sendInputAccepted?.(text, 'driving')
       await Promise.resolve()
 
       expect(runtimeCall).not.toHaveBeenCalled()
@@ -5881,7 +5881,7 @@ describe('createRemoteRuntimePtyTransport', () => {
 
     await transport.connect({ url: '', callbacks: {} })
 
-    await expect(transport.sendInputAccepted?.(`${firstChunk}${rejectedChunk}after`)).resolves.toBe(
+    await expect(transport.sendInputAccepted?.(`${firstChunk}${rejectedChunk}after`, 'driving')).resolves.toBe(
       false
     )
 
@@ -5909,7 +5909,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     runtimeCall.mockClear()
 
     await expect(
-      transport.sendInputAccepted?.('😀'.repeat(Math.floor(TERMINAL_INPUT_MAX_BYTES / 4) + 1))
+      transport.sendInputAccepted?.('😀'.repeat(Math.floor(TERMINAL_INPUT_MAX_BYTES / 4) + 1), 'driving')
     ).resolves.toBe(false)
     expect(runtimeCall).not.toHaveBeenCalled()
   })
@@ -5929,7 +5929,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       runtimeCall.mockClear()
       subscriptionSendBinary.mockClear()
 
-      expect(transport.sendInput('echo one\necho two\r\n')).toBe(true)
+      expect(transport.sendInput('echo one\necho two\r\n', 'driving')).toBe(true)
       await vi.runOnlyPendingTimersAsync()
 
       expect(runtimeCall).not.toHaveBeenCalled()
@@ -5993,7 +5993,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       subscriptionSendBinary.mockClear()
 
       expect(transport.claimViewport?.(101, 33)).toBe(true)
-      expect(transport.sendInput('x')).toBe(true)
+      expect(transport.sendInput('x', 'driving')).toBe(true)
       await vi.runOnlyPendingTimersAsync()
 
       const frames = subscriptionSendBinary.mock.calls.map((call) =>

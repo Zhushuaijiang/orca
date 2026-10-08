@@ -1,25 +1,25 @@
-import { remoteSessionContentLines } from './remote-session-content-lines'
-import { openTranscriptReadStream } from '../native-chat/wsl-transcript-fs-access'
 import { createInterface } from 'node:readline'
-import type { AiVaultSession, AiVaultTokenUsage } from '../../shared/ai-vault-types'
+import {
+  remoteSessionContentLines,
+  type RemoteSessionContent
+} from './remote-session-content-lines'
+import { openTranscriptReadStream } from '../native-chat/wsl-transcript-fs-access'
+import type { AiVaultSession } from '../../shared/ai-vault-types'
 import type { ExecutionHostId } from '../../shared/execution-host'
-import type {
-  FileWithMtime,
-  ResumableSessionParseState,
-  SessionAccumulator
-} from './session-scanner-types'
+import { isKnownHarnessInjectedUserTurnText } from '../../shared/harness-injected-user-turns'
+import type { FileWithMtime, ResumableSessionParseState } from './session-scanner-types'
 import type { TranscriptMessageSink } from './session-transcript-consumers'
 import {
-  accumulatorFoldResumeState,
-  addPreviewContent,
+  addPreviewMessage,
+  accumulatorSessionIdentity,
   createAccumulator,
+  finalizeSession,
   sessionIdFromFileName,
+  updateLatestLocation,
   updateTimeline
 } from './session-scanner-accumulator'
-import { addTokenUsage, emptyTokenUsage, numberValue } from './session-scanner-token-values'
 import {
   asRecord,
-  extractContentText,
   extractString,
   normalizeTitleText,
   parseJsonObject
@@ -30,11 +30,164 @@ type ParserSessionOptions = {
   executionHostPlatform?: NodeJS.Platform | null
 }
 
-// Why a dedicated parser: CodeBuddy's disk layout is Claude-shaped
-// (~/.codebuddy/projects/<encoded-cwd>/<sessionId>.jsonl, ai-title records) but
-// the transcript records are not — `type:'message'` with a top-level role and
-// content blocks (input_text/output_text), epoch-millis numeric timestamps,
-// and OpenAI-style usage under providerData on function_call records.
+// CodeBuddy stores top-level message roles and input_text/output_text blocks, not Claude records.
+export type CodebuddySessionParseState = {
+  accumulator: ReturnType<typeof createAccumulator>
+  aiTitle: string | null
+  firstUserTitle: string | null
+}
+
+export function createCodebuddySessionParseState(
+  file: FileWithMtime,
+  messages?: TranscriptMessageSink
+): CodebuddySessionParseState {
+  return {
+    accumulator: createAccumulator({
+      agent: 'codebuddy',
+      file,
+      sessionId: sessionIdFromFileName(file.path),
+      messages
+    }),
+    aiTitle: null,
+    firstUserTitle: null
+  }
+}
+
+export function cloneCodebuddySessionParseState(
+  state: CodebuddySessionParseState
+): CodebuddySessionParseState {
+  return {
+    accumulator: {
+      ...state.accumulator,
+      previewMessages: [...state.accumulator.previewMessages]
+    },
+    aiTitle: state.aiTitle,
+    firstUserTitle: state.firstUserTitle
+  }
+}
+
+// CodeBuddy conversation content is an array of typed text blocks; join the
+// text ones. Non-text blocks (tool calls, diffs) carry no preview copy.
+function codebuddyContentText(content: unknown): string | null {
+  if (typeof content === 'string') {
+    return content
+  }
+  if (!Array.isArray(content)) {
+    return null
+  }
+  const parts = content
+    .map((block) => {
+      const record = asRecord(block)
+      const type = extractString(record?.type)
+      return type === 'input_text' || type === 'output_text' || type === 'text'
+        ? extractString(record?.text)
+        : null
+    })
+    .filter((text): text is string => typeof text === 'string' && text.length > 0)
+  return parts.length > 0 ? parts.join('\n\n') : null
+}
+
+export function consumeCodebuddySessionLine(state: CodebuddySessionParseState, line: string): void {
+  const { accumulator } = state
+  const record = parseJsonObject(line)
+  if (!record) {
+    return
+  }
+
+  if (typeof record.sessionId === 'string' && record.sessionId.trim()) {
+    accumulator.sessionId = record.sessionId.trim()
+  }
+  updateTimeline(accumulator, record.timestamp)
+  updateLatestLocation(accumulator, record)
+
+  // The CLI's own session title; later summaries revise it, like Claude's
+  // custom-title.
+  if (record.type === 'summary') {
+    const summary = normalizeTitleText(extractString(record.summary) ?? '')
+    if (summary) {
+      accumulator.title = summary
+    }
+    return
+  }
+
+  if (record.type === 'ai-title') {
+    const title = normalizeTitleText(extractString(record.aiTitle) ?? '')
+    if (title) {
+      // CodeBuddy can revise generated names; AI Vault mirrors the current one.
+      state.aiTitle = title
+    }
+    return
+  }
+
+  if (record.type !== 'message') {
+    return
+  }
+
+  const role = extractString(record.role)
+  const text = codebuddyContentText(record.content)
+  accumulator.messageCount++
+  if (role === 'user') {
+    // Meta prompts (injected context) only seed the last-resort title.
+    // `providerData.skipRun` marks machinery-injected turns that never reached
+    // the model as a user prompt.
+    const isMetaUserTurn =
+      asRecord(record.providerData)?.skipRun === true ||
+      (text != null && isKnownHarnessInjectedUserTurnText(text))
+    addPreviewMessage(accumulator, {
+      role: 'user',
+      text,
+      timestamp: record.timestamp,
+      seedFirstUserPrompt: !isMetaUserTurn
+    })
+    if (text && !isMetaUserTurn) {
+      state.firstUserTitle ??= text
+    }
+    return
+  }
+  if (role === 'assistant') {
+    addPreviewMessage(accumulator, { role: 'assistant', text, timestamp: record.timestamp })
+    const model = extractString(asRecord(record.providerData)?.model)
+    if (model) {
+      accumulator.model = model
+    }
+  }
+}
+
+export function finalizeCodebuddySessionParseState(
+  state: CodebuddySessionParseState,
+  platform: NodeJS.Platform,
+  options: ParserSessionOptions = {}
+): AiVaultSession | null {
+  // Finalize a snapshot: the live state (and its preview array) may keep
+  // accumulating appended lines after this session object is handed out.
+  const snapshot = cloneCodebuddySessionParseState(state)
+  // Why: the CLI's summary title wins via accumulator.title; the generated
+  // ai-title should outrank the raw first prompt when present.
+  snapshot.accumulator.fallbackTitle = snapshot.aiTitle ?? snapshot.firstUserTitle
+  return finalizeSession(snapshot.accumulator, platform, options)
+}
+
+function codebuddyResumeStateFromParseState(
+  state: CodebuddySessionParseState
+): ResumableSessionParseState {
+  return {
+    consumeLine: (line) => consumeCodebuddySessionLine(state, line),
+    identity: () => accumulatorSessionIdentity(state.accumulator),
+    clone: () => codebuddyResumeStateFromParseState(cloneCodebuddySessionParseState(state)),
+    touchFile: (file) => {
+      state.accumulator.modifiedAt = file.modifiedAt
+    },
+    finalize: (platform, options) => finalizeCodebuddySessionParseState(state, platform, options)
+  }
+}
+
+export function createCodebuddySessionResumeState(
+  file: FileWithMtime,
+  messages?: TranscriptMessageSink
+): ResumableSessionParseState {
+  return codebuddyResumeStateFromParseState(createCodebuddySessionParseState(file, messages))
+}
+
 export async function parseCodebuddySessionFile(
   file: FileWithMtime,
   platform: NodeJS.Platform = process.platform,
@@ -49,7 +202,7 @@ export async function parseCodebuddySessionFile(
 
 export async function parseCodebuddySessionContent(
   file: FileWithMtime,
-  content: string,
+  content: RemoteSessionContent,
   platform: NodeJS.Platform = process.platform,
   options: ParserSessionOptions = {},
   signal?: AbortSignal
@@ -62,115 +215,6 @@ export async function parseCodebuddySessionContent(
   })
 }
 
-function consumeCodebuddyRecordLine(accumulator: SessionAccumulator, line: string): void {
-  const record = parseJsonObject(line)
-  if (!record) {
-    return
-  }
-  if (typeof record.sessionId === 'string' && record.sessionId.trim()) {
-    accumulator.sessionId = record.sessionId.trim()
-  }
-  // Numeric epoch-millis; updateTimeline's timestampMs handles numbers natively.
-  updateTimeline(accumulator, record.timestamp)
-  // A session's representative cwd is its start directory (same rule as Claude:
-  // `codebuddy --resume <id>` finds the transcript under the start-cwd project dir).
-  if (accumulator.cwd === null) {
-    const startCwd = extractString(record.cwd)
-    if (startCwd) {
-      accumulator.cwd = startCwd
-    }
-  }
-
-  if (record.type === 'ai-title') {
-    // Why the top slot: ai-title precedes summary in the file but must outrank
-    // it regardless of arrival order, and CodeBuddy has no user custom-title
-    // record that would need the slot's usual precedence.
-    const title = normalizeTitleText(extractString(record.aiTitle) ?? '')
-    if (title) {
-      accumulator.title = title
-    }
-    return
-  }
-
-  if (record.type === 'summary') {
-    // summary echoes the initial user message (providerData.source), so it only
-    // outranks the raw first-prompt fallback, never the ai-title above.
-    const title = normalizeTitleText(extractString(record.summary) ?? '')
-    if (title) {
-      accumulator.fallbackTitle = title
-    }
-    return
-  }
-
-  const providerData = asRecord(record.providerData)
-  const model = extractString(providerData?.model)
-  if (model) {
-    accumulator.model = model
-  }
-  const usage = codebuddyUsageBreakdown(providerData?.usage)
-  if (usage.total > 0) {
-    accumulator.totalTokens += usage.total
-  }
-  addTokenUsage(accumulator, model, usage)
-
-  if (record.type === 'message') {
-    const role = extractString(record.role)
-    if (role !== 'user' && role !== 'assistant') {
-      return
-    }
-    accumulator.messageCount++
-    if (role === 'user' && accumulator.fallbackTitle === null) {
-      accumulator.fallbackTitle = extractContentText(record.content)
-    }
-    addPreviewContent(accumulator, role, record.content, record.timestamp)
-  }
-}
-
-// inputTokens already includes cached_tokens and outputTokens already includes
-// reasoning_tokens (OpenAI semantics), so the categories are carved out of the
-// totals to keep the breakdown sum equal to the reported totalTokens.
-function codebuddyUsageBreakdown(value: unknown): AiVaultTokenUsage {
-  const usage = asRecord(value)
-  if (!usage) {
-    return emptyTokenUsage()
-  }
-  const inputTokens = numberValue(usage.inputTokens)
-  const outputTokens = numberValue(usage.outputTokens)
-  const cachedTokens = detailTokensTotal(usage.inputTokensDetails, 'cached_tokens')
-  const reasoningTokens = detailTokensTotal(usage.outputTokensDetails, 'reasoning_tokens')
-  const explicitTotal = numberValue(usage.totalTokens) || numberValue(usage.total)
-  return {
-    input: Math.max(inputTokens - cachedTokens, 0),
-    cacheRead: cachedTokens,
-    cacheWrite: 0,
-    output: Math.max(outputTokens - reasoningTokens, 0),
-    reasoning: reasoningTokens,
-    total: explicitTotal > 0 ? explicitTotal : inputTokens + outputTokens
-  }
-}
-
-function detailTokensTotal(value: unknown, key: string): number {
-  if (!Array.isArray(value)) {
-    return 0
-  }
-  return value.reduce((total, item) => total + numberValue(asRecord(item)?.[key]), 0)
-}
-
-export function createCodebuddySessionResumeState(
-  file: FileWithMtime,
-  messages?: TranscriptMessageSink
-): ResumableSessionParseState {
-  return accumulatorFoldResumeState(
-    createAccumulator({
-      agent: 'codebuddy',
-      file,
-      sessionId: sessionIdFromFileName(file.path),
-      messages
-    }),
-    consumeCodebuddyRecordLine
-  )
-}
-
 async function parseCodebuddySessionLines(args: {
   file: FileWithMtime
   lines: AsyncIterable<string> | Iterable<string>
@@ -178,9 +222,9 @@ async function parseCodebuddySessionLines(args: {
   options?: ParserSessionOptions
   messages?: TranscriptMessageSink
 }): Promise<AiVaultSession | null> {
-  const state = createCodebuddySessionResumeState(args.file, args.messages)
+  const state = createCodebuddySessionParseState(args.file, args.messages)
   for await (const line of args.lines) {
-    state.consumeLine(line)
+    consumeCodebuddySessionLine(state, line)
   }
-  return state.finalize(args.platform, args.options)
+  return finalizeCodebuddySessionParseState(state, args.platform, args.options)
 }

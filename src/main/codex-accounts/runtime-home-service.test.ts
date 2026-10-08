@@ -1086,16 +1086,12 @@ describe('CodexRuntimeHomeService', () => {
     const { CodexRuntimeHomeService } = await import('./runtime-home-service')
     const service = new CodexRuntimeHomeService(store as never)
 
-    expect(service.isHostSystemDefaultRealHome()).toBe(true)
-    expect(service.getSelectedHostCodexHomeRoute()).toBe('real-home')
+    expect(service.isHostSystemDefaultRealHomeSelected()).toBe(true)
     expect(service.prepareForCodexLaunch()).toBeNull()
     expect(service.getHostCodexHomePathsForSessionDiscovery()).toEqual([
       getRuntimeCodexHomePath(),
       getSystemCodexHomePath()
     ])
-    service.setRealHomeLaneGate(() => false)
-    expect(service.getSelectedHostCodexHomeRoute()).toBe('shared-home')
-    expect(service.getHostCodexHomePathsForSessionDiscovery()).toEqual([getRuntimeCodexHomePath()])
     const markerPath = join(
       testState.userDataDir,
       'codex-session-backfill',
@@ -1110,10 +1106,9 @@ describe('CodexRuntimeHomeService', () => {
       true
     )
     service.finishHostSystemDefaultSessionMigrationPass()
-    service.setRealHomeLaneGate(() => true)
     const perSpawnCustomHome = join(testState.fakeHomeDir, 'per-spawn-custom-codex-home')
     writeFileSync(markerPath, '{}\n', 'utf-8')
-    expect(service.isHostSystemDefaultRealHome({ CODEX_HOME: perSpawnCustomHome })).toBe(false)
+    expect(service.isHostSystemDefaultRealHomeSelected({ CODEX_HOME: perSpawnCustomHome })).toBe(false)
     expect(service.prepareForCodexLaunch(undefined, { CODEX_HOME: perSpawnCustomHome })).toBe(
       getRuntimeCodexHomePath()
     )
@@ -1132,7 +1127,7 @@ describe('CodexRuntimeHomeService', () => {
         'utf-8'
       )
       const shellLaunchEnv = { HOME: testState.fakeHomeDir, SHELL: '/bin/zsh' }
-      expect(service.isHostSystemDefaultRealHome(shellLaunchEnv)).toBe(false)
+      expect(service.isHostSystemDefaultRealHomeSelected(shellLaunchEnv)).toBe(false)
       expect(service.prepareForCodexLaunch(undefined, shellLaunchEnv)).toBe(
         getRuntimeCodexHomePath()
       )
@@ -1150,9 +1145,9 @@ describe('CodexRuntimeHomeService', () => {
       })
       process.env.CODEX_HOME = getSystemCodexHomePath()
       delete process.env.ORCA_CODEX_HOME
-      expect(service.isHostSystemDefaultRealHome()).toBe(true)
+      expect(service.isHostSystemDefaultRealHomeSelected()).toBe(true)
       process.env.CODEX_HOME = join(testState.fakeHomeDir, 'user-owned-codex-home')
-      expect(service.isHostSystemDefaultRealHome()).toBe(false)
+      expect(service.isHostSystemDefaultRealHomeSelected()).toBe(false)
       expect(service.prepareForRateLimitFetch()).toEqual({
         kind: 'ready',
         codexHomePath: getRuntimeCodexHomePath()
@@ -1297,7 +1292,6 @@ describe('CodexRuntimeHomeService', () => {
 
     const service = new CodexRuntimeHomeService(store as never)
 
-    service.setRealHomeLaneGate(() => true)
     expect(readFileSync(getRuntimeCodexAuthPath(), 'utf-8')).toBe(oldSystemAuth)
     expect(readFileSync(join(getRuntimeCodexHomePath(), 'config.toml'), 'utf-8')).toContain(
       'stale-provider'
@@ -1319,7 +1313,6 @@ describe('CodexRuntimeHomeService', () => {
 
     setShellStartupEnvProbeSupportedForTest(true)
     const restartedService = new CodexRuntimeHomeService(store as never)
-    restartedService.setRealHomeLaneGate(() => true)
 
     expect(restartedService.prepareForCodexLaunch()).toBeNull()
     expect(readFileSync(getRuntimeCodexAuthPath(), 'utf-8')).toBe(managedAuth)
@@ -1755,7 +1748,6 @@ describe('CodexRuntimeHomeService', () => {
         }
       )
       const restartedService = new CodexRuntimeHomeService(store as never)
-      restartedService.setRealHomeLaneGate(() => true)
 
       expect(existsSync(getRuntimeCodexAuthPath())).toBe(false)
       writeFileSync(getSystemCodexAuthPath(), reloginAuth, 'utf-8')
@@ -1806,7 +1798,6 @@ describe('CodexRuntimeHomeService', () => {
       }
     )
     const restartedService = new CodexRuntimeHomeService(store as never)
-    restartedService.setRealHomeLaneGate(() => true)
     restartedService.reconcileLegacySharedHomeForRetainedPanes()
 
     settings.activeCodexManagedAccountId = 'account-1'
@@ -1834,7 +1825,6 @@ describe('CodexRuntimeHomeService', () => {
     writeFileSync(runtimeConfigPath, 'model = "runtime-change"\n', 'utf-8')
 
     setShellStartupEnvProbeSupportedForTest(true)
-    service.setRealHomeLaneGate(() => false)
     service.reconcileLegacySharedHomeForRetainedPanes()
     expect(readFileSync(systemConfigPath, 'utf-8')).toBe('model = "baseline"\n')
     expect(readFileSync(runtimeConfigPath, 'utf-8')).toBe('model = "runtime-change"\n')
@@ -1876,7 +1866,7 @@ describe('CodexRuntimeHomeService', () => {
     const service = new CodexRuntimeHomeService(store as never)
 
     // A host managed account's own home is its CODEX_HOME.
-    expect(service.isHostSystemDefaultRealHome()).toBe(false)
+    expect(service.isHostSystemDefaultRealHomeSelected()).toBe(false)
     expect(service.isHostSystemDefaultSessionMigrationEligible()).toBe(false)
     expect(service.prepareForCodexLaunch()).toBe(managedHomePath)
     expect(
@@ -2184,7 +2174,7 @@ describe('CodexRuntimeHomeService', () => {
 
     // Launching the account from its own home never populates the
     // legacy shared mirror.
-    expect(service.isHostSystemDefaultRealHome()).toBe(false)
+    expect(service.isHostSystemDefaultRealHomeSelected()).toBe(false)
     expect(service.prepareForCodexLaunch()).toBe(managedHomePath)
 
     // A stale pre-E process writes matching, newer bytes to the shared mirror.
@@ -2194,7 +2184,7 @@ describe('CodexRuntimeHomeService', () => {
     // syncForCurrentSelection), then Codex launches on the real home.
     settings.activeCodexManagedAccountId = null
     settings.activeCodexManagedAccountIdsByRuntime = { host: null, wsl: {} }
-    expect(service.isHostSystemDefaultRealHome()).toBe(true)
+    expect(service.isHostSystemDefaultRealHomeSelected()).toBe(true)
     expect(service.prepareForCodexLaunch()).toBeNull()
 
     // E owns refreshes in place, so takeover ignores later shared-mirror bytes.
@@ -2320,7 +2310,7 @@ describe('CodexRuntimeHomeService', () => {
     expect(store.updateSettings).not.toHaveBeenCalled()
     expect(warnSpy).not.toHaveBeenCalled()
 
-    expect(service.isHostSystemDefaultRealHome()).toBe(false)
+    expect(service.isHostSystemDefaultRealHomeSelected()).toBe(false)
     expect(service.prepareForRateLimitFetch()).toEqual({
       kind: 'ready',
       codexHomePath: managedHomePath1
@@ -4164,7 +4154,6 @@ describe('CodexRuntimeHomeService', () => {
     expect(existsSync(getRuntimeCodexAuthPath())).toBe(false)
 
     setShellStartupEnvProbeSupportedForTest(true)
-    service.setRealHomeLaneGate(() => true)
     writeFileSync(getSystemCodexAuthPath(), reloginAuth, 'utf-8')
     service.reconcileLegacySharedHomeForRetainedPanes()
 

@@ -45,13 +45,13 @@ describe('managed-hook local filesystem', () => {
     const cold = await installRemoteManagedAgentHooks(filesystem, home, options)
     const warm = await installRemoteManagedAgentHooks(filesystem, home, options)
 
-    expect(cold).toHaveLength(15)
+    expect(cold).toHaveLength(REMOTE_MANAGED_HOOK_INSTALLER_AGENTS.length)
     expect(cold.filter((result) => result.state === 'error')).toEqual([])
-    expect(warm).toHaveLength(15)
+    expect(warm).toHaveLength(REMOTE_MANAGED_HOOK_INSTALLER_AGENTS.length)
     expect(warm.filter((result) => result.state === 'error')).toEqual([])
     const files = await listFiles(home)
     expect(files.filter((path) => path.endsWith('.tmp'))).toEqual([])
-    const scripts = files.filter((path) => path.includes(join('.orca', 'agent-hooks')))
+    const scripts = files.filter((path) => /\.(?:sh|cmd)$/.test(path))
     expect(scripts.length).toBeGreaterThanOrEqual(10)
     if (process.platform !== 'win32') {
       for (const script of scripts) {
@@ -71,11 +71,12 @@ describe('managed-hook local filesystem', () => {
       agents: REMOTE_MANAGED_HOOK_INSTALLER_AGENTS
     })
 
-    expect(results).toHaveLength(15)
+    expect(results).toHaveLength(REMOTE_MANAGED_HOOK_INSTALLER_AGENTS.length)
     expect(results.find((result) => result.agent === 'claude')?.state).toBe('error')
     expect(results.find((result) => result.agent === 'openclaude')?.state).toBe('installed')
     expect(results.find((result) => result.agent === 'codebuddy')?.state).toBe('installed')
     expect(results.find((result) => result.agent === 'kimi')?.state).toBe('installed')
+    expect(results.find((result) => result.agent === 'jcode')?.state).toBe('installed')
     expect(await readFile(claudeConfig, 'utf8')).toBe('{"hooks": }')
   })
 })

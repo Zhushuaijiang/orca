@@ -1,3 +1,4 @@
+import { createQoderSessionResumeState } from './session-scanner-qoder-parser'
 import type { AiVaultSession } from '../../shared/ai-vault-types'
 import { inSessionParseFileLane } from './session-parse-file-lane'
 import { createAntigravitySessionResumeState } from './session-scanner-antigravity-parser'
@@ -5,10 +6,10 @@ import { createCodexSessionResumeState } from './session-scanner-codex-parser'
 import { createDroidSessionResumeState } from './session-scanner-droid-parser'
 import { createMessageGraphSessionResumeState } from './session-scanner-graph-parsers'
 import { createClaudeSessionResumeState } from './session-scanner-primary-parsers'
+import { createCodebuddySessionResumeState } from './session-scanner-codebuddy-parser'
 import { createGeminiJsonlSessionResumeState } from './session-scanner-gemini-parsers'
 import { createCopilotSessionResumeState } from './session-scanner-copilot-parser'
 import { createCursorSessionResumeState } from './session-scanner-cursor-parser'
-import { createCodebuddySessionResumeState } from './session-scanner-codebuddy-parser'
 import { countSubagentTranscripts } from './session-scanner-subagent-transcripts'
 import { countOmpSubagentTranscripts } from './session-scanner-omp-subagent-transcripts'
 import type { ResumableSessionParseState, SessionFileCandidate } from './session-scanner-types'
@@ -40,10 +41,10 @@ export {
 } from './session-parse-cache-store'
 
 // Incremental append-parsing applies only to transcripts that are append-only
-// JSONL line-folds. Whole-JSON documents (grok/rovo/devin/hermes/gemini-json)
-// are rewritten in place, Kimi reads a state doc plus a sibling wire file,
-// OpenCode and ZCode read SQLite rows or a doc plus a message dir — those
-// formats keep unchanged-file reuse only and re-parse whole when they change.
+// JSONL line-folds. Whole-JSON documents (grok/rovo/devin/hermes/jcode/gemini-json)
+// are rewritten in place, Kimi reads a state doc plus a sibling wire file, and
+// OpenCode reads SQLite rows or a doc plus a message dir — those formats keep
+// unchanged-file reuse only and re-parse whole when they change.
 // Returns a factory (not a state) so steady-state resumes, which clone the
 // cached state instead, never pay for a throwaway accumulator.
 function resumableStateFactoryFor(
@@ -52,13 +53,15 @@ function resumableStateFactoryFor(
   switch (candidate.agent) {
     case 'claude':
       return (messages) => createClaudeSessionResumeState(candidate.file, messages)
+    case 'qoder':
+      return (messages) => createQoderSessionResumeState(candidate.file, messages)
+    case 'codebuddy':
+      return (messages) => createCodebuddySessionResumeState(candidate.file, messages)
     case 'codex':
       return (messages) =>
         createCodexSessionResumeState(candidate.file, candidate.codexHome, messages)
     case 'cursor':
       return (messages) => createCursorSessionResumeState(candidate.file, messages)
-    case 'codebuddy':
-      return (messages) => createCodebuddySessionResumeState(candidate.file, messages)
     case 'copilot':
       return (messages) => createCopilotSessionResumeState(candidate.file, messages)
     case 'droid':
@@ -79,8 +82,10 @@ function resumableStateFactoryFor(
     case 'devin':
     case 'grok':
     case 'hermes':
+    case 'jcode':
     case 'cline':
     case 'kimi':
+    case 'muse':
     case 'opencode':
     case 'opencode2':
     case 'zcode':
@@ -117,12 +122,13 @@ export async function parseAgentSessionFileCached(
   candidate: SessionFileCandidate,
   platform: NodeJS.Platform,
   stats?: SessionParseStats,
-  requireRead?: SessionParseReadRequirement
+  requireRead?: SessionParseReadRequirement,
+  signal?: AbortSignal
 ): Promise<AiVaultSession | null> {
   // The whole lookup-read-store sequence runs in the lane: a concurrent parse of
   // the same path shares this entry's resume point and its message channel.
   return inSessionParseFileLane(candidate.file.path, () =>
-    parseCachedInLane(candidate, platform, stats, requireRead)
+    parseCachedInLane(candidate, platform, stats, requireRead, signal)
   )
 }
 
@@ -165,7 +171,8 @@ async function parseCachedInLane(
   candidate: SessionFileCandidate,
   platform: NodeJS.Platform,
   stats?: SessionParseStats,
-  requireRead?: SessionParseReadRequirement
+  requireRead?: SessionParseReadRequirement,
+  signal?: AbortSignal
 ): Promise<AiVaultSession | null> {
   const { file } = candidate
   if (
@@ -219,7 +226,7 @@ async function parseCachedInLane(
     return enriched.session
   }
 
-  const session = await readWholeTranscript({ candidate, platform, stats })
+  const session = await readWholeTranscript({ candidate, platform, stats, signal })
   // Whole-file agents merge the sibling here just like the resumable branch
   // does post-read; the raw fold stays in foldSession so a sibling-only change
   // re-merges without re-reading the transcript.

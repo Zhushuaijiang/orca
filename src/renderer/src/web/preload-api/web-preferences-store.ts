@@ -24,6 +24,7 @@ import { readStoredWebRuntimeEnvironment } from '../web-runtime-environment'
 import { mergeSettings, mergeWebUIState } from './web-preference-normalization'
 import { callRuntimeResult } from './web-runtime-calls'
 import { requireActiveEnvironmentOrNull, webRuntimeState } from './web-runtime-session'
+import { zcodePlanSiteOwner, settingsForZcodePlanSiteOwner } from './web-zcode-plan-site'
 import { SETTINGS_STORAGE_KEY, UI_STORAGE_KEY, readJson, writeJson } from './web-storage'
 
 export type WebSettingsApi = NonNullable<PreloadApi['settings']>
@@ -75,7 +76,7 @@ export function getStoredSettings(): GlobalSettings {
       // Keep readJson's invalid-JSON fallback non-destructive.
     }
   }
-  return mergeSettings(
+  const settings = mergeSettings(
     {
       ...defaults,
       floatingTerminalEnabled: false,
@@ -84,6 +85,8 @@ export function getStoredSettings(): GlobalSettings {
     },
     migratedStored
   )
+  delete settings.zcodePlanSite
+  return settings
 }
 
 export function writeStoredSettings(
@@ -107,6 +110,7 @@ export function writeStoredSettings(
 export async function getRuntimeBackedStoredSettings(): Promise<GlobalSettings> {
   const local = getStoredSettings()
   const requestedEnvironment = requireActiveEnvironmentOrNull()
+  const requestedSiteOwner = zcodePlanSiteOwner(requestedEnvironment)
   if (!requestedEnvironment) {
     return local
   }
@@ -139,6 +143,12 @@ export async function getRuntimeBackedStoredSettings(): Promise<GlobalSettings> 
     }
     if (typeof result.settings.minimaxUsageModels === 'string') {
       runtimeSettings.minimaxUsageModels = result.settings.minimaxUsageModels
+    }
+    if (zcodePlanSiteOwner(currentEnvironment) === requestedSiteOwner) {
+      webRuntimeState.zcodePlanSiteRuntimeOwner = requestedSiteOwner
+      const site = result.settings.zcodePlanSite
+      webRuntimeState.zcodePlanSiteRuntimeValue =
+        site === 'zai' || site === 'bigmodel' ? site : null
     }
     if (
       result.settings.minimaxEndpoint === 'overseas' ||
@@ -184,19 +194,20 @@ export async function getRuntimeBackedStoredSettings(): Promise<GlobalSettings> 
 
 export function settingsForActiveVisibilityOwner(settings: GlobalSettings): GlobalSettings {
   const environment = requireActiveEnvironmentOrNull()
+  const ownedSettings = settingsForZcodePlanSiteOwner(settings, environment)
   if (!environment) {
-    return settings
+    return ownedSettings
   }
   if (
     environment.id === webRuntimeState.worktreeVisibilityDefaultsRuntimeEnvironmentId &&
     webRuntimeState.worktreeVisibilityDefaultsRuntimeValue
   ) {
     return {
-      ...settings,
+      ...ownedSettings,
       worktreeVisibilityDefaults: webRuntimeState.worktreeVisibilityDefaultsRuntimeValue
     }
   }
-  const { worktreeVisibilityDefaults: _unsupported, ...supportedSettings } = settings
+  const { worktreeVisibilityDefaults: _unsupported, ...supportedSettings } = ownedSettings
   return supportedSettings as GlobalSettings
 }
 

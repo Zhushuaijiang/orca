@@ -37,7 +37,7 @@ function scopedScanOptions(claudeProjectsDir: string, extra: Partial<AiVaultScan
     codebuddyProjectsDir: '/nonexistent/codebuddy',
     // Why: an absent dir would fall back to the real ~/.zcode store and leak
     // the developer's own ZCode sessions into this scan.
-    zcodeDbDir: '/nonexistent/zcode',
+    zcodeDbPath: '/nonexistent/zcode',
     ...extra
   } satisfies AiVaultScanOptions
 }

@@ -6,18 +6,20 @@ import {
   assertYunxiaoRequirementAgentCommandGated,
   ensureDfHisWorkflowPackCurrentForPrompt
 } from './runtime-yunxiao-requirement-gate'
+import type { Worktree } from '../../shared/worktree/types'
 
 export async function createDesktopTerminal(
   runtime: OrcaRuntimeWithCreateTerminal,
   worktreeSelector: string | undefined,
   opts: dependencies.TerminalCreateOptions,
   presentation: RuntimeTerminalPresentation | undefined,
-  rendererWindow: Electron.BrowserWindow | null
+  rendererWindow: Electron.BrowserWindow | null,
+  createdWorktree?: Worktree
 ): Promise<dependencies.RuntimeTerminalCreate> {
   runtime.assertGraphReady()
   const win = rendererWindow ?? runtime.getAuthoritativeWindow()
   const workspace = worktreeSelector
-    ? await runtime.resolveTerminalWorkspaceLaunchScope(worktreeSelector)
+    ? await runtime.resolveTerminalWorkspaceLaunchScope(worktreeSelector, createdWorktree)
     : null
   const launchOpts = workspace
     ? await runtime.resolveAgentTerminalCreateOptions(workspace, opts)

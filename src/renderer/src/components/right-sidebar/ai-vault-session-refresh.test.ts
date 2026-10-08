@@ -13,6 +13,7 @@ import {
   useAiVaultSessionRefresh
 } from './ai-vault-session-refresh'
 import { DEFAULT_AI_VAULT_SESSION_LIMIT, type AiVaultSessionLimit } from './ai-vault-session-limit'
+import { withNonSecureContextCrypto } from '@/lib/non-secure-context-crypto-stub'
 
 const EMPTY_RESULT: AiVaultListResult = {
   sessions: [],
@@ -802,32 +803,20 @@ describe('useAiVaultSessionRefresh in-app agent session behavior', () => {
   })
 })
 
-describe('useAiVaultSessionRefresh in a non-secure browser context', () => {
-  // Why: LAN web clients are served over plain HTTP, where the browser hides
-  // crypto.randomUUID (secure-context-only). The hook must still mount.
-  const realCrypto = globalThis.crypto
+// Regression for #18096: over plain HTTP the browser hides crypto.randomUUID, so minting
+// the request token with a raw call threw during render and the panel showed "The right
+// sidebar hit an error". The fallback must still be a well-formed v4 UUID.
+describe('useAiVaultSessionRefresh in a non-secure context', () => {
+  it('mints a request token when crypto.randomUUID is unavailable', async () => {
+    await withNonSecureContextCrypto(async () => {
+      await renderHook()
+      await flushMicrotasks()
 
-  beforeEach(() => {
-    Object.defineProperty(globalThis, 'crypto', {
-      configurable: true,
-      value: { getRandomValues: realCrypto.getRandomValues.bind(realCrypto) }
-    })
-  })
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: realCrypto })
-  })
-
-  it('mounts and scans without crypto.randomUUID', async () => {
-    await renderHook()
-    await flushMicrotasks()
-
-    expect(listSessionsMock).toHaveBeenCalledTimes(1)
-    expect(lastCallArgs()).toMatchObject({
-      executionHostScope: 'local',
-      requestToken: expect.stringMatching(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/
-      )
+      expect(lastCallArgs()).toMatchObject({
+        requestToken: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+        )
+      })
     })
   })
 })

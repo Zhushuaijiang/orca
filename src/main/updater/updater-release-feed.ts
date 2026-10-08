@@ -119,6 +119,7 @@ export abstract class UpdaterReleaseFeed extends UpdaterInstallExecution {
       this.clearPublishingWindowLastGoodCheck()
       return 'not-available'
     }
+    const attemptId = this.activeUpdateCheckAttemptId
     const autoUpdater = this.getAutoUpdater()
     // Why: the latest/download redirect can move between check and download, so pin the concrete tag (prerelease users resolve any channel, stable only stable).
     const currentVersion = app.getVersion()
@@ -135,6 +136,10 @@ export abstract class UpdaterReleaseFeed extends UpdaterInstallExecution {
         ...(isPerfCheck ? { releaseFilter: 'perf' as const } : {})
       }
     )
+    // A timed-out preflight must not overwrite a newer check's feed.
+    if (attemptId === null || !this.isActiveUpdateCheckAttempt(attemptId)) {
+      return 'not-available'
+    }
     const newerTag = releaseTagsResult.tags[0] ?? null
     const fallbackTag = includePrerelease ? (releaseTagsResult.tags[1] ?? null) : null
     this.pendingPrereleaseFallback =

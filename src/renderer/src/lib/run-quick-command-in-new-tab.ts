@@ -1,6 +1,7 @@
 import { useAppStore } from '@/store'
 import { reconcileTabOrder } from '@/components/tab-bar/reconcile-order'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
+import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import {
   flattenTerminalQuickCommand,
   isTerminalAgentQuickCommand,
@@ -65,6 +66,7 @@ export function runQuickCommandInNewTab({
       return null
     }
     const result = launchAgentInNewTab({
+      requestId: newAgentLaunchRequestId(),
       agent: command.agent,
       prompt: command.prompt,
       worktreeId,
@@ -75,10 +77,7 @@ export function runQuickCommandInNewTab({
       launchSource: 'quick_command',
       quickCommandLabel: command.label
     })
-    if (
-      result?.surface.kind === 'local-terminal' ||
-      result?.surface.kind === 'local-agent-session'
-    ) {
+    if (result?.surface.kind === 'local-terminal') {
       const launchedGroupId = resolveQuickCommandGroupId(worktreeId, result.surface.tabId, groupId)
       if (launchedGroupId) {
         useAppStore.getState().setRecentQuickCommandForGroup(launchedGroupId, historyId)
@@ -114,7 +113,7 @@ export function runQuickCommandInNewTab({
   // Why: match `+` button's createNewTerminalTab — without this, a worktree
   // currently showing an editor file keeps rendering the editor and the new
   // terminal tab stays invisible.
-  store.setActiveTabType('terminal')
+  store.setActiveTabType('terminal', worktreeId)
 
   // Why: persist tab-bar order with the new terminal appended. Without this,
   // reconcileTabOrder falls back to terminals-first when the stored order is

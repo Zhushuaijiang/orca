@@ -150,34 +150,6 @@ function capLinkedContextSourceLines(args: { sourceLines: string; fixedChars: nu
   return [capped, truncationLine].filter(Boolean).join('\n')
 }
 
-export function getLinkedWorkItemPromptContext(
-  linkedWorkItem:
-    | (Pick<
-        { provider?: TaskProvider; url: string; title?: string; linearIdentifier?: string },
-        'provider' | 'url' | 'title' | 'linearIdentifier'
-      > & { linkedContext?: LinkedWorkItemContext })
-    | null
-    | undefined
-): { linkedUrls: string[]; linkedContextBlocks: string[] } {
-  if (isLinearWorkItemReference(linkedWorkItem)) {
-    const linearBlock = buildLinearLaunchContextBlock({
-      provider: linkedWorkItem?.provider,
-      identifier: linkedWorkItem?.linearIdentifier,
-      title: linkedWorkItem?.title,
-      url: linkedWorkItem?.url
-    })
-    return linearBlock
-      ? { linkedUrls: [], linkedContextBlocks: [linearBlock] }
-      : { linkedUrls: [], linkedContextBlocks: [] }
-  }
-  const linkedContextBlock = buildContainedLinkedContextBlock(linkedWorkItem?.linkedContext)
-  const linkedUrl = linkedWorkItem?.url?.trim()
-  return {
-    linkedUrls: linkedUrl ? [linkedUrl] : [],
-    linkedContextBlocks: linkedContextBlock ? [linkedContextBlock] : []
-  }
-}
-
 export function getLaunchableWorkItemDraftContent(args: {
   provider?: TaskProvider
   pasteContent?: string

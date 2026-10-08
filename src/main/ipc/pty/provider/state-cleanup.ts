@@ -1,6 +1,5 @@
 import { advertisedUrlWatcher } from '../../../ports/advertised-url-watcher'
 import { unregisterPty } from '../../../memory/pty-registry'
-import { markClaudePtyExited } from '../../../claude-accounts/live-pty-gate'
 import { forgetCodexPaneAccount } from '../../../codex/codex-pane-account-registry'
 import { openCodeHookService } from '../../../opencode/hook-service'
 import { piTitlebarExtensionService } from '../../../pi/titlebar-extension-service'
@@ -18,12 +17,10 @@ import { forgetPtyLaunchAgent } from './launch-agent-state'
 import { clearBackgroundedDeliverySyncForPty } from './listener-lifecycle'
 import {
   activeRendererPtys,
-  deliveredHiddenRendererResizeOutputPtys,
   interactiveOutputCharsByPty,
   invalidatePendingPtyDrainPolicy,
   invalidatePendingPtyDrainPriority,
   lastInputAtByPty,
-  pendingHiddenRendererResizeOutputPtys,
   providerSnapshotRequiredPtys,
   ptySizes,
   rendererVisibilityKnownPtys,
@@ -52,8 +49,6 @@ export function clearProviderPtyState(
   // new teardown path forgets to remove one provider's overlay/hook state.
   openCodeHookService.clearPty(id)
   piTitlebarExtensionService.clearPty(id)
-  // Why: SSH exit/teardown paths bypass pty.ts's local onExit but still must release Claude account-switch guards.
-  markClaudePtyExited(id)
   ptySizes.delete(id)
   ptyIncarnationById.delete(id)
   forgetPtyLaunchAgent(id)
@@ -62,8 +57,6 @@ export function clearProviderPtyState(
   const activeChanged = activeRendererPtys.delete(id)
   visibleRendererPtys.delete(id)
   rendererVisibilityKnownPtys.delete(id)
-  pendingHiddenRendererResizeOutputPtys.delete(id)
-  deliveredHiddenRendererResizeOutputPtys.delete(id)
   // Why: every teardown path funnels through here — hidden/interest gate bits must not outlive the PTY or a reused map entry could silently gate a new one.
   const deliveryPolicyChanged = isHiddenRendererPty(id)
   clearHiddenRendererPtyDeliveryState(id)

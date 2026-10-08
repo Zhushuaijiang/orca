@@ -24,7 +24,7 @@ export async function sendFollowupPromptWhenAgentReady(args: {
     return false
   }
   try {
-    return await sendRuntimePtyInputVerified(settings, ptyId, `${prompt}\r`)
+    return await sendRuntimePtyInputVerified(settings, ptyId, `${prompt}\r`, 'launch')
   } catch {
     return false
   }

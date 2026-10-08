@@ -1,11 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { rmSync, mkdtempSync } from 'node:fs'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
-import type { PersistedState } from '../shared/persisted-state-types'
-import type { ProjectGroup } from '../shared/project-group-types'
-import { getDefaultWorkspaceSession } from '../shared/constants'
 import {
+  closeTestStores,
   testState,
   createStore,
   writeDataFile,
@@ -14,6 +8,21 @@ import {
   makeTerminalTab,
   makeWorktreeLineage
 } from './persistence-test-harness'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { rmSync, mkdtempSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import type { PersistedState } from '../shared/persisted-state-types'
+import type { ProjectGroup } from '../shared/project-group-types'
+import { getDefaultWorkspaceSession } from '../shared/constants'
+import { makeTerminalTab as makeSessionTerminalTab } from './persistence-session-fixtures'
+
+import {
+  advanceSshConnectionGeneration,
+  assertSshMutationExpectation,
+  resetSshConnectionGenerations
+} from './ssh/ssh-connection-generation'
+import { getRuntimeOwnedSshTargetId } from './ssh/ssh-connection-store'
 import {
   _getLocalWorktreeScanGenerationCacheSize,
   getLocalWorktreeScanGeneration,
@@ -68,9 +77,14 @@ describe('Store', () => {
     getCohortAtEmitMock.mockReturnValue({ nth_repo_added: 2 })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await closeTestStores()
     rmSync(testState.dir, { recursive: true, force: true })
   })
+  it('keeps the persistence harness terminal-tab fixture as the same public function', () => {
+    expect(makeTerminalTab).toBe(makeSessionTerminalTab)
+  })
+
   // ── 5. addRepo and getRepo ──────────────────────────────────────────
 
   it('addRepo stores a repo retrievable by getRepo', async () => {
@@ -697,6 +711,39 @@ describe('Store', () => {
 
     expect(store.getRepo('only')).toBeUndefined()
     expect(store.getWorktreeMeta('only::/repo/wt')).toBeUndefined()
+  })
+
+  it('removing and recreating a runtime-owned SSH target fences the old incarnation', async () => {
+    resetSshConnectionGenerations(3)
+    try {
+      const store = await createStore()
+      const targetId = getRuntimeOwnedSshTargetId('vm-1')
+      const target = {
+        id: targetId,
+        label: 'ephemeral vm',
+        host: 'vm-old.example.com',
+        port: 22,
+        username: 'dev',
+        source: 'manual' as const,
+        owner: { type: 'on-demand-runtime' as const, runtimeId: 'vm-1' }
+      }
+      store.addSshTarget(target)
+      const staleGeneration = advanceSshConnectionGeneration(targetId)
+
+      store.removeSshTarget(targetId)
+      store.addSshTarget({ ...target, host: 'vm-new.example.com' })
+      const replacementGeneration = advanceSshConnectionGeneration(targetId)
+
+      // A delayed write from the discarded VM must not pass the replacement's fence.
+      expect(() => assertSshMutationExpectation(targetId, targetId, staleGeneration)).toThrow(
+        'SSH connection changed; refresh and try again'
+      )
+      expect(() =>
+        assertSshMutationExpectation(targetId, targetId, replacementGeneration)
+      ).not.toThrow()
+    } finally {
+      resetSshConnectionGenerations()
+    }
   })
 
   // ── 6c. reassignSshTargetId re-adopts orphaned workspaces ─────────────

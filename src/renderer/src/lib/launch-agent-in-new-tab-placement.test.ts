@@ -2,6 +2,7 @@
 // launch-agent-in-new-tab.test.ts to keep both files within the lines budget.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setLocalRuntimeCapabilitiesForTests } from '@/runtime/local-runtime-capabilities'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 
 const mockCreateTab = vi.fn()
@@ -87,20 +88,27 @@ vi.mock('@/components/native-chat/native-chat-session-option-cache', () => ({
 describe('launchAgentInNewTab terminal tab activation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // The local runtime has answered (without structured support), so no launch waits on it.
+    setLocalRuntimeCapabilitiesForTests([])
     store.settings = placementSettings()
     mockCreateTab.mockReturnValue({ id: 'tab-1' })
   })
 
-  it('takes the global selection by default', async () => {
-    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+  // Why: the store scopes activation to the launch's own workspace, so the floating panel launches
+  // like every other caller and cannot move the main window's selection.
+  it.each(['wt-1', FLOATING_TERMINAL_WORKTREE_ID])(
+    'selects the new tab within %s only',
+    async (worktreeId) => {
+      const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
 
-    launchAgentInNewTab({ agent: 'codex', worktreeId: 'wt-1' })
+      launchAgentInNewTab({ requestId: 'request-1', agent: 'codex', worktreeId })
 
-    expect(mockCreateTab.mock.calls[0]?.[3]).not.toHaveProperty('activate')
-    expect(mockSetActiveTabType).toHaveBeenCalledExactlyOnceWith('terminal')
-  })
+      expect(mockCreateTab.mock.calls[0]?.[3]).not.toHaveProperty('activate')
+      expect(mockSetActiveTabType).toHaveBeenCalledExactlyOnceWith('terminal', worktreeId)
+    }
+  )
 
-  it('honours the chat default in a floating launch while keeping it out of the global selection', async () => {
+  it('honours the chat default in a floating launch and scopes its surface to the floating workspace', async () => {
     store.settings = placementSettings({
       experimentalNativeChat: true,
       experimentalStructuredNativeChat: true,
@@ -115,24 +123,24 @@ describe('launchAgentInNewTab terminal tab activation', () => {
     const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
 
     launchAgentInNewTab({
+      requestId: 'request-2',
       agent: 'codex',
-      worktreeId: FLOATING_TERMINAL_WORKTREE_ID,
-      activate: false
+      worktreeId: FLOATING_TERMINAL_WORKTREE_ID
     })
 
-    // Why: the floating workspace selects within its own group; activating here would move the
-    // main window's active tab to a tab it does not show.
     expect(mockCreateTab).toHaveBeenCalledWith(
       FLOATING_TERMINAL_WORKTREE_ID,
       undefined,
       undefined,
       {
         launchAgent: 'codex',
-        activate: false,
         viewMode: 'chat'
       }
     )
-    expect(mockSetActiveTabType).not.toHaveBeenCalled()
+    expect(mockSetActiveTabType).toHaveBeenCalledExactlyOnceWith(
+      'terminal',
+      FLOATING_TERMINAL_WORKTREE_ID
+    )
     // Why: the panel hosts the chat pane itself, so the launch carries the user's model/effort
     // preferences the same way a main-window launch does.
     expect(mockSeedNativeChatAppliedSessionOptions).toHaveBeenCalledWith('tab-1', 'codex', {
