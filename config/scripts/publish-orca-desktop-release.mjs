@@ -7,6 +7,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
+import { verifyDfhisMacArchive } from './dfhis-mac-archive.mjs'
 
 const DEFAULT_REMOTE = 'root@192.168.1.10'
 const DEFAULT_REMOTE_DIR =
@@ -39,6 +40,11 @@ export function parseArgs(argv) {
       args.windowsExe = argv[++i]
     } else if (arg === '--mac-app') {
       args.macApp = argv[++i]
+    } else if (arg === '--mac-archive') {
+      args.macArchive = argv[++i]
+      args.buildMac = false
+    } else if (arg === '--mac-evidence') {
+      args.macEvidence = argv[++i]
     } else if (arg === '--remote') {
       args.remote = argv[++i]
     } else if (arg === '--remote-dir') {
@@ -231,7 +237,7 @@ async function main() {
   if (args.buildMac) {
     await buildMacApp()
   }
-  if (!existsSync(macApp)) {
+  if (!args.macArchive && !existsSync(macApp)) {
     throw new Error(`macOS app not found: ${macApp}`)
   }
   if (!windowsExe || !existsSync(windowsExe)) {
@@ -244,8 +250,20 @@ async function main() {
     throw new Error('DFHIS skill pack JSON/ZIP is missing. Generate it or pass explicit paths.')
   }
 
-  verifyMacAppVersion(macApp, version)
-  verifyMacEntitlements(macApp)
+  if (args.macArchive) {
+    if (!args.macEvidence) {
+      throw new Error('--mac-archive requires --mac-evidence from the macOS build job.')
+    }
+    await verifyDfhisMacArchive(
+      args.macArchive,
+      args.macEvidence,
+      version,
+      runText('git', ['rev-parse', 'HEAD'])
+    )
+  } else {
+    verifyMacAppVersion(macApp, version)
+    verifyMacEntitlements(macApp)
+  }
 
   const stageDir = path.join('dist', 'orca-desktop-release', version)
   let windowsSource = windowsExe
@@ -267,7 +285,11 @@ async function main() {
   const windowsOut = path.join(stageDir, 'orca-windows-setup.exe')
   const skillPackJsonOut = path.join(stageDir, 'dfhis-skill-pack.json')
   const skillPackZipOut = path.join(stageDir, 'dfhis-skill-pack.zip')
-  run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', macApp, macZip])
+  if (args.macArchive) {
+    await copyFile(args.macArchive, macZip)
+  } else {
+    run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', macApp, macZip])
+  }
   await copyFile(windowsSource, windowsOut)
   if (args.publishSkillPack) {
     await copyFile(args.skillPackJson, skillPackJsonOut)

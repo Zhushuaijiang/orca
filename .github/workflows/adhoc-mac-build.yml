@@ -83,6 +83,92 @@ env:
   ADHOC_RETAIN_DAYS: 30
 
 jobs:
+  dfhis-macos-package:
+    if: github.repository == 'Zhushuaijiang/orca' && (inputs.ref == '' || inputs.ref == github.ref_name)
+    runs-on: macos-15
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    env:
+      ORCA_BACKGROUND_LAUNCH: '1'
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: electron
+          cache-electron-package: 'true'
+      - uses: ./.github/actions/install-mobile-dependencies
+      - name: Build internal DFHIS macOS package
+        run: |
+          test "$(uname -m)" = arm64
+          pnpm run verify:macos-entitlements
+          pnpm run build:desktop
+          pnpm run build:computer-macos
+          pnpm run build:keyboard-layout-macos
+          pnpm run build:notification-status-macos
+          pnpm run ensure:electron-runtime
+          pnpm exec electron-builder --config config/electron-builder.config.cjs --mac dir --arm64 --publish never
+      - name: Verify package version, entitlements, and background startup
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          app=dist/mac-arm64/Orca.app
+          version=$(node -p "require('./package.json').version")
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" = "$version"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -d --entitlements - "$app/Contents/MacOS/Orca" >dist/mac-entitlements.txt 2>&1
+          for entitlement in allow-jit allow-unsigned-executable-memory allow-dyld-environment-variables; do
+            grep -q "com.apple.security.cs.$entitlement" dist/mac-entitlements.txt
+          done
+          profile="$RUNNER_TEMP/orca-dfhis-release-profile"
+          "$app/Contents/MacOS/Orca" --user-data-dir="$profile" >dist/mac-startup.log 2>&1 &
+          app_pid=$!
+          trap 'kill -TERM "$app_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            kill -0 "$app_pid"
+            test ! -f "$profile/orca-runtime.json" || break
+            sleep 1
+          done
+          PROFILE="$profile" APP_PID="$app_pid" node -e 'const fs=require("node:fs"); const runtime=JSON.parse(fs.readFileSync(process.env.PROFILE+"/orca-runtime.json")); if(runtime.pid!==Number(process.env.APP_PID)) throw Error("Wrong startup process"); process.kill(runtime.pid,0)'
+          mkdir -p dist/dfhis-mac
+          ditto -c -k --sequesterRsrc --keepParent "$app" dist/dfhis-mac/orca-macos-arm64.zip
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync, statSync } from 'node:fs'
+          import { createHash } from 'node:crypto'
+          const archive = 'dist/dfhis-mac/orca-macos-arm64.zip'
+          const evidence = {
+            schemaVersion: 1, platform: 'darwin-arm64',
+            version: JSON.parse(readFileSync('package.json')).version,
+            commit: process.env.RELEASE_SHA,
+            size: statSync(archive).size,
+            sha256: createHash('sha256').update(readFileSync(archive)).digest('hex'),
+            entitlementsVerified: true, runtimeVerified: true,
+            signing: 'internal-ad-hoc'
+          }
+          writeFileSync('dist/dfhis-mac/mac-release-evidence.json', JSON.stringify(evidence, null, 2))
+          JS
+      - name: Upload verified DFHIS macOS package
+        uses: actions/upload-artifact@v7
+        with:
+          name: orca-macos-dfhis-${{ github.run_id }}
+          path: dist/dfhis-mac/
+          compression-level: 0
+          if-no-files-found: error
+      - name: Upload macOS startup diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: orca-macos-diagnostics-${{ github.run_id }}
+          path: |
+            dist/mac-startup.log
+            dist/mac-entitlements.txt
+
   # Why: every job below checks out its own copy, and a branch name read per job builds whatever
   # the branch points at when that job starts. A push mid-run then mixes commits, e.g. slot lanes
   # from one commit merged by a template step from the next. Resolving once pins the whole run.
