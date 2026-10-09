@@ -123,7 +123,12 @@ describe('OrcaRuntimeRpcServer', () => {
   // Exercise the real socket (not a mock) so we catch buffer/flush regressions
   // that a unit-level test would miss.
   describe('long-poll transport (§3.1)', () => {
-    it('emits keepalives while orchestration.workerStart blocks', async () => {
+    it.each([
+      'orchestration.workerStart',
+      'auxiliary.generate',
+      'auxiliary.route',
+      'auxiliary.auto'
+    ])('emits keepalives while %s blocks', async (method) => {
       const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-rpc-'))
       const runtime = new OrcaRuntimeService()
       const server = new OrcaRuntimeRpcServer({
@@ -148,8 +153,11 @@ describe('OrcaRuntimeRpcServer', () => {
         const session = openFramedSession(metadata!.transports[0]!.endpoint, {
           id: 'req_worker_start',
           authToken: metadata!.authToken,
-          method: 'orchestration.workerStart',
-          params: { task: 'task_1', timeoutMs: 60_000 }
+          method,
+          params:
+            method === 'orchestration.workerStart'
+              ? { task: 'task_1', timeoutMs: 60_000 }
+              : { worktree: 'path:/tmp/worktree-a', task: 'research', prompt: 'Read-only analysis' }
         })
         await session.done
 
