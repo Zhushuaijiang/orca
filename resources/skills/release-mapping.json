@@ -2347,6 +2347,24 @@
         "ui-review": 1,
         "yunxiao-contacts": 1
       }
+    },
+    {
+      "appVersion": "1.4.214-rc.3",
+      "skills": {
+        "computer-use": 9,
+        "dfhis-platform-development": 1,
+        "linear-tickets": 11,
+        "orca-auto-routing": 1,
+        "orca-cli": 37,
+        "orca-emulator": 8,
+        "orca-emulator-android": 6,
+        "orca-linear": 9,
+        "orca-per-workspace-env": 6,
+        "orchestration": 29,
+        "requirement-delivery-flow": 1,
+        "ui-review": 1,
+        "yunxiao-contacts": 1
+      }
     }
   ]
 }
