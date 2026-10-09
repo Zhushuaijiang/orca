@@ -1,7 +1,6 @@
 /** Yunxiao requirement gate outcomes: structured outcome application and snapshot backfill. */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { rmSync, mkdtempSync } from 'node:fs'
-import { writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type {
@@ -13,6 +12,9 @@ import type {
 import {
   testState,
   createStore,
+  closeTestStores,
+  readPersistedStateJson,
+  writePersistedStateJson,
   makeRepo,
   dataFile
 } from '../../persistence-test-harness'
@@ -56,11 +58,12 @@ beforeEach(() => {
   getCohortAtEmitMock.mockReset()
 })
 
-afterEach(() => {
+afterEach(async () => {
   // Leaving a debounced save armed would write into a temp dir after the test file finishes.
   for (const store of stores.splice(0)) {
     store.flush()
   }
+  await closeTestStores()
   rmSync(testState.dir, { recursive: true, force: true })
 })
 
@@ -89,7 +92,6 @@ const makeYunxiaoWorkItem = (overrides: Partial<YunxiaoWorkItem> = {}): YunxiaoW
 })
 
 describe('Yunxiao todo pool gate outcomes', () => {
-
   it('marks completed Yunxiao todo pool claims as needing clarification from output evidence', async () => {
     const store = await trackedCreateStore()
     store.addRepo(makeRepo())
@@ -498,8 +500,9 @@ describe('Yunxiao todo pool gate outcomes', () => {
     })
     store.updateYunxiaoTodoPoolItem(item.id, { poolStatus: 'ready-to-build' })
     store.flushOrThrow()
+    await closeTestStores()
 
-    const persisted = JSON.parse(readFileSync(dataFile(), 'utf-8')) as PersistedState
+    const persisted = JSON.parse(readPersistedStateJson(dataFile())) as PersistedState
     persisted.automationRuns = persisted.automationRuns?.map((entry) =>
       entry.id === run.id
         ? {
@@ -553,7 +556,7 @@ describe('Yunxiao todo pool gate outcomes', () => {
           }
         : entry
     )
-    writeFileSync(dataFile(), JSON.stringify(persisted), 'utf-8')
+    writePersistedStateJson(dataFile(), JSON.stringify(persisted))
 
     const reloaded = await trackedCreateStore()
 

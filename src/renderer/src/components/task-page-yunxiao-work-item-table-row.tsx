@@ -33,7 +33,7 @@ export type YunxiaoTableRowProps = {
   onStartWorkspace: (item: YunxiaoWorkItem) => void
   onStartTodoPoolWorkspace: (item: YunxiaoWorkItem) => void
   selectedWorkItemIds: ReadonlySet<string>
-  todoPoolIdentitySet: ReadonlySet<string>
+  todoPoolStatusByIdentity: ReadonlyMap<string, YunxiaoTodoPoolStatus>
   view: YunxiaoListView
 }
 
@@ -90,11 +90,13 @@ export function YunxiaoTableRow({
   onStartTodoPoolWorkspace,
   onStartWorkspace,
   selectedWorkItemIds,
-  todoPoolIdentitySet,
+  todoPoolStatusByIdentity,
   view
 }: YunxiaoTableRowProps): JSX.Element {
-  const poolItem = view === 'todo-pool' ? (item as YunxiaoTodoPoolItem) : null
-  const inTodoPool = view === 'work-items' && todoPoolIdentitySet.has(workItemIdentity(item))
+  const poolItem = view === 'todo-pool' && 'poolStatus' in item ? item : null
+  const todoPoolStatus =
+    poolItem?.poolStatus ?? todoPoolStatusByIdentity.get(workItemIdentity(item))
+  const inTodoPool = view === 'work-items' && todoPoolStatus !== undefined
   const contractSummary = poolItem ? todoPoolContractSummary(poolItem) : null
   const canAnswerRequirementQuestion =
     poolItem?.poolStatus === 'needs-clarification' &&
@@ -153,10 +155,8 @@ export function YunxiaoTableRow({
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <div className="truncate text-sm font-medium text-foreground">{item.title}</div>
-          {inTodoPool ? (
-            <Badge variant="dot" className="shrink-0 text-[10px]">
-              {translate('auto.components.TaskPage.yunxiaoInTodoPool', 'Todo pool')}
-            </Badge>
+          {inTodoPool && todoPoolStatus ? (
+            <Badge variant="dot">{todoPoolStatusLabel(todoPoolStatus)}</Badge>
           ) : null}
         </div>
         <div className="mt-1 flex min-w-0 gap-2 text-[11px] text-muted-foreground">
@@ -203,7 +203,7 @@ export function YunxiaoTableRow({
         onRemoveFromTodoPool={view === 'todo-pool' ? onRemoveFromTodoPool : undefined}
         onSetTodoPoolStatus={view === 'todo-pool' ? onSetTodoPoolStatus : undefined}
         onStartWorkspace={view === 'todo-pool' ? onStartTodoPoolWorkspace : onStartWorkspace}
-        todoPoolStatus={poolItem?.poolStatus ?? null}
+        todoPoolStatus={todoPoolStatus ?? null}
       />
     </div>
   )

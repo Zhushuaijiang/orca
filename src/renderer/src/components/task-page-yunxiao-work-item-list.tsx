@@ -15,6 +15,7 @@ import { TaskPageYunxiaoWorkItemTable } from './task-page-yunxiao-work-item-tabl
 import { TaskPageYunxiaoWorkItemToolbar } from './task-page-yunxiao-work-item-toolbar'
 import { useYunxiaoRequirementDecisionAnswer } from './use-yunxiao-requirement-decision-answer'
 import { useYunxiaoTodoPoolOrder } from './use-yunxiao-todo-pool-order'
+import { useYunxiaoTodoPool } from './use-yunxiao-todo-pool'
 import { useYunxiaoTodoPoolAutomation } from './yunxiao-todo-pool-automation'
 import {
   DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES,
@@ -57,9 +58,8 @@ export function TaskPageYunxiaoWorkItemList({
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [todoPoolNonce, setTodoPoolNonce] = useState(0)
   const [result, setResult] = useState<YunxiaoListWorkItemsResult | null>(null)
-  const [todoPool, setTodoPool] = useState<YunxiaoTodoPoolItem[]>([])
+  const { todoPool, setTodoPool, todoPoolLoading } = useYunxiaoTodoPool(todoPoolNonce, view)
   const [loading, setLoading] = useState(false)
-  const [todoPoolLoading, setTodoPoolLoading] = useState(false)
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [answerTarget, setAnswerTarget] = useState<YunxiaoTodoPoolItem | null>(null)
@@ -124,31 +124,6 @@ export function TaskPageYunxiaoWorkItemList({
     }
   }, [appliedQuery, category, page, refreshNonce, relation, sprintId, statusIds])
 
-  useEffect(() => {
-    let cancelled = false
-    setTodoPoolLoading(true)
-    void window.api.yunxiao
-      .listTodoPool()
-      .then((items) => {
-        if (!cancelled) {
-          setTodoPool(items)
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : String(error))
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setTodoPoolLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [todoPoolNonce])
-
   const items = useMemo(() => (result?.ok ? result.items : []), [result])
   const sprints = useMemo(() => (result?.ok ? result.sprints : []), [result])
   const statuses = useMemo(() => (result?.ok ? result.statuses : []), [result])
@@ -169,8 +144,8 @@ export function TaskPageYunxiaoWorkItemList({
     setDefaultStatusesPending(false)
     setPage(1)
   }, [category, defaultStatusesPending, statuses])
-  const todoPoolIdentitySet = useMemo(
-    () => new Set(todoPool.map((item) => workItemIdentity(item))),
+  const todoPoolStatusByIdentity = useMemo(
+    () => new Map(todoPool.map((item) => [workItemIdentity(item), item.poolStatus])),
     [todoPool]
   )
   const visibleTodoPoolItems = useMemo(() => {
@@ -275,7 +250,7 @@ export function TaskPageYunxiaoWorkItemList({
         reviewMode: 'deep'
       })
       if (archiveResult.ok) {
-        if (todoPoolIdentitySet.has(workItemIdentity(item))) {
+        if (todoPoolStatusByIdentity.has(workItemIdentity(item))) {
           void handleTodoPoolStatusChange(item, 'dispatched')
         }
         toast.success(
@@ -374,7 +349,7 @@ export function TaskPageYunxiaoWorkItemList({
         page={result?.ok ? result.page : page}
         selectedWorkItemIds={selectedWorkItemIds}
         someVisibleWorkItemsSelected={someVisibleWorkItemsSelected}
-        todoPoolIdentitySet={todoPoolIdentitySet}
+        todoPoolStatusByIdentity={todoPoolStatusByIdentity}
         todoPoolItems={visibleTodoPoolItems}
         todoPoolLoading={todoPoolLoading}
         view={view}

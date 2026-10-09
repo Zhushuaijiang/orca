@@ -334,9 +334,10 @@ export class AutomationService {
         markDispatchResult: (result) => this.markDispatchResult(result),
         watchRun: (dispatched) => this.completionWatcher?.watch(dispatched)
       },
-      prepared.automation,
+      automation,
       prepared.run,
-      target
+      target,
+      prepared.automation
     )
   }
 }

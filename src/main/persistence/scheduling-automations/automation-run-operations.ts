@@ -7,8 +7,7 @@ import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunsPage,
-  AutomationRunTrigger,
-  AutomationYunxiaoTodoPoolClaim
+  AutomationRunTrigger
 } from '../../../shared/automations-types'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../../shared/yunxiao-requirement-gate-outcome'
@@ -21,8 +20,9 @@ import type {
   YunxiaoTodoPoolItem,
   YunxiaoTodoPoolStatus
 } from '../../../shared/yunxiao-types'
+import { reconcileAutomationRunTodoPool } from './automation-run-todo-pool-state'
 import { normalizeAutomationYunxiaoTodoPoolClaim } from './yunxiao-automation-todo-pool-source'
-import { inferYunxiaoTodoPoolCompletedStatus } from './yunxiao-todo-pool-item-normalization'
+export { setAutomationRunYunxiaoTodoPoolClaim } from './automation-run-todo-pool-state'
 import { normalizeYunxiaoRequirementGateOutcomes } from './yunxiao-requirement-contract-normalization'
 import {
   compareAutomationRunsNewestFirst,
@@ -51,7 +51,10 @@ export type AutomationRunOperations = {
     runId: string
     itemIds?: readonly string[]
     excludeItemIds?: readonly string[]
-    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>
+    poolStatus: Extract<
+      YunxiaoTodoPoolStatus,
+      'dispatched' | 'done' | 'failed' | 'needs-clarification'
+    >
     automationRunStatus?: AutomationRunStatus
     error?: string | null
   }) => YunxiaoTodoPoolItem[]
@@ -258,26 +261,7 @@ export function updateAutomationRun(
   operations.state.automationRuns = operations.state.automationRuns.map((run) =>
     run.id === result.runId ? updated : run
   )
-  // Why (fork): yunxiao gate outcomes reconcile the todo-pool claim before the mutation hook.
-  const structuredOutcomeItems =
-    updated.yunxiaoRequirementOutcomes?.flatMap((outcome) =>
-      operations.applyYunxiaoRequirementGateOutcome({
-        runId: updated.id,
-        itemIds: updated.yunxiaoTodoPoolClaim?.itemIds,
-        outcome
-      })
-    ) ?? []
-  if (isFinalAutomationRunStatus(updated.status) && updated.yunxiaoTodoPoolClaim) {
-    operations.updateYunxiaoTodoPoolClaimStatus({
-      runId: updated.id,
-      itemIds: updated.yunxiaoTodoPoolClaim.itemIds,
-      excludeItemIds: structuredOutcomeItems.map((item) => item.id),
-      poolStatus:
-        updated.status === 'completed' ? inferYunxiaoTodoPoolCompletedStatus(updated) : 'failed',
-      automationRunStatus: updated.status,
-      error: updated.error
-    })
-  }
+  reconcileAutomationRunTodoPool(operations, updated)
   operations.recordAutomationRunsMutation?.(operations.state.automationRuns)
   if (!isFinalAutomationRunStatus(current.status) && isFinalAutomationRunStatus(updated.status)) {
     // Why: only a non-final run pins its workspace, so finishing releases the claim (#17775).
@@ -310,28 +294,4 @@ export function snapshotAutomationRunWorkspaceDisplayName(
     operations.flush()
   }
   return updatedCount
-}
-
-export function setAutomationRunYunxiaoTodoPoolClaim(
-  operations: AutomationRunOperations,
-  runId: string,
-  claim: AutomationYunxiaoTodoPoolClaim,
-  title?: string
-): AutomationRun {
-  const index = (operations.state.automationRuns ?? []).findIndex((entry) => entry.id === runId)
-  if (index === -1) {
-    throw new Error('Automation run not found.')
-  }
-  const current = operations.state.automationRuns[index]
-  const updated: AutomationRun = {
-    ...current,
-    title: title?.trim() || current.title,
-    yunxiaoTodoPoolClaim: normalizeAutomationYunxiaoTodoPoolClaim(claim)
-  }
-  // Replaced, not patched in place: the list projection caches on array identity.
-  operations.state.automationRuns = operations.state.automationRuns.map((run) =>
-    run.id === runId ? updated : run
-  )
-  operations.flush()
-  return updated
 }

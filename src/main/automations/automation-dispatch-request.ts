@@ -47,7 +47,8 @@ export async function requestAutomationDispatch(
   ctx: DispatchContext,
   automation: Automation,
   run: AutomationRun,
-  expectedTarget: AutomationRunTargetResult
+  expectedTarget: AutomationRunTargetResult,
+  dispatchAutomation: Automation = automation
 ): Promise<AutomationRun> {
   const expectedDefinition = structuredClone(definition(automation))
   const expectedDestination = expectedTarget.ok ? destination(expectedTarget) : undefined
@@ -123,7 +124,7 @@ export async function requestAutomationDispatch(
     return sendRendererDispatch(
       renderer,
       {
-        automation,
+        automation: dispatchAutomation,
         run,
         dispatchToken: createAutomationDispatchToken(automation.id, run.id)
       },
@@ -137,7 +138,7 @@ export async function requestAutomationDispatch(
   }
   return runHeadlessAutomationDispatch({
     ...ctx,
-    automation,
+    automation: dispatchAutomation,
     run,
     target,
     dispatcher: (request) => {

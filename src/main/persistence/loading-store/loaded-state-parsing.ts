@@ -26,7 +26,7 @@ import {
 import { backfillLegacyAutomationContexts } from '../scheduling-automations/automation-context-migration'
 import {
   clearTerminalYunxiaoTodoPoolClaims,
-  reconcileCompletedYunxiaoTodoPoolClaims
+  reconcileYunxiaoTodoPoolClaims
 } from '../scheduling-automations/yunxiao-todo-pool-claim-reconciliation'
 import { migrateAutomationOwners } from '../../automations/automation-owner-migration'
 import {
@@ -229,7 +229,7 @@ export class LoadedStateParsingOperations {
       automationRuns: automationContextMigration.state.automationRuns
     }
 
-    const completedYunxiaoTodoPoolClaims = reconcileCompletedYunxiaoTodoPoolClaims(result)
+    const completedYunxiaoTodoPoolClaims = reconcileYunxiaoTodoPoolClaims(result)
     if (completedYunxiaoTodoPoolClaims.changed) {
       this.runtime.loadNeedsSave = true
     }

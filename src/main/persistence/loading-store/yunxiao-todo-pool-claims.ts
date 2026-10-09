@@ -51,12 +51,14 @@ export class YunxiaoTodoPoolClaimOperations {
     outcome: YunxiaoRequirementGateOutcome
   }): YunxiaoTodoPoolItem[] {
     const state = this[yunxiaoTodoPoolClaimsContext].runtime.state
+    const run = state.automationRuns.find((entry) => entry.id === args.runId)
     const result = applyYunxiaoRequirementGateOutcomeToTodoPool({
       pool: this[yunxiaoTodoPoolClaimsContext].pool.getYunxiaoTodoPool(),
       runId: args.runId,
       itemIds: args.itemIds,
       outcome: args.outcome,
-      includeClosedItems: true
+      includeClosedItems: true,
+      preserveDispatchedItems: run?.dispatchedAt != null
     })
     state.yunxiaoTodoPool = result.pool
     return result.updatedItems
@@ -66,7 +68,10 @@ export class YunxiaoTodoPoolClaimOperations {
     runId: string
     itemIds?: readonly string[]
     excludeItemIds?: readonly string[]
-    poolStatus: Extract<YunxiaoTodoPoolStatus, 'done' | 'failed' | 'needs-clarification'>
+    poolStatus: Extract<
+      YunxiaoTodoPoolStatus,
+      'dispatched' | 'done' | 'failed' | 'needs-clarification'
+    >
     automationRunStatus?: AutomationRunStatus
     error?: string | null
   }): YunxiaoTodoPoolItem[] {
@@ -101,10 +106,11 @@ export class YunxiaoTodoPoolClaimOperations {
         if (!matchesClaim || !activeClaimStatuses.has(item.poolStatus)) {
           return item
         }
-        const completionStatus = coerceYunxiaoRequirementCompletionStatus(
-          args.poolStatus,
-          item.requirementContract
-        )
+        // Done means consumed by a launched run; delivery evidence remains on the run and contract.
+        const completionStatus =
+          args.poolStatus === 'dispatched'
+            ? { status: 'done' as const, error: null }
+            : coerceYunxiaoRequirementCompletionStatus(args.poolStatus, item.requirementContract)
         const recovery =
           completionStatus.status === 'failed' && args.automationRunStatus
             ? getAutomationRecoveryDecision({

@@ -21,7 +21,7 @@ type TaskPageYunxiaoWorkItemTableProps = {
   view: YunxiaoListView
   items: readonly YunxiaoWorkItem[]
   todoPoolItems: readonly YunxiaoTodoPoolItem[]
-  todoPoolIdentitySet: ReadonlySet<string>
+  todoPoolStatusByIdentity: ReadonlyMap<string, YunxiaoTodoPoolStatus>
   loading: boolean
   todoPoolLoading: boolean
   selectedWorkItemIds: ReadonlySet<string>
@@ -65,7 +65,7 @@ export function TaskPageYunxiaoWorkItemTable({
   page,
   selectedWorkItemIds,
   someVisibleWorkItemsSelected,
-  todoPoolIdentitySet,
+  todoPoolStatusByIdentity,
   todoPoolItems,
   todoPoolLoading,
   view
@@ -107,7 +107,7 @@ export function TaskPageYunxiaoWorkItemTable({
               onStartTodoPoolWorkspace={onStartTodoPoolWorkspace}
               onStartWorkspace={onStartWorkspace}
               selectedWorkItemIds={selectedWorkItemIds}
-              todoPoolIdentitySet={todoPoolIdentitySet}
+              todoPoolStatusByIdentity={todoPoolStatusByIdentity}
               view={view}
             />
           ))}

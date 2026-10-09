@@ -19,6 +19,7 @@ export function applyYunxiaoRequirementGateOutcomeToTodoPool(args: {
   itemIds?: readonly string[]
   outcome: YunxiaoRequirementGateOutcome
   includeClosedItems?: boolean
+  preserveDispatchedItems?: boolean
 }): { pool: YunxiaoTodoPoolItem[]; updatedItems: YunxiaoTodoPoolItem[] } {
   const now = Date.now()
   const normalizedItemId = normalizeOptionalNonEmptyString(args.outcome.itemId)
@@ -62,7 +63,10 @@ export function applyYunxiaoRequirementGateOutcomeToTodoPool(args: {
         : coerceYunxiaoRequirementManualStatus(nextStatus, nextContract)
     const next: YunxiaoTodoPoolItem = {
       ...item,
-      poolStatus: coercedStatus.status,
+      poolStatus:
+        args.preserveDispatchedItems && item.poolStatus === 'done' && claimedItemIds.has(item.id)
+          ? 'done'
+          : coercedStatus.status,
       requirementContract: nextContract,
       poolUpdatedAt: now,
       lastError:
@@ -87,12 +91,30 @@ export function applyYunxiaoRequirementGateOutcomeToTodoPool(args: {
   return { pool, updatedItems }
 }
 
-export function reconcileCompletedYunxiaoTodoPoolClaims(
+export function reconcileYunxiaoTodoPoolClaims(
   state: Pick<PersistedState, 'automationRuns' | 'yunxiaoTodoPool'>
 ): {
   state: Pick<PersistedState, 'automationRuns' | 'yunxiaoTodoPool'>
   changed: boolean
 } {
+  const dispatchedRunIds = new Set(
+    (state.automationRuns ?? []).filter((run) => run.dispatchedAt != null).map((run) => run.id)
+  )
+  let changed = false
+  let yunxiaoTodoPool = (state.yunxiaoTodoPool ?? []).map((item) => {
+    if (!item.claimedByRunId || !dispatchedRunIds.has(item.claimedByRunId)) {
+      return item
+    }
+    changed = true
+    return {
+      ...item,
+      poolStatus: 'done' as const,
+      claimedAt: null,
+      claimedByAutomationId: null,
+      claimedByRunId: null,
+      retryNotBefore: null
+    }
+  })
   const completedClaimItemIds = new Set<string>()
   const completedClaimRunIds = new Set<string>()
   const completedClaimRunById = new Map<string, AutomationRun>()
@@ -112,10 +134,8 @@ export function reconcileCompletedYunxiaoTodoPoolClaims(
     }
   }
   if (completedClaimRunIds.size === 0 && completedClaimItemIds.size === 0) {
-    return { state, changed: false }
+    return { state: changed ? { ...state, yunxiaoTodoPool } : state, changed }
   }
-  let changed = false
-  let yunxiaoTodoPool = [...(state.yunxiaoTodoPool ?? [])]
   for (const run of completedClaimRunById.values()) {
     for (const outcome of run.yunxiaoRequirementOutcomes ?? []) {
       const result = applyYunxiaoRequirementGateOutcomeToTodoPool({

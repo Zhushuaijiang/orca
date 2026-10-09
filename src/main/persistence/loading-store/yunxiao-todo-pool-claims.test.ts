@@ -4,11 +4,7 @@ import { rmSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { YunxiaoWorkItem } from '../../../shared/types'
-import {
-  testState,
-  createStore,
-  makeRepo
-} from '../../persistence-test-harness'
+import { testState, createStore, closeTestStores, makeRepo } from '../../persistence-test-harness'
 import type { Store } from './store'
 
 vi.mock('electron', () => ({
@@ -49,11 +45,12 @@ beforeEach(() => {
   getCohortAtEmitMock.mockReset()
 })
 
-afterEach(() => {
+afterEach(async () => {
   // Leaving a debounced save armed would write into a temp dir after the test file finishes.
   for (const store of stores.splice(0)) {
     store.flush()
   }
+  await closeTestStores()
   rmSync(testState.dir, { recursive: true, force: true })
 })
 
@@ -82,7 +79,6 @@ const makeYunxiaoWorkItem = (overrides: Partial<YunxiaoWorkItem> = {}): YunxiaoW
 })
 
 describe('Yunxiao todo pool claims', () => {
-
   it('claims and finishes Yunxiao todo pool items for automation runs', async () => {
     const store = await trackedCreateStore()
     const item = makeYunxiaoWorkItem()
