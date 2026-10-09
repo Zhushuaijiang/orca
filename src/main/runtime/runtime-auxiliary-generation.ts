@@ -1,4 +1,5 @@
 import { CANCELED_AUXILIARY_RESULT } from '../text-generation/auxiliary-generation-fallback'
+import { getCommitMessageAgentSpec } from '../../shared/commit-message-agent-spec'
 import {
   getAuxiliaryBaselineAgentSpec,
   resolveAuxiliaryGenerationParams
@@ -93,7 +94,10 @@ export class RuntimeAuxiliaryGeneration {
   ) {
     const route = runtimeGitRouteForTarget(target)
     const settings = this.host.getRuntimeSettings()
-    const spec = getAuxiliaryBaselineAgentSpec(settings, task, primaryAgent)
+    const spec =
+      override && override.agentId !== 'custom'
+        ? getCommitMessageAgentSpec(override.agentId)
+        : getAuxiliaryBaselineAgentSpec(settings, task, primaryAgent)
     if (!spec) {
       return { success: false as const, error: 'Choose a supported default auxiliary agent.' }
     }

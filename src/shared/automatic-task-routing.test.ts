@@ -133,6 +133,8 @@ describe('automatic task routing policy', () => {
     const prompt = buildTaskClassificationPrompt(input)
     expect(prompt).toContain(JSON.stringify(input))
     expect(prompt).toContain('not authorization to change files')
+    expect(prompt).toContain('Never put a description in task or invent another ID')
+    expect(prompt).toContain('Use research for ordinary technical questions')
     expect(prompt).not.toContain('Review completed sessions')
   })
   it('normalizes tiers without accepting unknown agent, host pollution or string booleans', () => {

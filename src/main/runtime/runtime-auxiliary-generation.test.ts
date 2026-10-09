@@ -46,6 +46,37 @@ process.stdin.on('end', () => {
 }
 
 describe('runtime auxiliary execution', () => {
+  it('executes a difficulty-selected override without requiring a headless primary or task route', async () => {
+    const agent = await fakeAgent()
+    const settings = createGlobalSettingsFixture({
+      defaultTuiAgent: 'hermes',
+      agentCmdOverrides: { claude: agent.command },
+      auxiliaryModels: { tasks: { classification: { agentId: 'claude' } } }
+    })
+    const service = new RuntimeAuxiliaryGeneration({
+      getRuntimeSettings: () => settings,
+      resolveRuntimeGitTarget: async () => target(agent.directory)
+    })
+    const result = await service.generateRuntimeAuxiliaryTask(
+      'folder',
+      'research',
+      'Analyze this evidence',
+      [],
+      {
+        agentId: 'claude',
+        model: 'haiku',
+        agentCommandOverride: agent.command.replace(' --model stale-model', '')
+      },
+      'hermes'
+    )
+    expect(result).toMatchObject({ success: true, agentId: 'claude', modelId: 'haiku' })
+    if (result.success) {
+      expect(JSON.parse(result.rawOutput)).toMatchObject({
+        model: 'haiku',
+        prompt: expect.stringContaining('Analyze this evidence')
+      })
+    }
+  })
   it('runs a configured helper even when the primary has no headless CLI', async () => {
     const primary = Object.keys(TUI_AGENT_CONFIG)
       .filter(isTuiAgent)
