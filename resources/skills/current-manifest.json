@@ -212,17 +212,17 @@
       "name": "yunxiao-contacts",
       "sourcePath": "skills/yunxiao-contacts",
       "releaseRevision": 1,
-      "packageDigest": "d154da7318f765e3befd1c5c195d4a0097d71f8652115a19172262ede86f5f73",
-      "gitTreeSha": "79e769310d4f7b7899aabe16fd8d532b197c9b4b",
+      "packageDigest": "66e94b0df99b3035ca88ff894b6a31e740ebfc12fb9679601dcd6500b72b78d9",
+      "gitTreeSha": "71d7d8a961cce68bb7c66dd81228469836eafbc9",
       "files": [
         {
           "path": "SKILL.md",
-          "size": 9847,
+          "size": 10040,
           "executable": false,
           "classification": "text",
-          "exactSha256": "832e633bd5776bc1792c70b09ed79ecf09839dd09a6b1e8b559edd6fdd625a2f",
-          "textNormalizedSha256": "832e633bd5776bc1792c70b09ed79ecf09839dd09a6b1e8b559edd6fdd625a2f",
-          "identitySha256": "832e633bd5776bc1792c70b09ed79ecf09839dd09a6b1e8b559edd6fdd625a2f"
+          "exactSha256": "288fe7f21e81457dc1e109f06201554f7a42d7040e6cb0a2bac12fa5b4126d73",
+          "textNormalizedSha256": "288fe7f21e81457dc1e109f06201554f7a42d7040e6cb0a2bac12fa5b4126d73",
+          "identitySha256": "288fe7f21e81457dc1e109f06201554f7a42d7040e6cb0a2bac12fa5b4126d73"
         }
       ]
     }
