@@ -1,9 +1,8 @@
 import { CANCELED_AUXILIARY_RESULT } from '../text-generation/auxiliary-generation-fallback'
 import {
-  getCommitMessageAgentSpec,
-  resolveCommitMessageAgentChoice
-} from '../../shared/commit-message-agent-spec'
-import { resolveAuxiliaryGenerationParams } from '../../shared/auxiliary-generation-routing'
+  getAuxiliaryBaselineAgentSpec,
+  resolveAuxiliaryGenerationParams
+} from '../../shared/auxiliary-generation-routing'
 import { AUXILIARY_TASKS, type AuxiliaryTaskId } from '../../shared/auxiliary-model-types'
 import { planCommitMessageGeneration } from '../../shared/commit-message-plan'
 import {
@@ -94,12 +93,7 @@ export class RuntimeAuxiliaryGeneration {
   ) {
     const route = runtimeGitRouteForTarget(target)
     const settings = this.host.getRuntimeSettings()
-    const agent = resolveCommitMessageAgentChoice(
-      null,
-      primaryAgent ?? settings.defaultTuiAgent,
-      settings.disabledTuiAgents
-    )
-    const spec = agent && agent !== 'custom' ? getCommitMessageAgentSpec(agent) : undefined
+    const spec = getAuxiliaryBaselineAgentSpec(settings, task, primaryAgent)
     if (!spec) {
       return { success: false as const, error: 'Choose a supported default auxiliary agent.' }
     }

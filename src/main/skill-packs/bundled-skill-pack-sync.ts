@@ -7,7 +7,7 @@ import {
   pathExists,
   readManifest
 } from './bundled-skill-pack-files'
-import type { EnvironmentBundledSkillPackDefinition } from './bundled-skill-pack-types'
+import type { BundledSkillPackDefinition } from './bundled-skill-pack-types'
 
 export type SkillSyncPlan = {
   copy: string[]
@@ -24,7 +24,7 @@ async function isSameDirectory(left: string, right: string): Promise<boolean> {
 }
 
 async function installedSkillHash(
-  definition: EnvironmentBundledSkillPackDefinition,
+  definition: BundledSkillPackDefinition,
   skillDirectory: string
 ): Promise<string | null> {
   if (!(await pathExists(path.join(skillDirectory, 'SKILL.md')))) {
@@ -38,7 +38,7 @@ async function installedSkillHash(
 // upstream hash recorded at install. Without that record, keep a skill that
 // matches neither the incoming pack nor the app bundle — that is the local edit.
 export async function planSkillSync(
-  definition: EnvironmentBundledSkillPackDefinition,
+  definition: BundledSkillPackDefinition,
   sourceDirectory: string,
   targetDirectory: string,
   sourceHash: string

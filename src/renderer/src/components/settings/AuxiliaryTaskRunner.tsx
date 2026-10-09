@@ -9,10 +9,9 @@ import {
 } from '../../../../shared/auxiliary-model-types'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import {
-  getCommitMessageAgentSpec,
-  resolveCommitMessageAgentChoice
-} from '../../../../shared/commit-message-agent-spec'
-import { resolveAuxiliaryGenerationParams } from '../../../../shared/auxiliary-generation-routing'
+  getAuxiliaryBaselineAgentSpec,
+  resolveAuxiliaryGenerationParams
+} from '../../../../shared/auxiliary-generation-routing'
 import { translate } from '@/i18n/i18n'
 import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
@@ -80,12 +79,7 @@ export function AuxiliaryTaskRunner({
     }
     pending.current = address
     try {
-      const agent = resolveCommitMessageAgentChoice(
-        null,
-        settings.defaultTuiAgent,
-        settings.disabledTuiAgents
-      )
-      const spec = agent && agent !== 'custom' ? getCommitMessageAgentSpec(agent) : undefined
+      const spec = getAuxiliaryBaselineAgentSpec(settings, task)
       if (!spec) {
         throw new Error(translate('auxiliary.noAgent', 'Choose a supported default agent.'))
       }

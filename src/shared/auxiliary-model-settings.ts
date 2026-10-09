@@ -1,5 +1,6 @@
 import { isTuiAgent } from './tui-agent-config'
 import type { TuiAgent } from './tui-agent'
+import { TASK_DIFFICULTIES } from './automatic-task-routing-types'
 import {
   isAuxiliaryTaskId,
   type AuxiliaryModelSettings,
@@ -77,6 +78,24 @@ export function normalizeAuxiliaryModelSettings(value: unknown): AuxiliaryModelS
     return {}
   }
   const settings: AuxiliaryModelSettings = {}
+  if (record(value.automatic)) {
+    const tiers: NonNullable<NonNullable<AuxiliaryModelSettings['automatic']>['tiers']> = {}
+    if (record(value.automatic.tiers)) {
+      for (const difficulty of TASK_DIFFICULTIES) {
+        const route = normalizeAuxiliaryModelRoute(value.automatic.tiers[difficulty])
+        if (route) {
+          tiers[difficulty] = route
+        }
+      }
+    }
+    settings.automatic = {
+      enabled: value.automatic.enabled === true,
+      ...(typeof value.automatic.keepComplexInPrimary === 'boolean'
+        ? { keepComplexInPrimary: value.automatic.keepComplexInPrimary }
+        : {}),
+      ...(Object.keys(tiers).length ? { tiers } : {})
+    }
+  }
   const defaults = normalizeAuxiliaryModelRoute(value.defaults)
   const tasks = taskRoutes(value.tasks)
   if (defaults) {

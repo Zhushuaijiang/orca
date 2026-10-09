@@ -26,6 +26,7 @@
  */
 
 import { assertOpenCodeModelLaunchPreferencesAbsent } from '../opencode/opencode-model-startup-plan'
+import { prepareAutomaticRoutingLaunch } from './automatic-routing-launch-prompt'
 import { parsePaneKey } from '../../shared/stable-pane-id'
 import type {
   AgentLaunchIntent,
@@ -88,8 +89,9 @@ export type AgentLaunchExecution = {
 export type AgentLaunchPublishedSurface = AgentLaunchResult
 
 export async function executeAgentLaunch(
-  execution: AgentLaunchExecution
+  rawExecution: AgentLaunchExecution
 ): Promise<AgentLaunchResult> {
+  const execution = prepareAutomaticRoutingLaunch(rawExecution)
   const { intent, runtime } = execution
   if (intent.reuseTerminal || intent.target.kind === 'create-worktree') {
     assertOpenCodeModelLaunchPreferencesAbsent(intent.agent, intent.sessionOptions)
@@ -116,7 +118,7 @@ export async function executeAgentLaunch(
   if (intent.reuseTerminal) {
     const reused = published(execution, {
       outcome: { kind: 'terminal', handle: intent.reuseTerminal.handle },
-      worktreeId: existingWorktreeId(intent.target),
+      worktreeId: intent.target.kind === 'existing' ? intent.target.worktree : '',
       receipt: preflight,
       ...promptReceipt(intent, settledAtCreation(intent, {}))
     })
@@ -386,10 +388,6 @@ function combineLaunchWarnings(
     return create ?? surface
   }
   return `${create} Also ${surface[0].toLowerCase()}${surface.slice(1)}`
-}
-
-function existingWorktreeId(target: AgentLaunchTarget): string {
-  return target.kind === 'existing' ? target.worktree : ''
 }
 
 /**

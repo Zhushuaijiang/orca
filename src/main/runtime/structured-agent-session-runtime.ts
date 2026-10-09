@@ -24,6 +24,8 @@ import {
 import { AgentSessionRecoveryCapsule } from './agent-session-recovery-capsule'
 import type { CodexStructuredPermissionPolicy } from '../codex/codex-structured-permission-policy'
 import type { StructuredAgentCommandSettings } from '../native-chat/structured-agent-command-resolution'
+import { prepareAutomaticRoutingMessage } from '../../shared/automatic-routing-instructions'
+import type { AuxiliaryModelSettings } from '../../shared/auxiliary-model-types'
 import type { CodexStructuredSessionAdapterDeps } from '../codex/codex-structured-session-adapter'
 import type { ClaudeStructuredSessionAdapterDeps } from '../claude/claude-structured-session-adapter'
 import {
@@ -130,6 +132,7 @@ export type StructuredAgentSessionRuntimeDeps = {
   resolveAgentLaunchEnv?: (agent: string) => Record<string, string>
   /** The settings a per-agent Command override is read from, for the same agents. */
   resolveAgentCommandSettings?: () => StructuredAgentCommandSettings
+  resolveAutomaticRoutingSettings?: () => AuxiliaryModelSettings | undefined
   resolveEnvironment?: () => Promise<NodeJS.ProcessEnv>
   /** Which login-shell variables Codex and Claude children inherit; absent inherits all. */
   resolveShellEnvironmentPolicy?: () => NativeChatShellEnvironmentPolicy
@@ -303,6 +306,13 @@ async function installOnJournal(
     await Promise.all(registrations.map((registration) => registration.adapter.closeAll()))
   })
   host = new StructuredAgentSessionHost({
+    prepareUserMessage: (record, body) =>
+      prepareAutomaticRoutingMessage(
+        body,
+        deps.resolveAutomaticRoutingSettings?.(),
+        record.provider,
+        deps.hasOpenDispatch?.(record)
+      ),
     store,
     adapter,
     agents,

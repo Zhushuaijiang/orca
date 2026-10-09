@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { registerCoreHandlers } from '../ipc/register-core-handlers/register-core-handlers'
-import { startConfiguredSkillReviewService } from '../skill-review/configured-skill-review-service'
+import { startConfiguredAgentSkillServices } from './configured-agent-skill-services'
 import { attachMainWindowServices } from '../window/attach-main-window-services'
 import { initTccPromptNotice } from '../macos-tcc-prompt-notice'
 import { resolveUpdateInstallMode } from '../updater'
@@ -103,7 +103,7 @@ export function attachMainWindowCoreServices(
   )
   automations.setWebContents(window.webContents)
   automations.start()
-  startConfiguredSkillReviewService(() => state.store?.getSettings())
+  startConfiguredAgentSkillServices(() => state.store?.getSettings())
   attachMainWindowServices(
     window,
     store,

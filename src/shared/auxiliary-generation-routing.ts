@@ -1,4 +1,8 @@
-import { getCommitMessageAgentSpec, getCommitMessageModel } from './commit-message-agent-spec'
+import {
+  getCommitMessageAgentSpec,
+  getCommitMessageModel,
+  resolveCommitMessageAgentChoice
+} from './commit-message-agent-spec'
 import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from './commit-message-host-key'
 import { resolveAuxiliaryModelRoute } from './auxiliary-model-settings'
 import type { AuxiliaryTaskId } from './auxiliary-model-types'
@@ -6,6 +10,21 @@ import type { GlobalSettings } from './global-settings-types'
 import type { ResolvedSourceControlAiGenerationParams } from './source-control-ai'
 import { removeAuxiliaryRecipeModelArgs } from './auxiliary-recipe-model-args'
 import type { TuiAgent } from './tui-agent'
+
+export function getAuxiliaryBaselineAgentSpec(
+  settings: Pick<GlobalSettings, 'defaultTuiAgent' | 'disabledTuiAgents' | 'auxiliaryModels'>,
+  task: AuxiliaryTaskId,
+  primaryAgent?: TuiAgent | null
+) {
+  const primary =
+    primaryAgent ?? (settings.defaultTuiAgent === 'blank' ? null : settings.defaultTuiAgent)
+  const agent = resolveCommitMessageAgentChoice(null, primary, settings.disabledTuiAgents)
+  const configured = resolveAuxiliaryModelRoute(settings.auxiliaryModels, task, primary)?.agentId
+  return (
+    (agent && agent !== 'custom' ? getCommitMessageAgentSpec(agent) : undefined) ??
+    (configured ? getCommitMessageAgentSpec(configured) : undefined)
+  )
+}
 
 export function resolveAuxiliaryGenerationParams(
   settings: Pick<GlobalSettings, 'defaultTuiAgent' | 'agentCmdOverrides'> &

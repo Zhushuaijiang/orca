@@ -34,7 +34,7 @@ import {
 } from '../runtime/runtime-rpc-startup-failure'
 import { CliInstaller } from '../cli/cli-installer'
 import { installLinuxBareOrcaDispatcher } from '../cli/linux-bare-orca-dispatcher'
-import { startConfiguredSkillReviewService } from '../skill-review/configured-skill-review-service'
+import { startConfiguredAgentSkillServices } from './configured-agent-skill-services'
 import { scheduleAllPendingHistoryTreeRemovals } from '../terminal-history-deletion'
 import { triggerStartupNotificationRegistration } from '../ipc/startup-notification-registration'
 import { startDesktopPushService } from './main-process-push-startup'
@@ -209,7 +209,7 @@ async function launchServeMode(
   // Why: headless serve never opens a renderer, so arm scheduled automation dispatch here.
   state.automations?.start()
   // Why: SSH 场景由远端 Orca 评审本地会话（本地实例跳过 connectionId 事件），serve 路径必须也启动。
-  startConfiguredSkillReviewService(() => state.store?.getSettings())
+  startConfiguredAgentSkillServices(() => state.store?.getSettings())
   // Why: serve deletes worktrees too, and the history GC that normally drains delete tombstones is
   // armed from the main window — without this, a quit mid-removal leaks the tree until a desktop launch.
   void scheduleAllPendingHistoryTreeRemovals()

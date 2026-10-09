@@ -14,3 +14,11 @@ export const AuxiliaryGenerate = z.object({
 })
 
 export const AuxiliaryCancel = AuxiliaryGenerate.pick({ worktree: true, task: true })
+
+export const AuxiliaryRoute = AuxiliaryGenerate.pick({
+  worktree: true,
+  prompt: true,
+  primaryAgent: true
+}).extend({ depth: z.number().int().min(0).max(16).optional() })
+export const AuxiliaryHistory = AuxiliaryGenerate.pick({ worktree: true })
+export const AuxiliaryAuto = AuxiliaryRoute.extend({ images: AuxiliaryGenerate.shape.images })

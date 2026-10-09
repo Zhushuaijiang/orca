@@ -109,10 +109,13 @@ async function dispatchSafely(
   requestedAt: number
 ): Promise<AgentSessionDispatchOutcome> {
   try {
+    const record = ctx.record()
+    const deliveredBody =
+      record && ctx.prepareUserMessage ? ctx.prepareUserMessage(record, body) : body
     return await ctx.adapter.dispatch({
       sessionId: ctx.sessionId,
       clientMessageId,
-      body,
+      body: deliveredBody,
       fence: ctx.fence,
       requestedAt
     })

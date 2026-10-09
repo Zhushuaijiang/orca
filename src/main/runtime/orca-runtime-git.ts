@@ -1,4 +1,5 @@
 import { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
+import { RuntimeAutomaticTaskRouting } from './runtime-automatic-task-routing'
 import { RuntimeGitDiffCommands } from './runtime-git-diff-commands'
 import { RuntimeGitGenerationCommands } from './runtime-git-generation-commands'
 import { RuntimeGitStagingCommands } from './runtime-git-staging-commands'
@@ -14,6 +15,9 @@ export type {
 export class RuntimeGitCommands {
   readonly cancelRuntimeAuxiliaryTask: RuntimeAuxiliaryGeneration['cancelRuntimeAuxiliaryTask']
   readonly generateRuntimeAuxiliaryTask: RuntimeAuxiliaryGeneration['generateRuntimeAuxiliaryTask']
+  readonly routeRuntimeAuxiliaryTask: RuntimeAutomaticTaskRouting['routeRuntimeAuxiliaryTask']
+  readonly listRuntimeAuxiliaryRoutes: RuntimeAutomaticTaskRouting['listRuntimeAuxiliaryRoutes']
+  readonly runRuntimeAuxiliaryAuto: RuntimeAutomaticTaskRouting['runRuntimeAuxiliaryAuto']
   readonly getRuntimeGitStatus: RuntimeGitStatusCommands['getRuntimeGitStatus']
   readonly getRuntimeGitSubmoduleStatus: RuntimeGitStatusCommands['getRuntimeGitSubmoduleStatus']
   readonly checkRuntimeGitIgnoredPaths: RuntimeGitStatusCommands['checkRuntimeGitIgnoredPaths']
@@ -55,6 +59,10 @@ export class RuntimeGitCommands {
     const diff = new RuntimeGitDiffCommands(host)
     const sync = new RuntimeGitSyncCommands(host)
     const auxiliary = new RuntimeAuxiliaryGeneration(host)
+    const routing = new RuntimeAutomaticTaskRouting(host, auxiliary)
+    this.routeRuntimeAuxiliaryTask = routing.routeRuntimeAuxiliaryTask.bind(routing)
+    this.listRuntimeAuxiliaryRoutes = routing.listRuntimeAuxiliaryRoutes.bind(routing)
+    this.runRuntimeAuxiliaryAuto = routing.runRuntimeAuxiliaryAuto.bind(routing)
     this.cancelRuntimeAuxiliaryTask = auxiliary.cancelRuntimeAuxiliaryTask.bind(auxiliary)
     this.generateRuntimeAuxiliaryTask = auxiliary.generateRuntimeAuxiliaryTask.bind(auxiliary)
     const generation = new RuntimeGitGenerationCommands(host)

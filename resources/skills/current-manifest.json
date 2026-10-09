@@ -65,6 +65,24 @@
       ]
     },
     {
+      "name": "orca-auto-routing",
+      "sourcePath": "skills/orca-auto-routing",
+      "releaseRevision": 1,
+      "packageDigest": "7d7374a0f3363c5d7c1f8d6796c16906bfb20f56d71e57e481ece08363ba28fb",
+      "gitTreeSha": "d1e89cfd97dbe2956a27dc241266936b3023c6ad",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "size": 2284,
+          "executable": false,
+          "classification": "text",
+          "exactSha256": "1f7ae909b0a2b8526351d7875668f5d64613f1d5b2d34ffab096fd732420a49a",
+          "textNormalizedSha256": "1f7ae909b0a2b8526351d7875668f5d64613f1d5b2d34ffab096fd732420a49a",
+          "identitySha256": "1f7ae909b0a2b8526351d7875668f5d64613f1d5b2d34ffab096fd732420a49a"
+        }
+      ]
+    },
+    {
       "name": "orca-cli",
       "sourcePath": "skills/orca-cli",
       "releaseRevision": 37,

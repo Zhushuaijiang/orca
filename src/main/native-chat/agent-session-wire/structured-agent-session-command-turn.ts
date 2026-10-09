@@ -150,6 +150,10 @@ export function structuredAgentSessionCommandWasStopped(
 }
 
 export type StructuredAgentSessionCommandHandoverContext = {
+  prepareUserMessage?: (
+    record: AgentSessionRecord,
+    body: AgentJournalMessageItem
+  ) => AgentJournalMessageItem
   sessionId: string
   journal: AgentSessionJournal
   fence: number

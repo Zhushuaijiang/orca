@@ -1,7 +1,10 @@
 import type { StructuredAgentSessionStatusObserverOptions } from './structured-agent-session-status-observation'
 import type { SubmissionRejectionFact } from '../../../shared/agent-session-failure'
 import type { AgentSessionOwnerProbe } from '../../../shared/agent-session-lease-adjudication'
-import type { AgentJournalCursor } from '../../../shared/agent-session-journal-types'
+import type {
+  AgentJournalCursor,
+  AgentJournalMessageItem
+} from '../../../shared/agent-session-journal-types'
 import type { AgentSessionRecord } from '../../../shared/agent-session-record'
 import type {
   AgentSessionStatusSummary,
@@ -112,6 +115,10 @@ export type StructuredAgentSessionHostSession = {
 }
 
 export type StructuredAgentSessionHostDeps = {
+  prepareUserMessage?: (
+    record: AgentSessionRecord,
+    body: AgentJournalMessageItem
+  ) => AgentJournalMessageItem
   store: AgentSessionRecordStore
   adapter: StructuredAgentSessionAdapter
   /** The agents this runtime drives; what each declares is read here, never from the adapter. */

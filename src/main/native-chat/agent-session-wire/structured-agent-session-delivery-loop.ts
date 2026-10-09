@@ -25,6 +25,7 @@ import {
 } from './structured-agent-session-failure-text'
 import type { StructuredAgentSessionResumeOutcome } from './structured-agent-session-agent-start'
 import type {
+  StructuredAgentSessionHostDeps,
   StructuredAgentSessionChildEndCause,
   StructuredAgentSessionEndedChild,
   StructuredAgentSessionHostSession,
@@ -42,6 +43,7 @@ import type { StructuredAgentSessionLogger } from './structured-agent-session-lo
 import { holdRestartedStructuredAgentSessionSends } from './structured-agent-session-host-lifetime'
 
 export type StructuredAgentSessionDeliveryLoopDeps = {
+  prepareUserMessage?: StructuredAgentSessionHostDeps['prepareUserMessage']
   sessions: ReadonlyMap<string, StructuredAgentSessionHostSession>
   adapter: StructuredAgentSessionAdapter
   agents: StructuredAgentRegistry
@@ -257,6 +259,7 @@ export class StructuredAgentSessionDeliveryLoop {
         failureTextContext: this.deps.failureTextContext(sessionId),
         record: () => this.deps.record(sessionId),
         childWork: () => this.deps.readChildWork(sessionId),
+        prepareUserMessage: this.deps.prepareUserMessage,
         now: this.deps.now
       },
       next

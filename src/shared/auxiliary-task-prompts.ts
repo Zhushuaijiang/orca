@@ -12,6 +12,7 @@ export function buildAuxiliaryTaskPrompt(
     `Auxiliary task: ${definition?.title ?? task}.`,
     definition?.description ?? '',
     'Return the requested answer directly. Do not execute actions or modify files.',
+    'This is an auxiliary execution. Do not invoke automatic task routing or start other agents.',
     ...(images.length
       ? ['Read and analyze these image files:', ...images.map((file) => JSON.stringify(file))]
       : []),

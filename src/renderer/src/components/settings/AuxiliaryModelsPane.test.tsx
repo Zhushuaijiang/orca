@@ -7,6 +7,7 @@ import { getCommitMessageAgentSpec } from '../../../../shared/commit-message-age
 import { AuxiliaryModelsPane } from './AuxiliaryModelsPane'
 import { AuxiliaryModelRouteFields } from './AuxiliaryModelRouteFields'
 import { AuxiliaryTaskRunner } from './AuxiliaryTaskRunner'
+import { AutomaticRoutingPreview } from './AutomaticRoutingPreview'
 import { useAppStore } from '../../store'
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
 
@@ -23,6 +24,59 @@ afterEach(() => {
 })
 
 describe('auxiliary settings', () => {
+  it('saves automatic routing with complex tasks retained in the primary agent', async () => {
+    const settings = createGlobalSettingsFixture({ defaultTuiAgent: 'claude' })
+    useAppStore.setState({
+      settings,
+      activeWorktreeId: null,
+      activeRepoId: null,
+      settingsSearchQuery: ''
+    })
+    const updateSettings = vi.fn().mockResolvedValue(undefined)
+    const { container } = render(
+      <AuxiliaryModelsPane settings={settings} updateSettings={updateSettings} />
+    )
+    fireEvent.click(screen.getByLabelText('Automatically route coding tasks'))
+    expect(screen.getByLabelText('Keep complex tasks in the primary agent')).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(container.querySelector('#automatic-tier-complex-custom-model')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /^Save$/ }))
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auxiliaryModels: expect.objectContaining({ automatic: { enabled: true } })
+        })
+      )
+    )
+  })
+  it('previews a saved route without executing the selected worker', async () => {
+    useAppStore.setState({ activeWorktreeId: 'repo::/workspace' })
+    vi.mocked(callRuntimeRpc).mockResolvedValue({
+      enabled: true,
+      route: {
+        decision: { task: 'implementation', difficulty: 'standard' },
+        action: 'worker',
+        agentId: 'claude',
+        modelId: 'sonnet',
+        reason: 'Clear implementation scope.'
+      }
+    })
+    render(<AutomaticRoutingPreview primaryAgent="codex" />)
+    fireEvent.change(screen.getByLabelText('Task input'), {
+      target: { value: 'Implement the parser' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect routing' }))
+    expect(await screen.findByText('Clear implementation scope.')).toBeVisible()
+    expect(callRuntimeRpc).toHaveBeenCalledOnce()
+    expect(callRuntimeRpc).toHaveBeenCalledWith(
+      { kind: 'local' },
+      'auxiliary.route',
+      { worktree: 'id:repo::/workspace', prompt: 'Implement the parser', primaryAgent: 'codex' },
+      { expectedEnvironmentPairingRevision: undefined, timeoutMs: 180_000 }
+    )
+  })
   it('saves host-scoped changes and keeps existing primary-agent profiles', async () => {
     const settings = createGlobalSettingsFixture({
       defaultTuiAgent: 'claude',

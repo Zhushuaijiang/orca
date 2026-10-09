@@ -177,7 +177,7 @@ describe('SshGitProvider', () => {
         args: ['exec', 'PROMPT'],
         cwd: '/home/user/repo',
         stdin: null,
-        env: { FLAG: 'literal $HOME' },
+        env: { FLAG: 'literal $HOME', ORCA_AUXILIARY_REQUEST: '1' },
         timeoutMs: 60_000,
         operation: 'commit-message',
         shell: true
@@ -230,6 +230,7 @@ describe('SshGitProvider', () => {
         stdin: null,
         timeoutMs: 60_000,
         operation: 'commit-message',
+        env: { ORCA_AUXILIARY_REQUEST: '1' },
         shell: true
       },
       { timeoutMs: 65_000 }
@@ -244,6 +245,7 @@ describe('SshGitProvider', () => {
         stdin: null,
         timeoutMs: 60_000,
         operation: 'pull-request-fields',
+        env: { ORCA_AUXILIARY_REQUEST: '1' },
         shell: true
       },
       { timeoutMs: 65_000 }

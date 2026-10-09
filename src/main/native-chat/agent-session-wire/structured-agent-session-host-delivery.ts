@@ -63,6 +63,7 @@ export function createStructuredAgentSessionConversationDelivery(input: {
 }): StructuredAgentSessionConversationDelivery {
   const { deps, sessions } = input
   const loop = new StructuredAgentSessionDeliveryLoop({
+    prepareUserMessage: (record, body) => deps.prepareUserMessage?.(record, body) ?? body,
     sessions,
     adapter: deps.adapter,
     agents: deps.agents,

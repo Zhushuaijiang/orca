@@ -101,3 +101,4 @@
 /resources/skills/*.json linguist-generated=true text eol=lf
 # Vitest writes snapshots with LF, so checkout bytes must match on every host.
 **/__snapshots__/*.snap text eol=lf
+/src/shared/bundled-skill-discovery.ts text eol=lf

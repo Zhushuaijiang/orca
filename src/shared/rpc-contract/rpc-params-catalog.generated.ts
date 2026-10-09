@@ -68,7 +68,13 @@ import {
   AutomationRuns,
   AutomationUpdate
 } from './automation-params'
-import { AuxiliaryCancel, AuxiliaryGenerate } from './auxiliary-params'
+import {
+  AuxiliaryAuto,
+  AuxiliaryCancel,
+  AuxiliaryGenerate,
+  AuxiliaryHistory,
+  AuxiliaryRoute
+} from './auxiliary-params'
 import { CertificateProceed } from './browser-core-params'
 import { MouseClick } from './browser-extras-params'
 import { BrowserIdentitySet, ProfileCreate } from './browser-identity-params'
@@ -674,8 +680,11 @@ export const RPC_PARAMS_BY_METHOD = {
   'automation.runs': AutomationRuns,
   'automation.show': AutomationId,
   'automation.update': AutomationUpdate,
+  'auxiliary.auto': AuxiliaryAuto,
   'auxiliary.cancel': AuxiliaryCancel,
   'auxiliary.generate': AuxiliaryGenerate,
+  'auxiliary.history': AuxiliaryHistory,
+  'auxiliary.route': AuxiliaryRoute,
   'browser.back': BrowserTarget,
   'browser.capture.start': BrowserTarget,
   'browser.capture.stop': BrowserTarget,

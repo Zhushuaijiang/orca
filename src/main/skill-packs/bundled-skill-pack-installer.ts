@@ -43,14 +43,14 @@ function sameSkillHashes(
   )
 }
 
-async function checkBundledSkillPackTarget(
-  definition: EnvironmentBundledSkillPackDefinition,
-  target: EnvironmentBundledSkillPackDefinition['targets'][number],
+async function checkBundledSkillPackTarget<Target extends BundledSkillPackTarget>(
+  definition: BundledSkillPackDefinition<string, Target>,
+  target: Target,
   sourceDirectory: string,
   sourceHash: string,
   sourceFiles: readonly string[],
   homeDirectory: string
-): Promise<DfHisEnvironmentPrerequisiteResult> {
+): Promise<Omit<DfHisEnvironmentPrerequisiteResult, 'id'> & { id: Target['id'] }> {
   const targetDirectory = getTargetDirectory(target, homeDirectory)
   const missingSkillName = await findMissingBundledSkill(definition, targetDirectory)
   if (missingSkillName) {
@@ -114,8 +114,8 @@ async function checkBundledSkillPackTarget(
 }
 
 async function installBundledSkillPackTarget(
-  definition: EnvironmentBundledSkillPackDefinition,
-  target: EnvironmentBundledSkillPackDefinition['targets'][number],
+  definition: BundledSkillPackDefinition,
+  target: BundledSkillPackTarget,
   sourceDirectory: string,
   sourceHash: string,
   sourceFiles: readonly string[],
@@ -203,7 +203,7 @@ export async function checkBundledSkillPackPrerequisites(
 }
 
 export async function ensureBundledSkillPackInstalled(
-  definition: EnvironmentBundledSkillPackDefinition,
+  definition: BundledSkillPackDefinition,
   homeDirectory = homedir(),
   sourceDirectory = getBundledSkillPackPath(definition)
 ): Promise<string[]> {

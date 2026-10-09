@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createGlobalSettingsFixture } from '../../shared/global-settings-test-fixture'
 import { getCommitMessageAgentSpec } from '../../shared/commit-message-agent-spec'
-import type { RuntimeGitTarget } from './runtime-git-command-target'
+import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/tui-agent-config'
+import { createAuxiliaryRuntimeTarget as target } from './auxiliary-generation-test-fixture'
 import { resolveAuxiliaryWorkspaceTarget } from './auxiliary-workspace-target'
 import { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
 import { getSshGitProvider } from '../providers/ssh-git-dispatch'
@@ -22,32 +23,6 @@ afterEach(async () => {
       .map((directory) => rm(directory, { recursive: true, force: true }))
   )
 })
-
-function target(path: string): RuntimeGitTarget {
-  return {
-    executionHostId: 'local',
-    worktree: {
-      id: 'folder-workspace',
-      repoId: 'folder',
-      path,
-      displayName: 'Folder',
-      comment: '',
-      linkedIssue: null,
-      linkedPR: null,
-      linkedLinearIssue: null,
-      branch: '',
-      head: '',
-      isBare: false,
-      isMainWorktree: true,
-      isArchived: false,
-      isUnread: false,
-      isPinned: false,
-      sortOrder: 0,
-      lastActivityAt: 0,
-      git: { path, branch: '', head: '', isBare: false, isMainWorktree: true }
-    }
-  }
-}
 
 async function fakeAgent() {
   const directory = await mkdtemp(join(tmpdir(), 'orca-auxiliary-agent-'))
@@ -71,6 +46,37 @@ process.stdin.on('end', () => {
 }
 
 describe('runtime auxiliary execution', () => {
+  it('runs a configured helper even when the primary has no headless CLI', async () => {
+    const primary = Object.keys(TUI_AGENT_CONFIG)
+      .filter(isTuiAgent)
+      .find((agent) => !getCommitMessageAgentSpec(agent))
+    if (!primary) {
+      throw new Error('This regression requires an interactive-only agent')
+    }
+    const agent = await fakeAgent()
+    const settings = createGlobalSettingsFixture({
+      defaultTuiAgent: primary,
+      disabledTuiAgents: [],
+      agentCmdOverrides: { claude: agent.command },
+      auxiliaryModels: { defaults: { agentId: 'claude', modelsByHost: { local: 'private-model' } } }
+    })
+    const service = new RuntimeAuxiliaryGeneration({
+      getRuntimeSettings: () => settings,
+      resolveRuntimeGitTarget: async () => target(agent.directory)
+    })
+    const result = await service.generateRuntimeAuxiliaryTask(
+      'folder',
+      'classification',
+      'Classify this task',
+      [],
+      undefined,
+      primary
+    )
+    expect(result).toMatchObject({ success: true, agentId: 'claude', modelId: 'private-model' })
+    if (result.success) {
+      expect(JSON.parse(result.rawOutput).model).toBe('private-model')
+    }
+  })
   it('resolves real folder scopes without consulting a Git selector', async () => {
     const folder = {
       ...target('/folder'),

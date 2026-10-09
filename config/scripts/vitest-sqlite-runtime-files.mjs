@@ -82,6 +82,7 @@ export const SQLITE_RUNTIME_INCLUDE = [
   'src/main/native-chat/agent-session-wire/structured-agent-session-host-runtime-state.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-host-test-abandon.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-host.test.ts',
+  'src/main/native-chat/agent-session-wire/structured-agent-session-automatic-routing.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-journal-corruption.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-late-proof-tool-ends.test.ts',
   'src/main/native-chat/agent-session-wire/structured-agent-session-late-settlement.test.ts',

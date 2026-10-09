@@ -1,4 +1,5 @@
 import type { TuiAgent } from './tui-agent'
+import type { AutomaticTaskRoutingSettings } from './automatic-task-routing-types'
 
 export const AUXILIARY_TASK_IDS = [
   'conversationName',
@@ -21,7 +22,11 @@ export const AUXILIARY_TASK_IDS = [
   'decomposition',
   'configDescription',
   'skillReview',
-  'skillCurator'
+  'skillCurator',
+  'implementation',
+  'testing',
+  'architecture',
+  'research'
 ] as const
 
 export type AuxiliaryTaskId = (typeof AUXILIARY_TASK_IDS)[number]
@@ -47,6 +52,7 @@ export type AuxiliaryModelRoute = {
 export type AuxiliaryTaskRoutes = Partial<Record<AuxiliaryTaskId, AuxiliaryModelRoute>>
 
 export type AuxiliaryModelSettings = {
+  automatic?: AutomaticTaskRoutingSettings
   defaults?: AuxiliaryModelRoute
   tasks?: AuxiliaryTaskRoutes
   byPrimaryAgent?: Partial<Record<TuiAgent, AuxiliaryTaskRoutes>>
@@ -60,6 +66,30 @@ export type AuxiliaryTaskDefinition = {
 }
 
 export const AUXILIARY_TASKS: readonly AuxiliaryTaskDefinition[] = [
+  {
+    id: 'implementation',
+    title: 'Implementation',
+    description: 'Implement scoped changes through a supervised worker.',
+    kind: 'workflow'
+  },
+  {
+    id: 'testing',
+    title: 'Testing',
+    description: 'Write and run tests through a supervised worker.',
+    kind: 'workflow'
+  },
+  {
+    id: 'architecture',
+    title: 'Architecture',
+    description: 'Analyze design choices using the supplied context.',
+    kind: 'text'
+  },
+  {
+    id: 'research',
+    title: 'Research',
+    description: 'Analyze supplied evidence and identify missing information.',
+    kind: 'text'
+  },
   {
     id: 'conversationName',
     title: 'Conversation titles',

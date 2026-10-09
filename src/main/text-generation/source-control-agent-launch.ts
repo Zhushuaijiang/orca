@@ -39,10 +39,10 @@ function buildWslLauncherEnv(explicitEnv: NodeJS.ProcessEnv | undefined): NodeJS
 }
 
 export const spawnSourceControlAgent: SpawnSourceControlAgent = (input) => {
-  const spawnEnv = input.env ?? process.env
+  const spawnEnv = { ...(input.env ?? process.env), ORCA_AUXILIARY_REQUEST: '1' }
   if (process.platform === 'win32' && input.wslDistro) {
     // Apply assignments in the guest after its login shell, not to the Windows launcher.
-    const assignments = Object.entries(input.commandEnv ?? {}).map(
+    const assignments = Object.entries({ ...input.commandEnv, ORCA_AUXILIARY_REQUEST: '1' }).map(
       ([key, value]) => `${key}=${value}`
     )
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: WSL spawn pipes both output streams and supplies the configured stdin stream.

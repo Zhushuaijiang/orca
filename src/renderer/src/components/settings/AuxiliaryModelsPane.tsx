@@ -20,6 +20,9 @@ import { Label } from '../ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { AuxiliaryModelRouteFields } from './AuxiliaryModelRouteFields'
 import { AuxiliaryTaskRunner } from './AuxiliaryTaskRunner'
+import { AutomaticTaskRoutingCard } from './AutomaticTaskRoutingCard'
+import { AutomaticRoutingHistory } from './AutomaticRoutingHistory'
+import { AutomaticRoutingPreview } from './AutomaticRoutingPreview'
 import { useAuxiliaryExecutionHost } from './use-auxiliary-execution-host'
 import { SearchableSetting } from './SearchableSetting'
 import { getAuxiliaryModelSearchEntries } from './auxiliary-model-search'
@@ -121,6 +124,12 @@ export function AuxiliaryModelsPane({
       </p>
 
       <fieldset disabled={saving} className="space-y-4">
+        <AutomaticTaskRoutingCard
+          value={draft.automatic}
+          settings={{ ...settings, auxiliaryModels: draft }}
+          hostKey={hostKey}
+          onChange={(automatic) => setDraft((current) => ({ ...current, automatic }))}
+        />
         {!profile ? (
           <Card>
             <CardContent>
@@ -168,6 +177,8 @@ export function AuxiliaryModelsPane({
         }}
         hostKey={hostKey}
       />
+      <AutomaticRoutingHistory />
+      <AutomaticRoutingPreview primaryAgent={profile ?? settings.defaultTuiAgent} />
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}

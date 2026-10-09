@@ -3330,6 +3330,31 @@
       }
     }
   },
+  "auxiliary": {
+    "automatic": {
+      "complexDescription": "Architecture, migrations, cross-module debugging and ambiguous requirements.",
+      "simpleDescription": "Wording, extraction, formatting and small mechanical changes.",
+      "standardDescription": "Routine implementation, tests and code review."
+    },
+    "tasks": {
+      "architecture": {
+        "description": "Analyze design choices using the supplied context.",
+        "title": "Architecture"
+      },
+      "implementation": {
+        "description": "Implement scoped changes through a supervised worker.",
+        "title": "Implementation"
+      },
+      "research": {
+        "description": "Analyze supplied evidence and identify missing information.",
+        "title": "Research"
+      },
+      "testing": {
+        "description": "Write and run tests through a supervised worker.",
+        "title": "Testing"
+      }
+    }
+  },
   "browser": {
     "clientHosted": {
       "popupBlocked": "Popup blocked: {{origin}}"

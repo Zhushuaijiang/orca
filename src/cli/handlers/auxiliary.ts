@@ -10,8 +10,10 @@ import { printResult } from '../format'
 import { buildCurrentWorktreeSelector } from '../selectors'
 import { RuntimeClientError } from '../runtime/types'
 import { isTuiAgent } from '../../shared/tui-agent-config'
+import { AUTOMATIC_AUXILIARY_HANDLERS } from './auxiliary-automatic-routing'
 
 export const AUXILIARY_HANDLERS: Record<string, CommandHandler> = {
+  ...AUTOMATIC_AUXILIARY_HANDLERS,
   'auxiliary run': async ({ client, flags, cwd, json }) => {
     const task = getRequiredStringFlag(flags, 'task')
     if (!isAuxiliaryTaskId(task)) {
