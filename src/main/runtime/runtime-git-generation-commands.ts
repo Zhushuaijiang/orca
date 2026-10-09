@@ -1,5 +1,4 @@
 import type { CommitMessageDraftContext } from '../../shared/commit-message-generation'
-import { getCommitMessageModelDiscoveryHostKey } from '../../shared/commit-message-host-key'
 import type { HostedReviewProvider } from '../../shared/hosted-review'
 import { withLinkedIssueDraftContext } from '../../shared/source-control-ai-action-variables'
 import type { TuiAgent } from '../../shared/tui-agent'
@@ -30,6 +29,7 @@ import {
   getRuntimeGitGenerationSettings,
   linkedIssueForTarget,
   linkedIssueMetaForTarget,
+  modelDiscoveryHostKeyForTarget,
   localAgentRuntimeTargetForTarget,
   localTextGenerationTargetForTarget,
   pullRequestDraftGitExec,
@@ -47,7 +47,7 @@ export class RuntimeGitGenerationCommands {
     const route = runtimeGitRouteForTarget(target)
     const discoveryHostKey =
       settingsOverride?.commitMessageDiscoveryHostKey ??
-      getCommitMessageModelDiscoveryHostKey(route.kind === 'ssh' ? route.connectionId : null)
+      modelDiscoveryHostKeyForTarget(target, route)
     const resolvedSettings = settingsOverride?.sourceControlAiResolvedParams
       ? { ok: true as const, params: settingsOverride.sourceControlAiResolvedParams }
       : resolveCommitMessageSettings(
@@ -114,7 +114,7 @@ export class RuntimeGitGenerationCommands {
     return generateCommitMessageFromContext(
       context,
       resolvedSettings.params,
-      localTextGenerationTargetForTarget(target, localEnv.env)
+      localTextGenerationTargetForTarget(target, localEnv.env, this.host)
     )
   }
 
@@ -147,7 +147,7 @@ export class RuntimeGitGenerationCommands {
     const route = runtimeGitRouteForTarget(target)
     const discoveryHostKey =
       settingsOverride?.commitMessageDiscoveryHostKey ??
-      getCommitMessageModelDiscoveryHostKey(route.kind === 'ssh' ? route.connectionId : null)
+      modelDiscoveryHostKeyForTarget(target, route)
     const resolvedSettings = settingsOverride?.sourceControlAiResolvedParams
       ? { ok: true as const, params: settingsOverride.sourceControlAiResolvedParams }
       : resolveCommitMessageSettings(
@@ -234,7 +234,7 @@ export class RuntimeGitGenerationCommands {
     return generatePullRequestFieldsFromContext(
       context,
       resolvedSettings.params,
-      localTextGenerationTargetForTarget(target, localEnv.env)
+      localTextGenerationTargetForTarget(target, localEnv.env, this.host)
     )
   }
 

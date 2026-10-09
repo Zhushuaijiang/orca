@@ -7,6 +7,7 @@ import {
   resolveCommitMessageAgentChoice
 } from './commit-message-agent-spec'
 import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from './commit-message-host-key'
+import { resolveAuxiliarySourceControlOperation } from './auxiliary-source-control-operation'
 import type { GlobalSettings } from './global-settings-types'
 import type { Repo } from './repo-types'
 import type { TuiAgent } from './tui-agent'
@@ -43,6 +44,7 @@ import type { AiTextOperation, SourceControlAiPrCreationDefaults } from './sourc
 export const DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS = DEFAULT_PR_CREATION_DEFAULTS
 
 export type ResolvedSourceControlAiGenerationParams = {
+  fallbackCandidates?: ResolvedSourceControlAiGenerationParams[]
   agentId: TuiAgent | 'custom'
   model: string
   thinkingLevel?: string
@@ -63,12 +65,13 @@ export type ResolveSourceControlAiResult =
   | { ok: true; value: ResolvedSourceControlAiOperation }
   | { ok: false; error: string }
 
-type ResolveSourceControlAiInput = {
+export type ResolveSourceControlAiInput = {
+  primaryAgent?: TuiAgent | null
   settings: Pick<
     GlobalSettings,
     'defaultTuiAgent' | 'agentCmdOverrides' | 'commitMessageAi' | 'sourceControlAi'
   > &
-    Partial<Pick<GlobalSettings, 'disabledTuiAgents'>>
+    Partial<Pick<GlobalSettings, 'disabledTuiAgents' | 'auxiliaryModels'>>
   repo?: Pick<Repo, 'sourceControlAi'> | null
   operation: AiTextOperation
   discoveryHostKey?: string
@@ -110,6 +113,12 @@ function supportedAgentSummary(): string {
 }
 
 export function resolveSourceControlAiForOperation(
+  input: ResolveSourceControlAiInput
+): ResolveSourceControlAiResult {
+  return resolveAuxiliarySourceControlOperation(input, resolveLegacySourceControlAiForOperation)
+}
+
+function resolveLegacySourceControlAiForOperation(
   input: ResolveSourceControlAiInput
 ): ResolveSourceControlAiResult {
   const legacy = input.settings.commitMessageAi

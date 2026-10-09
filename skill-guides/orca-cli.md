@@ -265,3 +265,19 @@ This guide covers worktrees, terminals, and handoffs on its own. At a gate below
 | Creating, editing, running, or inspecting scheduled automations                                                 | `references/automations.md`      |
 | Publishing or revoking an artifact link, or publishing installed skills                                         | `references/publishing.md`       |
 | Mobile emulator taps, gestures, typing, buttons, camera, or permissions                                         | invoke the `orca-emulator` skill |
+
+## Auxiliary models
+
+Use the task-specific agent and model configured in Settings → Auxiliary models:
+
+```text
+ORCA auxiliary run decomposition --prompt "Plan the migration" --json
+ORCA auxiliary run review --prompt-file changes.txt --json
+ORCA auxiliary run vision --image /workspace/screen.png --prompt "Describe this screen" --json
+```
+
+Text tasks include `vision`, `compression`, `skills`, `approval`, `mcp`, `review`, `voice`, `classification`, `decomposition`, and `configDescription`. Supply context in `--prompt` or a local UTF-8 `--prompt-file`; images belong to the execution host and currently require Claude or Codex.
+
+Use `--primary-agent codex` to select that source agent's profile when it differs from the default. JSON results report the requested agent, model and whether the original task model was used as a fallback.
+
+The workspace owner executes the request. An unavailable SSH host never falls back to this machine. Permission analysis and MCP tool recommendations return advice; they do not authorize or execute actions. Agent-internal compaction and subagent policies stay owned by the agent CLI.

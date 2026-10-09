@@ -139,6 +139,7 @@ export function useSettingsStoreModel() {
   const [remoteServerAddIntentSignal, setRemoteServerAddIntentSignal] = useState(0)
   const [hasUnsavedCommitPromptChanges, setHasUnsavedCommitPromptChanges] = useState(false)
   const [hasUnsavedBranchPromptChanges, setHasUnsavedBranchPromptChanges] = useState(false)
+  const [hasUnsavedAuxiliaryModelChanges, setHasUnsavedAuxiliaryModelChanges] = useState(false)
   const [hasUnsavedChatPromptChanges, setHasUnsavedChatPromptChanges] = useState(false)
   const [sourceControlAiPromptDiscardSignal, setSourceControlAiPromptDiscardSignal] = useState(0)
   const confirm = useConfirmationDialog()
@@ -215,6 +216,8 @@ export function useSettingsStoreModel() {
     hasUnsavedBranchPromptChanges,
     setHasUnsavedBranchPromptChanges,
     hasUnsavedChatPromptChanges,
+    hasUnsavedAuxiliaryModelChanges,
+    setHasUnsavedAuxiliaryModelChanges,
     setHasUnsavedChatPromptChanges,
     sourceControlAiPromptDiscardSignal,
     setSourceControlAiPromptDiscardSignal,

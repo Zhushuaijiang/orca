@@ -138,6 +138,7 @@ export type RuntimeStore = {
     nativeChatShellEnvironmentVariables?: GlobalSettings['nativeChatShellEnvironmentVariables']
     aiVaultSearch?: GlobalSettings['aiVaultSearch']
     sourceControlAi?: GlobalSettings['sourceControlAi']
+    auxiliaryModels?: GlobalSettings['auxiliaryModels']
     commitMessageAi?: GlobalSettings['commitMessageAi']
   }
   // Why: narrow to `unknown` return so test mocks can return void without

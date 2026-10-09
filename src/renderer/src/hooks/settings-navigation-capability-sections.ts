@@ -1,3 +1,4 @@
+import { getAuxiliaryModelSearchEntries } from '@/components/settings/auxiliary-model-search'
 import { LinearIcon } from '@/components/icons/LinearIcon'
 import { getAccountsPaneSearchEntries } from '@/components/settings/accounts-search'
 import { getAgentsPaneSearchEntries } from '@/components/settings/agents-search'
@@ -48,6 +49,14 @@ export function buildCapabilitySettingsSections({
         includeAgentWorkspaceTrust: !isWebClient,
         includeCodexTerminalServerIsolation: !isWebClient
       }),
+      group: 'capabilities'
+    },
+    {
+      id: 'auxiliary-models',
+      title: translate('auxiliary.title', 'Auxiliary models'),
+      description: translate('auxiliary.description', 'Choose an agent and model for each task.'),
+      icon: Bot,
+      searchEntries: getAuxiliaryModelSearchEntries(),
       group: 'capabilities'
     },
     {

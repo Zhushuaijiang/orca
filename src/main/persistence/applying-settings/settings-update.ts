@@ -1,3 +1,4 @@
+import { normalizeAuxiliaryModelSettings } from '../../../shared/auxiliary-model-settings'
 import { normalizeNativeChatAppearanceSettings } from '../../../shared/native-chat-appearance-settings'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 import { normalizeDisabledTuiAgents } from '../../../shared/tui-agent-selection'
@@ -235,6 +236,11 @@ export function updateSettings(
     sanitizedUpdates.telemetry !== undefined
       ? { ...operations.state.settings.telemetry, ...sanitizedUpdates.telemetry }
       : operations.state.settings.telemetry
+  if ('auxiliaryModels' in sanitizedUpdates) {
+    sanitizedUpdates.auxiliaryModels = normalizeAuxiliaryModelSettings(
+      sanitizedUpdates.auxiliaryModels
+    )
+  }
   if ('sourceControlAi' in sanitizedUpdates) {
     sanitizedUpdates.sourceControlAi = retireLegacyInstructionsForClearedTextActionRecipes(
       sanitizedUpdates.sourceControlAi,

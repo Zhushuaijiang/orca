@@ -8,7 +8,10 @@ import {
   resolveCommitMessageSettings,
   type GeneratePullRequestFieldsResult
 } from '../../text-generation/commit-message-text-generation'
-import { getCommitMessageModelDiscoveryHostKey } from '../../../shared/commit-message-host-key'
+import {
+  getCommitMessageModelDiscoveryHostKey,
+  getCommitMessageModelDiscoveryHostKeyForLocalRuntime
+} from '../../../shared/commit-message-host-key'
 import { getPullRequestDraftContext } from '../../text-generation/pull-request-context'
 import { prepareLocalCommitMessageAgentEnv } from '../../text-generation/commit-message-agent-environment'
 import {
@@ -55,7 +58,15 @@ export function registerFilesystemGitPullRequestGenerationHandlers(
         agentCmdOverrides?: GlobalSettings['agentCmdOverrides']
       }
     ): Promise<GeneratePullRequestFieldsResult> => {
-      const discoveryHostKey = getCommitMessageModelDiscoveryHostKey(args.connectionId ?? null)
+      const localPath = args.connectionId
+        ? undefined
+        : await resolveRegisteredWorktreePath(args.worktreePath, store)
+      const localOptions = localPath
+        ? getLocalGitOptionsForRegisteredWorktree(store, args.worktreePath, localPath)
+        : undefined
+      const discoveryHostKey = args.connectionId
+        ? getCommitMessageModelDiscoveryHostKey(args.connectionId)
+        : getCommitMessageModelDiscoveryHostKeyForLocalRuntime(localOptions?.wslDistro)
       const baseSettings = store.getSettings()
       const requestSettings = {
         ...baseSettings,
@@ -136,12 +147,11 @@ export function registerFilesystemGitPullRequestGenerationHandlers(
         })
       }
 
-      const worktreePath = await resolveRegisteredWorktreePath(args.worktreePath, store)
-      const gitOptions = getLocalGitOptionsForRegisteredWorktree(
-        store,
-        args.worktreePath,
-        worktreePath
-      )
+      const worktreePath =
+        localPath ?? (await resolveRegisteredWorktreePath(args.worktreePath, store))
+      const gitOptions =
+        localOptions ??
+        getLocalGitOptionsForRegisteredWorktree(store, args.worktreePath, worktreePath)
       const issueMeta = resolveSourceControlAiLinkedIssueMeta(store, args, worktreePath)
       const linkedIssueDetailsPromise = loadPullRequestLinkedIssue({
         meta: issueMeta,
@@ -204,7 +214,7 @@ export function registerFilesystemGitPullRequestGenerationHandlers(
       return generatePullRequestFieldsFromContext(
         context,
         resolvedSettings.params,
-        getLocalTextGenerationTarget(worktreePath, gitOptions, localEnv.env)
+        getLocalTextGenerationTarget(worktreePath, gitOptions, localEnv.env, commitMessageAgentEnv)
       )
     }
   )

@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { OptionalGitAdmissionTier } from './git-admission-tier-params'
 import { OptionalTuiAgent } from './worktree-params'
+import { isTuiAgent } from '../tui-agent-config'
+import type { TuiAgent } from '../tui-agent'
 
 export const WorktreeSelector = z.object({
   worktree: z
@@ -168,8 +170,8 @@ export const SourceControlAiSettings = CommitMessageAiSettings.omit({ customProm
     .optional()
 })
 
-export const ResolvedSourceControlAiGenerationParams = z.object({
-  agentId: z.string(),
+const SourceControlAiGenerationCandidate = z.object({
+  agentId: z.custom<TuiAgent | 'custom'>((value) => value === 'custom' || isTuiAgent(value)),
   model: z.string(),
   thinkingLevel: z.string().optional(),
   customPrompt: z.string().optional(),
@@ -177,6 +179,10 @@ export const ResolvedSourceControlAiGenerationParams = z.object({
   agentArgs: z.string().optional(),
   customAgentCommand: z.string().optional(),
   agentCommandOverride: z.string().optional()
+})
+
+export const ResolvedSourceControlAiGenerationParams = SourceControlAiGenerationCandidate.extend({
+  fallbackCandidates: z.array(SourceControlAiGenerationCandidate).max(1).optional()
 })
 
 export const GitGenerateCommitMessage = WorktreeSelector.extend({

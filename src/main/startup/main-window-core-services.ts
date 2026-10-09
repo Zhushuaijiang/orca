@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { registerCoreHandlers } from '../ipc/register-core-handlers/register-core-handlers'
-import { startSkillReviewService } from '../skill-review/skill-review-service'
+import { startConfiguredSkillReviewService } from '../skill-review/configured-skill-review-service'
 import { attachMainWindowServices } from '../window/attach-main-window-services'
 import { initTccPromptNotice } from '../macos-tcc-prompt-notice'
 import { resolveUpdateInstallMode } from '../updater'
@@ -103,9 +103,7 @@ export function attachMainWindowCoreServices(
   )
   automations.setWebContents(window.webContents)
   automations.start()
-  startSkillReviewService({
-    isEnabled: () => store?.getSettings().skillReviewEnabled !== false
-  })
+  startConfiguredSkillReviewService(() => state.store?.getSettings())
   attachMainWindowServices(
     window,
     store,

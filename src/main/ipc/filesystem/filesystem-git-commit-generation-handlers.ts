@@ -7,7 +7,10 @@ import {
   resolveCommitMessageSettings,
   type GenerateCommitMessageResult
 } from '../../text-generation/commit-message-text-generation'
-import { getCommitMessageModelDiscoveryHostKey } from '../../../shared/commit-message-host-key'
+import {
+  getCommitMessageModelDiscoveryHostKey,
+  getCommitMessageModelDiscoveryHostKeyForLocalRuntime
+} from '../../../shared/commit-message-host-key'
 import { getStagedCommitContext } from '../../git/status'
 import {
   getSshGitProvider,
@@ -44,7 +47,15 @@ export function registerFilesystemGitCommitGenerationHandlers(
         agentCmdOverrides?: GlobalSettings['agentCmdOverrides']
       }
     ): Promise<GenerateCommitMessageResult> => {
-      const discoveryHostKey = getCommitMessageModelDiscoveryHostKey(args.connectionId ?? null)
+      const localPath = args.connectionId
+        ? undefined
+        : await resolveRegisteredWorktreePath(args.worktreePath, store)
+      const localOptions = localPath
+        ? getLocalGitOptionsForRegisteredWorktree(store, args.worktreePath, localPath)
+        : undefined
+      const discoveryHostKey = args.connectionId
+        ? getCommitMessageModelDiscoveryHostKey(args.connectionId)
+        : getCommitMessageModelDiscoveryHostKeyForLocalRuntime(localOptions?.wslDistro)
       const baseSettings = store.getSettings()
       const requestSettings = {
         ...baseSettings,
@@ -97,12 +108,11 @@ export function registerFilesystemGitCommitGenerationHandlers(
           missingBinaryLocation: 'remote PATH'
         })
       }
-      const worktreePath = await resolveRegisteredWorktreePath(args.worktreePath, store)
-      const gitOptions = getLocalGitOptionsForRegisteredWorktree(
-        store,
-        args.worktreePath,
-        worktreePath
-      )
+      const worktreePath =
+        localPath ?? (await resolveRegisteredWorktreePath(args.worktreePath, store))
+      const gitOptions =
+        localOptions ??
+        getLocalGitOptionsForRegisteredWorktree(store, args.worktreePath, worktreePath)
       let context
       try {
         context = await getStagedCommitContext(worktreePath, {
@@ -134,7 +144,7 @@ export function registerFilesystemGitCommitGenerationHandlers(
       return generateCommitMessageFromContext(
         context,
         resolvedSettings.params,
-        getLocalTextGenerationTarget(worktreePath, gitOptions, localEnv.env)
+        getLocalTextGenerationTarget(worktreePath, gitOptions, localEnv.env, commitMessageAgentEnv)
       )
     }
   )

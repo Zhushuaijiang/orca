@@ -1,3 +1,5 @@
+import type { GlobalSettings } from '../../shared/global-settings-types'
+import { applyAuxiliaryReviewModel, resolveAuxiliaryReviewRoute } from './auxiliary-review-route'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
@@ -34,6 +36,7 @@ function findBinaryOnPath(binary: string): boolean {
 }
 
 export type SkillReviewCuratorDeps = {
+  getSettings?: () => GlobalSettings | undefined
   homeDirectory?: string
   stateDirectory?: string
   spawnProcess?: SpawnReviewProcess
@@ -65,12 +68,13 @@ export async function runSkillReviewCuratorOnce(deps: SkillReviewCuratorDeps = {
       console.warn('[skill-review] curator: no supported agent binary on PATH; skipped')
       return
     }
+    const selection = resolveAuxiliaryReviewRoute(deps.getSettings?.(), 'skillCurator', agent)
     const roots = {
       directories: computeAllSkillDirectories(homeDirectory),
       files: [getAgentMemoryFilePath(homeDirectory)]
     }
     const spec = await buildReviewAgentSpawnSpec({
-      agent,
+      agent: selection.agent,
       homeDirectory,
       stateDirectory: deps.stateDirectory ?? getSkillReviewStateDirectory(),
       rootsOverride: roots
@@ -84,7 +88,12 @@ export async function runSkillReviewCuratorOnce(deps: SkillReviewCuratorDeps = {
       memoryFilePath: getAgentMemoryFilePath(homeDirectory)
     })
     const spawnProcess = deps.spawnProcess ?? spawnReviewProcess
-    const result = await spawnProcess(spec, prompt, homeDirectory, CURATOR_TIMEOUT_MS)
+    const result = await spawnProcess(
+      applyAuxiliaryReviewModel(spec, selection),
+      prompt,
+      homeDirectory,
+      CURATOR_TIMEOUT_MS
+    )
     if (result.timedOut || result.exitCode !== 0) {
       console.warn(
         `[skill-review] curator run failed (timedOut=${result.timedOut} exit=${result.exitCode})`

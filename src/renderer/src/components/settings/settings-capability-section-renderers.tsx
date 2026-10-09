@@ -1,3 +1,5 @@
+import { AuxiliaryModelsPane } from './AuxiliaryModelsPane'
+import { getAuxiliaryModelSearchEntries } from './auxiliary-model-search'
 import { AccountsPane } from './AccountsPane'
 import { AgentsPane } from './AgentsPane'
 import { ComputerUsePane } from './ComputerUsePane'
@@ -135,4 +137,27 @@ export function renderDesktopCapabilitySettingsSections(
       </SettingsSection>
     </>
   ) : null
+}
+
+export function renderAuxiliaryModelsSettingsSection(
+  context: SettingsRenderContext
+): React.JSX.Element {
+  const { model, view } = context
+  return (
+    <SettingsSection
+      id="auxiliary-models"
+      title={translate('auxiliary.title', 'Auxiliary models')}
+      description={translate('auxiliary.description', 'Choose an agent and model for each task.')}
+      searchEntries={getAuxiliaryModelSearchEntries()}
+    >
+      {view.isSectionMounted('auxiliary-models') ? (
+        <AuxiliaryModelsPane
+          key={model.sourceControlAiPromptDiscardSignal}
+          onDirtyChange={model.setHasUnsavedAuxiliaryModelChanges}
+          settings={model.settings}
+          updateSettings={model.updateSettingsOrThrow}
+        />
+      ) : null}
+    </SettingsSection>
+  )
 }

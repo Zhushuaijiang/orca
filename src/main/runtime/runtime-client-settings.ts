@@ -27,6 +27,7 @@ import type { RuntimeStore } from './runtime-store-contract'
 
 export type RuntimeClientSettings = Pick<
   GlobalSettings,
+  | 'auxiliaryModels'
   | 'defaultTuiAgent'
   | 'disabledTuiAgents'
   | 'agentCmdOverrides'
@@ -69,6 +70,7 @@ export type RuntimeHostDisplayLabelOverrides = Partial<
 
 export type RuntimeClientSettingsUpdate = Pick<
   Partial<GlobalSettings>,
+  | 'auxiliaryModels'
   | 'agentStatusHooksEnabled'
   | 'defaultTuiAgent'
   | 'disabledTuiAgents'
@@ -106,6 +108,7 @@ export class RuntimeClientSettingsController {
     }
     const settings = this.store.getSettings()
     return {
+      ...(settings.auxiliaryModels ? { auxiliaryModels: settings.auxiliaryModels } : {}),
       defaultTuiAgent: settings.defaultTuiAgent ?? null,
       disabledTuiAgents: settings.disabledTuiAgents ?? [],
       agentCmdOverrides: settings.agentCmdOverrides ?? {},

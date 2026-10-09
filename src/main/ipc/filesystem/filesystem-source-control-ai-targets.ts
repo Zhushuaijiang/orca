@@ -1,10 +1,14 @@
+import {
+  prepareLocalCommitMessageAgentEnv,
+  type CommitMessageAgentRuntimeTarget,
+  type CommitMessageAgentEnvironmentResolvers
+} from '../../text-generation/commit-message-agent-environment'
 import type { Repo } from '../../../shared/repo-types'
 import type { Store } from '../../persistence'
 import {
   getLocalProjectWorktreeGitOptions,
   type LocalProjectWorktreeGitOptions
 } from '../../project-runtime-git-options'
-import type { CommitMessageAgentRuntimeTarget } from '../../text-generation/commit-message-agent-environment'
 import type { CommitMessageGenerationTarget } from '../../text-generation/commit-message-text-generation'
 import { resolve } from 'node:path'
 import { getSshGitProvider } from '../../providers/ssh-git-dispatch'
@@ -173,10 +177,13 @@ export async function resolveModelDiscoveryLocalPath(
 export function getLocalTextGenerationTarget(
   worktreePath: string,
   gitOptions: LocalProjectWorktreeGitOptions,
-  env?: NodeJS.ProcessEnv
+  env?: NodeJS.ProcessEnv,
+  resolvers?: CommitMessageAgentEnvironmentResolvers
 ): Extract<CommitMessageGenerationTarget, { kind: 'local' }> {
   return {
     kind: 'local',
+    prepareAgentEnv: (agentId) =>
+      prepareLocalCommitMessageAgentEnv(agentId, resolvers, getLocalAgentRuntimeTarget(gitOptions)),
     cwd: worktreePath,
     ...(gitOptions.wslDistro ? { wslDistro: gitOptions.wslDistro } : {}),
     ...(env ? { env } : {})

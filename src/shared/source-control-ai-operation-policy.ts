@@ -1,4 +1,5 @@
 import type { GlobalSettings } from './global-settings-types'
+import { applyAuxiliaryWorkflowRoute } from './auxiliary-workflow-routing'
 import type { Repo } from './repo-types'
 import {
   readSourceControlActionDefault,
@@ -183,8 +184,21 @@ export function resolveSourceControlAiEnabled(input: {
 }
 
 export function resolveSourceControlActionRecipe(input: {
-  settings: Pick<GlobalSettings, 'sourceControlAi' | 'commitMessageAi'> | null | undefined
-  repo?: Pick<Repo, 'sourceControlAi'> | null
+  settings:
+    | (Pick<GlobalSettings, 'sourceControlAi' | 'commitMessageAi'> &
+        Partial<
+          Pick<
+            GlobalSettings,
+            | 'auxiliaryModels'
+            | 'defaultTuiAgent'
+            | 'disabledTuiAgents'
+            | 'activeRuntimeEnvironmentId'
+          >
+        >)
+    | null
+    | undefined
+  discoveryHostKey?: string
+  repo?: (Pick<Repo, 'sourceControlAi'> & Partial<Pick<Repo, 'connectionId'>>) | null
   actionId: AiActionId
 }): SourceControlActionRecipe {
   const source = normalizeSourceControlAiSettings(
@@ -202,7 +216,7 @@ export function resolveSourceControlActionRecipe(input: {
     source.actions,
     input.actionId
   )
-  return repoRecipe
+  const recipe = repoRecipe
     ? {
         ...globalRecipe,
         commandInputTemplate,
@@ -217,4 +231,17 @@ export function resolveSourceControlActionRecipe(input: {
             : {})
       }
     : { ...globalRecipe, commandInputTemplate }
+  return repoRecipe?.agentId !== undefined || repoRecipe?.agentArgs !== undefined
+    ? recipe
+    : applyAuxiliaryWorkflowRoute(
+        input.settings,
+        input.actionId,
+        recipe,
+        input.discoveryHostKey ??
+          (input.settings?.activeRuntimeEnvironmentId
+            ? `runtime:${input.settings.activeRuntimeEnvironmentId}`
+            : input.repo?.connectionId
+              ? `ssh:${input.repo.connectionId}`
+              : 'local')
+      )
 }

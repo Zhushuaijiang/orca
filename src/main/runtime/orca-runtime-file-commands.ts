@@ -4,6 +4,7 @@ import { RuntimeFileCommands } from './orca-runtime-files'
 import { nativeChatTranscriptIncludesPath } from '../native-chat/native-chat-file-provenance'
 import { createRuntimeFileWatcherRemoval } from './runtime-file-watcher-removal'
 import { RuntimeGitCommands } from './orca-runtime-git'
+import { resolveAuxiliaryWorkspaceTarget } from './auxiliary-workspace-target'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { RuntimeTerminalAgentStatus } from '../../shared/runtime-types'
 import { RuntimeHostedReviewCommands } from './runtime-hosted-review-commands'
@@ -76,6 +77,12 @@ export class OrcaRuntimeWithFileCommands extends OrcaRuntimeWithPreservedBranchC
   acquireFileWatcherRemoval = this.fileWatcherRemoval.acquire
 
   protected readonly gitCommands = new RuntimeGitCommands({
+    resolveRuntimeAuxiliaryTarget: (selector) =>
+      resolveAuxiliaryWorkspaceTarget(selector, {
+        resolveFileTarget: (value) => this.resolveRuntimeFileTarget(value),
+        resolveGitTarget: (value) => this.resolveRuntimeGitTarget(value),
+        getWindowsRuntime: () => this.requireStore().getSettings().localWindowsRuntimeDefault
+      }),
     resolveRuntimeGitTarget: (selector) => this.resolveRuntimeGitTarget(selector),
     getRuntimeSettings: () => this.requireStore().getSettings() as GlobalSettings,
     getCommitMessageAgentEnvironment: () => this.accounts.getCommitMessageAgentEnvironment(),

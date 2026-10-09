@@ -1,3 +1,4 @@
+import { AUXILIARY_GENERATION_METHODS } from './auxiliary-generation'
 import { STATUS_METHODS } from './status'
 import { ORCAD_TERMINAL_CENSUS_METHODS } from './orcad-terminal-census'
 import { ORCAD_MIGRATION_METHODS } from './orcad-migration'
@@ -98,6 +99,7 @@ export const ALL_RPC_METHODS = [
   ...NATIVE_CHAT_METHODS,
   ...FILE_METHODS,
   ...GIT_METHODS,
+  ...AUXILIARY_GENERATION_METHODS,
   ...GITHUB_METHODS,
   ...GITLAB_METHODS,
   ...YUNXIAO_METHODS,

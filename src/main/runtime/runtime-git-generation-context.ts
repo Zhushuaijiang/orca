@@ -1,4 +1,8 @@
 import type { GlobalSettings } from '../../shared/global-settings-types'
+import {
+  getCommitMessageModelDiscoveryHostKey,
+  getCommitMessageModelDiscoveryHostKeyForLocalRuntime
+} from '../../shared/commit-message-host-key'
 import { gitExecFileAsync } from '../git/runner'
 import type { getPullRequestDraftContext } from '../text-generation/pull-request-context'
 import {
@@ -7,6 +11,7 @@ import {
 } from '../../shared/source-control-ai'
 import type { SourceControlAiOperation } from '../../shared/source-control-ai-types'
 import type { CommitMessageAgentRuntimeTarget } from '../text-generation/commit-message-agent-environment'
+import { prepareLocalCommitMessageAgentEnv } from '../text-generation/commit-message-agent-environment'
 import type { CommitMessageGenerationTarget } from '../text-generation/commit-message-text-generation'
 import type { PullRequestLinkedIssueMeta } from '../source-control/pull-request-linked-issue'
 import { execSshReviewDraft } from '../providers/ssh-review-draft-context'
@@ -18,6 +23,17 @@ import {
 } from './runtime-git-command-target'
 
 type PullRequestDraftGitExec = Parameters<typeof getPullRequestDraftContext>[0]
+
+export function modelDiscoveryHostKeyForTarget(
+  target: RuntimeGitTarget,
+  route: RuntimeGitRoute
+): string {
+  return route.kind === 'ssh'
+    ? getCommitMessageModelDiscoveryHostKey(route.connectionId)
+    : getCommitMessageModelDiscoveryHostKeyForLocalRuntime(
+        localGitOptionsForTarget(target).wslDistro
+      )
+}
 
 /** Runs the PR draft-context probes on whichever host `route` resolved to. */
 export function pullRequestDraftGitExec(
@@ -81,11 +97,22 @@ export function localAgentRuntimeTargetForTarget(
 
 export function localTextGenerationTargetForTarget(
   target: RuntimeGitTarget,
-  env?: NodeJS.ProcessEnv
+  env?: NodeJS.ProcessEnv,
+  host?: RuntimeGitCommandHost
 ): Extract<CommitMessageGenerationTarget, { kind: 'local' }> {
   const wslDistro = localGitOptionsForTarget(target).wslDistro
   return {
     kind: 'local',
+    ...(host
+      ? {
+          prepareAgentEnv: (agentId: string) =>
+            prepareLocalCommitMessageAgentEnv(
+              agentId,
+              host.getCommitMessageAgentEnvironment?.(),
+              localAgentRuntimeTargetForTarget(target)
+            )
+        }
+      : {}),
     cwd: target.worktree.path,
     ...(wslDistro ? { wslDistro } : {}),
     ...(env ? { env } : {})

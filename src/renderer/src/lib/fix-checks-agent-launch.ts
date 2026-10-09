@@ -1,3 +1,4 @@
+import { getResolvedExecutionHostIdForWorktree } from '@/lib/resolved-worktree-execution-host'
 import { toast } from 'sonner'
 import { getConnectionId } from '@/lib/connection-context'
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
@@ -118,7 +119,7 @@ async function pickExistingWorktreeAgent(
 export async function startFixChecksAgent(args: StartFixChecksAgentArgs): Promise<boolean> {
   const store = useAppStore.getState()
   const repo = store.repos.find((candidate) => candidate.id === args.repoId) ?? null
-  const recipe = resolveSourceControlActionRecipe({
+  let recipe = resolveSourceControlActionRecipe({
     settings: store.settings,
     repo,
     actionId: 'fixChecks'
@@ -155,6 +156,7 @@ export async function startFixChecksAgent(args: StartFixChecksAgentArgs): Promis
       return false
     }
     const targetConnectionId = getConnectionId(targetWorktreeId) ?? repo?.connectionId ?? null
+
     const agent = await pickExistingWorktreeAgent(
       targetWorktreeId,
       savedAgentId,
@@ -163,12 +165,28 @@ export async function startFixChecksAgent(args: StartFixChecksAgentArgs): Promis
     if (!agent) {
       return false
     }
+    const projectRuntime = targetConnectionId
+      ? undefined
+      : getLocalProjectExecutionRuntimeContext(store, targetWorktreeId, CLIENT_PLATFORM)
+    const executionHost =
+      getResolvedExecutionHostIdForWorktree(store, targetWorktreeId) ?? 'unknown'
+    const discoveryHostKey =
+      executionHost === 'local' &&
+      projectRuntime &&
+      projectRuntime.status !== 'repair-required' &&
+      projectRuntime.runtime.kind === 'wsl'
+        ? `wsl:${projectRuntime.runtime.distro}`
+        : executionHost
+    recipe = resolveSourceControlActionRecipe({
+      settings: store.settings,
+      repo,
+      actionId: 'fixChecks',
+      discoveryHostKey
+    })
     const launchPlatform = resolveSourceControlLaunchPlatform({
       connectionId: targetConnectionId,
       worktreePath: targetWorktree.path,
-      projectRuntime: targetConnectionId
-        ? undefined
-        : getLocalProjectExecutionRuntimeContext(store, targetWorktreeId, CLIENT_PLATFORM)
+      projectRuntime
     })
     if (!launchPlatform) {
       toast.error(

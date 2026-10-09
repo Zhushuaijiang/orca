@@ -1,3 +1,4 @@
+import { normalizeAuxiliaryModelSettings } from '../../../shared/auxiliary-model-settings'
 import { normalizeNativeChatAppearanceSettings } from '../../../shared/native-chat-appearance-settings'
 import { getDefaultVoiceSettings } from '../../../shared/constants'
 import { normalizePRBotAuthorOverrides } from '../../../shared/pr-bot-author-overrides'
@@ -142,6 +143,7 @@ export function normalizeLoadedGlobalSettings(
     }),
     notifications: normalizedNotifications,
     sourceControlAi: migratedSourceControlAi,
+    auxiliaryModels: normalizeAuxiliaryModelSettings(parsed.settings?.auxiliaryModels),
     sourceControlGroupOrder: normalizedSourceControlGroupOrder,
     // Why: rollback builds still read commitMessageAi, so refresh the legacy projection from sourceControlAi for compat.
     commitMessageAi: projectSourceControlAiToLegacyCommitMessageAi(

@@ -1,3 +1,4 @@
+import { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
 import { RuntimeGitDiffCommands } from './runtime-git-diff-commands'
 import { RuntimeGitGenerationCommands } from './runtime-git-generation-commands'
 import { RuntimeGitStagingCommands } from './runtime-git-staging-commands'
@@ -11,6 +12,8 @@ export type {
 } from './runtime-git-command-target'
 
 export class RuntimeGitCommands {
+  readonly cancelRuntimeAuxiliaryTask: RuntimeAuxiliaryGeneration['cancelRuntimeAuxiliaryTask']
+  readonly generateRuntimeAuxiliaryTask: RuntimeAuxiliaryGeneration['generateRuntimeAuxiliaryTask']
   readonly getRuntimeGitStatus: RuntimeGitStatusCommands['getRuntimeGitStatus']
   readonly getRuntimeGitSubmoduleStatus: RuntimeGitStatusCommands['getRuntimeGitSubmoduleStatus']
   readonly checkRuntimeGitIgnoredPaths: RuntimeGitStatusCommands['checkRuntimeGitIgnoredPaths']
@@ -51,6 +54,9 @@ export class RuntimeGitCommands {
     const status = new RuntimeGitStatusCommands(host)
     const diff = new RuntimeGitDiffCommands(host)
     const sync = new RuntimeGitSyncCommands(host)
+    const auxiliary = new RuntimeAuxiliaryGeneration(host)
+    this.cancelRuntimeAuxiliaryTask = auxiliary.cancelRuntimeAuxiliaryTask.bind(auxiliary)
+    this.generateRuntimeAuxiliaryTask = auxiliary.generateRuntimeAuxiliaryTask.bind(auxiliary)
     const generation = new RuntimeGitGenerationCommands(host)
     const staging = new RuntimeGitStagingCommands(host)
 

@@ -1,3 +1,4 @@
+import type { GlobalSettings } from '../../shared/global-settings-types'
 import { agentHookServer } from '../agent-hooks/server'
 import { splitWorktreeIdForFilesystem } from '../../shared/worktree/id'
 import { startSkillReviewCurator } from './review-curator'
@@ -8,6 +9,7 @@ import { createSkillReviewTrigger } from './review-trigger'
 let started = false
 
 export type SkillReviewServiceOptions = {
+  getSettings?: () => GlobalSettings | undefined
   /** 总开关（GlobalSettings.skillReviewEnabled）；缺省视为开启。 */
   isEnabled?: () => boolean
 }
@@ -21,6 +23,7 @@ export function startSkillReviewService(options: SkillReviewServiceOptions = {})
   const queue = createSkillReviewQueue({
     run: (request) =>
       runSkillReview(request, {
+        getSettings: options.getSettings,
         // Why: worktreeId 自带路径（folder workspace 的 UUID 后缀由解析剥掉），无需查 Store。
         resolveWorktreePath: (worktreeId) =>
           splitWorktreeIdForFilesystem(worktreeId)?.worktreePath ?? null
@@ -32,5 +35,5 @@ export function startSkillReviewService(options: SkillReviewServiceOptions = {})
       isEnabled: options.isEnabled ? async () => options.isEnabled!() : undefined
     })
   )
-  startSkillReviewCurator({ isEnabled: options.isEnabled })
+  startSkillReviewCurator({ isEnabled: options.isEnabled, getSettings: options.getSettings })
 }

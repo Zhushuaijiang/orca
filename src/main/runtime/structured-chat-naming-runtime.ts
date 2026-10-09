@@ -1,4 +1,5 @@
 import type { Store } from '../persistence'
+import { isTuiAgent } from '../../shared/tui-agent-config'
 import { LOCAL_EXECUTION_HOST_ID, type ExecutionHostId } from '../../shared/execution-host'
 import type { CommitMessageAgentEnvironmentResolvers } from '../text-generation/commit-message-agent-environment'
 import type { StructuredChatNamingDeps } from '../native-chat/structured-chat-naming'
@@ -41,7 +42,8 @@ export function structuredChatNamingDeps(
         getStore().getSettings(),
         LOCAL_COMMIT_MESSAGE_HOST_KEY,
         'conversationName',
-        null
+        null,
+        isTuiAgent(record.provider) ? record.provider : undefined
       )
       if (!settings.ok) {
         logger.warn(settings.error, { scope: 'conversation-name', sessionId: record.sessionId })

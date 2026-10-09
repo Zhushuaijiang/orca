@@ -45,6 +45,7 @@ export async function generateConversationName(input: {
   const result = await executeGenerationPlan({
     ...input,
     plan: planned.plan,
+    prompt,
     emptyResultName: 'chat name',
     operation: 'conversation-name'
   })

@@ -19864,5 +19864,125 @@
   },
   "projectField": {
     "updateFailed": "无法更新项目字段"
+  },
+  "auxiliary": {
+    "title": "辅助模型",
+    "description": "为不同任务选择独立的 agent 和模型。",
+    "agent": "Agent",
+    "model": "模型",
+    "thinking": "推理强度",
+    "inherit": "使用默认配置",
+    "customModel": "精确模型 ID（可选）",
+    "fallback": "生成失败时使用原任务模型重试",
+    "explanation": "为每项任务指定 agent 和模型。仓库级配置优先，模型选择按执行主机分别保存。",
+    "profile": "应用于主 Agent",
+    "all": "所有 Agent",
+    "host": "执行主机",
+    "default": "默认辅助模型",
+    "reset": "重置",
+    "save": "保存",
+    "saving": "保存中…",
+    "discard": "放弃修改",
+    "resetAll": "重置所有任务",
+    "tasks": {
+      "conversationName": {
+        "title": "会话标题",
+        "description": "自动生成新会话的标题。"
+      },
+      "commitMessage": {
+        "title": "提交说明",
+        "description": "描述暂存的代码修改。"
+      },
+      "pullRequest": {
+        "title": "PR / MR 描述",
+        "description": "生成代码评审请求的标题和描述。"
+      },
+      "branchName": {
+        "title": "分支命名",
+        "description": "根据任务生成分支名称。"
+      },
+      "vision": {
+        "title": "视觉分析",
+        "description": "通过辅助请求分析提供的图片。"
+      },
+      "compression": {
+        "title": "上下文压缩",
+        "description": "总结提供的上下文；Agent 内部压缩仍由其自行管理。"
+      },
+      "skills": {
+        "title": "技能检索",
+        "description": "从提供的候选技能中选择相关技能。"
+      },
+      "approval": {
+        "title": "审批分析",
+        "description": "评估操作建议；仍需遵守已有权限检查。"
+      },
+      "mcp": {
+        "title": "MCP 工具路由",
+        "description": "根据提供的工具定义推荐工具，由调用方决定执行。"
+      },
+      "review": {
+        "title": "代码评审",
+        "description": "评审提供的代码修改。"
+      },
+      "voice": {
+        "title": "语音回复",
+        "description": "根据提供的语音转写内容生成简洁回复。"
+      },
+      "classification": {
+        "title": "任务分类",
+        "description": "分类任务并明确需求。"
+      },
+      "decomposition": {
+        "title": "任务分解",
+        "description": "把任务拆解成可执行步骤。"
+      },
+      "configDescription": {
+        "title": "配置描述",
+        "description": "为提供的配置生成说明。"
+      },
+      "skillReview": {
+        "title": "技能与记忆评审",
+        "description": "在已有写入保护范围内评审已完成的会话。"
+      },
+      "skillCurator": {
+        "title": "技能与记忆整理",
+        "description": "在已有写入保护范围内定期整理经验。"
+      },
+      "fixCommitFailure": {
+        "title": "提交失败修复",
+        "description": "启动 Agent 修复提交失败。"
+      },
+      "fixPushFailure": {
+        "title": "推送失败修复",
+        "description": "启动 Agent 修复推送失败。"
+      },
+      "fixChecks": {
+        "title": "CI 失败修复",
+        "description": "启动 Agent 修复失败的检查。"
+      },
+      "resolveConflicts": {
+        "title": "合并冲突处理",
+        "description": "启动 Agent 处理合并冲突。"
+      },
+      "resolveComments": {
+        "title": "评审意见处理",
+        "description": "启动 Agent 处理评审意见。"
+      }
+    },
+    "try": "试运行辅助任务",
+    "tryDescription": "使用当前编辑的配置和当前工作区，实际调用 Agent，可能产生模型用量。",
+    "task": "任务",
+    "prompt": "任务输入",
+    "image": "执行主机上的图片路径",
+    "running": "运行中…",
+    "run": "执行任务",
+    "cancel": "取消",
+    "needWorkspace": "请先打开工作区再执行任务。",
+    "noAgent": "请选择支持辅助任务的默认 Agent。",
+    "change": "更改",
+    "collapse": "收起",
+    "usedFallback": "已使用原任务模型回退",
+    "requestedModel": "请求的 Agent 与模型"
   }
 }

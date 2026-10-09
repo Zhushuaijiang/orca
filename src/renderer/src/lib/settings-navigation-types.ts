@@ -39,6 +39,7 @@ const SETTINGS_NAV_TARGETS = [
   'experimental',
   'plugins',
   'agents',
+  'auxiliary-models',
   'orchestration',
   'artifacts',
   'session-history',

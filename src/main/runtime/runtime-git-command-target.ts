@@ -36,6 +36,7 @@ export type RuntimeGitTarget = {
 }
 
 export type RuntimeGitCommandHost = {
+  resolveRuntimeAuxiliaryTarget?(selector: string): Promise<RuntimeGitTarget>
   resolveRuntimeGitTarget(selector: string): Promise<RuntimeGitTarget>
   getRuntimeSettings(): GlobalSettings
   getCommitMessageAgentEnvironment?(): CommitMessageAgentEnvironmentResolvers | undefined

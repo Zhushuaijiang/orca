@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizeAuxiliaryModelSettings } from '../auxiliary-model-settings'
 import { isTaskProvider } from '../task-providers'
 import type { TaskProvider } from '../task-providers'
 import { isTuiAgent } from '../tui-agent-config'
@@ -82,6 +83,7 @@ export const GitHubProjectSettings = z
 
 export const SettingsUpdate = z
   .object({
+    auxiliaryModels: z.unknown().transform(normalizeAuxiliaryModelSettings).optional(),
     machineName: z.string().trim().max(MACHINE_NAME_MAX_LENGTH).optional(),
     worktreeVisibilityDefaults: WorktreeVisibilityDefaultsUpdate.optional(),
     defaultTuiAgent: z

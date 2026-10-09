@@ -6057,7 +6057,9 @@
           "sleepWithDescendants": "Sleep with Descendants ({{value0}})",
           "sleepWithDescendantsDescription": "Close active panels in this workspace and every nested descendant to free up memory and CPU.",
           "deleteWithDescendants": "Delete with Descendants…",
-          "copyWorktreeName": "Copy Worktree Name"
+          "copyWorktreeName": "Copy Worktree Name",
+          "agentSessionRestored": "{{value0}} session restored",
+          "sessionRestoreFailed": "Could not restore the agent session."
         },
         "WorktreeList": {
           "7a8b9c0d1e": "Update required",
@@ -10945,7 +10947,13 @@
             "apiKey": "api key",
             "skill": "skill",
             "connect": "connect",
-            "765f0c544d": "Choose which task providers appear in the Tasks page and sidebar shortcuts."
+            "765f0c544d": "Choose which task providers appear in the Tasks page and sidebar shortcuts.",
+            "yunxiao": "yunxiao",
+            "codeMerge": "code merge",
+            "releaseMerge": "release merge",
+            "hisMerge": "his merge",
+            "dfhis": "dfhis",
+            "aliyun": "aliyun"
           }
         },
         "terminal": {
@@ -12940,6 +12948,49 @@
           "offCount": "{{count}} off",
           "machines": "Machines",
           "machinesDescription": "Choose which machines can show notifications on this computer. A paired server’s switch also covers work reached through it."
+        },
+        "DfHisAiConfigDialog": {
+          "button": "AI model settings",
+          "title": "AI model settings",
+          "description": "Model aliases and API keys for relay exec, vision, and DFHIS skill pack distribution.",
+          "relayModel": "Relay exec model (kimi alias)",
+          "relayApiKey": "Relay exec model API key (optional)",
+          "relayKeyKeepHint": "•••••• (leave empty to keep current)",
+          "visionApiKey": "Vision API key (optional)",
+          "visionKeyKeepHint": "•••••• (leave empty to keep current)",
+          "skillPackUrl": "DFHIS skill pack URL",
+          "cancel": "Cancel",
+          "save": "Save"
+        },
+        "DfHisPathsConfigDialog": {
+          "button": "Path settings",
+          "title": "Path settings",
+          "description": "Local workspace paths for HIS code, workflow catalog, and Yunxiao archive output.",
+          "codeRoot": "Default code root",
+          "ygtWorkspaceRoot": "YGT workspace root",
+          "factCards": "HIS fact cards",
+          "projectIndexManifest": "Multi-project index manifest",
+          "projectCodeGraph": "Multi-project code graph",
+          "projectKnowledgeIndex": "Multi-project knowledge index",
+          "factIndex": "HIS fact index",
+          "workflowCatalog": "HIS workflow service catalog",
+          "archiveWorkspace": "Yunxiao archive workspace",
+          "cancel": "Cancel",
+          "save": "Save"
+        },
+        "DfHisSmtpConfigDialog": {
+          "button": "SMTP email settings",
+          "title": "SMTP email settings",
+          "description": "Used by the requirement quality audit skill to send notification emails. Saved to the same dfhis-environment.json.",
+          "host": "SMTP host",
+          "port": "Port",
+          "user": "SMTP user (from email)",
+          "password": "SMTP password",
+          "passwordKeepHint": "•••••• (leave empty to keep current)",
+          "fromName": "From name",
+          "cc": "CC recipients (comma-separated)",
+          "cancel": "Cancel",
+          "save": "Save"
         }
       },
       "right": {
@@ -20326,5 +20377,39 @@
     "unavailable": "Unable to play this media file. The file may be unavailable or use an unsupported codec.",
     "openFailed": "Could not open this file in the default app.",
     "openDefault": "Open in Default App"
+  },
+  "auxiliary": {
+    "agent": "Agent",
+    "inherit": "Use default",
+    "model": "Model",
+    "customModel": "Exact model ID (optional)",
+    "thinking": "Reasoning effort",
+    "fallback": "Retry with the original task model if generation fails",
+    "saving": "Saving…",
+    "save": "Save",
+    "discard": "Discard changes",
+    "resetAll": "Reset all tasks",
+    "explanation": "Assign an agent and model to each task. Repository overrides take priority. Model selections apply to the current execution host.",
+    "profile": "Apply when the primary agent is",
+    "all": "All agents",
+    "host": "Execution host",
+    "default": "Default auxiliary model",
+    "reset": "Reset",
+    "collapse": "Collapse",
+    "change": "Change",
+    "noAgent": "Choose a supported default agent.",
+    "try": "Try an auxiliary task",
+    "tryDescription": "Uses the current configuration and the active workspace. This calls your agent and may consume provider credits.",
+    "task": "Task",
+    "prompt": "Task input",
+    "image": "Image path on the execution host",
+    "running": "Running…",
+    "run": "Run task",
+    "cancel": "Cancel",
+    "needWorkspace": "Open a workspace to run a task.",
+    "title": "Auxiliary models",
+    "description": "Choose an agent and model for each task.",
+    "usedFallback": "Used the original task model",
+    "requestedModel": "Requested agent and model"
   }
 }

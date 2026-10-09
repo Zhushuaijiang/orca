@@ -1,3 +1,5 @@
+import { commandBackslashMode, executeGenerationPlan } from './source-control-generation-executor'
+export { commandBackslashMode, executeGenerationPlan } from './source-control-generation-executor'
 import {
   buildCommitMessagePrompt,
   splitGeneratedCommitMessage,
@@ -16,93 +18,26 @@ import {
 } from '../../shared/branch-name-from-work'
 import {
   cleanGeneratedCommitMessage,
-  stripPrefilledReasoningPreamble,
-  type CommandTemplateBackslash
+  stripPrefilledReasoningPreamble
 } from '../../shared/commit-message-prompt'
 import { isCustomAgentId } from '../../shared/commit-message-agent-spec'
-import {
-  planCommitMessageGeneration,
-  type CommitMessagePlan
-} from '../../shared/commit-message-plan'
+import { planCommitMessageGeneration } from '../../shared/commit-message-plan'
 import type { ResolvedSourceControlAiGenerationParams } from '../../shared/source-control-ai'
 import { formatLinkedIssueTemplateValue } from '../../shared/source-control-ai-action-variables'
 import { renderSourceControlActionCommandTemplate } from '../../shared/source-control-ai-actions'
 import { captureAgentGenerationFailureOutput } from './agent-failure-output'
-import { openCodeVariantRetryPlan } from '../../shared/opencode-generation-command'
-import { runLocalPlanForAgent } from './source-control-local-generation'
-import { runRemoteSourceControlPlan } from './source-control-remote-generation'
 import type {
   CommitMessageGenerationTarget,
   GenerateBranchNameResult,
   GenerateCommitMessageResult,
   GeneratePullRequestFieldsResult,
-  InternalTextGenerationResult,
-  SpawnSourceControlAgent,
-  TextGenerationOperation
+  SpawnSourceControlAgent
 } from './source-control-text-generation-types'
 
 type GenerateParams = ResolvedSourceControlAiGenerationParams
 
 export function trimGeneratedCommitMessage(message: string): string {
   return message.replace(/\s+$/, '')
-}
-
-export function commandBackslashMode(
-  target: CommitMessageGenerationTarget,
-  platform: NodeJS.Platform = process.platform
-): CommandTemplateBackslash {
-  return platform === 'win32' && target.kind === 'local' && !target.wslDistro ? 'literal' : 'escape'
-}
-
-export async function executeGenerationPlan(input: {
-  params: GenerateParams
-  plan: CommitMessagePlan
-  target: CommitMessageGenerationTarget
-  emptyResultName: string
-  operation: TextGenerationOperation
-  spawnAgent: SpawnSourceControlAgent
-}): Promise<InternalTextGenerationResult> {
-  const execute = (plan: CommitMessagePlan): Promise<InternalTextGenerationResult> =>
-    input.target.kind === 'remote'
-      ? runRemoteSourceControlPlan({
-          plan,
-          target: input.target,
-          emptyResultName: input.emptyResultName,
-          operation: input.operation
-        })
-      : runLocalPlanForAgent({
-          agentId: input.params.agentId,
-          plan,
-          target: input.target,
-          emptyResultName: input.emptyResultName,
-          operation: input.operation,
-          spawnAgent: input.spawnAgent
-        })
-  let result = await execute(input.plan)
-  if (!result.success && input.params.agentId === 'opencode') {
-    const retry = openCodeVariantRetryPlan(input.plan, result.failureOutput?.stderr ?? '')
-    if (retry) {
-      result = await execute(retry)
-    }
-  }
-  // Why: only a custom command runs a raw model whose chat template can swallow
-  // the opening think tag; a built-in agent's message may just mention the tag.
-  // PR fields are JSON, so they strip only when parsing fails instead.
-  if (
-    !result.success ||
-    !isCustomAgentId(input.params.agentId) ||
-    input.operation === 'pull-request-fields'
-  ) {
-    return result
-  }
-  const answer = stripPrefilledReasoningPreamble(result.rawOutput)
-  if (answer === result.rawOutput) {
-    return result
-  }
-  const rawOutput = cleanGeneratedCommitMessage(answer)
-  return rawOutput
-    ? { ...result, rawOutput }
-    : { success: false, error: `${input.plan.label} returned an empty ${input.emptyResultName}.` }
 }
 
 export async function generateCommitMessage(input: {
@@ -133,6 +68,7 @@ export async function generateCommitMessage(input: {
   const result = await executeGenerationPlan({
     ...input,
     plan: planned.plan,
+    prompt,
     emptyResultName: 'message',
     operation: 'commit-message'
   })
@@ -186,6 +122,7 @@ export async function generatePullRequestFields(input: {
   const result = await executeGenerationPlan({
     ...input,
     plan: planned.plan,
+    prompt,
     emptyResultName: 'details',
     operation: 'pull-request-fields'
   })
@@ -257,6 +194,7 @@ export async function generateBranchName(input: {
   const result = await executeGenerationPlan({
     ...input,
     plan: planned.plan,
+    prompt,
     emptyResultName: 'branch name',
     operation: 'branch-name'
   })

@@ -26,5 +26,11 @@ export async function resolveGenerationTarget(
   if (!localEnv.ok) {
     return null
   }
-  return { kind: 'local', cwd: worktreePath, ...(localEnv.env ? { env: localEnv.env } : {}) }
+  return {
+    kind: 'local',
+    cwd: worktreePath,
+    ...(localEnv.env ? { env: localEnv.env } : {}),
+    prepareAgentEnv: (selectedAgent) =>
+      prepareLocalCommitMessageAgentEnv(selectedAgent, deps.getAgentEnvResolvers())
+  }
 }

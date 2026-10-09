@@ -1,8 +1,12 @@
+import { useActiveProjectSkillRuntime } from '@/hooks/useActiveProjectSkillRuntime'
 import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { getRuntimeGitScope } from '@/runtime/runtime-git-client'
-import { getCommitMessageModelDiscoveryHostKeyForScope } from '../../../../../../shared/commit-message-host-key'
+import {
+  getCommitMessageModelDiscoveryHostKeyForScope,
+  getCommitMessageModelDiscoveryHostKeyForLocalRuntime
+} from '../../../../../../shared/commit-message-host-key'
 import {
   DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS,
   resolveSourceControlActionRecipe,
@@ -29,11 +33,13 @@ import { translate } from '@/i18n/i18n'
 
 export function getSourceControlAiControllerDiscoveryHostKey(
   settings: SourceControlAiControllerParams['settings'],
-  activeConnectionId: string | null | undefined
+  activeConnectionId: string | null | undefined,
+  wslDistro?: string | null
 ): string {
-  return getCommitMessageModelDiscoveryHostKeyForScope(
-    getRuntimeGitScope(settings, activeConnectionId)
-  )
+  const scope = getRuntimeGitScope(settings, activeConnectionId)
+  return !scope && wslDistro
+    ? getCommitMessageModelDiscoveryHostKeyForLocalRuntime(wslDistro)
+    : getCommitMessageModelDiscoveryHostKeyForScope(scope)
 }
 
 export function useSourceControlAi({
@@ -60,9 +66,11 @@ export function useSourceControlAi({
   const [commitGenerationDialogOpen, setCommitGenerationDialogOpen] = useState(false)
   const [pullRequestGenerationDialogOpen, setPullRequestGenerationDialogOpen] = useState(false)
 
+  const { agentRuntime } = useActiveProjectSkillRuntime()
+  const wslDistro = agentRuntime?.runtime === 'wsl' ? agentRuntime.wslDistro : undefined
   const sourceControlAiDiscoveryHostKey = useMemo(
-    () => getSourceControlAiControllerDiscoveryHostKey(settings, activeConnectionId),
-    [activeConnectionId, settings]
+    () => getSourceControlAiControllerDiscoveryHostKey(settings, activeConnectionId, wslDistro),
+    [activeConnectionId, settings, wslDistro]
   )
   const sourceControlAiActionsVisible = useMemo(
     () => (settings ? resolveSourceControlAiEnabled({ settings, repo: activeRepo }) : false),
@@ -105,9 +113,10 @@ export function useSourceControlAi({
       resolveSourceControlActionRecipe({
         settings,
         repo: activeRepo,
-        actionId
+        actionId,
+        discoveryHostKey: sourceControlAiDiscoveryHostKey
       }),
-    [activeRepo, settings]
+    [activeRepo, settings, sourceControlAiDiscoveryHostKey]
   )
   const saveActionRecipeForTarget = useCallback(
     async (

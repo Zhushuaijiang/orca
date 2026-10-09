@@ -5,6 +5,7 @@ import type {
   CommitMessageModelCapability
 } from '../../shared/commit-message-agent-spec'
 import type { CommitMessagePlan } from '../../shared/commit-message-plan'
+import type { AuxiliaryTaskId } from '../../shared/auxiliary-model-types'
 
 export type GenerateCommitMessageResult =
   | { success: true; message: string; agentLabel?: string }
@@ -39,13 +40,22 @@ export type RemoteCommitMessageExecResult = {
 }
 
 export type TextGenerationOperation =
+  | `auxiliary:${AuxiliaryTaskId}`
   | 'commit-message'
   | 'pull-request-fields'
   | 'branch-name'
   | 'conversation-name'
 
 export type CommitMessageGenerationTarget =
-  | { kind: 'local'; cwd: string; env?: NodeJS.ProcessEnv; wslDistro?: string }
+  | {
+      kind: 'local'
+      cwd: string
+      env?: NodeJS.ProcessEnv
+      wslDistro?: string
+      prepareAgentEnv?: (
+        agentId: string
+      ) => Promise<{ ok: true; env?: NodeJS.ProcessEnv } | { ok: false; error: string }>
+    }
   | {
       kind: 'remote'
       cwd: string

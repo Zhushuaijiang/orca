@@ -68,13 +68,15 @@ export function resolveCommitMessageSettings(
   settings: GlobalSettings,
   discoveryHostKey = LOCAL_COMMIT_MESSAGE_HOST_KEY,
   operation: AiTextOperation = 'commitMessage',
-  repo?: Pick<Repo, 'sourceControlAi'> | null
+  repo?: Pick<Repo, 'sourceControlAi'> | null,
+  primaryAgent?: TuiAgent | null
 ): ResolveCommitMessageSettingsResult {
   const resolved = resolveSourceControlAiForOperation({
     settings,
     repo,
     operation,
-    discoveryHostKey
+    discoveryHostKey,
+    primaryAgent
   })
   return resolved.ok ? { ok: true, params: resolved.value.params } : resolved
 }
@@ -83,9 +85,10 @@ export function resolveTextGenerationParams(
   settings: GlobalSettings,
   discoveryHostKey = LOCAL_COMMIT_MESSAGE_HOST_KEY,
   operation: AiTextOperation = 'commitMessage',
-  repo?: Pick<Repo, 'sourceControlAi'> | null
+  repo?: Pick<Repo, 'sourceControlAi'> | null,
+  primaryAgent?: TuiAgent | null
 ): ResolveCommitMessageSettingsResult {
-  return resolveCommitMessageSettings(settings, discoveryHostKey, operation, repo)
+  return resolveCommitMessageSettings(settings, discoveryHostKey, operation, repo, primaryAgent)
 }
 
 export function commandBackslashMode(
