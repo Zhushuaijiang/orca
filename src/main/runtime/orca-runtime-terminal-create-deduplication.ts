@@ -173,7 +173,7 @@ export class OrcaRuntimeWithTerminalCreateDeduplication extends OrcaRuntimeWithC
       throw new Error('Repository for the selected workspace is no longer available.')
     }
     const startup = this.buildStartupForAgent(repo, opts.agent, opts.prompt, opts.launchPreferences)
-    return await this.createTerminal(`id:${worktree.id}`, {
+    const terminal = await this.createTerminal(`id:${worktree.id}`, {
       command: startup.startup.command,
       env: startup.startup.env,
       ...(startup.startup.launchConfig ? { launchConfig: startup.startup.launchConfig } : {}),
@@ -182,6 +182,15 @@ export class OrcaRuntimeWithTerminalCreateDeduplication extends OrcaRuntimeWithC
       telemetry: startup.startup.telemetry,
       title: opts.title
     })
+    // Why: an agent whose prompt cannot ride the launch line (`stdin-after-start`, e.g. Kimi) gets
+    // it back as `startup.followup` instead. The worktree-create paths paste that follow-up once
+    // the agent is ready, but an automation on an existing workspace never did — its launch prompt
+    // was dropped, so the agent sat idle at its composer and the run hung until it was reported as
+    // stranded. Deliver it the same way those paths do.
+    if (startup.followup) {
+      this.sendStartupFollowupWhenReady(terminal.handle, startup.followup)
+    }
+    return terminal
   }
 
   // Why: dedupes a worktree.create whose response was lost when a mobile

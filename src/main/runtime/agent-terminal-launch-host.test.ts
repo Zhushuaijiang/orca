@@ -96,4 +96,32 @@ describe('launchAgentTerminal execution host', () => {
       })
     ).rejects.toThrow('worktree_execution_host_unresolved')
   })
+
+  // Why: a `stdin-after-start` agent (Kimi) cannot take its prompt on the launch line, so the
+  // startup plan returns it as `followup`. An automation on an existing workspace launched the
+  // terminal without ever sending that follow-up, leaving the agent idle at its composer.
+  it('sends the follow-up prompt when the launch line cannot carry it', async () => {
+    const { runtime, buildStartup } = makeRuntime(
+      [{ id: 'repo-shared', path: '/home/me/app' }],
+      'local'
+    )
+    buildStartup.mockReturnValue({
+      agent: 'kimi',
+      startup: { command: 'kimi', env: {}, startupCommandDelivery: 'none', telemetry: {} },
+      followup: { expectedProcess: 'kimi', prompt: 'go' }
+    })
+    const internals = runtime as unknown as {
+      createTerminal: (selector: string, opts: unknown) => Promise<unknown>
+      sendStartupFollowupWhenReady: (handle: string, followup: unknown) => void
+    }
+    vi.spyOn(internals, 'createTerminal').mockResolvedValue({ handle: 'pty-1' })
+    const send = vi.spyOn(internals, 'sendStartupFollowupWhenReady').mockImplementation(() => {})
+
+    await runtime.launchAgentTerminal('id:repo-shared::/srv/app-feature', {
+      agent: 'kimi',
+      prompt: 'go'
+    })
+
+    expect(send).toHaveBeenCalledWith('pty-1', { expectedProcess: 'kimi', prompt: 'go' })
+  })
 })
