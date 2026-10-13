@@ -28,7 +28,8 @@ export const AUXILIARY_GENERATION_METHODS = [
         params.worktree,
         params.prompt,
         params.primaryAgent,
-        params.depth
+        params.depth,
+        params.images
       )
   }),
   defineMethod({

@@ -8,6 +8,7 @@ import { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
 import { RuntimeAutomaticTaskRouting } from './runtime-automatic-task-routing'
 import { AutomaticRoutingHistory } from './automatic-routing-history'
 import { getCommitMessageAgentSpec } from '../../shared/commit-message-agent-spec'
+import type { AuxiliaryTaskRoutes } from '../../shared/auxiliary-model-types'
 
 const fastModel = getCommitMessageAgentSpec('kimi')?.defaultModelId ?? 'kimi-code/kimi-for-coding'
 function generated(rawOutput: string) {
@@ -25,7 +26,7 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-async function fixture() {
+async function fixture(tasks?: AuxiliaryTaskRoutes) {
   const directory = await mkdtemp(join(tmpdir(), 'orca-auto-routing-'))
   directories.push(directory)
   const settings = createGlobalSettingsFixture({
@@ -33,6 +34,7 @@ async function fixture() {
     disabledTuiAgents: [],
     auxiliaryModels: {
       defaults: { agentId: 'kimi' },
+      ...(tasks ? { tasks } : {}),
       automatic: {
         enabled: true,
         tiers: {
@@ -99,6 +101,39 @@ describe('automatic runtime routing', () => {
     expect(await readFile(join(f.directory, 'history.json'), 'utf8')).not.toContain(
       'secret-context'
     )
+  })
+  it('routes attached images to the configured vision route', async () => {
+    const f = await fixture({ vision: { agentId: 'claude', modelsByHost: { local: 'haiku' } } })
+    f.generate
+      .mockResolvedValueOnce(
+        generated(
+          JSON.stringify({
+            task: 'research',
+            difficulty: 'simple',
+            reason: 'Read the supplied screenshot.',
+            confidence: 0.9
+          })
+        )
+      )
+      .mockResolvedValueOnce(generated('A settings screen.'))
+    const result = await f.service.runRuntimeAuxiliaryAuto(
+      'folder',
+      'Read this screenshot',
+      'hermes',
+      0,
+      ['/tmp/screen.png']
+    )
+    expect(result.routing.route).toMatchObject({
+      action: 'generate',
+      agentId: 'claude',
+      modelId: 'haiku'
+    })
+    // The classifier learns images exist, but the classification request itself carries none.
+    expect(String(f.generate.mock.calls[0]?.[2])).toContain('image file(s) are attached')
+    expect(f.generate.mock.calls[0]?.[3]).toEqual([])
+    expect(f.generate.mock.calls[1]?.[1]).toBe('vision')
+    expect(f.generate.mock.calls[1]?.[3]).toEqual(['/tmp/screen.png'])
+    expect(f.generate.mock.calls[1]?.[4]).toMatchObject({ agentId: 'claude', model: 'haiku' })
   })
   it('does not turn code changes into an unrestricted text generation', async () => {
     const f = await fixture()

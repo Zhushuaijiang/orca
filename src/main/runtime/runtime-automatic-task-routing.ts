@@ -32,7 +32,8 @@ export class RuntimeAutomaticTaskRouting {
     worktree: string,
     prompt: string,
     primaryAgent?: TuiAgent,
-    depth = 0
+    depth = 0,
+    images: readonly string[] = []
   ): Promise<AutomaticRoutingResult> {
     const settings = this.host.getRuntimeSettings()
     if (
@@ -52,7 +53,7 @@ export class RuntimeAutomaticTaskRouting {
       const classification = await this.generation.generateRuntimeAuxiliaryTask(
         worktree,
         'classification',
-        buildTaskClassificationPrompt(prompt),
+        buildTaskClassificationPrompt(prompt, images.length),
         [],
         undefined,
         primary
@@ -65,7 +66,8 @@ export class RuntimeAutomaticTaskRouting {
         this.host.getRuntimeSettings(),
         decision,
         primary,
-        modelDiscoveryHostKeyForTarget(target, runtimeGitRouteForTarget(target))
+        modelDiscoveryHostKeyForTarget(target, runtimeGitRouteForTarget(target)),
+        images.length
       )
       await this.history.append({
         id,
@@ -111,7 +113,13 @@ export class RuntimeAutomaticTaskRouting {
     depth = 0,
     images: readonly string[] = []
   ): Promise<AutomaticTaskExecutionResult> {
-    const routing = await this.routeRuntimeAuxiliaryTask(worktree, prompt, primaryAgent, depth)
+    const routing = await this.routeRuntimeAuxiliaryTask(
+      worktree,
+      prompt,
+      primaryAgent,
+      depth,
+      images
+    )
     const selected = routing.route
     if (selected?.action !== 'generate' || !selected.agentId) {
       return { routing }

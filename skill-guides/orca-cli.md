@@ -280,4 +280,6 @@ Text tasks include `vision`, `compression`, `skills`, `approval`, `mcp`, `review
 
 Use `--primary-agent codex` to select that source agent's profile when it differs from the default. JSON results report the requested agent, model and whether the original task model was used as a fallback.
 
+Automatic routing carries images the same way: `ORCA auxiliary auto --prompt-file request.txt --image <path> --json` routes an image request to the `vision` task, so it uses the vision route's configured agent and model and its difficulty tier is not applied. Each image path must name a file on the execution host.
+
 The workspace owner executes the request. An unavailable SSH host never falls back to this machine. Permission analysis and MCP tool recommendations return advice; they do not authorize or execute actions. Agent-internal compaction and subagent policies stay owned by the agent CLI.

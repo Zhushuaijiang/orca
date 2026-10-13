@@ -159,4 +159,135 @@ describe('automatic task routing policy', () => {
       }
     })
   })
+  it('tells the classifier when images are attached', () => {
+    expect(buildTaskClassificationPrompt('Read this')).not.toContain('image file(s)')
+    expect(buildTaskClassificationPrompt('Read this', 2)).toContain('2 image file(s) are attached')
+    expect(buildTaskClassificationPrompt('Read this', 2)).toContain(
+      'vision is the only task that accepts images'
+    )
+  })
+  it('gives an attached image the vision route instead of the difficulty tier', () => {
+    const settings = visionSettings()
+    const imageRequest = { ...decision, task: 'research' as const, confidence: 0.2 }
+    expect(resolveAutomaticTaskRoute(settings, imageRequest, 'hermes', 'local', 1)).toMatchObject({
+      action: 'generate',
+      agentId: 'claude',
+      modelId: 'haiku',
+      decision: { task: 'vision' }
+    })
+    expect(
+      resolveAutomaticTaskRoute(
+        settings,
+        { ...imageRequest, difficulty: 'complex' },
+        'hermes',
+        'local',
+        1
+      )
+    ).toMatchObject({ action: 'generate', agentId: 'claude', modelId: 'haiku' })
+    expect(
+      resolveAutomaticTaskRoute(
+        settings,
+        { ...imageRequest, keepPrimary: true },
+        'hermes',
+        'local',
+        1
+      ).action
+    ).toBe('keep-primary')
+  })
+  it('keeps a vision classification without images under the normal protections', () => {
+    const settings = visionSettings()
+    const withoutImages = { ...decision, task: 'vision' as const, difficulty: 'complex' as const }
+    expect(
+      resolveAutomaticTaskRoute(settings, { ...withoutImages, confidence: 0.2 }, 'hermes', 'local')
+        .action
+    ).toBe('keep-primary')
+    const keepComplex = createGlobalSettingsFixture({
+      auxiliaryModels: {
+        defaults: { agentId: 'kimi' },
+        tasks: { vision: { agentId: 'claude', modelsByHost: { local: 'haiku' } } },
+        automatic: { enabled: true, keepComplexInPrimary: true }
+      }
+    })
+    expect(
+      resolveAutomaticTaskRoute(
+        keepComplex,
+        { ...withoutImages, confidence: 0.9 },
+        'hermes',
+        'local'
+      ).action
+    ).toBe('keep-primary')
+    // A non-complex vision classification without images keeps its pre-existing tier behaviour.
+    expect(
+      resolveAutomaticTaskRoute(
+        settings,
+        { ...withoutImages, difficulty: 'simple', confidence: 0.9 },
+        'hermes',
+        'local'
+      )
+    ).toMatchObject({ action: 'generate', agentId: 'kimi', modelId: 'fast' })
+    // With no difficulty tier configured, the vision route itself answers.
+    expect(
+      resolveAutomaticTaskRoute(
+        keepComplex,
+        { ...withoutImages, difficulty: 'simple', confidence: 0.9 },
+        'hermes',
+        'local'
+      )
+    ).toMatchObject({ action: 'generate', agentId: 'claude', modelId: 'haiku' })
+  })
+  it('selects the vision route by primary agent and execution host', () => {
+    const settings = createGlobalSettingsFixture({
+      auxiliaryModels: {
+        byPrimaryAgent: {
+          hermes: {
+            vision: {
+              agentId: 'claude',
+              modelsByHost: { local: 'haiku', 'ssh:one': 'remote-haiku' }
+            }
+          }
+        },
+        automatic: { enabled: true }
+      }
+    })
+    const imageRequest = { ...decision, task: 'research' as const, confidence: 0.9 }
+    expect(resolveAutomaticTaskRoute(settings, imageRequest, 'hermes', 'local', 1)).toMatchObject({
+      action: 'generate',
+      agentId: 'claude',
+      modelId: 'haiku'
+    })
+    expect(resolveAutomaticTaskRoute(settings, imageRequest, 'hermes', 'ssh:one', 1).modelId).toBe(
+      'remote-haiku'
+    )
+    expect(resolveAutomaticTaskRoute(settings, imageRequest, 'codex', 'local', 1).action).toBe(
+      'keep-primary'
+    )
+  })
+  it('keeps an image request in the primary agent when the vision route cannot read images', () => {
+    const settings = createGlobalSettingsFixture({
+      auxiliaryModels: {
+        tasks: { vision: { agentId: 'kimi', modelsByHost: { local: 'fast' } } },
+        automatic: { enabled: true }
+      }
+    })
+    const route = resolveAutomaticTaskRoute(settings, decision, 'hermes', 'local', 1)
+    expect(route.action).toBe('keep-primary')
+    expect(route.reason).toContain('cannot analyze images')
+    expect(route.decision.task).toBe('vision')
+  })
 })
+
+function visionSettings() {
+  return createGlobalSettingsFixture({
+    auxiliaryModels: {
+      defaults: { agentId: 'kimi' },
+      tasks: { vision: { agentId: 'claude', modelsByHost: { local: 'haiku' } } },
+      automatic: {
+        enabled: true,
+        tiers: {
+          simple: { agentId: 'kimi', modelsByHost: { local: 'fast' } },
+          complex: { agentId: 'codex', modelsByHost: { local: 'strong' } }
+        }
+      }
+    }
+  })
+}

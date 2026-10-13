@@ -39,6 +39,11 @@ Resolve ORCA through the `orca-cli` discovery rules. Every coding agent uses the
 protocol. Routing must be enabled in Orca's Auxiliary models settings. Live dispatched
 workers and `ORCA_AUXILIARY_REQUEST=1` helpers must not route or delegate again.
 
+When the request includes images the user supplied as files, pass each one as
+`--image <path>`, using the path on the execution host. Images are analyzed only by the
+`vision` task, so the request routes to the vision route's configured agent and model
+instead of the primary model.
+
 Prefer `--json`. Use the selected executable's `--help` for commands or flags the guide does
 not cover. If a command reports that Orca is not running, start it with `ORCA open --json`
 and retry. If it fails with `runtime_access_denied`, your sandbox blocked the connection:

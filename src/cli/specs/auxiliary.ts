@@ -23,6 +23,7 @@ export const AUXILIARY_COMMAND_SPECS: CommandSpec[] = [
     identityFlagRoles: { from: 'caller' as const },
     notes: [
       'Routing must be enabled in Auxiliary models. Uncertain classifications remain with the primary agent.',
+      'Pass --image <path> for each supplied image; images route to the vision task and its configured agent and model.',
       'Auto starts supervised workers for file-changing tasks; inspect and settle the returned Dispatch before retrying.'
     ]
   })),

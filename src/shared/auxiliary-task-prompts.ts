@@ -1,4 +1,5 @@
 import { AUXILIARY_TASKS, type AuxiliaryTaskId } from './auxiliary-model-types'
+import { auxiliaryAgentSupportsImages } from './auxiliary-image-agents'
 import type { ResolvedSourceControlAiGenerationParams } from './source-control-ai'
 import { quotePosixShell } from './wsl-login-shell-command'
 
@@ -29,15 +30,11 @@ export function attachAuxiliaryImages(
   if (!images.length) {
     return params
   }
-  if (
-    params.agentId !== 'claude' &&
-    params.agentId !== 'codex' &&
-    params.agentId !== 'openclaude'
-  ) {
+  if (!auxiliaryAgentSupportsImages(params.agentId)) {
     throw new Error('Auxiliary image requests currently require Claude or Codex.')
   }
   const fallbackCandidates = params.fallbackCandidates
-    ?.filter((candidate) => ['claude', 'openclaude', 'codex'].includes(candidate.agentId))
+    ?.filter((candidate) => auxiliaryAgentSupportsImages(candidate.agentId))
     .map((candidate) =>
       attachAuxiliaryImages({ ...candidate, fallbackCandidates: undefined }, images)
     )

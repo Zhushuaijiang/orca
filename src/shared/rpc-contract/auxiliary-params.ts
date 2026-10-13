@@ -18,7 +18,8 @@ export const AuxiliaryCancel = AuxiliaryGenerate.pick({ worktree: true, task: tr
 export const AuxiliaryRoute = AuxiliaryGenerate.pick({
   worktree: true,
   prompt: true,
-  primaryAgent: true
+  primaryAgent: true,
+  images: true
 }).extend({ depth: z.number().int().min(0).max(16).optional() })
 export const AuxiliaryHistory = AuxiliaryGenerate.pick({ worktree: true })
-export const AuxiliaryAuto = AuxiliaryRoute.extend({ images: AuxiliaryGenerate.shape.images })
+export const AuxiliaryAuto = AuxiliaryRoute

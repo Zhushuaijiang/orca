@@ -39,6 +39,11 @@ for the execution host. Uncertain classifications, disabled routing, or an absen
 route retain the task in the primary agent. `auxiliary route` inspects a decision
 without executing the selected task. `auxiliary history --json` shows decisions.
 
+When the request includes images the user supplied as files, add `--image <path>` once
+per image, using the path on the execution host. Images are analyzed only by the `vision`
+task, so an image request routes there regardless of difficulty, using the vision route's
+configured agent and model.
+
 ## Consume the receipt
 
 - Disabled, `keep-primary`, or classification failure: continue yourself. Do not loop

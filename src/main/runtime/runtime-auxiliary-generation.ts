@@ -117,7 +117,17 @@ export class RuntimeAuxiliaryGeneration {
     if (!resolved.ok) {
       return { success: false as const, error: resolved.error }
     }
-    const params = attachAuxiliaryImages(override ?? resolved.params, images)
+    // Why: a vision route pinned to an image-incapable agent fails here, and callers read a
+    // failed result rather than a thrown error.
+    let params: ResolvedSourceControlAiGenerationParams
+    try {
+      params = attachAuxiliaryImages(override ?? resolved.params, images)
+    } catch (error) {
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
     const prompt = buildAuxiliaryTaskPrompt(task, inputPrompt, images)
     if (route.kind === 'ssh' && !route.provider) {
       return { success: false as const, error: 'ssh_git_provider_unavailable' }
