@@ -9,6 +9,7 @@ import { getRepoExecutionHostId, parseExecutionHostId } from '../../shared/execu
 import type { ProjectHostSetup } from '../../shared/project-types'
 import type { Repo } from '../../shared/repo-types'
 import { splitWorktreeIdForFilesystem } from '../../shared/worktree/id'
+import { parseWslUncPath } from '../../shared/wsl-paths'
 
 export type AutomationRunTargetResult =
   | { ok: true; cwd: string; repo: Repo; setup?: ProjectHostSetup }
@@ -33,6 +34,27 @@ const NO_RUNNABLE_HOST = 'This automation has no host to run on.'
 
 type AutomationRunTargetOptions = {
   allowRemoteHostScheduling?: boolean
+  localPlatform?: NodeJS.Platform
+}
+
+function validateAutomationAgentTarget(
+  automation: Automation,
+  target: Extract<AutomationRunTargetResult, { ok: true }>,
+  platform: NodeJS.Platform
+): AutomationRunTargetResult {
+  if (
+    automation.agentId === 'claude-agent-teams' &&
+    platform === 'win32' &&
+    getRepoExecutionHostId(target.repo) === 'local' &&
+    !parseWslUncPath(target.cwd)
+  ) {
+    return {
+      ok: false,
+      error:
+        'Claude Agent Teams native panes are not supported on Windows. Choose Claude for this automation, or run it on a supported host.'
+    }
+  }
+  return target
 }
 
 function getLegacyPrecheckCwd(store: Store, automation: Automation): string | null {
@@ -69,7 +91,11 @@ export function resolveAutomationRunTarget(
     if (!repo || !cwd) {
       return { ok: false, error: 'Automation run target is no longer available.' }
     }
-    return { ok: true, cwd, repo }
+    return validateAutomationAgentTarget(
+      automation,
+      { ok: true, cwd, repo },
+      options.localPlatform ?? process.platform
+    )
   }
   const parsedHost = parseExecutionHostId(context.hostId)
   if (
@@ -138,5 +164,9 @@ export function resolveAutomationRunTarget(
     }
   }
 
-  return { ok: true, cwd: setup.path, repo, setup }
+  return validateAutomationAgentTarget(
+    automation,
+    { ok: true, cwd: setup.path, repo, setup },
+    options.localPlatform ?? process.platform
+  )
 }
