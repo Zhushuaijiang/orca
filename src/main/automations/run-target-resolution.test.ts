@@ -135,52 +135,6 @@ describe('resolveAutomationRunTarget owner projection', () => {
   })
 })
 
-describe('automation agent execution platform', () => {
-  it.each([null, makeRunContext()])(
-    'refuses native Windows teams before dispatch for context %j',
-    (context) => {
-      const store = makeStore([makeSetup()], [makeRepo()])
-      const automation = makeAutomation(context, { agentId: 'claude-agent-teams' })
-      expect(
-        resolveAutomationRunTarget(store, automation, { localPlatform: 'win32' })
-      ).toMatchObject({
-        ok: false,
-        error: expect.stringContaining('Choose Claude')
-      })
-    }
-  )
-
-  it.each(['darwin', 'linux'] as const)('allows teams on %s', (platform) => {
-    const store = makeStore([makeSetup()], [makeRepo()])
-    const automation = makeAutomation(makeRunContext(), { agentId: 'claude-agent-teams' })
-    expect(resolveAutomationRunTarget(store, automation, { localPlatform: platform }).ok).toBe(true)
-  })
-
-  it('keeps ordinary Claude available on Windows', () => {
-    const store = makeStore([makeSetup()], [makeRepo()])
-    const automation = makeAutomation(makeRunContext(), { agentId: 'claude' })
-    expect(resolveAutomationRunTarget(store, automation, { localPlatform: 'win32' }).ok).toBe(true)
-  })
-
-  it('does not apply the client Windows platform to an SSH host', () => {
-    const store = makeStore(
-      [makeSetup({ hostId: 'ssh:server' })],
-      [makeRepo({ connectionId: 'server' })]
-    )
-    const automation = makeAutomation(makeRunContext({ hostId: 'ssh:server' }), {
-      agentId: 'claude-agent-teams'
-    })
-    expect(resolveAutomationRunTarget(store, automation, { localPlatform: 'win32' }).ok).toBe(true)
-  })
-
-  it('keeps a WSL folder workspace runnable from Windows', () => {
-    const path = '//wsl.localhost/Ubuntu/home/dev/project'
-    const store = makeStore([makeSetup({ path })], [makeRepo({ path, kind: 'folder' })])
-    const automation = makeAutomation(makeRunContext({ path }), { agentId: 'claude-agent-teams' })
-    expect(resolveAutomationRunTarget(store, automation, { localPlatform: 'win32' }).ok).toBe(true)
-  })
-})
-
 describe('resolveAutomationRunTarget projectId drift', () => {
   it('resolves when only the derived projectId tier differs (repo: snapshot vs github: setup)', () => {
     const store = makeStore([makeSetup()], [makeRepo()])

@@ -10,6 +10,7 @@ import { runHeadlessAutomationDispatch } from './headless-dispatch-runner'
 import type { AutomationRunTargetResult } from './run-target-resolution'
 import { createAutomationDispatchToken } from './dispatch-tokens'
 import { NO_DISPATCH_HOST, sendRendererDispatch } from './dispatch-refusal'
+import { resolveAutomationRunAgent } from './automation-run-agent'
 
 export type AutomationRendererChannel = Pick<WebContents, 'isDestroyed' | 'send'>
 
@@ -119,12 +120,18 @@ export async function requestAutomationDispatch(
   if (!target.ok) {
     return refuse(target.error)
   }
+  // Why here: the host that owns the schedule resolves the agent, so a remote-host
+  // scheduler downgrades against its own platform, not the client's.
+  const launchedAutomation: Automation = {
+    ...dispatchAutomation,
+    agentId: resolveAutomationRunAgent(dispatchAutomation.agentId, target)
+  }
   const renderer = ctx.getRenderer()
   if (renderer) {
     return sendRendererDispatch(
       renderer,
       {
-        automation: dispatchAutomation,
+        automation: launchedAutomation,
         run,
         dispatchToken: createAutomationDispatchToken(automation.id, run.id)
       },
@@ -138,7 +145,7 @@ export async function requestAutomationDispatch(
   }
   return runHeadlessAutomationDispatch({
     ...ctx,
-    automation: dispatchAutomation,
+    automation: launchedAutomation,
     run,
     target,
     dispatcher: (request) => {
