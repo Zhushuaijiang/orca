@@ -1,5 +1,9 @@
 import { launchAgentBackgroundSession } from '@/lib/launch-agent-background-session'
+import { toast } from 'sonner'
 import { useAppStore } from '@/store'
+import { createYunxiaoReviewHandoffReturn } from './yunxiao-review-handoff-return'
+import { resolveWorktreeAuxiliaryLaunch } from './worktree-auxiliary-launch'
+import type { SessionOptionValue } from '../../../shared/native-chat-session-options'
 import type {
   Automation,
   AutomationRun,
@@ -55,22 +59,61 @@ export async function maybeLaunchYunxiaoReviewHandoff(args: {
     )
   ]
   const outcomesSummary = summarizeYunxiaoReviewOutcomes(args.outputSnapshot?.content ?? null)
-
-  const result = await launchAgentBackgroundSession({
-    agent: reviewHandoff.agentId,
+  const reviewReturn = createYunxiaoReviewHandoffReturn({
     worktreeId: args.worktreeId,
-    prompt: buildYunxiaoReviewHandoffPrompt({
-      runTitle: args.run.title,
-      implementerAgentId: args.automation.agentId,
-      implementerSessionId: implementerStatus?.providerSession?.id ?? null,
-      workItemIds,
-      worktreePath: worktree?.path ?? null,
-      archiveDirs,
-      outcomesSummary
-    }),
-    launchSource: 'task_page',
-    title: buildYunxiaoReviewHandoffTitle(args.run.title)
+    runTitle: args.run.title,
+    implementerPaneKey: args.implementerPaneKey
   })
+  const route = await resolveWorktreeAuxiliaryLaunch({
+    worktreeId: args.worktreeId,
+    task: 'review',
+    primaryAgent: args.automation.agentId,
+    agentOverride: reviewHandoff.agentId
+  }).catch((error) => {
+    reviewReturn.dispose()
+    toast.error(`${args.run.title}：审核接力未启动，请检查执行主机版本和辅助模型配置。`)
+    throw error
+  })
+  const sessionOptions: Record<string, SessionOptionValue> = {
+    ...(route.modelId ? { model: route.modelId } : {}),
+    ...(route.thinkingLevel
+      ? {
+          effort: route.thinkingLevel,
+          thinking: route.thinkingLevel,
+          reasoningEffort: route.thinkingLevel
+        }
+      : {})
+  }
+  const startedAt = Date.now()
+  let result
+  try {
+    result = await launchAgentBackgroundSession({
+      agent: route.agentId,
+      ...(Object.keys(sessionOptions).length ? { sessionOptions } : {}),
+      worktreeId: args.worktreeId,
+      prompt: buildYunxiaoReviewHandoffPrompt({
+        runTitle: args.run.title,
+        implementerAgentId: args.automation.agentId,
+        implementerSessionId: implementerStatus?.providerSession?.id ?? null,
+        workItemIds,
+        worktreePath: worktree?.path ?? null,
+        archiveDirs,
+        outcomesSummary
+      }),
+      launchSource: 'task_page',
+      title: buildYunxiaoReviewHandoffTitle(args.run.title),
+      onAgentStatus: reviewReturn.onAgentStatus,
+      onExit: reviewReturn.onExit
+    })
+  } catch (error) {
+    reviewReturn.dispose()
+    throw error
+  }
+  if (result) {
+    reviewReturn.observe(result.paneKey, startedAt)
+  } else {
+    reviewReturn.dispose()
+  }
   result?.terminalOwnership?.release()
 }
 

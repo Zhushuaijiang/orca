@@ -15,6 +15,7 @@ export type {
 export class RuntimeGitCommands {
   readonly cancelRuntimeAuxiliaryTask: RuntimeAuxiliaryGeneration['cancelRuntimeAuxiliaryTask']
   readonly generateRuntimeAuxiliaryTask: RuntimeAuxiliaryGeneration['generateRuntimeAuxiliaryTask']
+  readonly resolveRuntimeAuxiliaryLaunch: RuntimeAuxiliaryGeneration['resolveRuntimeAuxiliaryLaunch']
   readonly routeRuntimeAuxiliaryTask: RuntimeAutomaticTaskRouting['routeRuntimeAuxiliaryTask']
   readonly listRuntimeAuxiliaryRoutes: RuntimeAutomaticTaskRouting['listRuntimeAuxiliaryRoutes']
   readonly runRuntimeAuxiliaryAuto: RuntimeAutomaticTaskRouting['runRuntimeAuxiliaryAuto']
@@ -65,6 +66,7 @@ export class RuntimeGitCommands {
     this.runRuntimeAuxiliaryAuto = routing.runRuntimeAuxiliaryAuto.bind(routing)
     this.cancelRuntimeAuxiliaryTask = auxiliary.cancelRuntimeAuxiliaryTask.bind(auxiliary)
     this.generateRuntimeAuxiliaryTask = auxiliary.generateRuntimeAuxiliaryTask.bind(auxiliary)
+    this.resolveRuntimeAuxiliaryLaunch = auxiliary.resolveRuntimeAuxiliaryLaunch.bind(auxiliary)
     const generation = new RuntimeGitGenerationCommands(host)
     const staging = new RuntimeGitStagingCommands(host)
 

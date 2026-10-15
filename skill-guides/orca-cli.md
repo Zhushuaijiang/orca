@@ -274,7 +274,24 @@ Use the task-specific agent and model configured in Settings → Auxiliary model
 ORCA auxiliary run decomposition --prompt "Plan the migration" --json
 ORCA auxiliary run review --prompt-file changes.txt --json
 ORCA auxiliary run vision --image /workspace/screen.png --prompt "Describe this screen" --json
+ORCA auxiliary discuss --prompt-file requirement-evidence.txt --primary-agent <original-agent> --worktree current --json
 ```
+
+`auxiliary discuss` runs independent research and architecture analysis, exchanges their
+findings through the review task, then uses decomposition to produce a plan and acceptance
+criteria. Every stage uses its own configured route and reports the actual agent/model and
+fallback. Supply compact requirement and current-code evidence, not only a title. Discussion
+never edits code; unresolved blockers and missing evidence produce a non-zero exit and a
+`needs_clarification` or `blocked` result. Preserve the result in the requirement archive and
+do not implement before `ready_to_build`. Business decisions still belong to the user.
+
+Explicit task commands honor task settings even when automatic classification is disabled.
+`auxiliary run implementation` and `auxiliary run testing` start supervised workers using
+their configured agent, host-specific model and effort. Load the orchestration skill, create
+or bind a Run, provide a self-contained task spec, and supervise the returned Dispatch to
+settlement. Run file-editing waves sequentially when ownership overlaps. These commands do
+not change the original coordinator's model or responsibility for fixes and delivery. Older
+hosts without `auxiliary.resolveLaunch` must be updated; never silently ignore model picks.
 
 Text tasks include `vision`, `compression`, `skills`, `approval`, `mcp`, `review`, `voice`, `classification`, `decomposition`, and `configDescription`. Supply context in `--prompt` or a local UTF-8 `--prompt-file`; images belong to the execution host and currently require Claude or Codex.
 

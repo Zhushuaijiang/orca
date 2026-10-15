@@ -183,5 +183,7 @@ describe('useAutomationDispatchEvents Yunxiao review handoff', () => {
         })
       })
     )
+    expect(mockReleaseTerminalOwnership).toHaveBeenCalledTimes(1)
+    expect(mockFinalizeTerminalOwnership).not.toHaveBeenCalled()
   })
 })

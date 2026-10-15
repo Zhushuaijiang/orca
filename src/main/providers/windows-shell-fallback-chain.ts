@@ -14,6 +14,7 @@ export type WindowsShellSpawnAttempt = {
   effectiveCwd: string
   validationCwd: string
   startupCommandDeliveredInShellArgs: boolean
+  startupCommandEnv?: string
 }
 
 function toAttempt(
@@ -35,7 +36,10 @@ function toAttempt(
     shellArgs: resolved.shellArgs,
     effectiveCwd: resolved.effectiveCwd,
     validationCwd: resolved.validationCwd,
-    startupCommandDeliveredInShellArgs: resolved.startupCommandDeliveredInShellArgs === true
+    startupCommandDeliveredInShellArgs: resolved.startupCommandDeliveredInShellArgs === true,
+    ...(resolved.startupCommandEnv !== undefined
+      ? { startupCommandEnv: resolved.startupCommandEnv }
+      : {})
   }
 }
 

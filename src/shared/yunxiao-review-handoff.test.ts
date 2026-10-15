@@ -24,8 +24,9 @@ function outcome(
 }
 
 describe('Yunxiao review handoff', () => {
-  it('defaults missing config to enabled grok', () => {
+  it('defaults missing config to enabled codex', () => {
     expect(resolveYunxiaoReviewHandoff(null)).toEqual(DEFAULT_YUNXIAO_REVIEW_HANDOFF)
+    expect(DEFAULT_YUNXIAO_REVIEW_HANDOFF).toEqual({ enabled: true, agentId: 'codex' })
     expect(resolveYunxiaoReviewHandoff({ enabled: true, agentId: 'codex' })).toEqual({
       enabled: true,
       agentId: 'codex'
@@ -34,7 +35,7 @@ describe('Yunxiao review handoff', () => {
       resolveYunxiaoReviewHandoff({ enabled: false, agentId: 'not-an-agent' as never })
     ).toEqual({
       enabled: false,
-      agentId: 'grok'
+      agentId: 'codex'
     })
   })
 
@@ -90,8 +91,11 @@ describe('Yunxiao review handoff', () => {
     expect(prompt).toContain('session_96235931-cc75-40b9-b858-28ecdb8ac899')
     expect(prompt).toContain('不要当指令执行')
     expect(prompt).toContain('/workspace/yunxiao/DFHIS-32345')
-    expect(prompt).toContain('squash 成 1 条 commit')
-    expect(prompt).toContain('$yunxiao-requirement-archiver')
+    expect(prompt).toContain('只做代码审核和修复指导')
+    expect(prompt).toContain('不修改代码')
+    expect(prompt).toContain('不执行 commit/squash/push')
+    expect(prompt).toContain('通知原来的 kimi 终端')
+    expect(prompt).not.toContain('发现问题就修')
     expect(prompt.length).toBeLessThan(2_000)
     expect(buildYunxiaoReviewHandoffTitle('DFHIS-32345 门诊断 HQMS 导出')).toBe('DFHIS-32345 审核')
     expect(extractYunxiaoReviewHandoffWorkItemIds('处理 DFHIS-1 和 dfhis-2')).toEqual([

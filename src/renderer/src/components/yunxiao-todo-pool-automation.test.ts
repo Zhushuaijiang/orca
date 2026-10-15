@@ -44,7 +44,7 @@ describe('Yunxiao todo pool automation', () => {
       reuseSession: false,
       yunxiaoTodoPool: {
         kind: 'yunxiao-todo-pool',
-        reviewHandoff: { enabled: true, agentId: 'grok' }
+        reviewHandoff: { enabled: true, agentId: 'codex' }
       }
     })
   })

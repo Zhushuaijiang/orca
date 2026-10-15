@@ -147,7 +147,12 @@ function mergeRoute(
     return base
   }
   if (override.agentId && override.agentId !== base?.agentId) {
-    return override
+    return {
+      ...(base?.fallbackToDefault !== undefined
+        ? { fallbackToDefault: base.fallbackToDefault }
+        : {}),
+      ...override
+    }
   }
   return {
     ...base,

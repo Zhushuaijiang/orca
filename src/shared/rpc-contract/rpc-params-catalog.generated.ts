@@ -72,7 +72,8 @@ import {
   AuxiliaryAuto,
   AuxiliaryCancel,
   AuxiliaryGenerate,
-  AuxiliaryHistory
+  AuxiliaryHistory,
+  AuxiliaryResolveLaunch
 } from './auxiliary-params'
 import { CertificateProceed } from './browser-core-params'
 import { MouseClick } from './browser-extras-params'
@@ -683,6 +684,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'auxiliary.cancel': AuxiliaryCancel,
   'auxiliary.generate': AuxiliaryGenerate,
   'auxiliary.history': AuxiliaryHistory,
+  'auxiliary.resolveLaunch': AuxiliaryResolveLaunch,
   'auxiliary.route': AuxiliaryAuto,
   'browser.back': BrowserTarget,
   'browser.capture.start': BrowserTarget,

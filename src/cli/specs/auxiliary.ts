@@ -1,6 +1,17 @@
 import { GLOBAL_FLAGS, type CommandSpec } from '../args'
 
 export const AUXILIARY_COMMAND_SPECS: CommandSpec[] = [
+  {
+    path: ['auxiliary', 'discuss'],
+    summary:
+      'Discuss requirement evidence with the configured research, architecture, review and decomposition models',
+    usage:
+      'orca auxiliary discuss --prompt-file <evidence> [--worktree <selector>] [--primary-agent <agent>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'prompt', 'prompt-file', 'worktree', 'primary-agent'],
+    notes: [
+      'Read-only discussion; a blocked or unclear decision returns a non-zero exit code. Each stage reports its actual agent and model.'
+    ]
+  },
   ...(['route', 'auto'] as const).map((action) => ({
     path: ['auxiliary', action],
     summary:
@@ -44,14 +55,19 @@ export const AUXILIARY_COMMAND_SPECS: CommandSpec[] = [
       'prompt-file',
       'worktree',
       'image',
-      'primary-agent'
+      'primary-agent',
+      'from',
+      'run',
+      'retry-request'
     ],
     positionalArgs: ['task'],
     repeatableFlags: ['image'],
+    identityFlagRoles: { from: 'caller' },
     notes: [
       'Use --prompt-file to read a UTF-8 prompt from a local file.',
       'The selected workspace host executes the task. Older hosts must be updated to support auxiliary.generate.',
-      'Git repair tasks and guarded skill maintenance use their existing workflows.'
+      'Git repair tasks and guarded skill maintenance use their existing workflows.',
+      'Implementation and testing start supervised workers using their task-specific model and effort. The caller must supervise settlement.'
     ],
     examples: [
       'orca auxiliary run decomposition --prompt "Plan the migration"',

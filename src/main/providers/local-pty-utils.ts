@@ -8,6 +8,7 @@ import {
   wrapShellSpawnForMacosTccAttribution
 } from './macos-tcc-login-shell'
 import { formatLocalPtyEnvironmentDiag } from './working-directory-validation'
+import { buildWindowsShellStartupEnvironment } from './windows-powershell-startup-command'
 
 export {
   formatLocalPtyEnvironmentDiag,
@@ -120,6 +121,7 @@ export type WindowsShellSpawnAttempt = {
   effectiveCwd: string
   validationCwd: string
   startupCommandDeliveredInShellArgs: boolean
+  startupCommandEnv?: string
 }
 
 export type ShellSpawnParams = {
@@ -190,7 +192,7 @@ function spawnWindowsFallbackChain(
         cols,
         rows,
         cwd: attempt.effectiveCwd,
-        env,
+        env: buildWindowsShellStartupEnvironment(env, attempt.startupCommandEnv),
         ...windowsConptyDllOptions()
       })
       console.warn(
@@ -240,7 +242,13 @@ export function spawnShellWithFallback(params: ShellSpawnParams): ShellSpawnResu
           cols,
           rows,
           cwd,
-          env,
+          env:
+            process.platform === 'win32'
+              ? buildWindowsShellStartupEnvironment(
+                  env,
+                  params.windowsFallbackAttempts?.[0]?.startupCommandEnv
+                )
+              : env,
           ...windowsConptyDllOptions()
         }),
         shellPath,

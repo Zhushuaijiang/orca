@@ -15,6 +15,12 @@ export const AuxiliaryGenerate = z.object({
 
 export const AuxiliaryCancel = AuxiliaryGenerate.pick({ worktree: true, task: true })
 
+export const AuxiliaryResolveLaunch = AuxiliaryGenerate.pick({
+  worktree: true,
+  task: true,
+  primaryAgent: true
+}).extend({ agentOverride: z.custom<TuiAgent>(isTuiAgent).optional() })
+
 export const AuxiliaryRoute = AuxiliaryGenerate.pick({
   worktree: true,
   prompt: true,

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type * as pty from 'node-pty'
 import { spawnShellWithFallback, type WindowsShellSpawnAttempt } from './local-pty-utils'
+import { POWERSHELL_STARTUP_COMMAND_ENV } from './windows-powershell-startup-command'
 
 function setPlatform(platform: NodeJS.Platform): () => void {
   const original = process.platform
@@ -42,6 +43,46 @@ function makeAttempt(
 const ACCESS_DENIED_5 = 'Cannot create process, error code: 5'
 
 describe('spawnShellWithFallback on Windows', () => {
+  it.each([0, 1, 2])('isolates long startup command transport for shell attempt %s', (winner) => {
+    restorePlatform = setPlatform('win32')
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const command = `claude '${'定时任务'.repeat(2000)}'`
+    const attempts = [PWSH7, WINDOWS_POWERSHELL, CMD].map((shellPath, index) =>
+      makeAttempt(shellPath, index < 2 ? { startupCommandEnv: command } : {})
+    )
+    const env = { orca_powershell_startup_command: 'stale', PATH: 'C:\\bin' }
+    const ptySpawn = vi.fn((shellPath: string) => {
+      if (shellPath !== attempts[winner].shellPath) {
+        throw new Error(ACCESS_DENIED_5)
+      }
+      return makeFakePty()
+    })
+    spawnShellWithFallback({
+      shellPath: PWSH7,
+      shellArgs: attempts[0].shellArgs,
+      cols: 80,
+      rows: 24,
+      cwd: 'C:\\repo',
+      env,
+      ptySpawn,
+      windowsFallbackAttempts: attempts
+    })
+    for (const [index] of ptySpawn.mock.calls.entries()) {
+      expect(ptySpawn).toHaveBeenNthCalledWith(
+        index + 1,
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({
+          env: {
+            PATH: 'C:\\bin',
+            ...(index < 2 ? { [POWERSHELL_STARTUP_COMMAND_ENV]: command } : {})
+          }
+        })
+      )
+    }
+    expect(env.orca_powershell_startup_command).toBe('stale')
+  })
+
   it('repro: recovers when the primary PowerShell spawn fails with error code 5', () => {
     restorePlatform = setPlatform('win32')
     vi.spyOn(console, 'warn').mockImplementation(() => {})

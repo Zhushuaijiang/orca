@@ -123,6 +123,7 @@ import {
   type LocalPtyMockProcess
 } from './local-pty-provider-test-harness'
 import { POWERLEVEL10K_WIZARD_DISABLE_ENV } from '../pty/powerlevel10k-wizard-env'
+import { POWERSHELL_STARTUP_COMMAND_ENV } from './windows-powershell-startup-command'
 
 describe('LocalPtyProvider', () => {
   let provider: LocalPtyProvider
@@ -160,6 +161,29 @@ describe('LocalPtyProvider', () => {
   })
 
   describe('spawn', () => {
+    it('delivers a long automation command through PowerShell startup without typing it', async () => {
+      Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+      const command = `claude '--dangerously-skip-permissions' '${'处理下一个需求'.repeat(1200)}'`
+      await provider.spawn({
+        cols: 120,
+        rows: 40,
+        cwd: 'C:\\repo',
+        shellOverride: 'powershell.exe',
+        command
+      })
+      expect(spawnMock).toHaveBeenCalledWith(
+        WINDOWS_POWERSHELL_ABS,
+        expect.arrayContaining(['-EncodedCommand']),
+        expect.objectContaining({
+          env: expect.objectContaining({
+            [POWERSHELL_STARTUP_COMMAND_ENV]: command
+          })
+        })
+      )
+      expect(mockProc.write).not.toHaveBeenCalled()
+      exitCb?.({ exitCode: 0 })
+    })
+
     it('passes the guest Claude pointer and injected-home marker through WSLENV', async () => {
       Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
       provider.configure({

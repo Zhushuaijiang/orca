@@ -5,6 +5,7 @@ vi.mock('node-pty', () => nodePty)
 vi.mock('../../windows/windows-pty-job', () => ({ assignHostProcessToKillOnCloseJob: vi.fn() }))
 
 import { spawnNativeDaemonPty } from './native-pty-spawn'
+import { POWERSHELL_STARTUP_COMMAND_ENV } from '../../providers/windows-powershell-startup-command'
 
 const attempts = ['pwsh.exe', 'powershell.exe', 'cmd.exe'].map((shellPath) => ({
   shellPath,
@@ -66,4 +67,30 @@ describe('Windows shell fallback over node-pty ConPTY', () => {
     )
     expect(nodePty.spawn).toHaveBeenCalledOnce()
   })
+
+  it.each([0, 1, 2])(
+    'passes the long command only to the owning shell (winner %s)',
+    async (winner) => {
+      const command = `claude '${'定时任务'.repeat(2000)}'`
+      const env = { orca_powershell_startup_command: 'stale', PATH: 'C:\\bin' }
+      const carriedAttempts = attempts.map((attempt, index) => ({
+        ...attempt,
+        ...(index < 2 ? { startupCommandEnv: command } : {})
+      }))
+      nodePty.spawn.mockImplementation((file: string) => {
+        if (file !== carriedAttempts[winner].shellPath) {
+          throw new Error('EACCES')
+        }
+        return { pid: 9876 }
+      })
+      await spawnNativeDaemonPty({ ...args, env, windowsFallbackAttempts: carriedAttempts })
+      for (const [index, call] of nodePty.spawn.mock.calls.entries()) {
+        expect(call[2].env).toEqual({
+          PATH: 'C:\\bin',
+          ...(index < 2 ? { [POWERSHELL_STARTUP_COMMAND_ENV]: command } : {})
+        })
+      }
+      expect(env.orca_powershell_startup_command).toBe('stale')
+    }
+  )
 })

@@ -12,6 +12,7 @@ import {
 } from '../../shared/auxiliary-task-prompts'
 import type { ResolvedSourceControlAiGenerationParams } from '../../shared/source-control-ai'
 import type { TuiAgent } from '../../shared/tui-agent'
+import { resolveAuxiliaryTaskLaunch } from '../../shared/auxiliary-task-launch'
 import { cancelLocalGeneration } from '../text-generation/source-control-generation-lanes'
 import { prepareLocalCommitMessageAgentEnv } from '../text-generation/commit-message-agent-environment'
 import { spawnSourceControlAgent } from '../text-generation/source-control-agent-launch'
@@ -33,6 +34,27 @@ import {
 export class RuntimeAuxiliaryGeneration {
   private readonly pending = new Map<string, AbortController>()
   constructor(private readonly host: RuntimeGitCommandHost) {}
+
+  async resolveRuntimeAuxiliaryLaunch(
+    worktree: string,
+    task: AuxiliaryTaskId,
+    primaryAgent?: TuiAgent,
+    agentOverride?: TuiAgent
+  ) {
+    const target = await (this.host.resolveRuntimeAuxiliaryTarget?.(worktree) ??
+      this.host.resolveRuntimeGitTarget(worktree))
+    const route = runtimeGitRouteForTarget(target)
+    if (route.kind === 'ssh' && !route.provider) {
+      throw new Error('ssh_git_provider_unavailable')
+    }
+    return resolveAuxiliaryTaskLaunch({
+      settings: this.host.getRuntimeSettings(),
+      task,
+      hostKey: modelDiscoveryHostKeyForTarget(target, route),
+      primaryAgent,
+      agentOverride
+    })
+  }
 
   async generateRuntimeAuxiliaryTask(
     worktree: string,

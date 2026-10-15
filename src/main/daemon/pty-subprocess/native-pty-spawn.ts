@@ -5,6 +5,7 @@ import {
 } from '../../providers/macos-tcc-login-shell'
 import type { WindowsShellSpawnAttempt } from '../../providers/windows-shell-fallback-chain'
 import { assignHostProcessToKillOnCloseJob } from '../../windows/windows-pty-job'
+import { buildWindowsShellStartupEnvironment } from '../../providers/windows-powershell-startup-command'
 
 async function loadNodePty(): Promise<typeof pty> {
   return import('node-pty')
@@ -34,7 +35,8 @@ export async function spawnNativeDaemonPty(args: {
   const spawnAt = async (
     shellPath: string,
     shellArgs: string[],
-    cwd: string
+    cwd: string,
+    startupCommandEnv?: string
   ): Promise<pty.IPty> => {
     args.signal?.throwIfAborted()
     const wrapped = wrapShellSpawnForMacosTccAttribution(shellPath, shellArgs, args.env)
@@ -48,7 +50,10 @@ export async function spawnNativeDaemonPty(args: {
       cols: args.cols,
       rows: args.rows,
       cwd,
-      env: args.env,
+      env:
+        process.platform === 'win32'
+          ? buildWindowsShellStartupEnvironment(args.env, startupCommandEnv)
+          : args.env,
       // Why: bundled ConPTY has the wrap-marker behavior xterm expects.
       ...(process.platform === 'win32' ? { useConptyDll: true } : {})
     })
@@ -58,7 +63,12 @@ export async function spawnNativeDaemonPty(args: {
   }
 
   try {
-    const process_ = await spawnAt(args.shellPath, args.shellArgs, args.spawnCwd)
+    const process_ = await spawnAt(
+      args.shellPath,
+      args.shellArgs,
+      args.spawnCwd,
+      args.windowsFallbackAttempts[0]?.startupCommandEnv
+    )
     return {
       process: process_,
       shellPath: args.shellPath,
@@ -72,7 +82,12 @@ export async function spawnNativeDaemonPty(args: {
     }
     for (const attempt of args.windowsFallbackAttempts.slice(1)) {
       try {
-        const process = await spawnAt(attempt.shellPath, attempt.shellArgs, attempt.effectiveCwd)
+        const process = await spawnAt(
+          attempt.shellPath,
+          attempt.shellArgs,
+          attempt.effectiveCwd,
+          attempt.startupCommandEnv
+        )
         const message = primaryErr instanceof Error ? primaryErr.message : String(primaryErr)
         console.warn(
           `[daemon/pty] Primary shell "${args.shellPath}" failed (${message}), fell back to "${attempt.shellPath}"`

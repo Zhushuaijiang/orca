@@ -70,6 +70,20 @@ export function resolveAuxiliaryGenerationParams(
     }
   }
   const overridesModel = Boolean(route.modelsByHost?.[hostKey] || route.thinkingByHost?.[hostKey])
+  const fallback = route.fallbackToDefault
+    ? resolveAuxiliaryGenerationParams(
+        {
+          ...settings,
+          auxiliaryModels: {
+            defaults: { ...settings.auxiliaryModels?.defaults, fallbackToDefault: false }
+          }
+        },
+        task,
+        { ...baseline, fallbackCandidates: undefined },
+        hostKey,
+        primaryAgent
+      )
+    : undefined
   const params: ResolvedSourceControlAiGenerationParams = {
     ...baseline,
     agentId: spec.id,
@@ -86,8 +100,8 @@ export function resolveAuxiliaryGenerationParams(
         ? removeAuxiliaryRecipeModelArgs(settings.agentCmdOverrides?.[spec.id])
         : settings.agentCmdOverrides?.[spec.id]
       )?.trim() || undefined,
-    fallbackCandidates: route.fallbackToDefault
-      ? [{ ...baseline, fallbackCandidates: undefined }]
+    fallbackCandidates: fallback?.ok
+      ? [{ ...fallback.params, fallbackCandidates: undefined }]
       : undefined
   }
   return { ok: true, params }

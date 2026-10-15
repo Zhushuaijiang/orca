@@ -220,17 +220,21 @@ describe('resolveWindowsShellLaunchArgs', () => {
     expect(command.trimEnd().endsWith(startupCommand)).toBe(true)
   })
 
-  it('keeps large PowerShell startup commands on stdin delivery', () => {
+  it('runs large PowerShell startup commands from the bootstrap instead of stdin', () => {
+    const startupCommand = `claude '${'检查定时任务'.repeat(1400)}'`
     const result = resolveWindowsShellLaunchArgs(
       'powershell.exe',
       'C:\\Users\\alice',
       'C:\\Users\\alice',
       undefined,
-      `orca ${'x'.repeat(7000)}`
+      startupCommand
     )
 
-    expect(result.startupCommandDeliveredInShellArgs).toBeUndefined()
+    expect(result.startupCommandDeliveredInShellArgs).toBe(true)
+    expect(result.startupCommandEnv).toBe(startupCommand)
     expect(result.shellArgs).toEqual(['-NoLogo', '-NoExit', '-EncodedCommand', expect.any(String)])
+    expect(result.shellArgs[3].length).toBeLessThan(28_000)
+    expect(decodePowerShellCommand(result)).not.toContain(startupCommand)
     expect(decodePowerShellCommand(result)).toContain(
       expectedPowerShellRestoreCwdCommand("'C:\\Users\\alice'")
     )

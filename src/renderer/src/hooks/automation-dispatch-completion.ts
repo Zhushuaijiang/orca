@@ -12,12 +12,14 @@ import type {
 } from '../../../shared/automations-types'
 import type { AgentStateHistoryEntry, AgentStatusEntry } from '../../../shared/agent-status-types'
 import {
+  getAgentStateHistoryOverlap,
   selectAutomationAgentStatusEntryChange,
   UNCHANGED_AUTOMATION_AGENT_STATUS_ENTRY
 } from './automation-agent-status-entry-change'
 import type { Worktree } from '../../../shared/worktree/types'
 import { isProvenProcessExit } from '../../../shared/terminal-exit-cause'
 import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../../shared/yunxiao-requirement-gate-outcome'
+import { shouldLaunchYunxiaoReviewHandoff } from '../../../shared/yunxiao-review-handoff'
 
 type MarkDispatchResult = (result: AutomationDispatchResult) => Promise<void>
 
@@ -62,6 +64,28 @@ export function createAutomationDispatchCompletion(args: {
     unsubscribeSessionObserver = (): void => {}
     releaseReuseDispatchTab = (): void => {}
   }
+  const finalizeSuccessfulTerminal = async (): Promise<void> => {
+    const source = args.automation.yunxiaoTodoPool
+    if (
+      source?.kind === 'yunxiao-todo-pool' &&
+      shouldLaunchYunxiaoReviewHandoff({
+        reviewHandoff: source.reviewHandoff,
+        interrupted: implementerPaneKey
+          ? useAppStore.getState().agentStatusByPaneKey[implementerPaneKey]?.interrupted
+          : undefined,
+        outcomes:
+          args.run.yunxiaoRequirementOutcomes ??
+          extractYunxiaoRequirementGateOutcomesFromSnapshot(getOutputSnapshot())
+      })
+    ) {
+      // The original agent must stay available for the review's repair instructions.
+      args.releaseTerminalOwnership()
+      return
+    }
+    if (args.finalizeTerminalOwnership()) {
+      await clearRetiredRunTerminalIdentity()
+    }
+  }
   const markCompletionResult = async (): Promise<void> => {
     if (completionMarked) {
       return
@@ -86,9 +110,7 @@ export function createAutomationDispatchCompletion(args: {
       args.releaseTerminalOwnership()
       throw error
     }
-    if (args.finalizeTerminalOwnership()) {
-      await clearRetiredRunTerminalIdentity()
-    }
+    await finalizeSuccessfulTerminal()
   }
   const clearRetiredRunTerminalIdentity = async (): Promise<void> => {
     // Why: the owned terminal was just retired, so the run's pane/pty
@@ -148,9 +170,7 @@ export function createAutomationDispatchCompletion(args: {
         workspaceDisplayName: args.worktree.displayName,
         outputSnapshot,
         yunxiaoRequirementOutcomes:
-          code === 0
-            ? extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot)
-            : null,
+          code === 0 ? extractYunxiaoRequirementGateOutcomesFromSnapshot(outputSnapshot) : null,
         precheckResult: args.precheckResult,
         error: code === 0 ? null : `Automation process exited with code ${code}.`
       })
@@ -162,9 +182,7 @@ export function createAutomationDispatchCompletion(args: {
       throw error
     }
     if (code === 0) {
-      if (args.finalizeTerminalOwnership()) {
-        await clearRetiredRunTerminalIdentity()
-      }
+      await finalizeSuccessfulTerminal()
     } else {
       args.releaseTerminalOwnership()
     }
@@ -291,35 +309,4 @@ export function createAutomationDispatchCompletion(args: {
       }
     }
   }
-}
-
-function agentStateHistoryEntriesEqual(
-  left: AgentStateHistoryEntry,
-  right: AgentStateHistoryEntry
-): boolean {
-  return (
-    left.state === right.state &&
-    left.prompt === right.prompt &&
-    left.startedAt === right.startedAt &&
-    left.interrupted === right.interrupted
-  )
-}
-
-function getAgentStateHistoryOverlap(
-  previous: AgentStateHistoryEntry[],
-  current: AgentStateHistoryEntry[]
-): number {
-  for (let overlap = Math.min(previous.length, current.length); overlap > 0; overlap -= 1) {
-    const previousOffset = previous.length - overlap
-    if (
-      current
-        .slice(0, overlap)
-        .every((entry, index) =>
-          agentStateHistoryEntriesEqual(entry, previous[previousOffset + index])
-        )
-    ) {
-      return overlap
-    }
-  }
-  return 0
 }

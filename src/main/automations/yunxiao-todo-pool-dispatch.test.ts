@@ -129,7 +129,12 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(prompt).toContain('先修改共享 df-his-api')
     expect(prompt).toContain('事实卡/索引定位候选仓库')
     expect(prompt).toContain('UI 必须用路由/挂载/import 证据确认真实仓库')
-    expect(prompt.length).toBeLessThan(2_000)
+    expect(prompt).toContain('auxiliary discuss --prompt-file')
+    expect(prompt).toContain('--primary-agent codex')
+    expect(prompt).toContain('status 不是 ready_to_build 时禁止编码')
+    expect(prompt).toContain('auxiliary run implementation')
+    expect(prompt).toContain('auxiliary run testing')
+    expect(prompt.length).toBeLessThan(4_000)
   })
 
   it('synthesizes a full Yunxiao URL from category and serial number when the item has no URL', () => {

@@ -13,6 +13,7 @@ import {
   getPowerShellOsc133Bootstrap
 } from '../powershell-osc133-bootstrap'
 import { quoteStartupArg } from '../../shared/tui-agent-startup-shell'
+import { POWERSHELL_STARTUP_COMMAND_BOOTSTRAP } from './windows-powershell-startup-command'
 
 /** cmd.exe's own documented ceiling; callers that go through sshd budget below it. */
 export const CMD_EXE_COMMAND_LINE_MAX_CHARS = 8191
@@ -56,6 +57,8 @@ export type WindowsShellLaunchArgs = {
   /** True when the startup command was embedded in shellArgs and must not be
    *  written again through stdin. */
   startupCommandDeliveredInShellArgs?: boolean
+  /** Command read once by the PowerShell bootstrap instead of typed into the terminal. */
+  startupCommandEnv?: string
   /** The cwd node-pty should be spawned with. WSL cannot cd into a Windows
    *  path, so the wsl.exe branch returns the user's home as the effective cwd
    *  and injects `cd '<linux path>'` into shellArgs instead. */
@@ -96,8 +99,7 @@ function getCmdShellArgStartupCommand(command?: string): string | null {
 /**
  * Builds the PowerShell -EncodedCommand payload for startup bootstrap.
  *
- * Short startup commands are appended to the bootstrap and marked as delivered;
- * large payloads return the bootstrap alone so stdin delivery remains available.
+ * Short commands are inline; long commands arrive through a one-shot environment value.
  */
 function getPowerShellRestoreCwdCommand(cwd: string): string {
   return [
@@ -113,9 +115,10 @@ function getPowerShellEncodedCommand(
 ): {
   encodedCommand: string
   startupCommandDeliveredInShellArgs?: boolean
+  startupCommandEnv?: string
 } {
   const bootstrap = `${getPowerShellOsc133Bootstrap()}${getPowerShellRestoreCwdCommand(cwd)}`
-  if (!startupCommand || startupCommand.length > STARTUP_COMMAND_TEXT_MAX_CHARS) {
+  if (!startupCommand) {
     return { encodedCommand: encodePowerShellCommand(bootstrap) }
   }
 
@@ -123,8 +126,20 @@ function getPowerShellEncodedCommand(
   const encodedCommand = encodePowerShellCommand(command)
   // Why: -EncodedCommand expands UTF-16 text into base64; keep a conservative
   // margin under Windows CreateProcess' 32,767-character command line limit.
-  if (encodedCommand.length > POWERSHELL_ENCODED_COMMAND_ARG_MAX_CHARS) {
-    return { encodedCommand: encodePowerShellCommand(bootstrap) }
+  if (
+    startupCommand.length > STARTUP_COMMAND_TEXT_MAX_CHARS ||
+    encodedCommand.length > POWERSHELL_ENCODED_COMMAND_ARG_MAX_CHARS
+  ) {
+    if (startupCommand.length > 32_766 || startupCommand.includes('\0')) {
+      throw new Error('PowerShell startup command exceeds the Windows environment value limit.')
+    }
+    return {
+      encodedCommand: encodePowerShellCommand(
+        `${bootstrap}\n${POWERSHELL_STARTUP_COMMAND_BOOTSTRAP}`
+      ),
+      startupCommandDeliveredInShellArgs: true,
+      startupCommandEnv: startupCommand
+    }
   }
 
   return {
@@ -206,6 +221,9 @@ export function resolveWindowsShellLaunchArgs(
       shellArgs: ['-NoLogo', '-NoExit', '-EncodedCommand', powerShellCommand.encodedCommand],
       ...(powerShellCommand.startupCommandDeliveredInShellArgs
         ? { startupCommandDeliveredInShellArgs: true }
+        : {}),
+      ...(powerShellCommand.startupCommandEnv !== undefined
+        ? { startupCommandEnv: powerShellCommand.startupCommandEnv }
         : {}),
       effectiveCwd: nativeCwd,
       validationCwd: nativeCwd

@@ -76,6 +76,7 @@ vi.mock('../providers/windows-pty-job-membership', () => ({
 
 import { createPtySubprocess } from './pty-subprocess'
 import { mockPtyProcess, useDaemonPtySubprocessEnv } from './pty-subprocess-test-harness'
+import { POWERSHELL_STARTUP_COMMAND_ENV } from '../providers/windows-powershell-startup-command'
 
 const POWERSHELL_OSC133_COMMAND_ARGS = ['-NoLogo', '-NoExit', '-EncodedCommand', expect.any(String)]
 const CODEX_LAUNCH_PREFLIGHT = 'C:\\Program Files\\Orca\\orca.exe'
@@ -270,6 +271,39 @@ describe('createPtySubprocess', () => {
     const command = Buffer.from(encoded, 'base64').toString('utf16le')
     expect(command.trimEnd().endsWith("& 'codex' '--no-alt-screen'")).toBe(true)
     expect(handle!.startupCommandDeliveredInShellArgs).toBe(true)
+  })
+
+  it('delivers long PowerShell commands during startup and suppresses a second stdin delivery', async () => {
+    const proc = mockPtyProcess()
+    spawnMock.mockReturnValue(proc)
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+    const command = `claude '--dangerously-skip-permissions' '${'处理下一个需求'.repeat(1200)}'`
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    try {
+      const handle = await createPtySubprocess({
+        sessionId: 'long-automation',
+        cols: 120,
+        rows: 40,
+        cwd: 'C:\\repo',
+        shellOverride: 'powershell.exe',
+        command
+      })
+      expect(handle.startupCommandDeliveredInShellArgs).toBe(true)
+      expect(spawnMock).toHaveBeenCalledWith(
+        WINDOWS_POWERSHELL_ABS,
+        expect.arrayContaining(['-EncodedCommand']),
+        expect.objectContaining({
+          env: expect.objectContaining({
+            [POWERSHELL_STARTUP_COMMAND_ENV]: command
+          })
+        })
+      )
+      expect(proc.write).not.toHaveBeenCalled()
+    } finally {
+      if (platform) {
+        Object.defineProperty(process, 'platform', platform)
+      }
+    }
   })
 
   it('keeps oversized Windows startup commands on PTY stdin delivery', async () => {

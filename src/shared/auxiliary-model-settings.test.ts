@@ -47,6 +47,69 @@ describe('auxiliary model routing', () => {
       )
     ).toEqual({ agentId: 'codex' })
   })
+  it('inherits fallback across providers and retries the configured host default', () => {
+    const settings = createGlobalSettingsFixture({
+      defaultTuiAgent: 'codex',
+      auxiliaryModels: {
+        defaults: {
+          agentId: 'codex',
+          modelsByHost: { local: 'gpt-6.1-sol', 'ssh:one': 'remote-default' },
+          fallbackToDefault: true
+        },
+        tasks: {
+          research: {
+            agentId: 'claude',
+            modelsByHost: { local: 'haiku', 'ssh:one': 'remote-fast' }
+          }
+        }
+      }
+    })
+    expect(resolveAuxiliaryModelRoute(settings.auxiliaryModels, 'research')).toEqual({
+      agentId: 'claude',
+      modelsByHost: { local: 'haiku', 'ssh:one': 'remote-fast' },
+      fallbackToDefault: true
+    })
+    expect(
+      resolveAuxiliaryGenerationParams(settings, 'research', {
+        agentId: 'codex',
+        model: 'original-model'
+      })
+    ).toMatchObject({
+      ok: true,
+      params: {
+        agentId: 'claude',
+        model: 'haiku',
+        fallbackCandidates: [
+          { agentId: 'codex', model: 'gpt-6.1-sol', fallbackCandidates: undefined }
+        ]
+      }
+    })
+    expect(
+      resolveAuxiliaryGenerationParams(
+        settings,
+        'research',
+        { agentId: 'codex', model: 'original-model' },
+        'ssh:one'
+      )
+    ).toMatchObject({
+      ok: true,
+      params: { model: 'remote-fast', fallbackCandidates: [{ model: 'remote-default' }] }
+    })
+  })
+  it('honors a task that explicitly disables inherited fallback', () => {
+    const settings = createGlobalSettingsFixture({
+      auxiliaryModels: {
+        defaults: { agentId: 'codex', fallbackToDefault: true },
+        tasks: { research: { agentId: 'claude', fallbackToDefault: false } }
+      }
+    })
+    expect(
+      resolveAuxiliaryGenerationParams(settings, 'research', {
+        agentId: 'codex',
+        model: 'original-model'
+      })
+    ).toMatchObject({ ok: true, params: { fallbackCandidates: undefined } })
+  })
   it('uses the selected exact dynamic model and does not leak local IDs to SSH', () => {
     const settings = createGlobalSettingsFixture({
       auxiliaryModels: {

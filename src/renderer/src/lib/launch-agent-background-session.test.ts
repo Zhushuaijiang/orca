@@ -88,6 +88,23 @@ describe('launchAgentBackgroundSession', () => {
     })
   })
 
+  it('applies a task model and effort to the background agent launch', async () => {
+    const { launchAgentBackgroundSession } = await import('./launch-agent-background-session')
+    await launchAgentBackgroundSession({
+      agent: 'codex',
+      worktreeId: 'wt-1',
+      prompt: 'Review only',
+      sessionOptions: { model: 'task-review-model', effort: 'high' }
+    })
+    expect(mockSpawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: expect.stringContaining(
+          "'-m' 'task-review-model' '-c' 'model_reasoning_effort=high'"
+        )
+      })
+    )
+  })
+
   it('spawns a PTY first and creates the inactive tab already bound to it', async () => {
     const { launchAgentBackgroundSession } = await import('./launch-agent-background-session')
     mockSpawn.mockResolvedValue({ id: 'pty-1', incarnationId: 'inc-fresh' })

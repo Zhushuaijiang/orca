@@ -79,6 +79,12 @@ describe('OrcaRuntimeService automation methods', () => {
       name: 'Daily review',
       prompt: 'Review changes',
       precheck: { command: 'test -f ready', timeoutSeconds: 30 },
+      yunxiaoTodoPool: {
+        kind: 'yunxiao-todo-pool',
+        statuses: ['queued'],
+        batchSize: 1,
+        reviewHandoff: { enabled: true, agentId: 'codex' }
+      },
       agentId: 'codex',
       repo: 'repo-1',
       workspaceMode: 'new_per_run',
@@ -92,6 +98,12 @@ describe('OrcaRuntimeService automation methods', () => {
         name: 'Daily review',
         prompt: 'Review changes',
         precheck: { command: 'test -f ready', timeoutSeconds: 30 },
+        yunxiaoTodoPool: {
+          kind: 'yunxiao-todo-pool',
+          statuses: ['queued'],
+          batchSize: 1,
+          reviewHandoff: { enabled: true, agentId: 'codex' }
+        },
         agentId: 'codex',
         projectId: 'repo-1',
         workspaceMode: 'new_per_run',
@@ -186,10 +198,23 @@ describe('OrcaRuntimeService automation methods', () => {
     const store = makeStore([existingAutomation])
     const runtime = new OrcaRuntimeService(store as never)
 
-    const updated = await runtime.updateAutomation('auto-1', { enabled: false })
+    const pool = {
+      kind: 'yunxiao-todo-pool',
+      statuses: ['queued'],
+      batchSize: 1,
+      reviewHandoff: { enabled: true, agentId: 'codex' }
+    } as const
+    const updated = await runtime.updateAutomation('auto-1', {
+      enabled: false,
+      yunxiaoTodoPool: { ...pool, statuses: [...pool.statuses] }
+    })
     const removed = await runtime.deleteAutomation('auto-1')
 
-    expect(store.updateAutomation).toHaveBeenCalledWith('auto-1', { enabled: false }, undefined)
+    expect(store.updateAutomation).toHaveBeenCalledWith(
+      'auto-1',
+      { enabled: false, yunxiaoTodoPool: pool },
+      undefined
+    )
     expect(updated).toMatchObject({
       prompt: existingAutomation.prompt,
       baseBranch: existingAutomation.baseBranch,
@@ -204,9 +229,13 @@ describe('OrcaRuntimeService automation methods', () => {
     const store = makeStore([existingAutomation])
     const runtime = new OrcaRuntimeService(store as never)
 
-    await runtime.updateAutomation('auto-1', { baseBranch: null })
+    await runtime.updateAutomation('auto-1', { baseBranch: null, yunxiaoTodoPool: null })
 
-    expect(store.updateAutomation).toHaveBeenCalledWith('auto-1', { baseBranch: null }, undefined)
+    expect(store.updateAutomation).toHaveBeenCalledWith(
+      'auto-1',
+      { baseBranch: null, yunxiaoTodoPool: null },
+      undefined
+    )
   })
 
   it('passes setup decision updates through the shared store', async () => {

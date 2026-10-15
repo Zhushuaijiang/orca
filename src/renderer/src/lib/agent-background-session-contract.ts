@@ -3,6 +3,7 @@ import type { LaunchSource } from '../../../shared/telemetry-events'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { AgentStartupPlan } from '@/lib/tui-agent-startup'
 import type { AutomationTerminalOwnership } from '@/lib/automation-terminal-ownership'
+import type { SessionOptionValue } from '../../../shared/native-chat-session-options'
 
 export type LaunchAgentBackgroundSessionArgs = {
   agent: TuiAgent
@@ -10,6 +11,7 @@ export type LaunchAgentBackgroundSessionArgs = {
   prompt?: string
   launchSource?: LaunchSource
   title?: string
+  sessionOptions?: Record<string, SessionOptionValue>
   onData?: (chunk: string) => void
   onExit?: (ptyId: string, code: number) => void
   onAgentStatus?: (payload: ParsedAgentStatusPayload) => void

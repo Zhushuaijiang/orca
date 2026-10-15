@@ -3,6 +3,22 @@ import type { Automation, AutomationRun } from '../../../shared/automations-type
 
 const mockLaunchAgentBackgroundSession = vi.fn()
 const mockRelease = vi.fn()
+const mockToastError = vi.fn()
+vi.mock('sonner', () => ({ toast: { error: (...args: unknown[]) => mockToastError(...args) } }))
+const mockResolveWorktreeAuxiliaryLaunch = vi.fn()
+vi.mock('./worktree-auxiliary-launch', () => ({
+  resolveWorktreeAuxiliaryLaunch: (...args: unknown[]) =>
+    mockResolveWorktreeAuxiliaryLaunch(...args)
+}))
+const reviewReturn = {
+  dispose: vi.fn(),
+  observe: vi.fn(),
+  onAgentStatus: vi.fn(),
+  onExit: vi.fn()
+}
+vi.mock('./yunxiao-review-handoff-return', () => ({
+  createYunxiaoReviewHandoffReturn: () => reviewReturn
+}))
 const state = {
   agentStatusByPaneKey: {} as Record<
     string,
@@ -108,6 +124,12 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
   beforeEach(() => {
     mockLaunchAgentBackgroundSession.mockReset()
     mockRelease.mockReset()
+    mockToastError.mockReset()
+    mockResolveWorktreeAuxiliaryLaunch.mockReset()
+    mockResolveWorktreeAuxiliaryLaunch.mockImplementation(
+      async (args: { agentOverride: string }) => ({ agentId: args.agentOverride, hostKey: 'local' })
+    )
+    Object.values(reviewReturn).forEach((mock) => mock.mockClear())
     state.agentStatusByPaneKey = {
       'kimi-tab:leaf': {
         providerSession: { key: 'session_id', id: 'session_abc' }
@@ -124,6 +146,12 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
 
   it('launches the configured review agent in the same worktree', async () => {
     const { maybeLaunchYunxiaoReviewHandoff } = await import('./yunxiao-review-handoff-launch')
+    mockResolveWorktreeAuxiliaryLaunch.mockResolvedValueOnce({
+      agentId: 'codex',
+      hostKey: 'ssh:server',
+      modelId: 'review-model',
+      thinkingLevel: 'high'
+    })
 
     await maybeLaunchYunxiaoReviewHandoff({
       automation: makeAutomation({
@@ -145,7 +173,15 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
         agent: 'codex',
         worktreeId: 'wt-1',
         title: 'DFHIS-32345 审核',
-        launchSource: 'task_page'
+        launchSource: 'task_page',
+        onAgentStatus: reviewReturn.onAgentStatus,
+        onExit: reviewReturn.onExit,
+        sessionOptions: {
+          model: 'review-model',
+          effort: 'high',
+          thinking: 'high',
+          reasoningEffort: 'high'
+        }
       })
     )
     const prompt = mockLaunchAgentBackgroundSession.mock.calls[0]?.[0]?.prompt as string
@@ -153,9 +189,16 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
     expect(prompt).toContain('session_abc')
     expect(prompt).toContain('/workspace/yunxiao/DFHIS-32345')
     expect(mockRelease).toHaveBeenCalledTimes(1)
+    expect(mockResolveWorktreeAuxiliaryLaunch).toHaveBeenCalledWith({
+      worktreeId: 'wt-1',
+      task: 'review',
+      primaryAgent: 'kimi',
+      agentOverride: 'codex'
+    })
+    expect(reviewReturn.observe).toHaveBeenCalledWith('grok-tab:leaf', expect.any(Number))
   })
 
-  it('defaults a missing review handoff to grok', async () => {
+  it('defaults a missing review handoff to codex', async () => {
     const { maybeLaunchYunxiaoReviewHandoff } = await import('./yunxiao-review-handoff-launch')
 
     await maybeLaunchYunxiaoReviewHandoff({
@@ -173,7 +216,7 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
     })
 
     expect(mockLaunchAgentBackgroundSession).toHaveBeenCalledWith(
-      expect.objectContaining({ agent: 'grok' })
+      expect.objectContaining({ agent: 'codex' })
     )
   })
 
@@ -210,5 +253,22 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
     })
 
     expect(mockLaunchAgentBackgroundSession).not.toHaveBeenCalled()
+  })
+
+  it('reports an unavailable host route without silently launching a different model', async () => {
+    const { maybeLaunchYunxiaoReviewHandoff } = await import('./yunxiao-review-handoff-launch')
+    mockResolveWorktreeAuxiliaryLaunch.mockRejectedValueOnce(new Error('method_not_found'))
+    await expect(
+      maybeLaunchYunxiaoReviewHandoff({
+        automation: makeAutomation(),
+        run: makeRun(),
+        worktreeId: 'wt-1',
+        implementerPaneKey: 'kimi-tab:leaf',
+        outputSnapshot: null
+      })
+    ).rejects.toThrow('method_not_found')
+    expect(mockLaunchAgentBackgroundSession).not.toHaveBeenCalled()
+    expect(mockToastError).toHaveBeenCalledTimes(1)
+    expect(reviewReturn.dispose).toHaveBeenCalledTimes(1)
   })
 })

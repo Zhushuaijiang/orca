@@ -47,7 +47,7 @@ describe('Yunxiao review handoff preference', () => {
 
     expect(readStoredYunxiaoReviewHandoffPreference()).toEqual({
       enabled: true,
-      agentId: 'grok'
+      agentId: 'codex'
     })
   })
 

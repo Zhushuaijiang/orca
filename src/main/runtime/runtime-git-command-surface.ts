@@ -2,6 +2,7 @@ import type { RuntimeGitCommands } from './orca-runtime-git'
 
 type RuntimeGitCommandName =
   | 'generateRuntimeAuxiliaryTask'
+  | 'resolveRuntimeAuxiliaryLaunch'
   | 'cancelRuntimeAuxiliaryTask'
   | 'routeRuntimeAuxiliaryTask'
   | 'listRuntimeAuxiliaryRoutes'
@@ -51,6 +52,7 @@ export function installRuntimeGitCommandSurface(
   Object.assign(target, {
     cancelRuntimeAuxiliaryTask: commands.cancelRuntimeAuxiliaryTask.bind(commands),
     generateRuntimeAuxiliaryTask: commands.generateRuntimeAuxiliaryTask.bind(commands),
+    resolveRuntimeAuxiliaryLaunch: commands.resolveRuntimeAuxiliaryLaunch.bind(commands),
     routeRuntimeAuxiliaryTask: commands.routeRuntimeAuxiliaryTask.bind(commands),
     listRuntimeAuxiliaryRoutes: commands.listRuntimeAuxiliaryRoutes.bind(commands),
     runRuntimeAuxiliaryAuto: commands.runRuntimeAuxiliaryAuto.bind(commands),

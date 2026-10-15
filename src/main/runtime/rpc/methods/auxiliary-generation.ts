@@ -3,11 +3,23 @@ import {
   AuxiliaryCancel,
   AuxiliaryRoute,
   AuxiliaryHistory,
-  AuxiliaryAuto
+  AuxiliaryAuto,
+  AuxiliaryResolveLaunch
 } from '../../../../shared/rpc-contract/auxiliary-params'
 import { defineMethod } from '../core'
 
 export const AUXILIARY_GENERATION_METHODS = [
+  defineMethod({
+    name: 'auxiliary.resolveLaunch',
+    params: AuxiliaryResolveLaunch,
+    handler: (params, { runtime }) =>
+      runtime.resolveRuntimeAuxiliaryLaunch(
+        params.worktree,
+        params.task,
+        params.primaryAgent,
+        params.agentOverride
+      )
+  }),
   defineMethod({
     name: 'auxiliary.auto',
     params: AuxiliaryAuto,
