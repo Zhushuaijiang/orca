@@ -8,6 +8,11 @@ import {
 } from '../main/shell-startup-features'
 import { inheritedZdotdirEnv, resolveInheritedZdotdir } from '../main/zsh-wrapper-dir-ownership'
 import { ensureOverlayRestoreWrappers } from './pty-shell-overlay-wrappers'
+import {
+  getPowerShellEncodedStartupCommand,
+  buildWindowsShellStartupEnvironment
+} from '../main/providers/windows-powershell-startup-command'
+import { planWindowsCmdStartupCommand } from '../main/providers/windows-cmd-startup-command'
 const RELAY_SHELL_READY_DIR = '.orca-relay/shell-ready'
 const POSIX_LOGIN_ARGS = ['-l']
 
@@ -15,6 +20,7 @@ export type RelayShellLaunchConfig = {
   args: string[]
   env: Record<string, string>
   supportsReadyMarker: boolean
+  startupCommandDelivered?: boolean
 }
 
 function shellBasename(shellPath: string): string {
@@ -66,6 +72,8 @@ export function getRelayShellLaunchConfig(
     emitReadyMarker?: boolean
     emitStartupIdentity?: boolean
     terminalWindowsWslDistro?: string | null
+    startupCommand?: string
+    cwd?: string
   } = {}
 ): RelayShellLaunchConfig {
   const shellName = shellBasename(shellPath)
@@ -75,6 +83,31 @@ export function getRelayShellLaunchConfig(
     supportsReadyMarker: false
   }
   if (platform === 'win32') {
+    if (
+      options.startupCommand &&
+      ['powershell', 'powershell.exe', 'pwsh', 'pwsh.exe'].includes(shellName)
+    ) {
+      const launch = getPowerShellEncodedStartupCommand(
+        options.cwd ?? env.USERPROFILE ?? homedir(),
+        options.startupCommand
+      )
+      return {
+        args: ['-NoLogo', '-NoExit', '-EncodedCommand', launch.encodedCommand],
+        env: buildWindowsShellStartupEnvironment(env, launch.startupCommandEnv),
+        supportsReadyMarker: false,
+        startupCommandDelivered: true
+      }
+    }
+    if (options.startupCommand && ['cmd', 'cmd.exe'].includes(shellName)) {
+      const prefix = 'chcp 65001 > nul'
+      const launch = planWindowsCmdStartupCommand(options.startupCommand, prefix)
+      return {
+        args: ['/K', `${prefix} & ${launch.command}`],
+        env: buildWindowsShellStartupEnvironment(env, undefined),
+        supportsReadyMarker: false,
+        startupCommandDelivered: true
+      }
+    }
     // Why: pwsh also exists on POSIX remotes; Windows-specific shell args must
     // only apply when the relay itself is running on native Windows.
     return {

@@ -544,11 +544,15 @@ describe('OrcaRuntimeService', () => {
     }
   })
 
-  it('delivers the agent launch command when a create settles over a bare renderer PTY', async () => {
-    vi.useFakeTimers()
-    try {
-      const leafId = '77777777-7777-4777-8777-777777777777'
-      const write = vi.fn((_ptyId: string, _data: string) => true)
+  it.each(
+    (['claude', 'codex', 'gemini', 'kimi', 'opencode'] as const).flatMap((agent) =>
+      [false, true].map((activate) => ({ agent, activate }))
+    )
+  )(
+    'creates $agent on the host (activate=$activate) without typing into a bare shell',
+    async ({ agent, activate }) => {
+      const spawn = vi.fn().mockResolvedValue({ id: 'pty-host-command' })
+      const write = vi.fn(() => true)
       const runtime = new OrcaRuntimeService({
         ...store,
         getSettings: () => ({
@@ -556,55 +560,48 @@ describe('OrcaRuntimeService', () => {
           disabledTuiAgents: [],
           agentCmdOverrides: {}
         })
-      } as never)
+      })
       runtime.setPtyController({
-        spawn: vi.fn(),
+        spawn,
         write,
         kill: () => true,
         getForegroundProcess: async () => null
       })
-      runtime.setNotifier(createMobileCreateTestNotifier(vi.fn()))
+      const notifier = createMobileCreateTestNotifier(vi.fn())
+      runtime.setNotifier(notifier)
       const webContents = { send: vi.fn() }
-      const send = vi.fn((_channel: string, payload: { requestId: string }) => {
-        // Why: the pane spawned before its startup queue landed (the #7587
-        // renderer-stall class), so no spawn command is recorded for the PTY.
-        runtime.registerPty('pty-bare', TEST_WORKTREE_ID, null, { tabId: 'tab-bare', leafId })
-        ipcMain.emit(
-          'terminal:tabCreateReply',
-          { sender: webContents },
-          { requestId: payload.requestId, tabId: 'tab-bare', title: 'Terminal' }
-        )
-      })
-      webContents.send = send
       runtime.attachWindow(1)
       runtime.syncWindowGraph(1, { tabs: [], leaves: [] })
-      electronMocks.BrowserWindow.fromId.mockReturnValue({
-        isDestroyed: () => false,
-        webContents
+      electronMocks.BrowserWindow.fromId.mockReturnValue({ isDestroyed: () => false, webContents })
+      const command = `${agent} '${'review '.repeat(1000)}'`
+      const result = await runtime.createMobileSessionTerminal(`id:${TEST_WORKTREE_ID}`, {
+        command,
+        launchAgent: agent,
+        activate,
+        startupCommandDelivery: 'shell-ready'
       })
-
-      const create = runtime.createMobileSessionTerminal(`id:${TEST_WORKTREE_ID}`, {
-        agent: 'codex',
-        activate: true
-      })
-      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1))
-      await vi.advanceTimersByTimeAsync(50)
-      const result = await create
-
-      expect(result.tab).toMatchObject({
-        type: 'terminal',
-        parentTabId: 'tab-bare',
-        leafId,
-        status: 'ready'
-      })
-      // Why: the adopted PTY never launched codex, so the settle must type the
-      // launch command (Enter as its own write) instead of succeeding silently.
-      expect(write).toHaveBeenCalledTimes(2)
-      expect(write.mock.calls[0][0]).toBe('pty-bare')
-      expect(String(write.mock.calls[0][1])).toMatch(/codex/)
-      expect(write.mock.calls[1]).toEqual(['pty-bare', '\r', 'launch'])
-    } finally {
-      vi.useRealTimers()
+      expect(result.tab).toMatchObject({ type: 'terminal', status: 'ready' })
+      expect(spawn).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          command,
+          launchAgent: agent,
+          startupCommandDelivery: 'shell-ready',
+          cwd: TEST_WORKTREE_PATH
+        })
+      )
+      expect(
+        webContents.send.mock.calls.some(([channel]) => channel === 'terminal:requestTabCreate')
+      ).toBe(false)
+      expect(write).not.toHaveBeenCalled()
+      if (activate) {
+        expect(notifier.focusTerminal).toHaveBeenCalledWith(
+          result.tab.parentTabId,
+          TEST_WORKTREE_ID,
+          null
+        )
+      } else {
+        expect(notifier.focusTerminal).not.toHaveBeenCalled()
+      }
     }
-  })
+  )
 })

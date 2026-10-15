@@ -1,3 +1,8 @@
+import { windowsPtyShellArgs } from '../main/providers/windows-cmd-startup-command'
+import {
+  buildWindowsShellStartupEnvironment,
+  POWERSHELL_STARTUP_COMMAND_ENV
+} from '../main/providers/windows-powershell-startup-command'
 import type { TmuxManagedPty } from '../shared/tmux-agent-hook-owner'
 /* oxlint-disable max-lines */
 import { resolveSynchronizedOutputSafeSplit } from '../shared/terminal-synchronized-output-scan'
@@ -2143,6 +2148,7 @@ export class PtyHandler {
     const managedStartupCommand = shouldProviderDeliverCommand ? command : launchCommandHint
     // Why: both renderer- and provider-delivered startup commands use this marker; the delivering side strips it from output.
     const shellLaunch = getRelayShellLaunchConfig(shell, spawnEnv, process.platform, {
+      ...(shouldProviderDeliverCommand ? { startupCommand: command, cwd } : {}),
       terminalWindowsWslDistro,
       emitReadyMarker: shouldEmitShellReadyMarker,
       emitStartupIdentity: shouldEmitShellReadyMarker
@@ -2160,14 +2166,21 @@ export class PtyHandler {
     // includes Homebrew, nvm, and user-installed CLIs (claude, codex, gh).
     // When overlays are injected, the launch wrapper keeps those paths after
     // user startup files re-export their defaults.
-    const ptyEnv: Record<string, string> = {
+    const mergedPtyEnv: Record<string, string> = {
       ...spawnEnv,
       [SHELL_STARTUP_FEATURE_ENV]: '',
       ...shellLaunch.env
     }
+    const ptyEnv =
+      process.platform === 'win32'
+        ? buildWindowsShellStartupEnvironment(
+            mergedPtyEnv,
+            shellLaunch.env[POWERSHELL_STARTUP_COMMAND_ENV]
+          )
+        : mergedPtyEnv
     let term: IPty
     try {
-      term = pty.spawn(shell, shellLaunch.args, {
+      term = pty.spawn(shell, windowsPtyShellArgs(shell, shellLaunch.args), {
         // Why: node-pty overwrites env.TERM with `name`; pass caller-selected TERM so it isn't lost.
         name: spawnEnv.TERM ?? 'xterm-256color',
         cols,
@@ -2239,7 +2252,9 @@ export class PtyHandler {
       ...(startupIngressIntent ? { startupIngressIntent } : {}),
       ...(terminalHandle ? { terminalHandle } : {}),
       shellReadyArmed: rendererShellReadySupported,
-      ...(managedStartupCommand && (shouldProviderDeliverCommand || rendererShellReadySupported)
+      ...(managedStartupCommand &&
+      !shellLaunch.startupCommandDelivered &&
+      (shouldProviderDeliverCommand || rendererShellReadySupported)
         ? {
             startupCommand: {
               command: shouldProviderDeliverCommand ? managedStartupCommand : null,

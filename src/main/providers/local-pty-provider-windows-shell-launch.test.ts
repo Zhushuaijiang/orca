@@ -161,6 +161,25 @@ describe('LocalPtyProvider', () => {
   })
 
   describe('spawn', () => {
+    it('passes a quoted cmd agent command verbatim to ConPTY without terminal input', async () => {
+      Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+      const command = '"%LOCALAPPDATA%\\Agent Tools\\codex.exe" "review %USERPROFILE%"'
+      await provider.spawn({
+        cols: 120,
+        rows: 40,
+        cwd: 'C:\\repo',
+        shellOverride: 'cmd.exe',
+        command
+      })
+      expect(spawnMock).toHaveBeenCalledWith(
+        'cmd.exe',
+        `/K chcp 65001 > nul & ${command}`,
+        expect.any(Object)
+      )
+      expect(mockProc.write).not.toHaveBeenCalled()
+      exitCb?.({ exitCode: 0 })
+    })
+
     it('delivers a long automation command through PowerShell startup without typing it', async () => {
       Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
       const command = `claude '--dangerously-skip-permissions' '${'处理下一个需求'.repeat(1200)}'`

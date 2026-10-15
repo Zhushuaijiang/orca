@@ -91,6 +91,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify Windows agent startup command delivery
+        env:
+          ORCA_BACKGROUND_LAUNCH: '1'
+        run: >-
+          pnpm test:node
+          src/main/providers/windows-agent-startup-transport.test.ts
+          src/main/providers/windows-powershell-startup-command.windows.test.ts
+          src/main/providers/windows-cmd-startup-command.node-pty.test.ts
+          src/main/daemon/daemon-agent-startup-upgrade.test.ts
+
       - name: Instrument disposable installer and uninstaller
         if: inputs.trace_installer && steps.cache-installer.outputs.cache-hit != 'true'
         run: node tests/tools/win-update-e2e/trace-installer-branches.mjs

@@ -1,3 +1,12 @@
+import {
+  encodePowerShellCommand,
+  getPowerShellOsc133Bootstrap
+} from '../powershell-osc133-bootstrap'
+import { quoteStartupArg } from '../../shared/tui-agent-startup-shell'
+
+const POWERSHELL_STARTUP_COMMAND_TEXT_MAX_CHARS = 6000
+const POWERSHELL_ENCODED_COMMAND_ARG_MAX_CHARS = 28_000
+
 export const POWERSHELL_STARTUP_COMMAND_ENV = 'ORCA_POWERSHELL_STARTUP_COMMAND'
 
 // Long commands must run after profiles without passing through PSReadLine's startup queries.
@@ -27,4 +36,56 @@ export function buildWindowsShellStartupEnvironment(
     result[POWERSHELL_STARTUP_COMMAND_ENV] = startupCommand
   }
   return result
+}
+
+/**
+ * Builds the PowerShell -EncodedCommand payload for startup bootstrap.
+ *
+ * Short commands are inline; long commands arrive through a one-shot environment value.
+ */
+function getPowerShellRestoreCwdCommand(cwd: string): string {
+  return [
+    '',
+    '# Profiles can change location; restore the PTY cwd after profile loading.',
+    `try { Set-Location -LiteralPath ${quoteStartupArg(cwd, 'powershell')} -ErrorAction Stop } catch { Write-Warning "Failed to restore working directory: $_" }`
+  ].join('\n')
+}
+
+export function getPowerShellEncodedStartupCommand(
+  cwd: string,
+  startupCommand?: string
+): {
+  encodedCommand: string
+  startupCommandDeliveredInShellArgs?: boolean
+  startupCommandEnv?: string
+} {
+  const bootstrap = `${getPowerShellOsc133Bootstrap()}${getPowerShellRestoreCwdCommand(cwd)}`
+  if (!startupCommand) {
+    return { encodedCommand: encodePowerShellCommand(bootstrap) }
+  }
+
+  const command = `${bootstrap}\n${startupCommand}`
+  const encodedCommand = encodePowerShellCommand(command)
+  // Why: -EncodedCommand expands UTF-16 text into base64; keep a conservative
+  // margin under Windows CreateProcess' 32,767-character command line limit.
+  if (
+    startupCommand.length > POWERSHELL_STARTUP_COMMAND_TEXT_MAX_CHARS ||
+    encodedCommand.length > POWERSHELL_ENCODED_COMMAND_ARG_MAX_CHARS
+  ) {
+    if (startupCommand.length > 32_766 || startupCommand.includes('\0')) {
+      throw new Error('PowerShell startup command exceeds the Windows environment value limit.')
+    }
+    return {
+      encodedCommand: encodePowerShellCommand(
+        `${bootstrap}\n${POWERSHELL_STARTUP_COMMAND_BOOTSTRAP}`
+      ),
+      startupCommandDeliveredInShellArgs: true,
+      startupCommandEnv: startupCommand
+    }
+  }
+
+  return {
+    encodedCommand,
+    startupCommandDeliveredInShellArgs: true
+  }
 }

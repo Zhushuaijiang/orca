@@ -67,11 +67,12 @@ export class OrcaRuntimeWithRunCreateMobileSessionTerminal extends OrcaRuntimeWi
     if (opts.signal?.aborted) {
       throw new Error('client_disconnected')
     }
-    if (opts.clientMutationId && startupCommand.command && startupCommand.launchAgent === 'qoder') {
+    const win = this.getAvailableAuthoritativeWindow()
+    if (opts.clientMutationId && startupCommand.command) {
       const clientIdentity = opts.clientNavigationId ?? 'local'
       const seed = `${clientIdentity}\0${worktreeId}\0${opts.clientMutationId}`
       // A command-bearing retry must reconcile the owning PTY before delivering the resume again.
-      return await this.createRuntimeOwnedMobileSessionTerminal(
+      const result = await this.createRuntimeOwnedMobileSessionTerminal(
         worktreeId,
         opts.activate !== false,
         afterTabId,
@@ -89,10 +90,14 @@ export class OrcaRuntimeWithRunCreateMobileSessionTerminal extends OrcaRuntimeWi
           signal: opts.signal
         }
       )
+      if (win && opts.activate !== false) {
+        this.notifier?.focusTerminal(result.tab.parentTabId, worktreeId, null)
+      }
+      return result
     }
-    const win = this.getAvailableAuthoritativeWindow()
-    if (!win) {
-      return await this.createRuntimeOwnedMobileSessionTerminal(
+    // Command-bearing creates belong to the execution host, including while a renderer is available.
+    if (!win || startupCommand.command) {
+      const result = await this.createRuntimeOwnedMobileSessionTerminal(
         worktreeId,
         opts.activate !== false,
         afterTabId,
@@ -110,6 +115,10 @@ export class OrcaRuntimeWithRunCreateMobileSessionTerminal extends OrcaRuntimeWi
           signal: opts.signal
         }
       )
+      if (win && opts.activate !== false) {
+        this.notifier?.focusTerminal(result.tab.parentTabId, worktreeId, null)
+      }
+      return result
     }
     if (win.webContents.isDestroyed?.()) {
       throw new Error('runtime_unavailable')
@@ -196,7 +205,6 @@ export class OrcaRuntimeWithRunCreateMobileSessionTerminal extends OrcaRuntimeWi
           signal: opts.signal
         })
         if (this.isReadyMobileTerminalSurface(surface)) {
-          this.deliverPendingStartupCommandToBareRendererPty(worktreeId, reply.tabId)
           return surface
         }
         const readySurface = await this.waitForMobileTerminalSurface(worktreeId, reply.tabId, {
@@ -205,7 +213,6 @@ export class OrcaRuntimeWithRunCreateMobileSessionTerminal extends OrcaRuntimeWi
           signal: opts.signal
         }).catch(() => null)
         if (readySurface) {
-          this.deliverPendingStartupCommandToBareRendererPty(worktreeId, reply.tabId)
           return readySurface
         }
         if (opts.signal?.aborted) {
@@ -241,7 +248,6 @@ export class OrcaRuntimeWithRunCreateMobileSessionTerminal extends OrcaRuntimeWi
         if (this.findLiveRegisteredPtyForRendererTab(worktreeId, reply.tabId)) {
           const rescued = this.ensurePtyBackedMobileSurfaceForRendererTab(worktreeId, reply.tabId)
           if (rescued) {
-            this.deliverPendingStartupCommandToBareRendererPty(worktreeId, reply.tabId)
             return rescued
           }
         }

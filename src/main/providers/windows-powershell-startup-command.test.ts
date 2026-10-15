@@ -46,7 +46,7 @@ describe('PowerShell startup command transport', () => {
     expect(launch.shellArgs[3].length).toBeLessThan(28_000)
   })
 
-  it('carries the command on each PowerShell attempt and excludes it from cmd fallback', () => {
+  it('carries long commands on every Windows shell attempt', () => {
     const command = `claude '${'x'.repeat(7000)}'`
     const attempts = buildWindowsPowerShellSpawnAttempts({
       shellPath: 'pwsh.exe',
@@ -65,7 +65,7 @@ describe('PowerShell startup command transport', () => {
       expect(attempt.startupCommandDeliveredInShellArgs).toBe(true)
     }
     expect(attempts[2].startupCommandEnv).toBeUndefined()
-    expect(attempts[2].startupCommandDeliveredInShellArgs).toBe(false)
+    expect(attempts[2].startupCommandDeliveredInShellArgs).toBe(true)
   })
 
   it('removes inherited startup commands without changing the parent environment', () => {

@@ -9,6 +9,7 @@ import {
 } from './macos-tcc-login-shell'
 import { formatLocalPtyEnvironmentDiag } from './working-directory-validation'
 import { buildWindowsShellStartupEnvironment } from './windows-powershell-startup-command'
+import { windowsPtyShellArgs } from './windows-cmd-startup-command'
 
 export {
   formatLocalPtyEnvironmentDiag,
@@ -187,14 +188,18 @@ function spawnWindowsFallbackChain(
   // Skip the first entry: it is the primary that already failed above.
   for (const attempt of attempts.slice(1)) {
     try {
-      const proc = ptySpawn(attempt.shellPath, attempt.shellArgs, {
-        name: termName,
-        cols,
-        rows,
-        cwd: attempt.effectiveCwd,
-        env: buildWindowsShellStartupEnvironment(env, attempt.startupCommandEnv),
-        ...windowsConptyDllOptions()
-      })
+      const proc = ptySpawn(
+        attempt.shellPath,
+        windowsPtyShellArgs(attempt.shellPath, attempt.shellArgs),
+        {
+          name: termName,
+          cols,
+          rows,
+          cwd: attempt.effectiveCwd,
+          env: buildWindowsShellStartupEnvironment(env, attempt.startupCommandEnv),
+          ...windowsConptyDllOptions()
+        }
+      )
       console.warn(
         `[pty] Primary shell "${params.shellPath}" failed (${primaryError}), fell back to "${attempt.shellPath}"`
       )
@@ -237,7 +242,7 @@ export function spawnShellWithFallback(params: ShellSpawnParams): ShellSpawnResu
     try {
       const wrapped = wrapShellSpawnForMacosTccAttribution(shellPath, shellArgs, env)
       return {
-        process: ptySpawn(wrapped.file, wrapped.args, {
+        process: ptySpawn(wrapped.file, windowsPtyShellArgs(wrapped.file, wrapped.args), {
           name: termName,
           cols,
           rows,

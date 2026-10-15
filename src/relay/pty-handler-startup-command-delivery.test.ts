@@ -76,6 +76,32 @@ describe('PtyHandler', () => {
     expect(term.write).not.toHaveBeenCalled()
   })
 
+  it.each(['powershell.exe', 'pwsh.exe', 'cmd.exe'])(
+    'launches a Windows SSH agent in %s without delayed terminal typing',
+    async (shell) => {
+      Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+      const command = `codex "${'review '.repeat(1000)}"`
+      await dispatcher.callRequest('pty.spawn', {
+        shellOverride: shell,
+        cwd: 'C:\\repo',
+        command,
+        commandDelivery: 'provider',
+        launchAgent: 'codex',
+        env: { orca_powershell_startup_command: 'stale' }
+      })
+      vi.advanceTimersByTime(20_000)
+      expect(mockPtyInstance.write).not.toHaveBeenCalled()
+      expect(handler.retainedStartupCommandCount).toBe(0)
+      const env = mockPtySpawn.mock.calls.at(-1)?.[2].env
+      expect(env.orca_powershell_startup_command).toBeUndefined()
+      if (shell === 'cmd.exe') {
+        expect(mockPtySpawn.mock.calls.at(-1)?.[1]).toBe(`/K chcp 65001 > nul & ${command}`)
+      } else {
+        expect(env.ORCA_POWERSHELL_STARTUP_COMMAND).toBe(command)
+      }
+    }
+  )
+
   it('submits provider-delivered spawn commands to the relay shell', async () => {
     await dispatcher.callRequest('pty.spawn', {
       command: 'echo provider-owned',

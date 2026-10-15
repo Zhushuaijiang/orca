@@ -106,30 +106,6 @@ export class OrcaRuntimeWithRestoreLivePairedRendererSessionOwnedMobileTerminals
     )
   }
 
-  // Why: a create can settle over a renderer PTY that spawned without its
-  // startup command (the create's renderer stalled, #7587), silently binding
-  // the client to a plain shell under an agent tab forever — once the surface
-  // is ready, the activation-time materialize recovery (#7837) never runs
-  // (STA-3214). Spawn commands are recorded per PTY at spawn time, so a
-  // missing record on the locally registered live PTY proves the launch never
-  // ran; type it into the shell like the create would have.
-  protected deliverPendingStartupCommandToBareRendererPty(worktreeId: string, tabId: string): void {
-    const pending = this.pendingMobileTerminalCreatesByKey.get(`${worktreeId}::${tabId}`)
-    const command = pending?.startupCommand
-    if (!command) {
-      return
-    }
-    const pty = this.findLiveRegisteredPtyForRendererTab(worktreeId, tabId)
-    if (!pty || this.terminalSpawnCommandsByPtyId.has(pty.ptyId)) {
-      return
-    }
-    if (this.ptyController?.write(pty.ptyId, command, 'launch')) {
-      // Why: Enter rides its own write so a long command cannot swallow it.
-      this.ptyController.write(pty.ptyId, '\r', 'launch')
-      this.noteTerminalSpawnCommand(pty.ptyId, command)
-    }
-  }
-
   protected waitForTerminalHandle(tabId: string, timeoutMs = 10_000): Promise<string> {
     const existing = this.resolveHandleForTab(tabId)
     if (existing) {

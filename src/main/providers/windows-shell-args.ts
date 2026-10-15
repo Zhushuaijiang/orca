@@ -8,17 +8,11 @@ import {
 } from '../../shared/wsl-login-shell-command'
 import { getBashWrapperLaunchArgs } from './local-pty-shell-ready'
 import { ensureShellReadyWrappersAt } from './local-pty-shell-ready-wrapper-generation'
-import {
-  encodePowerShellCommand,
-  getPowerShellOsc133Bootstrap
-} from '../powershell-osc133-bootstrap'
-import { quoteStartupArg } from '../../shared/tui-agent-startup-shell'
-import { POWERSHELL_STARTUP_COMMAND_BOOTSTRAP } from './windows-powershell-startup-command'
+import { getPowerShellEncodedStartupCommand } from './windows-powershell-startup-command'
+import { planWindowsCmdStartupCommand } from './windows-cmd-startup-command'
 
 /** cmd.exe's own documented ceiling; callers that go through sshd budget below it. */
-export const CMD_EXE_COMMAND_LINE_MAX_CHARS = 8191
-const STARTUP_COMMAND_TEXT_MAX_CHARS = 6000
-const POWERSHELL_ENCODED_COMMAND_ARG_MAX_CHARS = 28_000
+export { CMD_EXE_COMMAND_LINE_MAX_CHARS } from './windows-cmd-startup-command'
 const CMD_UTF8_SETUP_COMMAND = 'chcp 65001 > nul'
 export const ORCA_CODEX_LAUNCH_PREFLIGHT_CMD_QUOTE_ENV = 'ORCA_CODEX_LAUNCH_PREFLIGHT_CMD_QUOTE'
 const CMD_CODEX_LAUNCH_PREFLIGHT = `if defined ORCA_CODEX_LAUNCH_PREFLIGHT call %${ORCA_CODEX_LAUNCH_PREFLIGHT_CMD_QUOTE_ENV}%%ORCA_CODEX_LAUNCH_PREFLIGHT%%${ORCA_CODEX_LAUNCH_PREFLIGHT_CMD_QUOTE_ENV}% agent hooks prepare-codex > nul 2>&1`
@@ -57,7 +51,7 @@ export type WindowsShellLaunchArgs = {
   /** True when the startup command was embedded in shellArgs and must not be
    *  written again through stdin. */
   startupCommandDeliveredInShellArgs?: boolean
-  /** Command read once by the PowerShell bootstrap instead of typed into the terminal. */
+  /** Command read by the shell bootstrap instead of typed into the terminal. */
   startupCommandEnv?: string
   /** The cwd node-pty should be spawned with. WSL cannot cd into a Windows
    *  path, so the wsl.exe branch returns the user's home as the effective cwd
@@ -72,80 +66,6 @@ export type WindowsShellLaunchArgs = {
 export type WindowsShellWslContext = {
   distro: string
   treatPosixCwdAsWsl?: boolean
-}
-
-/**
- * Returns a startup command that is safe to embed in cmd.exe launch args.
- *
- * Commands that could exceed Windows cmd.exe limits return null so callers
- * keep the older stdin delivery path.
- */
-function getCmdShellArgStartupCommand(command?: string): string | null {
-  if (!command || command.length > STARTUP_COMMAND_TEXT_MAX_CHARS) {
-    return null
-  }
-  // Why: node-pty's C-runtime argv escaping changes normal cmd quotes in `/K`
-  // delivery, while the interactive parser preserves them through stdin.
-  if (command.includes('"')) {
-    return null
-  }
-  const commandArg = `${CMD_UTF8_SETUP_COMMAND} & ${command}`
-  if (commandArg.length > CMD_EXE_COMMAND_LINE_MAX_CHARS) {
-    return null
-  }
-  return command
-}
-
-/**
- * Builds the PowerShell -EncodedCommand payload for startup bootstrap.
- *
- * Short commands are inline; long commands arrive through a one-shot environment value.
- */
-function getPowerShellRestoreCwdCommand(cwd: string): string {
-  return [
-    '',
-    '# Profiles can change location; restore the PTY cwd after profile loading.',
-    `try { Set-Location -LiteralPath ${quoteStartupArg(cwd, 'powershell')} -ErrorAction Stop } catch { Write-Warning "Failed to restore working directory: $_" }`
-  ].join('\n')
-}
-
-function getPowerShellEncodedCommand(
-  cwd: string,
-  startupCommand?: string
-): {
-  encodedCommand: string
-  startupCommandDeliveredInShellArgs?: boolean
-  startupCommandEnv?: string
-} {
-  const bootstrap = `${getPowerShellOsc133Bootstrap()}${getPowerShellRestoreCwdCommand(cwd)}`
-  if (!startupCommand) {
-    return { encodedCommand: encodePowerShellCommand(bootstrap) }
-  }
-
-  const command = `${bootstrap}\n${startupCommand}`
-  const encodedCommand = encodePowerShellCommand(command)
-  // Why: -EncodedCommand expands UTF-16 text into base64; keep a conservative
-  // margin under Windows CreateProcess' 32,767-character command line limit.
-  if (
-    startupCommand.length > STARTUP_COMMAND_TEXT_MAX_CHARS ||
-    encodedCommand.length > POWERSHELL_ENCODED_COMMAND_ARG_MAX_CHARS
-  ) {
-    if (startupCommand.length > 32_766 || startupCommand.includes('\0')) {
-      throw new Error('PowerShell startup command exceeds the Windows environment value limit.')
-    }
-    return {
-      encodedCommand: encodePowerShellCommand(
-        `${bootstrap}\n${POWERSHELL_STARTUP_COMMAND_BOOTSTRAP}`
-      ),
-      startupCommandDeliveredInShellArgs: true,
-      startupCommandEnv: startupCommand
-    }
-  }
-
-  return {
-    encodedCommand,
-    startupCommandDeliveredInShellArgs: true
-  }
 }
 
 /**
@@ -198,22 +118,24 @@ export function resolveWindowsShellLaunchArgs(
   const nativeCwd = normalizeWindowsTerminalCwd(cwd)
 
   if (shellBasename === 'cmd.exe') {
-    const shellArgStartupCommand = getCmdShellArgStartupCommand(startupCommand)
     const startupCommands = [
       CMD_UTF8_SETUP_COMMAND,
-      ...(codexLaunchPreflightCommand ? [CMD_CODEX_LAUNCH_PREFLIGHT] : []),
-      ...(shellArgStartupCommand ? [shellArgStartupCommand] : [])
+      ...(codexLaunchPreflightCommand ? [CMD_CODEX_LAUNCH_PREFLIGHT] : [])
     ]
+    const startup = planWindowsCmdStartupCommand(startupCommand, startupCommands.join(' & '))
+    if (startup.command) {
+      startupCommands.push(startup.command)
+    }
     return {
       shellArgs: ['/K', startupCommands.join(' & ')],
-      ...(shellArgStartupCommand ? { startupCommandDeliveredInShellArgs: true } : {}),
+      ...(startup.command ? { startupCommandDeliveredInShellArgs: true } : {}),
       effectiveCwd: nativeCwd,
       validationCwd: nativeCwd
     }
   }
 
   if (shellBasename === 'powershell.exe' || shellBasename === 'pwsh.exe') {
-    const powerShellCommand = getPowerShellEncodedCommand(nativeCwd, startupCommand)
+    const powerShellCommand = getPowerShellEncodedStartupCommand(nativeCwd, startupCommand)
     // Why: foreground-process status on Windows depends on OSC 133 C/D, and
     // PowerShell needs a prompt/readline bootstrap after profiles finish.
     // Why base64 and not -Command: see powershell-osc133-bootstrap.ts (MDE review).

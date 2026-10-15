@@ -6,6 +6,7 @@ import {
 import type { WindowsShellSpawnAttempt } from '../../providers/windows-shell-fallback-chain'
 import { assignHostProcessToKillOnCloseJob } from '../../windows/windows-pty-job'
 import { buildWindowsShellStartupEnvironment } from '../../providers/windows-powershell-startup-command'
+import { windowsPtyShellArgs } from '../../providers/windows-cmd-startup-command'
 
 async function loadNodePty(): Promise<typeof pty> {
   return import('node-pty')
@@ -45,7 +46,7 @@ export async function spawnNativeDaemonPty(args: {
     if (process.platform === 'win32') {
       assignHostProcessToKillOnCloseJob()
     }
-    const proc = nodePty.spawn(wrapped.file, wrapped.args, {
+    const proc = nodePty.spawn(wrapped.file, windowsPtyShellArgs(wrapped.file, wrapped.args), {
       name: args.env.TERM ?? 'xterm-256color',
       cols: args.cols,
       rows: args.rows,

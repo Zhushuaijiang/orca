@@ -306,7 +306,7 @@ describe('createPtySubprocess', () => {
     }
   })
 
-  it('keeps oversized Windows startup commands on PTY stdin delivery', async () => {
+  it('runs long cmd startup commands without PTY stdin delivery', async () => {
     const proc = mockPtyProcess()
     spawnMock.mockReturnValue(proc)
     const platform = Object.getOwnPropertyDescriptor(process, 'platform')
@@ -332,13 +332,10 @@ describe('createPtySubprocess', () => {
 
     expect(spawnMock).toHaveBeenCalledWith(
       'cmd.exe',
-      [
-        '/K',
-        'chcp 65001 > nul & if defined ORCA_CODEX_LAUNCH_PREFLIGHT call %ORCA_CODEX_LAUNCH_PREFLIGHT_CMD_QUOTE%%ORCA_CODEX_LAUNCH_PREFLIGHT%%ORCA_CODEX_LAUNCH_PREFLIGHT_CMD_QUOTE% agent hooks prepare-codex > nul 2>&1'
-      ],
+      `/K chcp 65001 > nul & if defined ORCA_CODEX_LAUNCH_PREFLIGHT call %ORCA_CODEX_LAUNCH_PREFLIGHT_CMD_QUOTE%%ORCA_CODEX_LAUNCH_PREFLIGHT%%ORCA_CODEX_LAUNCH_PREFLIGHT_CMD_QUOTE% agent hooks prepare-codex > nul 2>&1 & codex ${'x'.repeat(7000)}`,
       expect.any(Object)
     )
-    expect(handle!.startupCommandDeliveredInShellArgs).toBeUndefined()
+    expect(handle!.startupCommandDeliveredInShellArgs).toBe(true)
   })
 
   it('launches Git Bash with login args and CHERE_INVOKING on Windows', async () => {

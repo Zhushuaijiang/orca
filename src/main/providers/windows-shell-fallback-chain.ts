@@ -1,5 +1,6 @@
 import { win32 as pathWin32 } from 'node:path'
 import { resolveWindowsShellLaunchArgs } from './windows-shell-args'
+import { WindowsCmdStartupCommandError } from './windows-cmd-startup-command'
 import type { WindowsShellWslContext } from './windows-shell-args'
 import {
   resolveWindowsPowerShellSpawnChain,
@@ -69,7 +70,15 @@ export function buildWindowsPowerShellSpawnAttempts(args: {
     return []
   }
   const chain = resolveWindowsPowerShellSpawnChain(basename, args.resolveOptions)
-  return chain.map((candidate) =>
-    toAttempt(candidate, args.cwd, args.defaultCwd, args.wslContext, args.startupCommand)
-  )
+  return chain.flatMap((candidate) => {
+    try {
+      return [toAttempt(candidate, args.cwd, args.defaultCwd, args.wslContext, args.startupCommand)]
+    } catch (error) {
+      // An incompatible cmd fallback must not block a valid PowerShell launch or truncate its prompt.
+      if (error instanceof WindowsCmdStartupCommandError) {
+        return []
+      }
+      throw error
+    }
+  })
 }

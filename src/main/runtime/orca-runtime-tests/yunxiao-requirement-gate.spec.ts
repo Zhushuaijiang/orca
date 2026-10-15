@@ -1,4 +1,4 @@
-import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,6 +17,9 @@ import {
 } from '../orca-runtime-test-fixtures.spec'
 
 describe('Yunxiao requirement gate', () => {
+  beforeEach(() => setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined))
+  afterEach(() => setDfHisWorkflowPackRefreshInstallerForTests(null))
+
   it('gates raw Yunxiao terminal sends when the target is an agent', async () => {
     setYunxiaoRequirementPromptGateEnabled(true)
     onTestFinished(() => setYunxiaoRequirementPromptGateEnabled(false))

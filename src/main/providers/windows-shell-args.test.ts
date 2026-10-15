@@ -88,9 +88,8 @@ describe('resolveWindowsShellLaunchArgs', () => {
     expect(result.startupCommandDeliveredInShellArgs).toBe(true)
   })
 
-  it('keeps quoted cmd.exe startup commands on stdin delivery', () => {
-    // Why: direct queued cmd commands need normal quotes, which node-pty's
-    // C-runtime argv escaping corrupts when delivered through `/K`.
+  it('delivers quoted cmd.exe startup commands after argv parsing', () => {
+    // Quotes must reach cmd after ConPTY's C-runtime argv parser.
     const result = resolveWindowsShellLaunchArgs(
       'cmd.exe',
       'C:\\Users\\alice\\repo',
@@ -98,11 +97,14 @@ describe('resolveWindowsShellLaunchArgs', () => {
       undefined,
       'cd /d "C:\\Users\\alice\\repo" && claude "--resume" "session one"'
     )
-    expect(result.shellArgs).toEqual(['/K', 'chcp 65001 > nul'])
-    expect(result.startupCommandDeliveredInShellArgs).toBeUndefined()
+    expect(result.shellArgs).toEqual([
+      '/K',
+      'chcp 65001 > nul & cd /d "C:\\Users\\alice\\repo" && claude "--resume" "session one"'
+    ])
+    expect(result.startupCommandDeliveredInShellArgs).toBe(true)
   })
 
-  it('keeps large cmd.exe startup commands on stdin delivery', () => {
+  it('delivers large cmd.exe startup commands without terminal input', () => {
     const result = resolveWindowsShellLaunchArgs(
       'cmd.exe',
       'C:\\Users\\alice',
@@ -111,8 +113,11 @@ describe('resolveWindowsShellLaunchArgs', () => {
       `codex ${'x'.repeat(7000)}`,
       CODEX_LAUNCH_PREFLIGHT
     )
-    expect(result.shellArgs).toEqual(['/K', `chcp 65001 > nul & ${CMD_CODEX_LAUNCH_PREFLIGHT}`])
-    expect(result.startupCommandDeliveredInShellArgs).toBeUndefined()
+    expect(result.shellArgs).toEqual([
+      '/K',
+      `chcp 65001 > nul & ${CMD_CODEX_LAUNCH_PREFLIGHT} & codex ${'x'.repeat(7000)}`
+    ])
+    expect(result.startupCommandDeliveredInShellArgs).toBe(true)
   })
 
   it('returns PowerShell args that install OSC 133 bootstrap after normal profile loading', () => {
