@@ -31,7 +31,7 @@ describe.skipIf(process.platform !== 'win32')('PowerShell long command execution
             '-NonInteractive',
             '-EncodedCommand',
             encodePowerShellCommand(
-              `$ExecutionContext.SessionState.LanguageMode = '${languageMode}'\n${bootstrap}`
+              `$ProgressPreference = 'SilentlyContinue'\n$ExecutionContext.SessionState.LanguageMode = '${languageMode}'\n${bootstrap}`
             )
           ],
           env: {
