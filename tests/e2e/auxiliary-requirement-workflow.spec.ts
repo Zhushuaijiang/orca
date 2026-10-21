@@ -203,7 +203,7 @@ test('discusses, dispatches task models, settles workers and returns review to t
       .poll(() => ledger().filter((event) => event.event === 'repair-received').length, {
         timeout: 45_000
       })
-      .toBe(1)
+      .toBeGreaterThanOrEqual(2)
   } catch (error) {
     console.log(
       'Review return diagnostics:',
@@ -223,12 +223,31 @@ test('discusses, dispatches task models, settles workers and returns review to t
     )
     throw error
   }
-  expect(ledger().filter((event) => event.event === 'review-only')).toHaveLength(1)
+  await expect
+    .poll(() => ledger().filter((event) => event.event === 'final-review-received').length, {
+      timeout: 45_000
+    })
+    .toBe(1)
+  expect(ledger().filter((event) => event.event === 'review-only')).toHaveLength(3)
   expect(ledger().filter((event) => event.event === 'failure')).toHaveLength(0)
   const receipt = JSON.parse(readFileSync(path.join(testRepoPath, 'repair-receipt.json'), 'utf8'))
   expect(receipt.received).toBe(true)
   expect(receipt.agent).toBe('claude')
-  expect(receipt.reviewerMessage).toContain('P1: format-display-name.mjs')
+  expect(ledger().filter((event) => event.event === 'repair-received')).toHaveLength(3)
+  expect(receipt.verified).toBe(true)
+  const originalTab = orcaPage.getByText('DFHIS-99999999', { exact: false }).first()
+  await originalTab.click()
+  await orcaPage
+    .locator('.xterm:visible')
+    .first()
+    .click({ button: 'right', position: { x: 180, y: 60 } })
+  await expect(
+    orcaPage.getByRole('menuitem', { name: /Confirm discussion consensus|确认讨论共识/ })
+  ).toBeVisible()
+  await orcaPage
+    .getByRole('menuitem', { name: /Confirm discussion consensus|确认讨论共识/ })
+    .click()
+  await expect(orcaPage.getByText(/^(Requirement review confirmed|需求审核已确认)$/)).toBeVisible()
   const repaired = await runProcess({
     program: process.execPath,
     args: [path.join(testRepoPath, 'format-display-name.test.mjs')],

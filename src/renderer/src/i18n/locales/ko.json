@@ -1,4 +1,15 @@
 {
+  "requirementReview": {
+    "saveFailed": "요구사항 검토를 저장하지 못했습니다",
+    "confirmed": "요구사항 검토를 확인했습니다",
+    "confirmConsensus": "토론 합의 확인",
+    "launchFailed": "요구사항 검토를 시작하지 못했습니다",
+    "progress": "요구사항 토론 {{round}}/3",
+    "restart": "요구사항 다시 토론",
+    "retry": "요구사항 토론 계속 (합의 미완료)",
+    "start": "요구사항 토론 (최대 3회)",
+    "threeRounds": "검토 인계 · 합의"
+  },
   "app": {
     "recoverableError": {
       "rootTitle": "Orca에 렌더러 오류가 발생했습니다.",

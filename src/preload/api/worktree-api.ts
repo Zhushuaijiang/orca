@@ -184,6 +184,7 @@ export type FolderWorkspacesApi = {
         | 'firstAgentMessageRenameError'
         | 'lastActivityAt'
         | 'diffComments'
+        | 'requirementReviews'
       >
     >
   }) => Promise<FolderWorkspace | null>

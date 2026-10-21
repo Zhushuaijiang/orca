@@ -9,6 +9,7 @@ import type { EphemeralVmCheckoutMode } from '../orca-yaml-hook-types'
 import type { BuiltInWorktreeVisibilitySourceId } from '../repo-types'
 import type { WorktreeIdentity } from './identity'
 import type { WorktreeScanFailureKind } from '../worktree-scan-failure'
+import type { RequirementReviewRecord } from '../requirement-review'
 
 export type WorkspaceLinkedItem = {
   provider: 'github' | 'gitlab' | 'linear' | 'jira' | 'yunxiao'
@@ -145,6 +146,8 @@ export type Worktree = {
   priorWorktreeIds?: string[]
   workspaceStatus?: WorkspaceStatus
   diffComments?: DiffComment[]
+  /** Requirement review state keyed by pane. */
+  requirementReviews?: Record<string, RequirementReviewRecord>
   mobileDiffReview?: MobileDiffReviewState
   automationProvenance?: AutomationWorkspaceProvenance
   yunxiaoRequirementGate?: ManualYunxiaoRequirementGate

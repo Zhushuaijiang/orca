@@ -1,4 +1,15 @@
 {
+  "requirementReview": {
+    "saveFailed": "要件レビューを保存できませんでした",
+    "confirmed": "要件レビューを確認しました",
+    "confirmConsensus": "議論の合意を確認",
+    "launchFailed": "要件レビューを開始できませんでした",
+    "progress": "要件の議論 {{round}}/3",
+    "restart": "要件を再議論",
+    "retry": "要件の議論を継続（未合意）",
+    "start": "要件を議論（最大 3 ラウンド）",
+    "threeRounds": "レビュー引き継ぎ · 合意形成"
+  },
   "app": {
     "recoverableError": {
       "rootTitle": "Orca でレンダラーエラーが発生しました。",

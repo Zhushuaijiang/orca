@@ -140,6 +140,7 @@ export const WORKTREE_METHODS = [
     name: 'worktree.set',
     params: WorktreeSet,
     handler: async (params, { runtime }) => ({
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The existing cast bridges legacy unknown review fields; requirementReviews is checked by its RPC schema.
       worktree: await runtime.updateManagedWorktreeMeta(params.worktree, {
         displayName: params.displayName,
         ...(params.displayName !== undefined
@@ -174,6 +175,7 @@ export const WORKTREE_METHODS = [
         pushTarget: params.pushTarget,
         diffComments: params.diffComments,
         mobileDiffReview: params.mobileDiffReview,
+        requirementReviews: params.requirementReviews,
         lineage:
           params.parentWorktree || params.noParent === true
             ? {

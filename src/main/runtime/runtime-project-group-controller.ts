@@ -45,6 +45,7 @@ type FolderWorkspaceUpdates = Partial<
     | 'firstAgentMessageRenameError'
     | 'lastActivityAt'
     | 'diffComments'
+    | 'requirementReviews'
   >
 >
 

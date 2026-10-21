@@ -13,6 +13,7 @@ import type { AiVaultAgent, AiVaultSession } from '../../../../shared/ai-vault-t
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import { translate } from '@/i18n/i18n'
 import { SessionActionMenuItems } from '../right-sidebar/AiVaultSessionActionMenuItems'
+import { RequirementReviewMenuItems } from '@/components/requirement-review-menu-items'
 import {
   aiVaultSessionResumeLabel,
   aiVaultSessionRowResumeGating,
@@ -240,6 +241,10 @@ export function WorktreeAgentSessionContextMenu({
           onClickCapture={suppressOpeningPointerEvent}
           onCloseAutoFocus={handleCloseAutoFocus}
         >
+          <RequirementReviewMenuItems
+            worktreeId={worktreeId}
+            paneKey={agent.activationPaneKey ?? agent.paneKey}
+          />
           {resolution.status === 'ready' ? (
             <ReadySessionMenuItems
               resolution={resolution}

@@ -1,4 +1,15 @@
 {
+  "requirementReview": {
+    "saveFailed": "需求审核保存失败",
+    "confirmed": "需求审核已确认",
+    "confirmConsensus": "确认讨论共识",
+    "launchFailed": "需求审核启动失败",
+    "progress": "需求讨论 {{round}}/3",
+    "restart": "重新讨论需求",
+    "retry": "继续需求讨论（未达成一致）",
+    "start": "发起需求讨论（最多 3 轮）",
+    "threeRounds": "审核接力 · 共识讨论"
+  },
   "app": {
     "recoverableError": {
       "rootTitle": "Orca 遇到渲染器错误。",

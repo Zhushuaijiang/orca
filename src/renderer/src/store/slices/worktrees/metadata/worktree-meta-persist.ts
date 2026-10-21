@@ -5,6 +5,7 @@ import {
   runtimeEnvironmentSupportsCapability
 } from '../../../../runtime/runtime-rpc-client'
 import {
+  REQUIREMENT_REVIEW_RUNTIME_CAPABILITY,
   TASK_SOURCE_CONTEXT_RUNTIME_CAPABILITY,
   WORKTREE_GITHUB_PR_SUPPRESSION_RUNTIME_CAPABILITY,
   WORKTREE_LINKED_WORK_ITEM_CONTEXT_RUNTIME_CAPABILITY
@@ -92,6 +93,13 @@ async function persistWorktreeMetaUntracked(
       updates
     })
     return
+  }
+  if (target.kind === 'environment' && 'requirementReviews' in updates) {
+    await assertRuntimeEnvironmentCapability(
+      target.environmentId,
+      REQUIREMENT_REVIEW_RUNTIME_CAPABILITY,
+      'Update the remote runtime to save requirement reviews'
+    )
   }
   // Why: `worktree.set` parses in strip mode, so an older runtime drops the key
   // and applies the rest. Both gates key off presence, not value — a dropped

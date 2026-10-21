@@ -14,6 +14,9 @@ import { tmpdir } from 'node:os'
 import type { PersistedState } from '../shared/persisted-state-types'
 import { getDefaultWorkspaceSession } from '../shared/constants'
 import { folderWorkspaceKey } from '../shared/workspace-scope'
+import type { RequirementReviewRecord } from '../shared/requirement-review'
+import { mergeWorktree } from './ipc/worktree-metadata-merge'
+import { folderWorkspaceToWorktree } from '../shared/folder-workspace-worktree'
 
 // Stub the ~/.ssh/config parser so the SSH-import test drives the real Store with deterministic hosts, not the operator's actual ~/.ssh/config.
 const { loadUserSshConfigMock, sshConfigHostsToTargetsMock } = vi.hoisted(() => ({
@@ -78,6 +81,72 @@ describe('Store', () => {
     expect(meta.linkedIssue).toBeNull()
     expect(meta.isArchived).toBe(false)
     expect(typeof meta.sortOrder).toBe('number')
+  })
+
+  it('round-trips per-pane requirement reviews without losing unrelated metadata', async () => {
+    const store = await createStore()
+    const group = store.createProjectGroup({
+      name: 'Reviews',
+      parentPath: testState.dir,
+      createdFrom: 'manual'
+    })
+    const folder = store.createFolderWorkspace({ projectGroupId: group.id })
+    const requirementReviews: Record<string, RequirementReviewRecord> = {
+      'pane-1': {
+        round: 2,
+        phase: 'awaiting_confirmation',
+        review: 'Validation passes',
+        sessionId: 'session-1',
+        ptyId: 'pty-1',
+        updatedAt: 123
+      },
+      'pane-2': { round: 1, phase: 'failed', updatedAt: 124 }
+    }
+    store.setWorktreeMeta('wt-reviews', { comment: 'git note', requirementReviews })
+    store.updateFolderWorkspace(folder.id, { comment: 'folder note', requirementReviews })
+    store.setWorktreeMeta('wt-reviews', { isPinned: true })
+    store.updateFolderWorkspace(folder.id, { isPinned: true })
+    store.flush()
+
+    const restored = await createStore()
+    expect(restored.getWorktreeMeta('wt-reviews')).toMatchObject({
+      comment: 'git note',
+      isPinned: true,
+      requirementReviews
+    })
+    expect(restored.getFolderWorkspace(folder.id)).toMatchObject({
+      comment: 'folder note',
+      isPinned: true,
+      requirementReviews
+    })
+    const meta = restored.getWorktreeMeta('wt-reviews')
+    const restoredFolder = restored.getFolderWorkspace(folder.id)
+    expect(
+      mergeWorktree(
+        'repo-1',
+        {
+          path: testState.dir,
+          branch: 'refs/heads/main',
+          head: 'abc',
+          isBare: false,
+          isMainWorktree: true
+        },
+        meta
+      ).requirementReviews
+    ).toEqual(requirementReviews)
+    if (!restoredFolder) {
+      throw new Error('Folder workspace was not restored')
+    }
+    expect(folderWorkspaceToWorktree(restoredFolder).requirementReviews).toEqual(requirementReviews)
+    restored.setWorktreeMeta('wt-reviews', { requirementReviews: {} })
+    restored.updateFolderWorkspace(folder.id, { requirementReviews: {} })
+    restored.flush()
+
+    const cleared = await createStore()
+    expect(cleared.getWorktreeMeta('wt-reviews')?.requirementReviews).toEqual({})
+    expect(cleared.getWorktreeMeta('wt-reviews')?.comment).toBe('git note')
+    expect(cleared.getFolderWorkspace(folder.id)?.requirementReviews).toEqual({})
+    expect(cleared.getFolderWorkspace(folder.id)?.comment).toBe('folder note')
   })
 
   it('setWorktreeMeta merges with existing meta', async () => {

@@ -5,6 +5,7 @@ import { normalizeStoredTaskSourceContext } from './task-source-context'
 import { normalizeWorkspaceLinkedItem } from './workspace-linked-item'
 import { isWorkspaceLinkedItemSourceContextMatch } from './workspace-linked-item-source-context'
 import { normalizeWorkspaceCreatorProvenance } from './workspace-creator-provenance'
+import { RequirementReviewsSchema } from './requirement-review'
 
 export function normalizeFolderWorkspaceName(
   name: string | null | undefined,
@@ -56,6 +57,7 @@ export function normalizeFolderWorkspaces(
     const linkedTask = normalizeWorkspaceLinkedItem(raw.linkedTask)
     const linkedTaskSourceContext = normalizeStoredTaskSourceContext(raw.linkedTaskSourceContext)
     const creatorProvenance = normalizeWorkspaceCreatorProvenance(raw.creatorProvenance)
+    const requirementReviews = RequirementReviewsSchema.safeParse(raw.requirementReviews)
     seen.add(raw.id)
     // Why: `executionHostId` is deliberately NOT persisted. It is a fetch-time renderer
     // stamp that can name a `runtime:*` authority the desktop store does not own, and it
@@ -110,7 +112,8 @@ export function normalizeFolderWorkspaces(
         typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt) ? raw.updatedAt : now,
       // Legacy read: unreleased #14112 builds wrote notes inline. Canonical home is
       // PersistedState.folderWorkspaceDiffComments.
-      ...(Array.isArray(raw.diffComments) ? { diffComments: raw.diffComments } : {})
+      ...(Array.isArray(raw.diffComments) ? { diffComments: raw.diffComments } : {}),
+      ...(requirementReviews.success ? { requirementReviews: requirementReviews.data } : {})
     })
   }
   return workspaces.sort(

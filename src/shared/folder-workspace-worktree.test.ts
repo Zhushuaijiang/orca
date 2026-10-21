@@ -28,6 +28,16 @@ function makeFolderWorkspace(overrides: Partial<FolderWorkspace> = {}): FolderWo
 }
 
 describe('folderWorkspaceToWorktree', () => {
+  it('projects per-pane requirement review records and tolerates legacy absence', () => {
+    const requirementReviews = {
+      'pane-1': { round: 2, phase: 'repairing' as const, review: 'Fix validation', updatedAt: 123 }
+    }
+    expect(
+      folderWorkspaceToWorktree(makeFolderWorkspace({ requirementReviews })).requirementReviews
+    ).toEqual(requirementReviews)
+    expect(folderWorkspaceToWorktree(makeFolderWorkspace()).requirementReviews).toBeUndefined()
+  })
+
   it('projects attached issue tasks without creating linked PR metadata', () => {
     const githubIssue = folderWorkspaceToWorktree(
       makeFolderWorkspace({

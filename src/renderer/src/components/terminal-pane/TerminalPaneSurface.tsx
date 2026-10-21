@@ -249,6 +249,9 @@ export function TerminalPaneSurface({
       />
       <TerminalPaneNativeChatPortal controller={controller} />
       <TerminalContextMenu
+        reviewTarget={
+          contextMenu.reviewPaneKey ? { worktreeId, paneKey: contextMenu.reviewPaneKey } : null
+        }
         open={contextMenu.open}
         onOpenChange={contextMenu.setOpen}
         menuPoint={contextMenu.point}

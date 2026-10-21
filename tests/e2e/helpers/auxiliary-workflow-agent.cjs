@@ -67,7 +67,7 @@ if (process.env.ORCA_AUXILIARY_REQUEST === '1') {
       return
     }
     if (
-      !/Auxiliary task: (implementation|testing)|Orca Yunxiao review handoff|Yunxiao todo pool claim:|Orca 云效审核结果/.test(
+      !/Auxiliary task: (implementation|testing)|Orca Yunxiao review handoff|Yunxiao todo pool claim:|Orca 云效审核结果|Orca 需求审核第|Orca 需求最终审核结果/.test(
         prompt
       )
     ) {
@@ -76,21 +76,37 @@ if (process.env.ORCA_AUXILIARY_REQUEST === '1') {
     working = true
     status('working', prompt)
     try {
-      if (prompt.includes('Orca 云效审核结果')) {
+      if (prompt.includes('Orca 需求最终审核结果')) {
+        ledger('final-review-received', { prompt })
+        status('done', prompt, '三轮审核完成，等待用户最终确认。')
+      } else if (prompt.includes('Orca 云效审核结果') || prompt.includes('Orca 需求审核第')) {
         ledger('repair-received', { prompt })
+        if (prompt.includes('第 3/3')) {
+          ledger('final-review-received', { prompt })
+        }
         writeFileSync(join(process.cwd(), 'format-display-name.mjs'), implementation)
         writeFileSync(
           join(process.cwd(), 'repair-receipt.json'),
-          JSON.stringify({ received: true, agent, reviewerMessage: prompt })
+          JSON.stringify({ received: true, agent, reviewerMessage: prompt, verified: true })
         )
-        status('done', prompt, 'Original agent repaired the finding.')
+        status(
+          'done',
+          prompt,
+          prompt.includes('第 3/3')
+            ? '共同目标达成、双方证据充分，无剩余分歧。\nORCA_DISCUSSION_AGREEMENT: agreed'
+            : '修复空值问题；仍需补充 null 输入回归证据，由对方复核。\nORCA_DISCUSSION_AGREEMENT: disputed'
+        )
       } else if (prompt.includes('Orca Yunxiao review handoff')) {
         ledger('review-only')
         await new Promise((resolve) => setTimeout(resolve, 300))
         status(
           'done',
           prompt,
-          'P1: format-display-name.mjs must return Anonymous when both trimmed names are empty. Original agent: fix this and run format-display-name.test.mjs.'
+          prompt.includes('当前第 1/3')
+            ? 'P1: format-display-name.mjs must return Anonymous when both trimmed names are empty. Original agent: fix this and run format-display-name.test.mjs.\nORCA_REVIEW_VERDICT: changes_requested'
+            : prompt.includes('当前第 2/3')
+              ? '采纳 Anonymous 修复；同意原智能体意见，尚缺 null 回归证据。\nORCA_REVIEW_VERDICT: changes_requested'
+              : '原有分歧均已解决，需求目标、边界和回归证据充分。\nORCA_REVIEW_VERDICT: passed'
         )
       } else if (
         prompt.includes('Auxiliary task: implementation') ||

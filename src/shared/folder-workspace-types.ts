@@ -2,6 +2,7 @@ import type { ExecutionHostId } from './execution-host'
 import type { TaskSourceContext } from './task-source-context'
 import type { TuiAgent } from './tui-agent'
 import type { DiffComment } from './diff-comment-types'
+import type { RequirementReviewRecord } from './requirement-review'
 import type {
   WorkspaceCreatorProvenance,
   WorkspaceLinkedItem,
@@ -42,6 +43,8 @@ export type FolderWorkspace = {
   createdAt: number
   updatedAt: number
   diffComments?: DiffComment[]
+  /** Requirement review state keyed by pane. */
+  requirementReviews?: Record<string, RequirementReviewRecord>
 }
 
 export type FolderWorkspaceLinkedTask = WorkspaceLinkedItem

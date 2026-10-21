@@ -35,7 +35,7 @@ export function TaskPageYunxiaoReviewHandoffControl({
         thumbClassName="size-2.5 data-[state=checked]:translate-x-2.5"
       />
       <span className="whitespace-nowrap text-[11px] text-muted-foreground">
-        {translate('auto.components.TaskPage.yunxiaoReviewHandoff', 'Review handoff')}
+        {translate('requirementReview.threeRounds', 'Review handoff · consensus')}
       </span>
       <AgentCombobox
         agents={agents}

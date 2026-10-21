@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppState } from '../types'
 import { toast } from 'sonner'
-import type { RuntimeEnvironmentCallRequest } from '../../runtime/runtime-compatibility-test-fixture'
+import {
+  createCompatibleRuntimeStatusResponseIfNeeded,
+  type RuntimeEnvironmentCallRequest
+} from '../../runtime/runtime-compatibility-test-fixture'
+import { getDefaultSettings } from '../../../../shared/constants'
+import { persistWorktreeMeta } from './worktrees/metadata/worktree-meta-persist'
 import { getHostedReviewCacheKey } from './hosted-review-cache-identity'
 import { getGitHubPRCacheKey, getLegacyGitHubPRCacheKey } from './github-cache-key'
 import { makeWorktree } from './worktrees-slice-test-fixtures'
@@ -10,7 +15,8 @@ import {
   mockApi,
   resetRemoteRuntimeMocks,
   resetWorktreeSliceModuleMemory,
-  runtimeEnvironmentCall
+  runtimeEnvironmentCall,
+  runtimeEnvironmentTransportCall
 } from './worktrees-slice-test-harness'
 
 const requestWorktreeBaseFallbackNotice = vi.hoisted(() => vi.fn())
@@ -35,6 +41,48 @@ describe('worktree remote runtime mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetRemoteRuntimeMocks()
+  })
+
+  it('persists requirement reviews through a capable remote host', async () => {
+    const requirementReviews = {
+      'pane-1': { round: 2, phase: 'confirmed' as const, updatedAt: 123 }
+    }
+    runtimeEnvironmentCall.mockResolvedValue({
+      id: 'rpc-set',
+      ok: true,
+      result: {},
+      _meta: { runtimeId: 'runtime-owner' }
+    })
+    await persistWorktreeMeta(
+      { ...getDefaultSettings('/workspace'), activeRuntimeEnvironmentId: 'env-owner' },
+      'repo1::/path/wt1',
+      { requirementReviews }
+    )
+    expect(runtimeEnvironmentCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selector: 'env-owner',
+        method: 'worktree.set',
+        params: { worktree: 'id:repo1::/path/wt1', requirementReviews }
+      })
+    )
+  })
+
+  it('refuses requirement review clears when a remote host lacks the capability', async () => {
+    runtimeEnvironmentTransportCall.mockImplementation((args: RuntimeEnvironmentCallRequest) => {
+      const response = createCompatibleRuntimeStatusResponseIfNeeded(args)
+      if (response?.ok) {
+        return { ...response, result: { ...response.result, capabilities: [] } }
+      }
+      return runtimeEnvironmentCall(args)
+    })
+    await expect(
+      persistWorktreeMeta(
+        { ...getDefaultSettings('/workspace'), activeRuntimeEnvironmentId: 'env-owner' },
+        'repo1::/path/wt1',
+        { requirementReviews: {} }
+      )
+    ).rejects.toThrow('Update the remote runtime to save requirement reviews')
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
   })
 
   it('persists worktree metadata through the active remote runtime environment', async () => {

@@ -19,7 +19,11 @@ const reviewReturn = {
 vi.mock('./yunxiao-review-handoff-return', () => ({
   createYunxiaoReviewHandoffReturn: () => reviewReturn
 }))
+const leafId = '7c6fb4e5-3bf1-4ff4-8259-03f7ae81c40d'
+const implementerPaneKey = `kimi-tab:${leafId}`
 const state = {
+  updateWorktreeMeta: vi.fn(async () => ({ ok: true })),
+  terminalLayoutsByTabId: { 'kimi-tab': { ptyIdsByLeafId: { [leafId]: 'pty-1' } } },
   agentStatusByPaneKey: {} as Record<
     string,
     { interrupted?: boolean; providerSession?: { key: 'session_id'; id: string } }
@@ -84,7 +88,7 @@ function makeRun(): AutomationRun {
     sessionKind: 'terminal',
     chatSessionId: null,
     terminalSessionId: 'kimi-tab',
-    terminalPaneKey: 'kimi-tab:leaf',
+    terminalPaneKey: implementerPaneKey,
     terminalPtyId: 'pty-1',
     outputSnapshot: null,
     precheckResult: null,
@@ -121,7 +125,9 @@ function makeRun(): AutomationRun {
 }
 
 describe('maybeLaunchYunxiaoReviewHandoff', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { useRequirementReviewState } = await import('./requirement-review-state')
+    useRequirementReviewState.setState({ reviews: {} })
     mockLaunchAgentBackgroundSession.mockReset()
     mockRelease.mockReset()
     mockToastError.mockReset()
@@ -130,8 +136,9 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
       async (args: { agentOverride: string }) => ({ agentId: args.agentOverride, hostKey: 'local' })
     )
     Object.values(reviewReturn).forEach((mock) => mock.mockClear())
+    state.terminalLayoutsByTabId['kimi-tab'].ptyIdsByLeafId[leafId] = 'pty-1'
     state.agentStatusByPaneKey = {
-      'kimi-tab:leaf': {
+      [implementerPaneKey]: {
         providerSession: { key: 'session_id', id: 'session_abc' }
       }
     }
@@ -164,7 +171,7 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
       }),
       run: makeRun(),
       worktreeId: 'wt-1',
-      implementerPaneKey: 'kimi-tab:leaf',
+      implementerPaneKey: implementerPaneKey,
       outputSnapshot: null
     })
 
@@ -172,7 +179,7 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
       expect.objectContaining({
         agent: 'codex',
         worktreeId: 'wt-1',
-        title: 'DFHIS-32345 审核',
+        title: 'DFHIS-32345 审核 1/3',
         launchSource: 'task_page',
         onAgentStatus: reviewReturn.onAgentStatus,
         onExit: reviewReturn.onExit,
@@ -198,6 +205,88 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
     expect(reviewReturn.observe).toHaveBeenCalledWith('grok-tab:leaf', expect.any(Number))
   })
 
+  it.each(['pty', 'session'])(
+    'aborts if the original %s changes while routing is pending',
+    async (changed) => {
+      let resolveRoute = () => {}
+      const pendingRoute = new Promise<void>((resolve) => {
+        resolveRoute = resolve
+      })
+      mockResolveWorktreeAuxiliaryLaunch.mockImplementationOnce(async () => {
+        await pendingRoute
+        return { agentId: 'codex', hostKey: 'local' }
+      })
+      const { maybeLaunchYunxiaoReviewHandoff } = await import('./yunxiao-review-handoff-launch')
+      const launching = maybeLaunchYunxiaoReviewHandoff({
+        automation: makeAutomation(),
+        run: makeRun(),
+        worktreeId: 'wt-1',
+        implementerPaneKey,
+        outputSnapshot: null
+      })
+      if (changed === 'pty') {
+        state.terminalLayoutsByTabId['kimi-tab'].ptyIdsByLeafId[leafId] = 'replacement-pty'
+      } else {
+        state.agentStatusByPaneKey[implementerPaneKey] = {
+          providerSession: { key: 'session_id', id: 'replacement-session' }
+        }
+      }
+      resolveRoute()
+      await launching
+      expect(mockLaunchAgentBackgroundSession).not.toHaveBeenCalled()
+      const { useRequirementReviewState } = await import('./requirement-review-state')
+      expect(useRequirementReviewState.getState().reviews[implementerPaneKey]).toMatchObject({
+        phase: 'failed',
+        sessionId: 'session_abc',
+        ptyId: 'pty-1'
+      })
+    }
+  )
+
+  it('carries unresolved discussion into the next cycle for the same session', async () => {
+    const { useRequirementReviewState } = await import('./requirement-review-state')
+    useRequirementReviewState.getState().update(implementerPaneKey, {
+      round: 3,
+      phase: 'changes_requested',
+      sessionId: 'session_abc',
+      review: '仍未解决的分歧：缺少 null 输入的验证证据。'
+    })
+    const { maybeLaunchYunxiaoReviewHandoff } = await import('./yunxiao-review-handoff-launch')
+    await maybeLaunchYunxiaoReviewHandoff({
+      automation: makeAutomation(),
+      run: makeRun(),
+      worktreeId: 'wt-1',
+      implementerPaneKey,
+      outputSnapshot: null
+    })
+    expect(mockLaunchAgentBackgroundSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining('仍未解决的分歧：缺少 null 输入的验证证据。')
+      })
+    )
+  })
+
+  it('does not carry discussion from a replaced provider session', async () => {
+    const { useRequirementReviewState } = await import('./requirement-review-state')
+    useRequirementReviewState.getState().update(implementerPaneKey, {
+      round: 3,
+      phase: 'changes_requested',
+      sessionId: 'old-session',
+      review: '旧会话的分歧记录'
+    })
+    const { maybeLaunchYunxiaoReviewHandoff } = await import('./yunxiao-review-handoff-launch')
+    await maybeLaunchYunxiaoReviewHandoff({
+      automation: makeAutomation(),
+      run: makeRun(),
+      worktreeId: 'wt-1',
+      implementerPaneKey,
+      outputSnapshot: null
+    })
+    expect(mockLaunchAgentBackgroundSession).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: expect.not.stringContaining('旧会话的分歧记录') })
+    )
+  })
+
   it('defaults a missing review handoff to codex', async () => {
     const { maybeLaunchYunxiaoReviewHandoff } = await import('./yunxiao-review-handoff-launch')
 
@@ -211,7 +300,7 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
       }),
       run: makeRun(),
       worktreeId: 'wt-1',
-      implementerPaneKey: 'kimi-tab:leaf',
+      implementerPaneKey: implementerPaneKey,
       outputSnapshot: null
     })
 
@@ -234,7 +323,7 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
       }),
       run: makeRun(),
       worktreeId: 'wt-1',
-      implementerPaneKey: 'kimi-tab:leaf',
+      implementerPaneKey: implementerPaneKey,
       outputSnapshot: null
     })
 
@@ -248,7 +337,7 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
       automation: makeAutomation({ yunxiaoTodoPool: null }),
       run: makeRun(),
       worktreeId: 'wt-1',
-      implementerPaneKey: 'kimi-tab:leaf',
+      implementerPaneKey: implementerPaneKey,
       outputSnapshot: null
     })
 
@@ -263,12 +352,13 @@ describe('maybeLaunchYunxiaoReviewHandoff', () => {
         automation: makeAutomation(),
         run: makeRun(),
         worktreeId: 'wt-1',
-        implementerPaneKey: 'kimi-tab:leaf',
+        implementerPaneKey: implementerPaneKey,
         outputSnapshot: null
       })
     ).rejects.toThrow('method_not_found')
     expect(mockLaunchAgentBackgroundSession).not.toHaveBeenCalled()
     expect(mockToastError).toHaveBeenCalledTimes(1)
-    expect(reviewReturn.dispose).toHaveBeenCalledTimes(1)
+    const { useRequirementReviewState } = await import('./requirement-review-state')
+    expect(useRequirementReviewState.getState().reviews[implementerPaneKey]?.phase).toBe('failed')
   })
 })

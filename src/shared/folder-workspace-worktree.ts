@@ -64,6 +64,9 @@ export function folderWorkspaceToWorktree(folderWorkspace: FolderWorkspace): Wor
     firstAgentMessageRenameError: folderWorkspace.firstAgentMessageRenameError,
     workspaceStatus: folderWorkspace.workspaceStatus,
     diffComments: folderWorkspace.diffComments,
+    ...(folderWorkspace.requirementReviews !== undefined
+      ? { requirementReviews: folderWorkspace.requirementReviews }
+      : {}),
     path: folderWorkspace.folderPath,
     head: '',
     branch: '',

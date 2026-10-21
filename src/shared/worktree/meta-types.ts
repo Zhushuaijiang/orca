@@ -13,6 +13,7 @@ import type { TuiAgent } from '../tui-agent'
 import type { OrcaWorkspaceLayout } from '../global-settings-types'
 import type { DiffComment, MobileDiffReviewState } from '../diff-comment-types'
 import type { ManualYunxiaoRequirementGate } from '../yunxiao-requirement-prompt-gate'
+import type { RequirementReviewRecord } from '../requirement-review'
 
 // ─── Worktree metadata (persisted user-authored fields only) ─────────
 export type WorktreeMeta = {
@@ -83,6 +84,8 @@ export type WorktreeMeta = {
   /** User-assigned workspace board status for manual sidebar organization. */
   workspaceStatus?: WorkspaceStatus
   diffComments?: DiffComment[]
+  /** Requirement review state keyed by pane. */
+  requirementReviews?: Record<string, RequirementReviewRecord>
   /** Path-derived worktree ids this worktree had before its folder was renamed
    *  on disk (the id embeds the path). Lets the daemon's session GC and registry
    *  hydration recognize sessions minted under an old id instead of reaping

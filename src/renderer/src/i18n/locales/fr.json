@@ -1,4 +1,15 @@
 {
+  "requirementReview": {
+    "saveFailed": "Impossible d’enregistrer la revue des exigences",
+    "confirmed": "Revue des exigences confirmée",
+    "confirmConsensus": "Confirmer le consensus",
+    "launchFailed": "Impossible de lancer la revue des exigences",
+    "progress": "Discussion des exigences {{round}}/3",
+    "restart": "Rediscuter les exigences",
+    "retry": "Poursuivre la discussion (désaccords non résolus)",
+    "start": "Discuter des exigences (3 tours maximum)",
+    "threeRounds": "Relais de revue · consensus"
+  },
   "app": {
     "recoverableError": {
       "rootTitle": "Orca a rencontré une erreur de rendu.",

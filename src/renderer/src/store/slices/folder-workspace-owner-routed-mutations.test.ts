@@ -70,6 +70,57 @@ beforeEach(() => {
 })
 
 describe('folder workspace owner-routed mutations', () => {
+  it('persists per-pane requirement reviews through updateWorktreeMeta for folders', async () => {
+    const folderWorkspace = makeFolderWorkspace({ comment: 'Keep note' })
+    const requirementReviews = {
+      'pane-1': { round: 1, phase: 'confirmed' as const, updatedAt: 123 }
+    }
+    folderWorkspacesUpdate.mockResolvedValue({ ...folderWorkspace, requirementReviews })
+    const store = createTestStore()
+    store.setState({
+      projectGroups: [{ ...projectGroup, executionHostId: 'local' }],
+      folderWorkspaces: [folderWorkspace]
+    })
+
+    await expect(
+      store.getState().updateWorktreeMeta(folderWorkspaceKey(folderWorkspace.id), {
+        requirementReviews
+      })
+    ).resolves.toEqual({ ok: true })
+    expect(folderWorkspacesUpdate).toHaveBeenCalledWith({
+      folderWorkspaceId: folderWorkspace.id,
+      updates: { requirementReviews }
+    })
+    expect(store.getState().folderWorkspaces[0]).toMatchObject({
+      comment: 'Keep note',
+      requirementReviews
+    })
+  })
+
+  it('refuses review writes when the folder owner lacks the capability', async () => {
+    const folderWorkspace = makeFolderWorkspace({ executionHostId: 'runtime:env-owner' })
+    const store = createTestStore()
+    store.setState({
+      projectGroups: [{ ...projectGroup, executionHostId: 'runtime:env-owner' }],
+      folderWorkspaces: [folderWorkspace]
+    })
+    runtimeEnvironmentTransportCall.mockImplementation((args: RuntimeEnvironmentCallRequest) => {
+      const response = createCompatibleRuntimeStatusResponseIfNeeded(args)
+      if (response?.ok) {
+        return { ...response, result: { ...response.result, capabilities: [] } }
+      }
+      return runtimeEnvironmentCall(args)
+    })
+
+    await expect(
+      store.getState().updateWorktreeMeta(folderWorkspaceKey(folderWorkspace.id), {
+        requirementReviews: {}
+      })
+    ).resolves.toMatchObject({ ok: false })
+    expect(runtimeEnvironmentCall).not.toHaveBeenCalled()
+    expect(folderWorkspacesUpdate).not.toHaveBeenCalled()
+  })
+
   it('persists manual rank through the shared batch metadata boundary', async () => {
     const folderWorkspace = makeFolderWorkspace()
     folderWorkspacesUpdate.mockResolvedValue({ ...folderWorkspace, manualOrder: 9000 })

@@ -74,6 +74,7 @@ type TerminalMenuState = {
   menuOpenedAtRef: React.RefObject<number>
   paneCount: number
   menuPaneId: number | null
+  reviewPaneKey: string | null
   onContextMenuCapture: (event: React.MouseEvent<HTMLDivElement>) => void
   onPaneTitleContextMenu: (event: React.MouseEvent<HTMLElement>, paneId: number) => void
   onCopy: () => Promise<void>
@@ -397,7 +398,8 @@ export function useTerminalPaneContextMenu({
   // do not need pane counts or target identity, so avoid that work on every
   // render across hundreds of mounted terminal tabs.
   const paneCount = open ? (managerRef.current?.getPanes().length ?? 1) : 1
-  const menuPaneId = open ? (resolveMenuPane()?.id ?? null) : null
+  const menuPane = open ? resolveMenuPane() : null
+  const menuPaneId = menuPane?.id ?? null
 
   return {
     open,
@@ -406,6 +408,7 @@ export function useTerminalPaneContextMenu({
     menuOpenedAtRef,
     paneCount,
     menuPaneId,
+    reviewPaneKey: menuPane ? makePaneKey(tabId, menuPane.leafId) : null,
     onContextMenuCapture,
     onPaneTitleContextMenu,
     onCopy,

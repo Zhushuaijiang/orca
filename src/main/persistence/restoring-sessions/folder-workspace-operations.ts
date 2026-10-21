@@ -126,6 +126,7 @@ export class FolderWorkspacePersistenceOperations {
         | 'firstAgentMessageRenameError'
         | 'lastActivityAt'
         | 'diffComments'
+        | 'requirementReviews'
       >
     >
   ): FolderWorkspace | null {
@@ -201,6 +202,9 @@ export class FolderWorkspacePersistenceOperations {
     }
     if (updates.diffComments !== undefined) {
       workspace.diffComments = updates.diffComments
+    }
+    if (updates.requirementReviews !== undefined) {
+      workspace.requirementReviews = updates.requirementReviews
     }
     workspace.updatedAt = Date.now()
     this.scheduleSave()

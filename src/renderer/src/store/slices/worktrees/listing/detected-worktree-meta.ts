@@ -163,6 +163,7 @@ export function getFolderWorkspaceMetaUpdates(
     | 'pendingFirstAgentMessageRename'
     | 'firstAgentMessageRenameError'
     | 'diffComments'
+    | 'requirementReviews'
   >
 > {
   const next: Partial<
@@ -181,6 +182,7 @@ export function getFolderWorkspaceMetaUpdates(
       | 'pendingFirstAgentMessageRename'
       | 'firstAgentMessageRenameError'
       | 'diffComments'
+      | 'requirementReviews'
     >
   > = {}
   if (updates.displayName !== undefined) {
@@ -224,6 +226,9 @@ export function getFolderWorkspaceMetaUpdates(
   }
   if (updates.diffComments !== undefined) {
     next.diffComments = updates.diffComments
+  }
+  if (updates.requirementReviews !== undefined) {
+    next.requirementReviews = updates.requirementReviews
   }
   return next
 }

@@ -1,4 +1,15 @@
 {
+  "requirementReview": {
+    "saveFailed": "No se pudo guardar la revisión de requisitos",
+    "confirmed": "Revisión de requisitos confirmada",
+    "confirmConsensus": "Confirmar el consenso",
+    "launchFailed": "No se pudo iniciar la revisión de requisitos",
+    "progress": "Discusión de requisitos {{round}}/3",
+    "restart": "Volver a discutir los requisitos",
+    "retry": "Continuar la discusión (desacuerdos pendientes)",
+    "start": "Discutir requisitos (hasta 3 rondas)",
+    "threeRounds": "Relevo de revisión · consenso"
+  },
   "app": {
     "recoverableError": {
       "rootTitle": "Orca tuvo un error de renderizado.",

@@ -9,6 +9,8 @@ export function createYunxiaoReviewHandoffReturn(args: {
   worktreeId: string
   runTitle: string
   implementerPaneKey: string | null
+  onComplete?: (review: string) => void | Promise<void>
+  onStopped?: (reason: 'interrupted' | 'failed') => void
 }) {
   const originalPane = args.implementerPaneKey ? parsePaneKey(args.implementerPaneKey) : null
   const originalState = useAppStore.getState()
@@ -29,6 +31,7 @@ export function createYunxiaoReviewHandoffReturn(args: {
     unsubscribe()
   }
   const reportFailure = (): void => {
+    args.onStopped?.('failed')
     toast.error(`${args.runTitle}：审核结果未送达原 agent 终端，请从审核终端查看并转交。`)
   }
   const returnReview = async (review: string): Promise<void> => {
@@ -67,6 +70,7 @@ ${review}`
     }
     dispose()
     if (interrupted) {
+      args.onStopped?.('interrupted')
       return
     }
     const review = message?.trim() || lastAssistantMessage
@@ -74,7 +78,11 @@ ${review}`
       reportFailure()
       return
     }
-    void returnReview(review).catch(reportFailure)
+    if (args.onComplete) {
+      void Promise.resolve(args.onComplete(review)).catch(reportFailure)
+    } else {
+      void returnReview(review).catch(reportFailure)
+    }
   }
 
   return {
@@ -97,13 +105,34 @@ ${review}`
       }
       dispose()
     },
-    observe: (paneKey: string, startedAfter: number): void => {
+    observe: (
+      paneKey: string,
+      startedAfter: number,
+      requireWorking = false,
+      expectedPrompt?: string
+    ): void => {
+      let sawWorking = !requireWorking
       if (settled) {
         return
       }
       const checkStatus = (): void => {
         const entry = useAppStore.getState().agentStatusByPaneKey[paneKey]
-        if (!entry || entry.updatedAt < startedAfter) {
+        if (
+          !entry ||
+          entry.updatedAt < startedAfter ||
+          (expectedPrompt && !entry.prompt.startsWith(expectedPrompt))
+        ) {
+          return
+        }
+        sawWorking ||=
+          entry.state === 'working' ||
+          entry.stateHistory.some(
+            (state) =>
+              state.state === 'working' &&
+              state.startedAt >= startedAfter &&
+              (!expectedPrompt || state.prompt.startsWith(expectedPrompt))
+          )
+        if (!sawWorking) {
           return
         }
         if (entry.state === 'done' && entry.sessionBoundary !== true) {
@@ -112,7 +141,10 @@ ${review}`
         }
         // Coalesced done → working publications retain the finished reply here.
         const completed = entry.stateHistory.find(
-          (state) => state.state === 'done' && state.startedAt >= startedAfter
+          (state) =>
+            state.state === 'done' &&
+            state.startedAt >= startedAfter &&
+            (!expectedPrompt || state.prompt.startsWith(expectedPrompt))
         )
         if (completed && entry.lastCompletedAssistantMessage) {
           complete(entry.lastCompletedAssistantMessage, completed.interrupted)

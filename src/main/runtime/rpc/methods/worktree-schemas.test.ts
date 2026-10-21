@@ -1,8 +1,63 @@
 import { describe, expect, it } from 'vitest'
 import { WorktreeCreate } from './worktree-create-schemas'
 import { WorktreeActivate, WorktreeSet } from './worktree-schemas'
+import { FolderWorkspaceUpdate } from '../../../../shared/rpc-contract/folder-workspace-params'
+import { FolderWorkspaceUpdateArgs } from '../../../ipc/repos/repo-ipc-arg-schemas'
 
 describe('worktree RPC schemas', () => {
+  it('validates per-pane requirement reviews in git and folder updates', () => {
+    const requirementReviews = {
+      'pane-1': {
+        round: 2,
+        phase: 'awaiting_confirmation',
+        review: 'Ready for confirmation',
+        sessionId: 'session-1',
+        ptyId: 'pty-1',
+        updatedAt: 123
+      }
+    }
+    expect(
+      WorktreeSet.parse({ worktree: 'id:wt-1', requirementReviews }).requirementReviews
+    ).toEqual(requirementReviews)
+    for (const schema of [FolderWorkspaceUpdate, FolderWorkspaceUpdateArgs]) {
+      expect(
+        schema.parse({ folderWorkspaceId: 'fw-1', updates: { requirementReviews } }).updates
+          .requirementReviews
+      ).toEqual(requirementReviews)
+      expect(
+        schema.safeParse({
+          folderWorkspaceId: 'fw-1',
+          updates: {
+            requirementReviews: { 'pane-1': { round: 1, phase: 'unknown', updatedAt: 123 } }
+          }
+        }).success
+      ).toBe(false)
+      expect(
+        schema.parse({ folderWorkspaceId: 'fw-1', updates: { comment: 'legacy' } }).updates
+          .requirementReviews
+      ).toBeUndefined()
+    }
+    for (const invalidRecord of [
+      { round: 1, phase: 'unknown', updatedAt: 123 },
+      { round: '1', phase: 'confirmed', updatedAt: 123 },
+      { round: 1, phase: 'confirmed', updatedAt: Infinity },
+      { round: 1, phase: 'confirmed', review: 42, updatedAt: 123 }
+    ]) {
+      expect(
+        WorktreeSet.safeParse({
+          worktree: 'id:wt-1',
+          requirementReviews: { 'pane-1': invalidRecord }
+        }).success
+      ).toBe(false)
+    }
+    expect(
+      WorktreeSet.parse({ worktree: 'id:wt-1', requirementReviews: {} }).requirementReviews
+    ).toEqual({})
+    expect(
+      WorktreeSet.parse({ worktree: 'id:wt-1', comment: 'legacy' }).requirementReviews
+    ).toBeUndefined()
+  })
+
   it('accepts optional display-name provenance values', () => {
     expect(
       WorktreeCreate.parse({ repo: 'repo-1', name: 'feature', displayNameKind: 'user' })

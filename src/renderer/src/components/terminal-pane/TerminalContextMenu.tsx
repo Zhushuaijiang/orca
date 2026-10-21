@@ -35,9 +35,11 @@ import { isMacPlatform, nativeChatToggleShortcutLabel } from '../native-chat/nat
 import { AgentSessionContinuationMenuItem } from './AgentSessionContinuationMenuItem'
 import type { TerminalQuickCommandMenuHost } from '@/hooks/use-terminal-quick-command-hosts'
 import { TerminalQuickCommandsSubmenu } from './TerminalQuickCommandsSubmenu'
+import { RequirementReviewMenuItems } from '@/components/requirement-review-menu-items'
 
 type TerminalContextMenuProps = {
   open: boolean
+  reviewTarget?: { worktreeId: string; paneKey: string } | null
   onOpenChange: (open: boolean) => void
   menuPoint: { x: number; y: number }
   menuOpenedAtRef: React.RefObject<number>
@@ -132,6 +134,7 @@ export default function TerminalContextMenu(props: TerminalContextMenuProps): Re
 
 // Build menu rows only when Radix mounts the open content, after terminal activation.
 function TerminalContextMenuItems({
+  reviewTarget,
   onOpenChange,
   canClosePane,
   canExpandPane,
@@ -215,6 +218,7 @@ function TerminalContextMenuItems({
         onClose={() => onOpenChange(false)}
         onAdd={onAddQuickCommand}
       />
+      {reviewTarget ? <RequirementReviewMenuItems {...reviewTarget} /> : null}
       {canContinueAgentSessionInNewSession ? (
         <AgentSessionContinuationMenuItem onSelect={onContinueAgentSessionInNewSession} />
       ) : null}

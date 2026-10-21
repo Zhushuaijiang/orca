@@ -7,7 +7,9 @@ import {
   extractYunxiaoReviewHandoffWorkItemIds,
   resolveYunxiaoReviewHandoff,
   shouldLaunchYunxiaoReviewHandoff,
-  YUNXIAO_REVIEW_HANDOFF_MARKER
+  YUNXIAO_REVIEW_HANDOFF_MARKER,
+  parseYunxiaoReviewVerdict,
+  parseYunxiaoDiscussionAgreement
 } from './yunxiao-review-handoff'
 
 function outcome(
@@ -24,6 +26,29 @@ function outcome(
 }
 
 describe('Yunxiao review handoff', () => {
+  it('requires exactly one explicit verdict instead of inferring approval from prose', () => {
+    expect(parseYunxiaoReviewVerdict('审核通过')).toBeNull()
+    expect(parseYunxiaoReviewVerdict('ORCA_REVIEW_VERDICT: passed')).toBe('passed')
+    expect(parseYunxiaoReviewVerdict('ORCA_REVIEW_VERDICT: changes_requested')).toBe(
+      'changes_requested'
+    )
+    expect(
+      parseYunxiaoReviewVerdict(
+        'ORCA_REVIEW_VERDICT: passed\nORCA_REVIEW_VERDICT: changes_requested'
+      )
+    ).toBeNull()
+  })
+  it('requires one explicit agreement and rejects conflicting replies', () => {
+    expect(parseYunxiaoDiscussionAgreement('同意')).toBeNull()
+    expect(parseYunxiaoDiscussionAgreement('ORCA_DISCUSSION_AGREEMENT: agreed')).toBe('agreed')
+    expect(parseYunxiaoDiscussionAgreement('ORCA_DISCUSSION_AGREEMENT: disputed')).toBe('disputed')
+    expect(
+      parseYunxiaoDiscussionAgreement(
+        'ORCA_DISCUSSION_AGREEMENT: agreed\nORCA_DISCUSSION_AGREEMENT: disputed'
+      )
+    ).toBeNull()
+  })
+
   it('defaults missing config to enabled codex', () => {
     expect(resolveYunxiaoReviewHandoff(null)).toEqual(DEFAULT_YUNXIAO_REVIEW_HANDOFF)
     expect(DEFAULT_YUNXIAO_REVIEW_HANDOFF).toEqual({ enabled: true, agentId: 'codex' })

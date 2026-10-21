@@ -1,4 +1,15 @@
 {
+  "requirementReview": {
+    "saveFailed": "Could not save requirement review",
+    "confirmed": "Requirement review confirmed",
+    "confirmConsensus": "Confirm discussion consensus",
+    "launchFailed": "Could not start requirement review",
+    "progress": "Requirement discussion {{round}}/3",
+    "restart": "Review requirement again",
+    "retry": "Continue requirement discussion (unresolved)",
+    "start": "Discuss requirement (up to 3 rounds)",
+    "threeRounds": "Review handoff · consensus"
+  },
   "app": {
     "recoverableError": {
       "rootTitle": "Orca hit a renderer error.",
