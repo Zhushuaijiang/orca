@@ -1,4 +1,5 @@
 import type { AgentGlobalSettings } from './agent-global-settings-types'
+import type { TaskProviderGatingSettings } from './task-provider-gating-settings'
 import type { ExecutionHostId } from './execution-host'
 import type { OrcaWorkspaceLayout } from './orca-workspace-layout'
 import type { GitHubProjectSettings } from './github/project-types'
@@ -12,8 +13,10 @@ import type { SourceControlAiSettings } from './source-control-ai-types'
 import type { ClaudeAgentTeamsMode } from './claude-agent-teams-tmux-compat'
 import type { TerminalCustomTheme } from './terminal-custom-themes'
 import type { UiLanguage } from './ui-language'
+import type { MiniMaxEndpoint } from './minimax-endpoint'
 import type { GlobalWindowsRuntimeDefault } from './project-execution-runtime'
 import type { PersistedNativeChatSessionOptions } from './native-chat-session-options'
+import type { AgentChatPermissionMode } from './agent-chat-permission-mode'
 import type { ComputerAwakeMode } from './computer-awake-mode'
 import type { CommitMessageAiSettings } from './commit-message-ai-types'
 import type { HostSettingOverrides } from './host-setting-overrides'
@@ -24,6 +27,7 @@ import type {
   CodexManagedAccountRuntimeSelection
 } from './managed-account-types'
 import type { NotificationSettings } from './notification-settings-types'
+import type { OrcaTelemetrySettings } from './telemetry-settings-types'
 import type { CtrlTabOrderMode } from './tab-types'
 import type { TerminalColorOverrides } from './terminal-color-overrides'
 import type { TerminalQuickCommand } from './terminal-quick-command-types'
@@ -33,21 +37,20 @@ import type {
   AgentDashboardMode,
   BranchPrefixStrategy,
   FloatingTerminalTriggerLocation,
+  JiraIssueKeyCasing,
   LeftSidebarAppearanceMode,
   OpenInApplication,
   SourceControlGroupOrder,
   SourceControlViewMode,
   TaskViewPresetId
 } from './ui-chrome-types'
-import type { SetupScriptLaunchMode } from './worktree/launch-types'
 import type { WorktreeVisibilityDefaults } from './repo-types'
 
 export type { WorktreeVisibilityDefaults } from './repo-types'
 
-/** MiniMax account region used to select the quota endpoint. */
-export type MiniMaxEndpoint = 'overseas' | 'cn'
+export type { MiniMaxEndpoint }
 
-export type GlobalSettings = AgentGlobalSettings & {
+export type GlobalSettings = AgentGlobalSettings & TaskProviderGatingSettings & {
   workspaceDir: string
   /** Host-owned defaults used when a repository has no explicit visibility override. */
   worktreeVisibilityDefaults?: WorktreeVisibilityDefaults
@@ -69,13 +72,16 @@ export type GlobalSettings = AgentGlobalSettings & {
   autoRenameBranchFromWorkDefaultedOn?: boolean
   branchPrefix: BranchPrefixStrategy
   branchPrefixCustom: string
-  enableGitHubAttribution: boolean
+  /** Jira key casing for newly generated Jira-linked workspace and branch names.
+   *  Existing workspaces and user-typed names are never rewritten. */
+  jiraIssueKeyCasing?: JiraIssueKeyCasing
   theme: 'system' | 'dark' | 'light'
   /** Controls the left sidebar surface without changing terminal brightness. */
   leftSidebarAppearanceMode: LeftSidebarAppearanceMode
   leftSidebarTintColor?: string
   leftSidebarTintOpacity?: number
   uiLanguage: UiLanguage
+  uiLanguagePortugueseMigrationApplied?: boolean
   appIcon: AppIconId
   appFontFamily: string
   editorAutoSave: boolean
@@ -194,13 +200,13 @@ export type GlobalSettings = AgentGlobalSettings & {
   terminalAllowOsc52ClipboardDefaultedOnForAllUsers?: boolean
   /** Experimental Claude Agent Teams; native panes use a tmux-compatible shim so teammate output stays on the normal PTY path. */
   claudeAgentTeamsMode?: ClaudeAgentTeamsMode
-  /** Where the repo setup script runs on workspace create; defaults to a background "Setup" tab to keep the main terminal usable. */
-  setupScriptLaunchMode: SetupScriptLaunchMode
   terminalScrollbackRows: number
   /** Optional app-level proxy for Electron networking and local PTYs; empty preserves system/inherited proxy env. */
   httpProxyUrl?: string
   /** Optional semicolon/comma/newline-separated bypass rules for httpProxyUrl. */
   httpProxyBypassRules?: string
+  /** Optional mirror of nodejs.org/dist for the Node runtime Orca installs on SSH and WSL servers. */
+  nodeDistMirrorUrl?: string
   /** Why: corporate TLS-intercepting proxies can break HTTP/2 downloads; opt-in Chromium process-wide HTTP/1.1 switch. */
   electronHttp1CompatibilityMode?: boolean
   /** Opt-in in-app browsing (isolated guest surface); default keeps links opening in the system browser. */
@@ -217,18 +223,16 @@ export type GlobalSettings = AgentGlobalSettings & {
   terminalLinkClickBehavior?: 'actions' | 'open' | 'none'
   /** Middle mouse URL behavior; defaults to opening the primary routed destination. */
   terminalUrlMiddleClickBehavior?: 'open' | 'actions' | 'none'
-  /** Opt-in: open new coding-agent tabs in native chat instead of the raw terminal; optional for legacy settings. */
-  openAgentTabsInChatByDefault?: boolean
-  /** Experimental native chat surface for Claude/Codex sessions; off by default. */
+  /** New supported agent launches use structured Chat UI; off defaults to terminal UI. */
   experimentalNativeChat?: boolean
-  /** Opt-in updated structured runtime; off keeps the existing PTY-backed native chat path. */
-  experimentalStructuredNativeChat?: boolean
   /** Opt-in: resume working structured chats automatically on the next launch. Off still offers
    *  the list, so the user sees exactly what would run before anything spends tokens. */
   nativeChatResumeWorkOnRestart?: boolean
   /** Chat-wide: hold a mid-turn send as an editable queued draft that goes when the turn ends
    *  (capable hosts only). Absent = on; off keeps mid-turn sends immediate. */
   nativeChatQueueFollowUps?: boolean
+  /** Teach newly started native chats to create inline visuals; absent means on. */
+  nativeChatInlineVisuals?: boolean
   /** Structured chat only: Codex/Claude children inherit the whole login-shell environment.
    *  Off passes only `nativeChatShellEnvironmentVariables` (plus a PATH/locale baseline). */
   nativeChatInheritShellEnvironment?: boolean
@@ -236,6 +240,10 @@ export type GlobalSettings = AgentGlobalSettings & {
   nativeChatShellEnvironmentVariables?: string[]
   /** Last explicit native-chat model + option selections; live panes need an applied/dispatched record before showing a value. */
   nativeChatSessionOptions?: PersistedNativeChatSessionOptions
+  /** New chats' permission mode, for agents whose chats offer modes; seeded once from Agent Permissions. */
+  nativeChatPermissionMode?: AgentChatPermissionMode
+  /** Per-agent new-chat defaults chosen alongside that agent's terminal permission mode. */
+  agentNativeChatPermissionModes?: Partial<Record<TuiAgent, AgentChatPermissionMode>>
   /** Extra launcher rows for the worktree "Open in" submenu. VS Code is always shown first. */
   openInApplications?: OpenInApplication[]
   /** Deprecated: migration/backward-compat only. Use PersistedUIState.rightSidebarOpen. */
@@ -343,6 +351,8 @@ export type GlobalSettings = AgentGlobalSettings & {
    *  - 'blank': blank terminal (no agent launched)
    *  - TuiAgent: a specific agent id */
   defaultTuiAgent: TuiAgent | 'blank' | null
+  /** @deprecated Retained for older peers; setup-only is now a per-create choice. */
+  newWorkspaceSetupOnly?: boolean
   /** Agents hidden from picker/auto-launch; detection stays a raw PATH snapshot. */
   disabledTuiAgents: TuiAgent[]
   /** Master switch for the experimental plugin system. Off by default: no
@@ -360,8 +370,8 @@ export type GlobalSettings = AgentGlobalSettings & {
   devPluginPaths: string[]
   /** One-shot guard: start Claude Agent Teams hidden for existing profiles without overriding later opt-ins. */
   claudeAgentTeamsDefaultDisabledMigrated?: boolean
-  /** Why: worktree deletion is destructive (rm -rf of the working dir), so confirm by default. */
-  skipDeleteWorktreeConfirm: boolean
+  /** One-shot guard: hosts saved before the remote CLI control default flip were pinned off. */
+  sshRemoteCliControlExistingHostsMigrated?: boolean
   /** Why: closing a terminal with child processes kills foreground work; keep this skip separate from other confirmations. */
   skipCloseTerminalWithRunningProcessConfirm: boolean
   /** Why: deleting an automation also deletes its run history; keep this skip separate from worktree deletion. */
@@ -378,8 +388,6 @@ export type GlobalSettings = AgentGlobalSettings & {
   visibleTaskProviders: TaskProvider[]
   /** Why: one-shot guard to make Jira visible for existing profiles once, without re-adding after a later opt-out. */
   visibleTaskProvidersDefaultedForJira: boolean
-  /** Why: one-shot guard to make Yunxiao visible for existing profiles once, without re-adding after a later opt-out. */
-  visibleTaskProvidersDefaultedForYunxiao: boolean
   /** Why: one-shot guard to make code merge visible for existing profiles once, without re-adding after a later opt-out. */
   visibleTaskProvidersDefaultedForCodeMerge: boolean
   /** Persisted repo selection (cross-repo tasks view). null = sticky-all (includes future-added repos);
@@ -444,11 +452,6 @@ export type GlobalSettings = AgentGlobalSettings & {
   keepComputerAwakeWhileAgentsRun: boolean
   /** Optional for mixed-version compatibility; the legacy boolean maps true to Auto. */
   computerAwakeMode?: ComputerAwakeMode
-  /** When true, pasting/launching prompts that mention DFHIS/Yunxiao requirements
-   *  get wrapped with the controlled requirement workflow gate instructions. Off by default. */
-  yunxiaoRequirementPromptGateEnabled?: boolean
-  /** Why: 会话结束后自动评审并沉淀技能/记忆（hermes 式）；缺省视为开启（!== false）。 */
-  skillReviewEnabled?: boolean
   /** macOS Option key: compose layout chars (@ German, € French) vs act as Meta/Esc for readline.
    *  'auto' (default) = layout-aware via navigator.keyboard.getLayoutMap() (US → Meta, else compose);
    *  'false' = compose; 'true' = Meta on both Option keys; 'left'/'right' = only that key is Meta.
@@ -508,6 +511,8 @@ export type GlobalSettings = AgentGlobalSettings & {
   experimentalNewWorktreeCardStyle?: boolean
   /** Experimental: per-workspace on-demand environment recipes and setup surface. */
   experimentalEphemeralVms?: boolean
+  /** Experimental (Windows): add WSL distros as hosts, each running its own Orca server. */
+  experimentalWslHosts?: boolean
   /** Compact worktree cards: hide the metadata row when title and branch say the same thing. */
   compactWorktreeCards: boolean
   /** Legacy persisted key from the Experimental rollout; new writes use compactWorktreeCards. */
@@ -523,16 +528,7 @@ export type GlobalSettings = AgentGlobalSettings & {
   sourceControlAi?: SourceControlAiSettings
   /** GitLab project preferences (pinned + recent paths). Optional for pre-GitLab profiles; persistence merge fills the default. */
   gitlabProjects?: GitLabProjectSettings
-  /** Anonymous product-telemetry state; optional until the one-shot Store.load() migration populates it.
-   *  Holds only consent + identity, not volatile counters — those would amplify the debounced settings write. */
-  telemetry?: {
-    /** New users: true at install. Existing users: null until they resolve the first-launch banner. */
-    optedIn: boolean | null
-    /** Anonymous UUID v4. Generated on first run. Stable across launches; not surfaced in the UI. */
-    installId: string
-    /** Cohort marker: true for pre-existing profiles (gates the opt-in banner), false for fresh installs. */
-    existedBeforeTelemetryRelease: boolean
-  }
+  telemetry?: OrcaTelemetrySettings
   /** One-shot cohort marker for the tab-switch keybinding swap. 'pending' =
    *  pre-existing install (seed pins old chords, then flips to 'done'); 'done' = fresh install. */
   tabSwitchKeybindingSeed?: 'pending' | 'done'

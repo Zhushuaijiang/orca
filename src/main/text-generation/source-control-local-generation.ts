@@ -20,6 +20,7 @@ import type {
 
 export function runLocalPlanForAgent(input: {
   agentId: string
+  timeoutMs?: number
   plan: CommitMessagePlan
   target: LocalGenerationTarget
   emptyResultName: string
@@ -39,6 +40,7 @@ export function runLocalPlanForAgent(input: {
   ): LocalProcessExecution<InternalTextGenerationResult> =>
     runLocalSourceControlPlan({
       plan: input.plan,
+      timeoutMs: input.timeoutMs,
       cwd: input.target.cwd,
       env: input.target.wslDistro ? input.target.env : target.env,
       emptyResultName: input.emptyResultName,

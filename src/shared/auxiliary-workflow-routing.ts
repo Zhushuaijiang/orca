@@ -5,7 +5,7 @@ import { resolveAuxiliaryModelRoute } from './auxiliary-model-settings'
 import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from './commit-message-host-key'
 import { resolveAgentSessionOptionLaunch } from './agent-session-option-launch'
 import { removeAuxiliaryRecipeModelArgs } from './auxiliary-recipe-model-args'
-import { quotePosixShell } from './wsl-login-shell-command'
+import { quotePosixShell } from './shell-argument-quoting'
 
 export function applyAuxiliaryWorkflowRoute(
   settings: Partial<GlobalSettings> | null | undefined,

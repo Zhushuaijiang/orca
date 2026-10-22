@@ -44,7 +44,9 @@ export class RuntimeAuxiliaryGeneration {
     const target = await (this.host.resolveRuntimeAuxiliaryTarget?.(worktree) ??
       this.host.resolveRuntimeGitTarget(worktree))
     const route = runtimeGitRouteForTarget(target)
-    if (route.kind === 'ssh' && !route.provider) {
+    // Why: the SSH git provider subsystem was removed upstream (orcad serves SSH hosts);
+    // no in-process provider can run this generation on an ssh route.
+    if (route.kind === 'ssh') {
       throw new Error('ssh_git_provider_unavailable')
     }
     return resolveAuxiliaryTaskLaunch({
@@ -151,7 +153,7 @@ export class RuntimeAuxiliaryGeneration {
       }
     }
     const prompt = buildAuxiliaryTaskPrompt(task, inputPrompt, images)
-    if (route.kind === 'ssh' && !route.provider) {
+    if (route.kind === 'ssh') {
       return { success: false as const, error: 'ssh_git_provider_unavailable' }
     }
     const env =
@@ -168,15 +170,11 @@ export class RuntimeAuxiliaryGeneration {
     if (signal.aborted) {
       return CANCELED_AUXILIARY_RESULT
     }
-    const generationTarget =
-      route.kind === 'ssh' && route.provider
-        ? {
-            kind: 'remote' as const,
-            cwd: target.worktree.path,
-            execute: route.provider.executeCommitMessagePlan.bind(route.provider),
-            missingBinaryLocation: 'remote PATH'
-          }
-        : localTextGenerationTargetForTarget(target, env?.ok ? env.env : undefined, this.host)
+    const generationTarget = localTextGenerationTargetForTarget(
+      target,
+      env?.ok ? env.env : undefined,
+      this.host
+    )
     const planned = planCommitMessageGeneration(
       { ...params, backslash: commandBackslashMode(generationTarget) },
       prompt
@@ -215,9 +213,7 @@ export class RuntimeAuxiliaryGeneration {
       this.host.resolveRuntimeGitTarget(worktree))
     this.pending.get(`${target.executionHostId}:${task}:${target.worktree.path}`)?.abort()
     const route = runtimeGitRouteForTarget(target)
-    if (route.kind === 'ssh') {
-      await route.provider?.cancelGenerateCommitMessage(target.worktree.path, `auxiliary:${task}`)
-    } else {
+    if (route.kind !== 'ssh') {
       cancelLocalGeneration(`auxiliary:${task}`, target.worktree.path)
     }
     return { ok: true }

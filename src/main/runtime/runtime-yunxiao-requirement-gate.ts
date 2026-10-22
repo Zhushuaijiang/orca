@@ -11,6 +11,8 @@ import {
   isYunxiaoRequirementAgentCommand
 } from '../dfhis-environment/workflow-pack-refresh'
 import type { RuntimeStore } from './runtime-store-contract'
+import type { ExecutionHostId } from '../../shared/execution-host'
+import { hostWorktreeTarget } from '../../shared/worktree/host-qualified-identity'
 
 // Why: the runtime split turned these OrcaRuntimeService privates into explicit-deps
 // functions; every caller passes its own store/liveness probe so the gate works on
@@ -25,7 +27,8 @@ export async function ensureDfHisWorkflowPackCurrentForPrompt(
 export function markManualYunxiaoRequirementGateForWorktree(
   store: RuntimeStore | null,
   worktreeId: string | undefined,
-  prompt: string | undefined
+  prompt: string | undefined,
+  hostId: ExecutionHostId = 'local'
 ): void {
   if (!store || !worktreeId || !prompt || !containsYunxiaoRequirementReference(prompt)) {
     return
@@ -39,13 +42,16 @@ export function markManualYunxiaoRequirementGateForWorktree(
   if (!gate) {
     return
   }
-  store.setWorktreeMeta(worktreeId, { yunxiaoRequirementGate: gate })
+  store.setWorktreeMeta(hostWorktreeTarget({ id: worktreeId, hostId }), {
+    yunxiaoRequirementGate: gate
+  })
 }
 
 export function recordYunxiaoRequirementOutcomeFromAgentStatus(
   store: RuntimeStore | null,
   worktreeId: string | undefined,
-  payload: ParsedAgentStatusPayload
+  payload: ParsedAgentStatusPayload,
+  hostId: ExecutionHostId = 'local'
 ): void {
   if (!store || !worktreeId || payload.state !== 'done' || !payload.lastAssistantMessage) {
     return
@@ -68,7 +74,7 @@ export function recordYunxiaoRequirementOutcomeFromAgentStatus(
   if (!outcome?.requirementContract) {
     return
   }
-  store.setWorktreeMeta(worktreeId, {
+  store.setWorktreeMeta(hostWorktreeTarget({ id: worktreeId, hostId }), {
     yunxiaoRequirementGate: {
       ...existing,
       requirementContract: outcome.requirementContract,

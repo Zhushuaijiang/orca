@@ -8,12 +8,7 @@ import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/tui-agent-config'
 import { createAuxiliaryRuntimeTarget as target } from './auxiliary-generation-test-fixture'
 import { resolveAuxiliaryWorkspaceTarget } from './auxiliary-workspace-target'
 import { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
-import { getSshGitProvider } from '../providers/ssh-git-dispatch'
 
-vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: vi.fn(),
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE: 'ssh_git_provider_unavailable'
-}))
 
 const temporaryDirectories: string[] = []
 afterEach(async () => {
@@ -210,7 +205,6 @@ describe('runtime auxiliary execution', () => {
     }
   })
   it('never prepares a local agent when an SSH host is unavailable', async () => {
-    vi.mocked(getSshGitProvider).mockReturnValue(undefined)
     const prepareForClaudeLaunch = vi.fn()
     const settings = createGlobalSettingsFixture({ defaultTuiAgent: 'claude' })
     const service = new RuntimeAuxiliaryGeneration({

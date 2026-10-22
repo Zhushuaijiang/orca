@@ -144,7 +144,7 @@ export type { LinearProjectSummary, LinearProjectStatusSummary, LinearProjectMem
 export type { GitHubCreateIssueFields, GitHubCreateIssueResult, GitHubIssueCloseReason, GitHubIssueUpdate, GitHubPullRequestStateUpdate, LinearIssueUpdate } from './issue-mutation-types'
 export type { ClassifiedError } from './classified-error'
 export type { GitHubRateLimitBucket, GitHubRateLimitSnapshot, GetRateLimitResult } from './github/rate-limit-types'
-export type { WorktreeSetupLaunch, WorktreeStartupLaunch, WorktreeDefaultTabsLaunch, SetupScriptLaunchMode, SetupSplitDirection } from './worktree/launch-types'
+export type { WorktreeSetupLaunch, WorktreeStartupLaunch, WorktreeDefaultTabsLaunch } from './worktree/launch-types'
 export type { LocalBaseRefRefreshResult, LocalBaseRefUpdateSuggestion, WorktreeBaseStatusKind, WorktreeBaseStatusEvent, WorktreeRemoteBranchConflictEvent } from './worktree/base-ref-drift-types'
 export type { ChangelogRelease, ChangelogData, UpdateCheckOptions, UpdateSource, LinuxRootPackageType, LinuxPackageInstallFailureReason, LinuxPackageInstallRecovery, LinuxPackageCommandUnavailableReason, LinuxPackageInstallInstructions, UpdateStatus, ReleaseBuildListResult } from './update-status-types'
 export type { NotificationSettings, NotificationEventSource, NotificationDispatchRequest, NotificationDispatchResult, NotificationDismissResult, NotificationSoundResult, NotificationSoundDataResult, NotificationSoundPathResult, NotificationPermissionStatusResult, NotificationDeliveryProbeResult } from './notification-settings-types'

@@ -25,8 +25,10 @@ function harness() {
       executeAgentLaunch({
         intent,
         runtime: {
-          getClientSettings: readSettings,
-          getStructuredAgentSessionCreateSupport: createSupport
+          requireStore: () => ({ getSettings: readSettings }),
+          getStructuredAgentSessionCreateSupport: createSupport,
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the refusal path never reads settings; the throwing stub satisfies any return type.
+          getClientSettings: readSettings as () => never
         },
         surfaces: {
           createTerminalAgent: createTerminal,
@@ -35,7 +37,12 @@ function harness() {
           },
           deliverTerminalPrompt: deliverPrompt
         },
-        workspaces: { createWorktree }
+        workspaces: {
+          createWorktree,
+          createFolderWorkspace: async () => {
+            throw new Error('folder_create_not_expected')
+          }
+        }
       })
   }
 }

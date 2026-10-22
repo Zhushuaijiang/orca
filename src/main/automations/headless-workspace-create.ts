@@ -132,6 +132,7 @@ export function buildHeadlessAutomationWorktreeCreateArgs({
     startupAgent: automation.agentId,
     startupPrompt: automation.prompt,
     startupLaunchPreferences: launchPreferences,
+    ...(automation.extraAgentArgs ? { startupExtraAgentArgs: automation.extraAgentArgs } : {}),
     telemetrySource: 'unknown',
     automationProvenance: buildAutomationWorkspaceProvenance(automation, run, repo, createdAt)
   }

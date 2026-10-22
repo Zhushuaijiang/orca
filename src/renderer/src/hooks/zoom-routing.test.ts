@@ -7,17 +7,33 @@ function makeTarget(args: {
   hasXtermClass?: boolean
   editorClosest?: boolean
   chatClosest?: boolean
+  browserPageId?: string
+  /** The page's <webview> sits in a viewport shell outside its pane. */
+  viewportPageId?: string
 }): {
   classList: { contains: (token: string) => boolean }
   closest: (selector: string) => object | null
 } {
-  const { hasXtermClass = false, editorClosest = false, chatClosest = false } = args
+  const {
+    hasXtermClass = false,
+    editorClosest = false,
+    chatClosest = false,
+    browserPageId,
+    viewportPageId
+  } = args
   return {
     classList: {
       contains: (token: string) => hasXtermClass && token === 'xterm-helper-textarea'
     },
-    closest: (selector) =>
-      (selector === '[data-native-chat-root]' ? chatClosest : editorClosest) ? {} : null
+    closest: (selector) => {
+      if (selector === '[data-browser-page-pane-id]') {
+        return browserPageId ? { getAttribute: () => browserPageId } : null
+      }
+      if (selector === '[data-browser-page-viewport-id]') {
+        return viewportPageId ? { getAttribute: () => viewportPageId } : null
+      }
+      return (selector === '[data-native-chat-root]' ? chatClosest : editorClosest) ? {} : null
+    }
   }
 }
 
@@ -85,6 +101,16 @@ describe('resolveZoomTarget', () => {
     ).toBe('ui')
   })
 
+  it('routes to the page whose floating browser holds focus over another view', () => {
+    expect(
+      resolveZoomTarget({
+        activeView: 'tasks',
+        activeTabType: 'terminal',
+        activeElement: makeTarget({ browserPageId: 'page-1' })
+      })
+    ).toBe('browser')
+  })
+
   it('routes to ui zoom for active browser tabs before stale DOM focus', () => {
     expect(
       resolveZoomTarget({
@@ -113,6 +139,7 @@ describe('registerZoomIpcBridge', () => {
       uiZoomLevel?: number
       nativeChatAppearance?: NativeChatAppearanceSettings
       editorFontZoomLevel?: number
+      pdfTakesZoom?: boolean
     } = {}
   ) {
     const {
@@ -121,7 +148,8 @@ describe('registerZoomIpcBridge', () => {
       activeElement = makeTarget({ editorClosest: true, hasXtermClass: true }),
       uiZoomLevel = 0,
       editorFontZoomLevel = 0,
-      nativeChatAppearance
+      nativeChatAppearance,
+      pdfTakesZoom = false
     } = args
 
     const applyUIZoom = vi.fn()
@@ -133,6 +161,12 @@ describe('registerZoomIpcBridge', () => {
       Object.assign(settings, updates)
     })
 
+    const requestPdfZoom = vi.fn(() => pdfTakesZoom)
+    const dispatchBrowserPageZoom = vi.fn()
+    vi.doMock('@/components/browser-pane/host-guest/browser-page-zoom', () => ({
+      dispatchBrowserPageZoom
+    }))
+    vi.doMock('@/components/editor/pdf-zoom-request', () => ({ requestPdfZoom }))
     vi.doMock('@/lib/ui-zoom', () => ({ applyUIZoom }))
     vi.doMock('@/lib/zoom-events', () => ({ dispatchZoomLevelChanged }))
     vi.doMock('../store', () => ({
@@ -176,6 +210,8 @@ describe('registerZoomIpcBridge', () => {
     }
     return {
       fire,
+      dispatchBrowserPageZoom,
+      requestPdfZoom,
       applyUIZoom,
       dispatchZoomLevelChanged,
       setEditorFontZoomLevel,
@@ -224,7 +260,37 @@ describe('registerZoomIpcBridge', () => {
     expect(zoom.setEditorFontZoomLevel).not.toHaveBeenCalled()
   })
 
-  it('applies app zoom for an active browser tab', async () => {
+  it('zooms the page, not the app, while focus is in its browser pane', async () => {
+    const zoom = await mountZoomBridge({
+      activeTabType: 'browser',
+      activeElement: makeTarget({ browserPageId: 'page-1' })
+    })
+
+    zoom.fire('in')
+    zoom.fire('reset')
+
+    expect(zoom.dispatchBrowserPageZoom.mock.calls).toEqual([
+      [{ browserPageId: 'page-1', direction: 'in' }],
+      [{ browserPageId: 'page-1', direction: 'reset' }]
+    ])
+    expect(zoom.applyUIZoom).not.toHaveBeenCalled()
+  })
+
+  it('zooms the page from the View menu while the page itself holds focus', async () => {
+    const zoom = await mountZoomBridge({
+      activeTabType: 'browser',
+      activeElement: makeTarget({ viewportPageId: 'page-1' })
+    })
+
+    zoom.fire('out')
+
+    expect(zoom.dispatchBrowserPageZoom.mock.calls).toEqual([
+      [{ browserPageId: 'page-1', direction: 'out' }]
+    ])
+    expect(zoom.applyUIZoom).not.toHaveBeenCalled()
+  })
+
+  it('applies app zoom for an active browser tab when focus is outside its pane', async () => {
     const zoom = await mountZoomBridge({ activeTabType: 'browser' })
 
     zoom.fire('in')
@@ -262,6 +328,30 @@ describe('registerZoomIpcBridge', () => {
     // 13px base + one step = 14px, reported against the base as 108%.
     expect(zoom.dispatchZoomLevelChanged).toHaveBeenCalledWith('editor', 108)
     expect(zoom.applyUIZoom).not.toHaveBeenCalled()
+  })
+
+  it('hands editor-tab zoom to the PDF it shows instead of editor font zoom', async () => {
+    const zoom = await mountZoomBridge({
+      activeTabType: 'editor',
+      activeElement: makeTarget({}),
+      pdfTakesZoom: true
+    })
+
+    zoom.fire('out')
+
+    expect(zoom.requestPdfZoom).toHaveBeenCalledWith('out')
+    expect(zoom.setEditorFontZoomLevel).not.toHaveBeenCalled()
+    expect(zoom.dispatchZoomLevelChanged).not.toHaveBeenCalled()
+    expect(zoom.applyUIZoom).not.toHaveBeenCalled()
+  })
+
+  it('never offers app zoom outside editor tabs to a PDF', async () => {
+    const zoom = await mountZoomBridge({ activeTabType: 'browser', pdfTakesZoom: true })
+
+    zoom.fire('in')
+
+    expect(zoom.requestPdfZoom).not.toHaveBeenCalled()
+    expect(zoom.applyUIZoom).toHaveBeenCalledWith(0.5)
   })
 
   it('clamps app zoom at the supported maximum', async () => {

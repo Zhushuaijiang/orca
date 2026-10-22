@@ -4,9 +4,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../shared/types'
 import type { YunxiaoWorkItem } from '../../shared/yunxiao-types'
+import { closeTestStores, createStore, testState } from '../persistence-test-harness'
 import { AutomationService } from './service'
-
-const testState = { dir: '' }
 
 vi.mock('electron', () => ({
   app: { getPath: () => testState.dir },
@@ -16,13 +15,6 @@ vi.mock('electron', () => ({
     decryptString: (ciphertext: Buffer) => ciphertext.toString('utf8').slice('encrypted:'.length)
   }
 }))
-
-async function createStore() {
-  vi.resetModules()
-  const { Store, initDataPath } = await import('../persistence')
-  initDataPath()
-  return new Store()
-}
 
 const repo: Repo = {
   id: 'r1',
@@ -55,14 +47,15 @@ describe('AutomationService claim recovery', () => {
     vi.useFakeTimers()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers()
+    await closeTestStores()
     rmSync(testState.dir, { recursive: true, force: true })
   })
 
   it('requeues a Yunxiao claim when the execution host is temporarily unavailable', async () => {
     vi.setSystemTime(new Date('2026-05-13T08:00:00Z'))
-    const store = await createStore()
+    const store = createStore()
     store.addRepo(repo)
     store.addYunxiaoTodoPoolItems([workItem])
     const automation = store.createAutomation({

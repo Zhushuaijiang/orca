@@ -1,6 +1,6 @@
-import type { NativeChatGlobalSettings } from './native-chat-appearance-settings'
+import type { GlobalSettingsBase } from './global-settings-base'
 import type { AuxiliaryModelSettings } from './auxiliary-model-types'
 
-export type AgentGlobalSettings = NativeChatGlobalSettings & {
+export type AgentGlobalSettings = GlobalSettingsBase & {
   auxiliaryModels?: AuxiliaryModelSettings
 }

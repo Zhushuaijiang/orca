@@ -1,6 +1,6 @@
 import { useAppStore } from '../../store'
 import { getResolvedExecutionHostIdForWorktree } from '@/lib/resolved-worktree-execution-host'
-import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
 import { useActiveProjectSkillRuntime } from '@/hooks/useActiveProjectSkillRuntime'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 
@@ -11,7 +11,7 @@ export function useAuxiliaryExecutionHost(settings: GlobalSettings): string {
   )
   const { agentRuntime } = useActiveProjectSkillRuntime()
   if (!worktree) {
-    const target = getActiveRuntimeTarget(settings)
+    const target = runtimeTargetForOwnerEnvironment(settings.activeRuntimeEnvironmentId ?? null)
     return target.kind === 'environment' ? `runtime:${target.environmentId}` : 'local'
   }
   if (!host) {

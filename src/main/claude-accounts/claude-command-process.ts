@@ -1,14 +1,11 @@
-import { spawnProcess } from '../../shared/child-process/run-process'
+import { spawnProcess } from '@orca/process-host'
 import { withCliRuntimeOnPath } from '../../shared/node-cli-command-resolution'
 import {
   buildWindowsHostInteractiveLoginSpawn,
   type WindowsHostInteractiveLoginSpawn
 } from '../../shared/windows-interactive-login-spawn'
-import {
-  buildWslExecArgs,
-  buildWslLoginShellCommand,
-  quotePosixShell
-} from '../../shared/wsl-login-shell-command'
+import { buildWslExecArgs, buildWslLoginShellCommand } from '../../shared/wsl-login-shell-command'
+import { quotePosixShell } from '../../shared/shell-argument-quoting'
 import { resolveClaudeCommand } from '../codex-cli/command'
 import { resolveWslExecutablePath } from '../wsl/wsl-executable-path'
 import { buildWindowsCommandInvocation } from './windows-command-invocation'
@@ -27,6 +24,12 @@ export type ClaudeCommandConfig = {
 export type ClaudeCommandOptions = {
   signal?: AbortSignal
   keepStdinOpen?: boolean
+  /** BROWSER for Claude, as Claude's own host sees the path. */
+  browser?: string
+  /** Every stdout chunk as Claude prints it. */
+  onStdout?: (text: string) => void
+  /** Hands over a sender for lines to Claude's stdin; needs `keepStdinOpen`. */
+  onStdin?: (send: (text: string) => void) => void
 }
 
 export function runClaudeCommandProcess(
@@ -55,7 +58,8 @@ export function runClaudeCommandProcess(
       args,
       configDir,
       interactiveLogin,
-      hostClaudeCommand
+      hostClaudeCommand,
+      options?.browser
     )
     const child = spawnProcess({
       program: spawnConfig.command,
@@ -98,6 +102,7 @@ export function runClaudeCommandProcess(
         timeout = null
       }
       stdout?.off('data', appendOutput)
+      stdout?.off('data', forwardStdout)
       stderr?.off('data', appendOutput)
       child.off('error', onError)
       child.off(completionEvent, onDone)
@@ -126,6 +131,7 @@ export function runClaudeCommandProcess(
       terminationPending = true
       terminateClaudeProcess(child, interactiveLogin, afterKill)
     }
+    const forwardStdout = (chunk: Buffer): void => options?.onStdout?.(chunk.toString())
     const appendOutput = (chunk: Buffer): void => {
       output = `${output}${chunk.toString()}`
       if (output.length > MAX_COMMAND_OUTPUT_CHARS) {
@@ -172,8 +178,23 @@ export function runClaudeCommandProcess(
     }, timeoutMs)
     stdout?.on('data', appendOutput)
     stderr?.on('data', appendOutput)
+    if (options?.onStdout) {
+      stdout?.on('data', forwardStdout)
+    }
     child.on('error', onError)
     child.on(completionEvent, onDone)
+    const stdin = options?.keepStdinOpen && !interactiveLogin ? child.stdin : null
+    if (stdin && options?.onStdin) {
+      // Why: a code written as Claude exits fails with EPIPE, which unhandled would crash the host.
+      stdin.on('error', (error) =>
+        console.warn('[claude-accounts] Claude login stdin:', error.message)
+      )
+      options.onStdin((text) => {
+        if (!settled && !stdin.destroyed) {
+          stdin.write(text)
+        }
+      })
+    }
     if (options?.signal?.aborted) {
       onAbort()
     } else {
@@ -190,15 +211,29 @@ type ClaudeSpawnConfig = {
 }
 
 // Why only this variable: account terminals set just CLAUDE_CONFIG_DIR, so Claude keys the login the same way.
-function claudeConfigDirEnv(configDir: string): NodeJS.ProcessEnv {
-  return { CLAUDE_CONFIG_DIR: configDir }
+function claudeConfigDirEnv(configDir: string, browser: string | undefined): NodeJS.ProcessEnv {
+  return browser
+    ? { CLAUDE_CONFIG_DIR: configDir, BROWSER: browser }
+    : { CLAUDE_CONFIG_DIR: configDir }
+}
+
+function wslClaudeCommand(linuxPath: string, args: string[], browser: string | undefined): string {
+  const claude = `claude ${args.map(quotePosixShell).join(' ')}`
+  const configDir = `CLAUDE_CONFIG_DIR=${quotePosixShell(linuxPath)}`
+  if (!browser) {
+    return `exec env ${configDir} ${claude}`
+  }
+  // Why chmod here: a file Orca writes over \\wsl$ arrives without an exec bit; a failure must not stop the login.
+  const helper = quotePosixShell(browser)
+  return `chmod 700 ${helper}; exec env ${configDir} BROWSER=${helper} ${claude}`
 }
 
 function resolveClaudeInvocation(
   args: string[],
   configDir: ClaudeCommandConfig,
   interactiveLogin: WindowsHostInteractiveLoginSpawn | null,
-  hostClaudeCommand: () => string
+  hostClaudeCommand: () => string,
+  browser: string | undefined
 ): ClaudeSpawnConfig {
   const spawnConfig = interactiveLogin
     ? {
@@ -206,7 +241,7 @@ function resolveClaudeInvocation(
         args: interactiveLogin.args,
         env: withCliRuntimeOnPath(hostClaudeCommand(), {
           ...process.env,
-          ...claudeConfigDirEnv(configDir.windowsPath)
+          ...claudeConfigDirEnv(configDir.windowsPath, browser)
         }),
         windowsVerbatimArguments: false
       }
@@ -217,9 +252,7 @@ function resolveClaudeInvocation(
           args: buildWslExecArgs(configDir.wslDistro, [
             '/bin/sh',
             '-c',
-            buildWslLoginShellCommand(
-              `exec env CLAUDE_CONFIG_DIR=${quotePosixShell(configDir.linuxPath)} claude ${args.map(quotePosixShell).join(' ')}`
-            )
+            buildWslLoginShellCommand(wslClaudeCommand(configDir.linuxPath, args, browser))
           ]),
           env: process.env,
           windowsVerbatimArguments: false
@@ -229,7 +262,7 @@ function resolveClaudeInvocation(
             ...buildWindowsCommandInvocation(hostClaudeCommand(), args),
             env: withCliRuntimeOnPath(hostClaudeCommand(), {
               ...process.env,
-              ...claudeConfigDirEnv(configDir.windowsPath)
+              ...claudeConfigDirEnv(configDir.windowsPath, browser)
             })
           }
         : {
@@ -237,7 +270,7 @@ function resolveClaudeInvocation(
             args,
             env: withCliRuntimeOnPath(hostClaudeCommand(), {
               ...process.env,
-              ...claudeConfigDirEnv(configDir.windowsPath)
+              ...claudeConfigDirEnv(configDir.windowsPath, browser)
             }),
             windowsVerbatimArguments: false
           }

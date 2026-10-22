@@ -3,9 +3,7 @@ import { useState, useMemo, useEffect } from 'react'
 import type { GitHubAssignableUser } from '../../../shared/github/pull-request-types'
 import type { Repo } from '../../../shared/repo-types'
 import { useAppStore } from '@/store'
-import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
-import { getTaskSourceRuntimeSettings } from '../../../shared/task-source-context'
-import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { getGitHubRepoRoutingTarget } from '@/lib/github-source-runtime-context'
 import { useRepoLabels, useRepoAssignees } from '@/hooks/useIssueMetadata'
 import {
   resolveVanishedNewIssueRepoReset,
@@ -106,39 +104,25 @@ export function useTaskPageGitHubIssueDraft(model: TaskPageGitHubCacheReconcilia
     if (!newIssueTargetRepo?.id) {
       return null
     }
-    const repoOwnerSettings = getSettingsForRepoRuntimeOwner(
-      {
-        repos: [newIssueTargetRepo],
-        settings
-      },
-      newIssueTargetRepo.id
+    const target = getGitHubRepoRoutingTarget(
+      { repos: [newIssueTargetRepo], settings },
+      newIssueTargetRepo.id,
+      newIssueSourceContext
     )
-    const targetSettings =
-      newIssueSourceContext?.provider === 'github'
-        ? {
-            ...repoOwnerSettings,
-            ...getTaskSourceRuntimeSettings(newIssueSourceContext)
-          }
-        : repoOwnerSettings
-    const target = getActiveRuntimeTarget(targetSettings)
     if (target.kind !== 'environment') {
       return null
     }
     return repos.some((repo) => repo.id === newIssueTargetRepo.id) ? target : null
   }, [newIssueSourceContext, newIssueTargetRepo, repos, settings])
   const newIssueRepoLabels = useRepoLabels(
-    newIssueOpen && newIssueProvider === 'github' ? (newIssueTargetRepo?.path ?? null) : null,
-    newIssueOpen && newIssueProvider === 'github' ? (newIssueTargetRepo?.id ?? null) : null,
-    {
-      runtimeEnvironmentId: newIssueOpen ? (newIssueRuntimeTarget?.environmentId ?? null) : null
-    }
+    newIssueOpen ? (newIssueTargetRepo?.path ?? null) : null,
+    newIssueOpen ? (newIssueTargetRepo?.id ?? null) : null,
+    { target: newIssueOpen ? newIssueRuntimeTarget : null }
   )
   const newIssueRepoAssignees = useRepoAssignees(
-    newIssueOpen && newIssueProvider === 'github' ? (newIssueTargetRepo?.path ?? null) : null,
-    newIssueOpen && newIssueProvider === 'github' ? (newIssueTargetRepo?.id ?? null) : null,
-    {
-      runtimeEnvironmentId: newIssueOpen ? (newIssueRuntimeTarget?.environmentId ?? null) : null
-    }
+    newIssueOpen ? (newIssueTargetRepo?.path ?? null) : null,
+    newIssueOpen ? (newIssueTargetRepo?.id ?? null) : null,
+    { target: newIssueOpen ? newIssueRuntimeTarget : null }
   )
 
   // Why: only handles the "chosen repo vanished" case; a reactive clear keyed on target id can't tell a restore from a user switch and would wipe the recovery draft.

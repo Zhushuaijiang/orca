@@ -187,11 +187,13 @@ export function buildYunxiaoWorkspaceSource(item: {
 export function shouldApplyWorkspaceSourceAutoName(args: {
   currentName: string
   lastAutoName: string
+  lookupTextIsQuery?: boolean
 }): boolean {
   return (
     !args.currentName.trim() ||
     args.currentName === args.lastAutoName ||
-    isWorkItemLookupText(args.currentName)
+    // A selected source exposes a name field; its manual edits are no longer lookup queries.
+    (args.lookupTextIsQuery !== false && isWorkItemLookupText(args.currentName))
   )
 }
 

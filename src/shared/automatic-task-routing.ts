@@ -63,7 +63,7 @@ export function buildTaskClassificationPrompt(prompt: string, imageCount = 0): s
 }
 
 export function resolveAutomaticTaskRoute(
-  settings: Pick<GlobalSettings, 'auxiliaryModels' | 'disabledTuiAgents'>,
+  settings: Partial<Pick<GlobalSettings, 'auxiliaryModels' | 'disabledTuiAgents'>>,
   decision: AutomaticTaskDecision,
   primaryAgent: TuiAgent,
   hostKey: string,

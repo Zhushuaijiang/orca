@@ -19,19 +19,23 @@ import {
 import { normalizeTerminalCursorStyleDefault } from '../../../../shared/terminal-cursor-style-settings'
 import { normalizeTerminalCustomThemes } from '../../../../shared/terminal-custom-themes'
 import { normalizeTaskProviderSettings } from '../../../../shared/task-providers'
-import { normalizeUiLanguage } from '../../../../shared/ui-language'
+import { migratePortugueseUiLanguageOnLoad } from '../../../../shared/portuguese-ui-language-migration'
 import { readStoredWebRuntimeEnvironment } from '../web-runtime-environment'
-import { mergeSettings, mergeWebUIState } from './web-preference-normalization'
+import {
+  mergeSettings,
+  mergeWebUIState,
+  runtimeChatPermissionSetting
+} from './web-preference-normalization'
 import { callRuntimeResult } from './web-runtime-calls'
 import { requireActiveEnvironmentOrNull, webRuntimeState } from './web-runtime-session'
+import { pickRuntimeSyncedSettings } from './web-runtime-synced-settings'
 import { zcodePlanSiteOwner, settingsForZcodePlanSiteOwner } from './web-zcode-plan-site'
 import { SETTINGS_STORAGE_KEY, UI_STORAGE_KEY, readJson, writeJson } from './web-storage'
 
 export type WebSettingsApi = NonNullable<PreloadApi['settings']>
 
 export function getStoredSettings(): GlobalSettings {
-  webRuntimeState.activeEnvironment =
-    webRuntimeState.activeEnvironment ?? readStoredWebRuntimeEnvironment()
+  webRuntimeState.activeEnvironment ??= readStoredWebRuntimeEnvironment()
   const defaults = getDefaultSettings('~')
   const rawStoredSettings = window.localStorage.getItem(SETTINGS_STORAGE_KEY)
   const stored = readJson<Partial<GlobalSettings>>(SETTINGS_STORAGE_KEY, {})
@@ -41,7 +45,7 @@ export function getStoredSettings(): GlobalSettings {
     ...normalizeTerminalCursorStyleDefault(stored),
     ...normalizeOsc52ClipboardDefaultOn(stored),
     terminalCustomThemes: normalizeTerminalCustomThemes(stored.terminalCustomThemes),
-    uiLanguage: normalizeUiLanguage(stored.uiLanguage)
+    ...migratePortugueseUiLanguageOnLoad(stored)
   }
   if (
     rawStoredSettings &&
@@ -57,7 +61,8 @@ export function getStoredSettings(): GlobalSettings {
       stored.terminalAllowOsc52ClipboardDefaultedOnForAllUsers !==
         migratedStored.terminalAllowOsc52ClipboardDefaultedOnForAllUsers ||
       stored.terminalCustomThemes !== migratedStored.terminalCustomThemes ||
-      stored.uiLanguage !== migratedStored.uiLanguage)
+      stored.uiLanguage !== migratedStored.uiLanguage ||
+      stored.uiLanguagePortugueseMigrationApplied !== true)
   ) {
     try {
       const parsed = JSON.parse(rawStoredSettings) as unknown
@@ -131,36 +136,14 @@ export async function getRuntimeBackedStoredSettings(): Promise<GlobalSettings> 
         : null
       webRuntimeState.worktreeVisibilityDefaultsRuntimeValue = visibilityDefaults ?? null
     }
-    if (typeof result.settings.experimentalNewWorktreeCardStyle === 'boolean') {
-      runtimeSettings.experimentalNewWorktreeCardStyle =
-        result.settings.experimentalNewWorktreeCardStyle
-    }
-    if (typeof result.settings.compactWorktreeCards === 'boolean') {
-      runtimeSettings.compactWorktreeCards = result.settings.compactWorktreeCards
-    }
-    if (typeof result.settings.minimaxGroupId === 'string') {
-      runtimeSettings.minimaxGroupId = result.settings.minimaxGroupId
-    }
-    if (typeof result.settings.minimaxUsageModels === 'string') {
-      runtimeSettings.minimaxUsageModels = result.settings.minimaxUsageModels
-    }
+    Object.assign(runtimeSettings, pickRuntimeSyncedSettings(result.settings))
     if (zcodePlanSiteOwner(currentEnvironment) === requestedSiteOwner) {
       webRuntimeState.zcodePlanSiteRuntimeOwner = requestedSiteOwner
       const site = result.settings.zcodePlanSite
       webRuntimeState.zcodePlanSiteRuntimeValue =
         site === 'zai' || site === 'bigmodel' ? site : null
     }
-    if (
-      result.settings.minimaxEndpoint === 'overseas' ||
-      result.settings.minimaxEndpoint === 'cn'
-    ) {
-      runtimeSettings.minimaxEndpoint = result.settings.minimaxEndpoint
-    }
-    if (Array.isArray(result.settings.prBotAuthorOverrides)) {
-      runtimeSettings.prBotAuthorOverrides = normalizePRBotAuthorOverrides(
-        result.settings.prBotAuthorOverrides
-      )
-    }
+    Object.assign(runtimeSettings, runtimeChatPermissionSetting(result.settings))
     // Read-only mirror: the host owns this capability and `syncRuntimeBackedSettings` never
     // sends it back, so web shows what the host enforces instead of a local value it ignores.
     if (typeof result.settings.artifactSharingEnabled === 'boolean') {
@@ -224,26 +207,8 @@ export async function syncRuntimeBackedSettings(
   if (visibilityDefaults) {
     runtimeUpdates.worktreeVisibilityDefaults = visibilityDefaults
   }
-  if (typeof updates.experimentalNewWorktreeCardStyle === 'boolean') {
-    runtimeUpdates.experimentalNewWorktreeCardStyle = updates.experimentalNewWorktreeCardStyle
-  }
-  if (typeof updates.compactWorktreeCards === 'boolean') {
-    runtimeUpdates.compactWorktreeCards = updates.compactWorktreeCards
-  }
-  if (typeof updates.minimaxGroupId === 'string') {
-    runtimeUpdates.minimaxGroupId = updates.minimaxGroupId
-  }
-  if (typeof updates.minimaxUsageModels === 'string') {
-    runtimeUpdates.minimaxUsageModels = updates.minimaxUsageModels
-  }
-  if (updates.minimaxEndpoint === 'overseas' || updates.minimaxEndpoint === 'cn') {
-    runtimeUpdates.minimaxEndpoint = updates.minimaxEndpoint
-  }
-  if (Array.isArray(updates.prBotAuthorOverrides)) {
-    runtimeUpdates.prBotAuthorOverrides = normalizePRBotAuthorOverrides(
-      updates.prBotAuthorOverrides
-    )
-  }
+  Object.assign(runtimeUpdates, pickRuntimeSyncedSettings(updates))
+  Object.assign(runtimeUpdates, runtimeChatPermissionSetting(updates, false))
   if (Object.keys(runtimeUpdates).length === 0) {
     return localNext
   }

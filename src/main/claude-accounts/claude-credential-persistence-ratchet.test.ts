@@ -33,13 +33,16 @@ const fsAllowances: Record<string, readonly string[]> = {
     'mkdirSync',
     'renameSync',
     'rmdirSync',
-    'symlinkSync'
+    'symlinkSync',
+    'unlinkSync'
   ],
   'claude-accounts/claude-profile-paths.ts': ['mkdirSync', 'writeFileAtomically'],
   // The which-account file.
   'claude-accounts/claude-profile-router.ts': ['mkdirSync', 'rmSync', 'writeFileAtomically'],
   // Removing an account deletes its folder, links first.
   'claude-accounts/claude-account-folder.ts': ['rmSync', 'rmdirSync', 'unlinkSync'],
+  // Not a file: a pasted sign-in code goes to the login process's stdin.
+  'claude-accounts/claude-command-process.ts': ['write'],
   'claude-accounts/claude-profile-prompt-history.ts': [
     'appendFileSync',
     'linkSync',
@@ -51,7 +54,11 @@ const fsAllowances: Record<string, readonly string[]> = {
     'writeFileSync',
     'writeFileAtomically'
   ],
-  'claude-accounts/claude-profile-provisioning.ts': ['mkdirSync', 'rmSync', 'writeFileAtomically'],
+  'claude-accounts/claude-profile-provisioning.ts': [
+    'publishFileWithoutOverwrite',
+    'rmSync',
+    'writeFileSync'
+  ],
   'claude-accounts/claude-profile-sharing.ts': [
     'mkdirSync',
     'rmdirSync',
@@ -59,6 +66,8 @@ const fsAllowances: Record<string, readonly string[]> = {
     'unlinkSync',
     'writeFileAtomically'
   ],
+  // The BROWSER stand-in a hidden sign-in hands its link through; holds no login.
+  'claude-accounts/claude-sign-in-browser.ts': ['rm', 'writeFile'],
   // The guest helper answers the host on stdout.
   'claude-accounts/claude-profile-wsl-entry.ts': ['write']
 }

@@ -10,6 +10,10 @@ import {
   UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
 } from '../../shared/agent-skill-home-directories'
 import { TUI_AGENT_DISPLAY_NAMES } from '../../shared/tui-agent-display-names'
+import {
+  SKILL_INSTALL_PROVIDERS,
+  type SkillInstallProviderId
+} from '../../shared/skill-install-providers'
 import type { SkillProviderRootOverrides } from './skill-provider-destinations'
 import { stablePathId } from './skill-discovery-classification'
 import {
@@ -41,6 +45,56 @@ function source(
   return { id, label, path, sourceKind, providers, owner }
 }
 
+// Why: Claude has its own SkillProvider tag; every other agent shares agent-skills.
+function skillProvidersFor(id: SkillInstallProviderId): SkillProvider[] {
+  return id === 'claude' ? ['claude'] : ['agent-skills']
+}
+
+function providerHomeSources(
+  home: string,
+  pathApi: SkillDiscoveryPathApi,
+  overrides: SkillProviderRootOverrides
+): SkillScanRoot[] {
+  return SKILL_INSTALL_PROVIDERS.flatMap((provider) => {
+    if (!provider.globalSegments) {
+      return []
+    }
+    return [
+      source(
+        `home-${provider.id}`,
+        `${provider.displayName} home`,
+        overrides[provider.id] ?? pathApi.join(home, ...provider.globalSegments),
+        'home',
+        skillProvidersFor(provider.id),
+        provider.id
+      )
+    ]
+  })
+}
+
+function providerRepoSources(
+  repoPath: string,
+  repoLabel: string,
+  pathApi: SkillDiscoveryPathApi
+): SkillScanRoot[] {
+  return SKILL_INSTALL_PROVIDERS.flatMap((provider) => {
+    const segments = provider.workspaceSegments
+    if (!segments) {
+      return []
+    }
+    return [
+      source(
+        `repo-${provider.id}-${stablePathId(repoPath)}`,
+        `${repoLabel} ${segments[0]}`,
+        pathApi.join(repoPath, ...segments),
+        'repo',
+        skillProvidersFor(provider.id),
+        provider.id
+      )
+    ]
+  })
+}
+
 export function buildSkillDiscoverySources(
   args: {
     homeDir?: string
@@ -64,6 +118,7 @@ export function buildSkillDiscoverySources(
     ? pathApi.join(home, '.hermes', 'skills')
     : (resolveEnvironmentHermesSkillsRoot() ?? resolveDefaultHermesSkillsRoot({ homeDir: home }))
   const roots: SkillScanRoot[] = [
+    // Why: Codex reads `.agents/skills` today; this legacy home still holds older installs.
     source(
       'home-codex',
       'Codex home',
@@ -81,14 +136,6 @@ export function buildSkillDiscoverySources(
       null
     ),
     source(
-      'home-claude',
-      'Claude home',
-      providerRootOverrides.claude ?? pathApi.join(home, '.claude', 'skills'),
-      'home',
-      ['claude'],
-      'claude'
-    ),
-    source(
       'codex-plugin-cache',
       'Codex plugin cache',
       pathApi.join(home, '.codex', 'plugins', 'cache'),
@@ -98,22 +145,49 @@ export function buildSkillDiscoverySources(
     ),
     // Why: `npx skills add --global` writes into each agent's own home skills
     // directory, so coverage misses them unless we scan every provider root.
+    ...providerHomeSources(home, pathApi, providerRootOverrides),
+    // Why: discovery-only agent folders; installs for these agents go to the canonical root.
     source(
-      'home-grok',
-      'Grok home',
-      providerRootOverrides.grok ?? pathApi.join(home, '.grok', 'skills'),
+      'home-opencode',
+      'OpenCode home',
+      pathApi.join(home, '.config', 'opencode', 'skills'),
       'home',
       ['agent-skills'],
-      'grok'
+      'opencode'
+    ),
+    source(
+      'home-pi',
+      'Pi home',
+      pathApi.join(home, '.pi', 'agent', 'skills'),
+      'home',
+      ['agent-skills'],
+      'pi'
+    ),
+    source(
+      'home-omp',
+      'OMP home',
+      pathApi.join(home, '.omp', 'agent', 'skills'),
+      'home',
+      ['agent-skills'],
+      'omp'
     ),
     source('home-hermes', 'Hermes home', hermesSkillsRoot, 'home', ['agent-skills'], 'hermes'),
     // Codex/Claude above keep their dedicated providers and scan order; grok and
     // hermes keep their override/env-aware roots. Every other agent with a
     // dedicated root in AGENT_SKILL_HOME_DIRECTORIES is scanned generically.
     ...(Object.entries(AGENT_SKILL_HOME_DIRECTORIES) as [TuiAgent, readonly string[]][])
+      // Main's provider registry already emitted these roots (with its overrides);
+      // the generic pass only adds agents it does not cover.
       .filter(
         ([agent]) =>
-          agent !== 'codex' && agent !== 'claude' && agent !== 'grok' && agent !== 'hermes'
+          agent !== 'codex' &&
+          agent !== 'hermes' &&
+          agent !== 'opencode' &&
+          agent !== 'pi' &&
+          agent !== 'omp' &&
+          !SKILL_INSTALL_PROVIDERS.some(
+            (provider) => provider.id === agent && provider.globalSegments !== null
+          )
       )
       .map(([agent, relativeDirectory]) =>
         source(
@@ -134,9 +208,7 @@ export function buildSkillDiscoverySources(
       ['agent-skills'],
       'prime-agent'
     ),
-    // Why: user skills live under XDG config home (`~/.config/muse/skills` by
-    // default); project skills are the canonical `.agents/skills` root already
-    // covered by home-agents/repo-agents, so no agent-specific repo source.
+    // Why: Muse installs to `.agents/skills` but also reads XDG config home.
     source(
       'home-muse',
       'Muse home',
@@ -144,16 +216,6 @@ export function buildSkillDiscoverySources(
       'home',
       ['agent-skills'],
       'muse'
-    ),
-    // Why: ZCode loads user skills from `~/.zcode/skills`; project skills are the canonical
-    // `.agents/skills` root already covered by home-agents/repo-agents.
-    source(
-      'home-zcode',
-      'ZCode home',
-      pathApi.join(home, '.zcode', 'skills'),
-      'home',
-      ['agent-skills'],
-      'zcode'
     )
   ]
 
@@ -181,53 +243,15 @@ export function buildSkillDiscoverySources(
         ['agent-skills'],
         null
       ),
+      ...providerRepoSources(repoPath, label, pathApi),
+      // OpenCode also reads its own project folder; it installs into the canonical root above.
       source(
-        `repo-claude-${stablePathId(repoPath)}`,
-        `${label} .claude`,
-        pathApi.join(repoPath, '.claude', 'skills'),
-        'repo',
-        ['claude'],
-        'claude'
-      ),
-      source(
-        `repo-droid-${stablePathId(repoPath)}`,
-        `${label} .factory`,
-        pathApi.join(repoPath, '.factory', 'skills'),
+        `repo-opencode-${stablePathId(repoPath)}`,
+        `${label} .opencode`,
+        pathApi.join(repoPath, '.opencode', 'skills'),
         'repo',
         ['agent-skills'],
-        'droid'
-      ),
-      source(
-        `repo-continue-${stablePathId(repoPath)}`,
-        `${label} .continue`,
-        pathApi.join(repoPath, '.continue', 'skills'),
-        'repo',
-        ['agent-skills'],
-        'continue'
-      ),
-      source(
-        `repo-trae-${stablePathId(repoPath)}`,
-        `${label} .trae`,
-        pathApi.join(repoPath, '.trae', 'skills'),
-        'repo',
-        ['agent-skills'],
-        'trae'
-      ),
-      source(
-        `repo-grok-${stablePathId(repoPath)}`,
-        `${label} .grok`,
-        pathApi.join(repoPath, '.grok', 'skills'),
-        'repo',
-        ['agent-skills'],
-        'grok'
-      ),
-      source(
-        `repo-aug-${stablePathId(repoPath)}`,
-        `${label} .augment`,
-        pathApi.join(repoPath, '.augment', 'skills'),
-        'repo',
-        ['agent-skills'],
-        'aug'
+        'opencode'
       )
     )
   }

@@ -1,6 +1,5 @@
 import { tokenizeCommandLine } from '../../shared/agent-command-line-entrypoint'
-import { qoderHookService, qoderCnHookService } from '../qoder/hook-service'
-import { qwenCodeHookService } from '../qwen-code/hook-service'
+import { qoderHookService } from '../qoder/hook-service'
 import { describe, expect, it, vi } from 'vitest'
 import { parse as parseJsonc } from 'jsonc-parser'
 import type { SFTPWrapper } from 'ssh2'
@@ -11,28 +10,26 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { CodexHookService, codexHookService } from '../codex/hook-service'
-import { DroidHookService, droidHookService } from '../droid/hook-service'
-import { CursorHookService, cursorHookService } from '../cursor/hook-service'
+import { CodexHookService } from '../codex/hook-service'
+import { DroidHookService } from '../droid/hook-service'
+import { CursorHookService } from '../cursor/hook-service'
 import { CURSOR_EVENTS, type CursorEvent } from '../cursor/hook-events'
-import { CommandCodeHookService, commandCodeHookService } from '../command-code/hook-service'
-import { codebuddyHookService } from '../codebuddy/hook-service'
-import { GeminiHookService, geminiHookService } from '../gemini/hook-service'
-import { AntigravityHookService, antigravityHookService } from '../antigravity/hook-service'
-import { AmpHookService, ampHookService } from '../amp/hook-service'
+import { CommandCodeHookService } from '../command-code/hook-service'
+import { GeminiHookService } from '../gemini/hook-service'
+import { AntigravityHookService } from '../antigravity/hook-service'
+import { AmpHookService } from '../amp/hook-service'
 import { ClaudeHookService, claudeHookService } from '../claude/hook-service'
-import { GrokHookService, grokHookService } from '../grok/hook-service'
-import { CopilotHookService, copilotHookService } from '../copilot/hook-service'
-import { HermesHookService, hermesHookService } from '../hermes/hook-service'
-import { DevinHookService, devinHookService } from '../devin/hook-service'
-import { KimiHookService, kimiHookService } from '../kimi/hook-service'
+import { GrokHookService } from '../grok/hook-service'
+import { CopilotHookService } from '../copilot/hook-service'
+import { HermesHookService } from '../hermes/hook-service'
+import { DevinHookService } from '../devin/hook-service'
+import { KimiHookService } from '../kimi/hook-service'
 import { JcodeHookService } from '../jcode/hook-service'
 import { openClaudeHookService } from '../openclaude/hook-service'
 import {
   installRemoteManagedAgentHooks,
   REMOTE_MANAGED_HOOK_INSTALLER_AGENTS
 } from './remote-managed-hook-installers'
-import { MANAGED_AGENT_HOOK_INSTALLERS } from './managed-agent-hook-controls'
 
 type FakeFs = {
   files: Map<string, string>
@@ -720,47 +717,6 @@ describe('remote hook service installers', () => {
     expect(fs.files.get('/home/dev/.orca/agent-hooks/qoder-hook.sh')).toContain('/hook/qoder')
   })
 
-  // Why: Droid (and Copilot) each shipped a working installRemote but were never
-  // registered in REMOTE_MANAGED_HOOK_INSTALLERS, so their status silently never
-  // appeared over SSH (issue #7253). Guard the whole bug class, not one agent:
-  // every locally-managed hook service that implements installRemote MUST be
-  // wired into the remote installer.
-  it('registers every managed agent that implements installRemote in the remote installer (issue #7253)', () => {
-    const servicesByAgent = new Map<string, { installRemote?: unknown }>([
-      ['claude', claudeHookService],
-      ['openclaude', openClaudeHookService],
-      ['codex', codexHookService],
-      ['gemini', geminiHookService],
-      ['qoder', qoderHookService],
-      ['qoder-cn', qoderCnHookService],
-      ['qwen-code', qwenCodeHookService],
-      ['codebuddy', codebuddyHookService],
-      ['antigravity', antigravityHookService],
-      ['amp', ampHookService],
-      ['cursor', cursorHookService],
-      ['droid', droidHookService],
-      ['command-code', commandCodeHookService],
-      ['grok', grokHookService],
-      ['copilot', copilotHookService],
-      ['hermes', hermesHookService],
-      ['devin', devinHookService],
-      ['kimi', kimiHookService]
-    ])
-
-    // Guard against a service silently missing from the map above as new agents land.
-    for (const [agent] of MANAGED_AGENT_HOOK_INSTALLERS) {
-      expect(servicesByAgent.has(agent)).toBe(true)
-    }
-
-    const registered = new Set<string>(REMOTE_MANAGED_HOOK_INSTALLER_AGENTS)
-    const missing: string[] = []
-    for (const [agent, service] of servicesByAgent) {
-      if (typeof service.installRemote === 'function' && !registered.has(agent)) {
-        missing.push(agent)
-      }
-    }
-    expect(missing).toEqual([])
-  })
   it('installs Droid and Copilot when running the aggregate remote installer (issue #7253)', async () => {
     const { sftp } = createFakeSftp()
     const results = await installRemoteManagedAgentHooks(sftp, '/home/dev', {

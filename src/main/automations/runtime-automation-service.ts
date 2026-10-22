@@ -4,24 +4,21 @@
  */
 import type { ClaudeUsageStore } from '../claude-usage/store'
 import type { CodexUsageStore } from '../codex-usage/store'
-import type { Store } from '../persistence'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { Store } from '../persistence'
+import { getSystemCodexHomePath } from '../codex/codex-home-paths'
+import { resolveHeadlessAutomationLaunchPreferences } from './headless-workspace-create'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import { AutomationService } from './service'
-import type { AutomationRun } from '../../shared/automations-types'
 import { createHeadlessRunTerminalRetention } from './headless-run-terminal-retention'
 import {
   getTuiAgentDetectCommands,
   isTuiAgent,
   TUI_AGENT_CONFIG
 } from '../../shared/tui-agent-config'
-import {
-  buildHeadlessAutomationWorktreeCreateArgs,
-  resolveHeadlessAutomationLaunchPreferences
-} from './headless-workspace-create'
+import { launchHeadlessAutomationAgent, runOwnHandle } from './headless-automation-agent-launch'
 import { createRuntimeAutomationRunTerminalObserver } from './runtime-terminal-run-observer'
-import { getSystemCodexHomePath } from '../codex/codex-home-paths'
 
 const MAX_REMEMBERED_LAUNCHES = 256
 
@@ -56,83 +53,20 @@ export function createRuntimeAutomationService(input: {
     onAutomationsChanged: (payload) => runtime.notifyAutomationsChanged(payload),
     allowRemoteHostScheduling: input.headless,
     headlessDispatcher: input.headless
-      ? async ({ automation, run, target }) => {
-          let terminalHandle: string
-          let terminalSessionId: string | null = null
-          let terminalPaneKey: string | null = null
-          let terminalPtyId: string | null = null
-          let workspaceId: string
-          let workspaceDisplayName: string | null = null
-          // Why (fork): yunxiao todo-pool codex runs may need the system codex config to
-          // pick launch preferences (e.g. the gpt-5.6-sol downgrade).
-          let codexConfig: string | null = null
-          if (
-            automation.agentId === 'codex' &&
-            automation.yunxiaoTodoPool?.kind === 'yunxiao-todo-pool'
-          ) {
-            try {
-              codexConfig = readFileSync(join(getSystemCodexHomePath(), 'config.toml'), 'utf8')
-            } catch {
-              // A missing/unreadable config is fail-open: preserve the configured agent launch.
-            }
-          }
-          const launchPreferences = resolveHeadlessAutomationLaunchPreferences(automation, {
-            agentArgs: store.getSettings().agentDefaultArgs?.codex,
-            config: codexConfig
+      ? async (request) => {
+          const { terminalHandle, ...launch } = await launchHeadlessAutomationAgent(runtime, {
+            ...request,
+            runs: store.listAutomationRuns(request.automation.id),
+            launchPreferences: resolveForkAutomationLaunchPreferences(store, request.automation)
           })
-          if (automation.workspaceMode === 'new_per_run') {
-            const created = await runtime.createManagedWorktree(
-              buildHeadlessAutomationWorktreeCreateArgs({
-                automation,
-                run,
-                repo: target.repo,
-                launchPreferences
-              })
-            )
-            terminalHandle = created.startupTerminal?.handle ?? ''
-            terminalSessionId = created.startupTerminal?.tabId ?? null
-            terminalPaneKey = created.startupTerminal?.paneKey ?? null
-            terminalPtyId = created.startupTerminal?.ptyId ?? null
-            workspaceId = created.worktree.id
-            workspaceDisplayName = created.worktree.displayName ?? null
-            if (!terminalHandle) {
-              throw new Error(
-                created.warning ||
-                  'Automation workspace was created, but no agent terminal started.'
-              )
-            }
-          } else {
-            if (!automation.workspaceId) {
-              throw new Error('The target workspace is no longer available.')
-            }
-            const terminal = await runtime.launchAgentTerminal(`id:${automation.workspaceId}`, {
-              agent: automation.agentId,
-              prompt: automation.prompt,
-              title: run.title,
-              launchPreferences
-            })
-            terminalHandle = terminal.handle
-            terminalSessionId = terminal.tabId ?? null
-            terminalPaneKey = terminal.paneKey ?? null
-            terminalPtyId = terminal.ptyId ?? null
-            workspaceId = terminal.worktreeId
-            const worktree = await runtime.showManagedWorktree(`id:${workspaceId}`)
-            workspaceDisplayName = worktree.displayName ?? null
-          }
-          if (terminalPaneKey) {
-            launchedHandles.set(terminalPaneKey, terminalHandle)
+          if (launch.terminalPaneKey) {
+            launchedHandles.set(launch.terminalPaneKey, terminalHandle)
             if (launchedHandles.size > MAX_REMEMBERED_LAUNCHES) {
               launchedHandles.delete(launchedHandles.keys().next().value ?? '')
             }
           }
           // No completion: the run's watcher observes it, retrying wait timeouts until it settles.
-          return {
-            workspaceId,
-            workspaceDisplayName,
-            terminalSessionId,
-            terminalPaneKey,
-            terminalPtyId
-          }
+          return launch
         }
       : undefined
   })
@@ -168,6 +102,38 @@ function bindHeadlessRunTerminalRetention(
       await runtime.closeTerminal(handle)
       return true
     },
+    // Why: only a workspace made for this run sleeps; a shared one would gather a tab per run.
+    runOwnsWorkspace: (run) =>
+      run.workspaceId !== null &&
+      store.getWorktreeMeta(run.workspaceId)?.automationProvenance?.automationRunId === run.id,
+    sleepRunWorkspace: async (run) => {
+      const ptyId = run.terminalPtyId
+      if (!run.workspaceId || !ptyId) {
+        return false
+      }
+      try {
+        // Records the agent's resume for reopening; sole, since any other live terminal is a user's.
+        const sleep = await runtime.sleepTerminalsForWorktree(`id:${run.workspaceId}`, {
+          soleLivePtyId: ptyId
+        })
+        // Why "nothing live" too: retrying a sleep that stopped the PTY and then threw finds none;
+        // a decline always reports the other live terminal.
+        const slept =
+          sleep.livePtyIds.length === 0 ||
+          (sleep.stoppedPtyIds.includes(ptyId) && !sleep.remainingLivePtyIds?.includes(ptyId))
+        if (!slept) {
+          return false
+        }
+      } catch (error) {
+        console.error('[automations] could not sleep a run workspace:', error)
+        return false
+      }
+      // The slept pane keeps its tab and pane key, which reopen and resume it.
+      await service.markDispatchResult({ runId: run.id, status: run.status, terminalPtyId: null })
+      return true
+    },
+    inAutomationLane: (automationId, operation) =>
+      service.runInAutomationLane(automationId, operation),
     forgetRunTerminal: async (run) => {
       // A run still dispatched had its agent exit without a result, proven by its idle shell.
       const unfinished = run.status === 'dispatched'
@@ -204,14 +170,22 @@ function automationAgentCommands(agentId: string | undefined): string[] {
   return [...getTuiAgentDetectCommands(config), config.launchCmd]
 }
 
-/** The run's pane handle while that pane still holds the run's own PTY; null otherwise. */
-function runOwnHandle(runtime: OrcaRuntimeService, run: AutomationRun): string | null {
-  const handle = run.terminalPaneKey
-    ? runtime.getTerminalHandleForPaneKey(run.terminalPaneKey)
-    : null
-  return handle &&
-    run.terminalPtyId &&
-    runtime.getTerminalPtyIdForHandle(handle) === run.terminalPtyId
-    ? handle
-    : null
+/** Why: yunxiao todo-pool codex runs may need the system codex config to downgrade an
+ *  unsupported gpt-5.6-sol launch (see resolveHeadlessAutomationLaunchPreferences). */
+function resolveForkAutomationLaunchPreferences(
+  store: Store,
+  automation: Parameters<typeof resolveHeadlessAutomationLaunchPreferences>[0]
+) {
+  let codexConfig: string | null = null
+  if (automation.agentId === 'codex' && automation.yunxiaoTodoPool?.kind === 'yunxiao-todo-pool') {
+    try {
+      codexConfig = readFileSync(join(getSystemCodexHomePath(), 'config.toml'), 'utf8')
+    } catch {
+      // Missing/unreadable config is fail-open: keep the configured launch.
+    }
+  }
+  return resolveHeadlessAutomationLaunchPreferences(automation, {
+    agentArgs: store.getSettings().agentDefaultArgs?.codex,
+    config: codexConfig
+  })
 }

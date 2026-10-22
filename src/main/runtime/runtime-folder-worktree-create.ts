@@ -1,12 +1,15 @@
 import { paneIdentity } from './runtime-terminal-pane-identity'
+import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../shared/layout-owner-switch'
+import { shouldSeedWorktreePrimaryTerminal } from '../../shared/worktree-first-surface'
 import { randomUUID } from 'node:crypto'
 import { getProjectHostSetupWorktreeMeta } from '../../shared/project-host-setup-lookup'
-import { resolveWorktreeCreateDisplayNameRequest } from '../ipc/worktree-logic'
+import { resolveWorktreeCreateDisplayNameRequest } from '../ipc/worktree-display-name'
 import type { RuntimeTerminalCreate } from '../../shared/runtime-types'
 import type { CreateWorktreeResult } from '../../shared/worktree/create-types'
 import type { Repo } from '../../shared/repo-types'
 import type { TuiAgent } from '../../shared/tui-agent'
 import type { WorktreeStartupLaunch } from '../../shared/worktree/launch-types'
+import type { AgentLaunchRuntime } from '../../shared/agent-launch-runtime'
 import {
   getRuntimeFolderWorkspaceInstanceId,
   mergeRuntimeFolderWorkspace
@@ -19,6 +22,7 @@ import type {
   WorktreeStartupFollowup
 } from './runtime-worktree-agent-startup'
 import type { ManualYunxiaoRequirementGate } from '../../shared/yunxiao-requirement-prompt-gate'
+import { hostWorktreeTargetForRepo } from '../persistence/host-qualified-worktree-meta'
 
 type RuntimeFolderWorktreeCreateDeps = {
   store: RuntimeStore
@@ -42,7 +46,8 @@ type RuntimeFolderWorktreeCreateDeps = {
     repoId: string,
     worktreeId: string,
     setup?: undefined,
-    startup?: WorktreeStartupLaunch
+    startup?: WorktreeStartupLaunch,
+    providesInitialSurface?: boolean
   ) => void
 }
 
@@ -51,7 +56,11 @@ export async function createRuntimeFolderWorktree(args: {
   repo: Repo
   startup?: WorktreeStartupLaunch
   startupFollowup?: WorktreeStartupFollowup
+  /** What a host-built startup was quoted for, or the repair error it fails with. */
+  startupLaunchRuntime?: AgentLaunchRuntime | Error
   createdWithAgent?: TuiAgent
+  promisedAgentChat?: boolean
+  onWorkspaceCreated?: (worktreeId: string) => void
   draftPaste?: WorktreeStartupDraftPaste
   yunxiaoRequirementGate?: ManualYunxiaoRequirementGate | null
   deps: RuntimeFolderWorktreeCreateDeps
@@ -69,7 +78,7 @@ export async function createRuntimeFolderWorktree(args: {
     request.nameWasGenerated === true
   )
   const resolvedFolderDisplayName = displayNameRequest.value
-  const meta = deps.store.setWorktreeMeta(worktreeId, {
+  const meta = deps.store.setWorktreeMeta(hostWorktreeTargetForRepo(worktreeId, repo), {
     instanceId,
     ...getProjectHostSetupWorktreeMeta(deps.store.getProjectHostSetups?.() ?? [], repo),
     displayName: resolvedFolderDisplayName ?? request.name,
@@ -85,9 +94,7 @@ export async function createRuntimeFolderWorktree(args: {
       nestWorkspaces: settings.nestWorkspaces
     },
     ...(request.automationProvenance ? { automationProvenance: request.automationProvenance } : {}),
-    ...(args.yunxiaoRequirementGate
-      ? { yunxiaoRequirementGate: args.yunxiaoRequirementGate }
-      : {}),
+    ...(args.yunxiaoRequirementGate ? { yunxiaoRequirementGate: args.yunxiaoRequirementGate } : {}),
     ...(request.cliProvenance ? { cliProvenance: request.cliProvenance } : {}),
     creatorProvenance: request.creatorProvenance ?? { kind: 'host' },
     ...(request.linkedIssue !== undefined ? { linkedIssue: request.linkedIssue } : {}),
@@ -113,6 +120,7 @@ export async function createRuntimeFolderWorktree(args: {
       : {}),
     ...(request.linkedGiteaPR !== undefined ? { linkedGiteaPR: request.linkedGiteaPR } : {}),
     ...(request.linkedWorkItem !== undefined ? { linkedWorkItem: request.linkedWorkItem } : {}),
+    ...(request.linkedItems !== undefined ? { linkedItems: request.linkedItems } : {}),
     ...(request.linkedTaskSourceContext !== undefined
       ? { linkedTaskSourceContext: request.linkedTaskSourceContext }
       : {}),
@@ -121,6 +129,7 @@ export async function createRuntimeFolderWorktree(args: {
     ...(request.manualOrder !== undefined ? { manualOrder: request.manualOrder } : {}),
     ...(request.workspaceStatus !== undefined ? { workspaceStatus: request.workspaceStatus } : {})
   })
+  args.onWorkspaceCreated?.(worktreeId)
   const worktree = mergeRuntimeFolderWorkspace(repo, worktreeId, meta)
   deps.invalidateResolvedWorktrees()
   deps.notifyWorktreesChanged(repo.id)
@@ -134,8 +143,13 @@ export async function createRuntimeFolderWorktree(args: {
   let warning: string | undefined
   let didSpawnStartup = false
   let startupTerminal: CreateWorktreeResult['startupTerminal']
-  if (args.startup && deps.ptySpawnAvailable) {
+  // Switch point: main starts the agent even with no terminal service, so its pane shows why not.
+  if (args.startup && (deps.ptySpawnAvailable || ORCA_LAYOUT_OWNER_IS_MAIN)) {
     try {
+      const launchRuntime = args.startupLaunchRuntime
+      if (launchRuntime instanceof Error && !ORCA_LAYOUT_OWNER_IS_MAIN) {
+        throw launchRuntime
+      }
       const terminal = await deps.createTerminal(`id:${worktree.id}`, {
         command: args.startup.command,
         ...(request.startupCwd ? { cwd: request.startupCwd } : {}),
@@ -143,9 +157,16 @@ export async function createRuntimeFolderWorktree(args: {
         env: args.startup.env,
         ...(args.startup.launchConfig ? { launchConfig: args.startup.launchConfig } : {}),
         ...(args.createdWithAgent ? { launchAgent: args.createdWithAgent } : {}),
+        ...(launchRuntime instanceof Error
+          ? { startFailure: launchRuntime }
+          : launchRuntime
+            ? { launchRuntime }
+            : {}),
         ...(args.startup.viewMode ? { viewMode: args.startup.viewMode } : {}),
         startupCommandDelivery: args.startup.startupCommandDelivery,
         telemetry: args.startup.telemetry,
+        // Switch point: a start main could not make stays in its pane, showing why.
+        ...(ORCA_LAYOUT_OWNER_IS_MAIN ? { keepPaneOnStartFailure: true as const } : {}),
         ...(shouldActivate ? {} : { surfaceOwner: false })
       })
       if (args.draftPaste) {
@@ -174,14 +195,24 @@ export async function createRuntimeFolderWorktree(args: {
       repo.id,
       worktree.id,
       undefined,
-      args.startup && !didSpawnStartup ? args.startup : undefined
+      // Switch point: a start main could not make stays main's to show, never the window's.
+      ORCA_LAYOUT_OWNER_IS_MAIN
+        ? undefined
+        : args.startup && !didSpawnStartup
+          ? args.startup
+          : undefined,
+      ...(args.promisedAgentChat && !args.startup ? ([true] as const) : [])
     )
   }
   if (
     (!shouldActivate || deps.provisionInBackground?.() === true) &&
     deps.ptySpawnAvailable &&
-    !didSpawnStartup &&
-    !args.createdWithAgent
+    shouldSeedWorktreePrimaryTerminal({
+      // Switch point: a failed agent start keeps its pane, so no shell is seeded beside it.
+      hasPrimarySurface: didSpawnStartup || (ORCA_LAYOUT_OWNER_IS_MAIN && Boolean(args.startup)),
+      // Background attribution-only creates have historically omitted the shell.
+      callerProvidesSurface: args.promisedAgentChat === true || args.createdWithAgent !== undefined
+    })
   ) {
     try {
       await deps.createTerminal(`id:${worktree.id}`, { surfaceOwner: false })

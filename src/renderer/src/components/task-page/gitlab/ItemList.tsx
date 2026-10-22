@@ -72,7 +72,7 @@ export function TaskPageGitLabItemList({
             <div
               role="button"
               tabIndex={0}
-              key={`${item.repoId}:${item.id}`}
+              key={`${item.repoId}:${item.repoHostId ?? ''}:${item.id}`}
               onClick={() => {
                 useAppStore.getState().recordFeatureInteraction('gitlab-tasks')
                 openGitLabDetailPage(item)

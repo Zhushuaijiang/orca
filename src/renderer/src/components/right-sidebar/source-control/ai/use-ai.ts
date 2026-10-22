@@ -2,7 +2,7 @@ import { useActiveProjectSkillRuntime } from '@/hooks/useActiveProjectSkillRunti
 import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
-import { getRuntimeGitScope } from '@/runtime/runtime-git-client'
+import { getRuntimeGitScope } from '@/runtime/runtime-git-client-context'
 import {
   getCommitMessageModelDiscoveryHostKeyForScope,
   getCommitMessageModelDiscoveryHostKeyForLocalRuntime
@@ -32,11 +32,12 @@ import { useSourceControlRecoveryAi } from './use-recovery-ai'
 import { translate } from '@/i18n/i18n'
 
 export function getSourceControlAiControllerDiscoveryHostKey(
-  settings: SourceControlAiControllerParams['settings'],
+  target: SourceControlAiControllerParams['target'],
   activeConnectionId: string | null | undefined,
   wslDistro?: string | null
 ): string {
-  const scope = getRuntimeGitScope(settings, activeConnectionId)
+  const scope = getRuntimeGitScope(target ?? { kind: 'local' }, activeConnectionId)
+  // Why: local WSL agents route auxiliary models per distro, not as the plain local host.
   return !scope && wslDistro
     ? getCommitMessageModelDiscoveryHostKeyForLocalRuntime(wslDistro)
     : getCommitMessageModelDiscoveryHostKeyForScope(scope)
@@ -44,6 +45,7 @@ export function getSourceControlAiControllerDiscoveryHostKey(
 
 export function useSourceControlAi({
   settings,
+  target,
   activeRepo,
   activeWorktreeId,
   activeConnectionId,
@@ -69,8 +71,8 @@ export function useSourceControlAi({
   const { agentRuntime } = useActiveProjectSkillRuntime()
   const wslDistro = agentRuntime?.runtime === 'wsl' ? agentRuntime.wslDistro : undefined
   const sourceControlAiDiscoveryHostKey = useMemo(
-    () => getSourceControlAiControllerDiscoveryHostKey(settings, activeConnectionId, wslDistro),
-    [activeConnectionId, settings, wslDistro]
+    () => getSourceControlAiControllerDiscoveryHostKey(target, activeConnectionId, wslDistro),
+    [activeConnectionId, target, wslDistro]
   )
   const sourceControlAiActionsVisible = useMemo(
     () => (settings ? resolveSourceControlAiEnabled({ settings, repo: activeRepo }) : false),

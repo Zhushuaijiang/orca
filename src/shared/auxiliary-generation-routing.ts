@@ -12,12 +12,16 @@ import { removeAuxiliaryRecipeModelArgs } from './auxiliary-recipe-model-args'
 import type { TuiAgent } from './tui-agent'
 
 export function getAuxiliaryBaselineAgentSpec(
-  settings: Pick<GlobalSettings, 'defaultTuiAgent' | 'disabledTuiAgents' | 'auxiliaryModels'>,
+  settings: Partial<
+    Pick<GlobalSettings, 'defaultTuiAgent' | 'disabledTuiAgents' | 'auxiliaryModels'>
+  >,
   task: AuxiliaryTaskId,
   primaryAgent?: TuiAgent | null
 ) {
   const primary =
-    primaryAgent ?? (settings.defaultTuiAgent === 'blank' ? null : settings.defaultTuiAgent)
+    primaryAgent ?? (settings.defaultTuiAgent && settings.defaultTuiAgent !== 'blank'
+      ? settings.defaultTuiAgent
+      : null)
   const agent = resolveCommitMessageAgentChoice(null, primary, settings.disabledTuiAgents)
   const configured = resolveAuxiliaryModelRoute(settings.auxiliaryModels, task, primary)?.agentId
   return (
@@ -27,8 +31,9 @@ export function getAuxiliaryBaselineAgentSpec(
 }
 
 export function resolveAuxiliaryGenerationParams(
-  settings: Pick<GlobalSettings, 'defaultTuiAgent' | 'agentCmdOverrides'> &
-    Partial<Pick<GlobalSettings, 'disabledTuiAgents' | 'auxiliaryModels'>>,
+  settings: Partial<
+    Pick<GlobalSettings, 'defaultTuiAgent' | 'agentCmdOverrides' | 'disabledTuiAgents' | 'auxiliaryModels'>
+  >,
   task: AuxiliaryTaskId,
   baseline: ResolvedSourceControlAiGenerationParams,
   hostKey = LOCAL_COMMIT_MESSAGE_HOST_KEY,
@@ -37,7 +42,9 @@ export function resolveAuxiliaryGenerationParams(
   const route = resolveAuxiliaryModelRoute(
     settings.auxiliaryModels,
     task,
-    primaryAgent ?? (settings.defaultTuiAgent === 'blank' ? null : settings.defaultTuiAgent)
+    primaryAgent ?? (settings.defaultTuiAgent && settings.defaultTuiAgent !== 'blank'
+      ? settings.defaultTuiAgent
+      : null)
   )
   if (!route) {
     return { ok: true, params: baseline }

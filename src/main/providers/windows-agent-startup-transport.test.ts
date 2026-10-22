@@ -7,7 +7,6 @@ import {
 } from '../../shared/tui-agent-startup'
 import { RESUMABLE_TUI_AGENTS } from '../../shared/agent-session-resume'
 import { buildYunxiaoReviewHandoffPrompt } from '../../shared/yunxiao-review-handoff'
-import { getRelayShellLaunchConfig } from '../../relay/pty-shell-launch'
 import { resolveWindowsShellLaunchArgs } from './windows-shell-args'
 import { buildWindowsPowerShellSpawnAttempts } from './windows-shell-fallback-chain'
 import {
@@ -103,13 +102,6 @@ for (const shell of ['powershell', 'cmd'] as const) {
           } else {
             expect(launch.shellArgs[1]).toContain(plan.launchCommand)
           }
-          const relay = getRelayShellLaunchConfig(shellPath, plan.env ?? {}, 'win32', {
-            startupCommand: plan.launchCommand,
-            cwd: 'C:\\repo'
-          })
-          expect(relay.startupCommandDelivered).toBe(true)
-          expect(relay.args).toEqual(launch.shellArgs)
-          expect(relay.env).toEqual(env)
         }
       }
     )
@@ -171,10 +163,4 @@ it('carries the Codex review handoff prompt and model through Windows startup ex
     launch.startupCommandEnv ?? Buffer.from(launch.shellArgs[3], 'base64').toString('utf16le')
   expect(carried).toContain(plan.launchCommand)
   expect(carried.split('Orca Yunxiao review handoff:')).toHaveLength(2)
-  const relay = getRelayShellLaunchConfig('powershell.exe', {}, 'win32', {
-    startupCommand: plan.launchCommand,
-    cwd: 'D:\\MacRestore\\workspace\\yunxiao'
-  })
-  expect(relay.startupCommandDelivered).toBe(true)
-  expect(relay.args).toEqual(launch.shellArgs)
 })

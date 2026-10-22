@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { WorktreeCreate } from './worktree-create-schemas'
-import { WorktreeActivate, WorktreeSet } from './worktree-schemas'
+import { WorktreeCreate } from '../../../../shared/rpc-contract/worktree-create-params'
+import { WorktreeActivate, WorktreeSet } from '../../../../shared/rpc-contract/worktree-params'
 import { FolderWorkspaceUpdate } from '../../../../shared/rpc-contract/folder-workspace-params'
 import { FolderWorkspaceUpdateArgs } from '../../../ipc/repos/repo-ipc-arg-schemas'
 

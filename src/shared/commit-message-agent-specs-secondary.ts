@@ -4,6 +4,7 @@ import type {
   CommitMessageAgentSpec,
   ThinkingLevel
 } from './commit-message-agent-spec'
+import { buildCopilotCommitMessageModels } from './copilot-commit-message-models'
 
 type SecondaryAgentSpecDeps = {
   BASIC_THINKING_LEVELS: ThinkingLevel[]
@@ -234,83 +235,7 @@ export function buildSecondaryCommitMessageAgentSpecs({
       modelSource: 'static',
       // Why: Copilot CLI's picker is policy-filtered per account/org. Keep the
       // full hosted CLI catalog here so users can select models enabled for them.
-      models: [
-        { id: 'auto', label: 'Auto' },
-        {
-          id: 'claude-haiku-4.5',
-          label: 'Claude Haiku 4.5'
-        },
-        {
-          id: 'claude-sonnet-4.5',
-          label: 'Claude Sonnet 4.5'
-        },
-        {
-          id: 'claude-sonnet-4.6',
-          label: 'Claude Sonnet 4.6'
-        },
-        {
-          id: 'claude-opus-4.5',
-          label: 'Claude Opus 4.5'
-        },
-        {
-          id: 'claude-opus-4.6',
-          label: 'Claude Opus 4.6'
-        },
-        {
-          id: 'claude-opus-4.6-fast',
-          label: 'Claude Opus 4.6 Fast'
-        },
-        {
-          id: 'claude-opus-4.7',
-          label: 'Claude Opus 4.7'
-        },
-        {
-          id: 'gpt-4.1',
-          label: 'GPT-4.1'
-        },
-        {
-          id: 'gpt-5-mini',
-          label: 'GPT-5 Mini',
-          thinkingLevels: OPENAI_THINKING_LEVELS,
-          defaultThinkingLevel: 'low'
-        },
-        {
-          id: 'gpt-5.2',
-          label: 'GPT-5.2',
-          thinkingLevels: OPENAI_THINKING_LEVELS,
-          defaultThinkingLevel: 'low'
-        },
-        {
-          id: 'gpt-5.2-codex',
-          label: 'GPT-5.2 Codex',
-          thinkingLevels: OPENAI_THINKING_LEVELS,
-          defaultThinkingLevel: 'low'
-        },
-        {
-          id: 'gpt-5.3-codex',
-          label: 'GPT-5.3 Codex',
-          thinkingLevels: OPENAI_THINKING_LEVELS,
-          defaultThinkingLevel: 'low'
-        },
-        {
-          id: 'gpt-5.4',
-          label: 'GPT-5.4',
-          thinkingLevels: OPENAI_THINKING_LEVELS,
-          defaultThinkingLevel: 'low'
-        },
-        {
-          id: 'gpt-5.4-mini',
-          label: 'GPT-5.4 Mini',
-          thinkingLevels: OPENAI_THINKING_LEVELS,
-          defaultThinkingLevel: 'low'
-        },
-        {
-          id: 'gpt-5.5',
-          label: 'GPT-5.5',
-          thinkingLevels: OPENAI_THINKING_LEVELS,
-          defaultThinkingLevel: 'low'
-        }
-      ],
+      models: buildCopilotCommitMessageModels(OPENAI_THINKING_LEVELS),
       defaultModelId: 'gpt-5.4'
     },
     antigravity: {

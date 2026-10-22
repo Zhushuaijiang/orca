@@ -1,4 +1,4 @@
-import { runProcess } from '../../shared/child-process/run-process'
+import { runProcess } from '@orca/process-host'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { applyAuxiliaryReviewModel, resolveAuxiliaryReviewRoute } from './auxiliary-review-route'
 import { existsSync, statSync } from 'node:fs'

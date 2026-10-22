@@ -2,13 +2,8 @@ import type { GlobalSettings } from '../../../shared/global-settings-types'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import { deriveGlobalWindowsRuntimeDefaultFromLegacySettings } from '../../../shared/project-execution-runtime'
-import {
-  DEFAULT_TASK_SOURCE,
-  DEFAULT_VISIBLE_TASK_PROVIDERS,
-  normalizeTaskProviderSettings,
-  TASK_PROVIDERS
-} from '../../../shared/task-providers'
 import { normalizeAutoRenameBranchFromWorkDefaultOn } from '../../../shared/auto-rename-branch-from-work-settings'
+import { prepareLoadedTaskProviderSettings } from './prepare-loaded-task-provider-settings'
 import {
   addMobilePairingCustomAddress,
   normalizeMobilePairingCustomAddress,
@@ -20,6 +15,7 @@ import { normalizeDisabledTuiAgents } from '../../../shared/tui-agent-selection'
 import { hasUnsupportedTuiAgentArgs } from '../../../shared/tui-agent-launch-defaults'
 import { normalizeTerminalCursorStyleDefault } from '../../../shared/terminal-cursor-style-settings'
 import { normalizeTerminalLineHeight } from '../../../shared/terminal-line-height-settings'
+import { migratePortugueseUiLanguageOnLoad } from '../../../shared/portuguese-ui-language-migration'
 import { migrateAgentYoloDefaults } from '../applying-settings/terminal-settings-migrations'
 import {
   normalizeLoadedOnboardingState,
@@ -27,7 +23,12 @@ import {
   persistedNotificationSettingsRepaired
 } from '../applying-settings/onboarding-normalization'
 
-export type PreparedLoadedProfileSettings = {  migratedExperimentalActivity: GlobalSettings['experimentalActivity']
+export type PreparedLoadedProfileSettings = {
+  migratedPortugueseUiLanguage: Pick<
+    GlobalSettings,
+    'uiLanguage' | 'uiLanguagePortugueseMigrationApplied'
+  >
+  migratedExperimentalActivity: GlobalSettings['experimentalActivity']
   migratedAutoRenameBranchFromWork: Pick<
     GlobalSettings,
     'autoRenameBranchFromWork' | 'autoRenameBranchFromWorkDefaultedOn'
@@ -59,39 +60,18 @@ export type PreparedLoadedProfileSettings = {  migratedExperimentalActivity: Glo
   normalizedProjectGroups: ProjectGroup[]
 }
 
-function isOldDefaultTaskProviderSettings(
-  settings: Partial<GlobalSettings> | undefined
-): boolean {
-  const visibleTaskProviders = settings?.visibleTaskProviders
-  return (
-    settings?.defaultTaskSource === 'github' &&
-    Array.isArray(visibleTaskProviders) &&
-    visibleTaskProviders.length === TASK_PROVIDERS.length &&
-    TASK_PROVIDERS.every((provider, index) => visibleTaskProviders[index] === provider)
-  )
-}
-
-function getTaskProviderSettingsForMigration(settings: Partial<GlobalSettings> | undefined): {
-  visibleTaskProviders: unknown
-  defaultTaskSource: unknown
-} {
-  if (isOldDefaultTaskProviderSettings(settings)) {
-    return {
-      visibleTaskProviders: DEFAULT_VISIBLE_TASK_PROVIDERS,
-      defaultTaskSource: DEFAULT_TASK_SOURCE
-    }
-  }
-  return {
-    visibleTaskProviders: settings?.visibleTaskProviders,
-    defaultTaskSource: settings?.defaultTaskSource
-  }
-}
-
 export function prepareLoadedProfileSettings(
   parsed: PersistedState,
   defaults: PersistedState,
   markNeedsSave: () => void
 ): PreparedLoadedProfileSettings {
+  const migratedPortugueseUiLanguage = migratePortugueseUiLanguageOnLoad(parsed.settings)
+  if (
+    parsed.settings?.uiLanguage !== migratedPortugueseUiLanguage.uiLanguage ||
+    parsed.settings?.uiLanguagePortugueseMigrationApplied !== true
+  ) {
+    markNeedsSave()
+  }
   const experimentalActivityDefaultedOffForAllUsers =
     parsed.settings?.experimentalActivityDefaultedOffForAllUsers === true
   // Why: preserve the legacy rollout boundary while loading profiles created before the Agents tab graduated.
@@ -125,33 +105,8 @@ export function prepareLoadedProfileSettings(
   ) {
     markNeedsSave()
   }
-  // Why the old-default reset: the fork default is gitlab/yunxiao/code-merge; a stored
-  // all-providers list with the github default is the upstream default, not an opt-in.
-  const rawTaskProviderSettings = normalizeTaskProviderSettings(
-    getTaskProviderSettingsForMigration(parsed.settings)
-  )
-  // Why no Jira append: fork defaults keep github/linear/jira opt-in (dfhis).
-  const visibleTaskProvidersDefaultedForJira =
-    parsed.settings?.visibleTaskProvidersDefaultedForJira === true
-  const jiraMigratedVisibleTaskProviders = rawTaskProviderSettings.visibleTaskProviders
-  const visibleTaskProvidersDefaultedForYunxiao =
-    parsed.settings?.visibleTaskProvidersDefaultedForYunxiao === true
-  const yunxiaoMigratedVisibleTaskProviders = visibleTaskProvidersDefaultedForYunxiao
-    ? jiraMigratedVisibleTaskProviders
-    : jiraMigratedVisibleTaskProviders.includes('yunxiao')
-      ? jiraMigratedVisibleTaskProviders
-      : [...jiraMigratedVisibleTaskProviders, 'yunxiao' as const]
-  const visibleTaskProvidersDefaultedForCodeMerge =
-    parsed.settings?.visibleTaskProvidersDefaultedForCodeMerge === true
-  const migratedVisibleTaskProviders = visibleTaskProvidersDefaultedForCodeMerge
-    ? yunxiaoMigratedVisibleTaskProviders
-    : yunxiaoMigratedVisibleTaskProviders.includes('code-merge')
-      ? yunxiaoMigratedVisibleTaskProviders
-      : [...yunxiaoMigratedVisibleTaskProviders, 'code-merge' as const]
-  const taskProviderSettings = normalizeTaskProviderSettings({
-    visibleTaskProviders: migratedVisibleTaskProviders,
-    defaultTaskSource: rawTaskProviderSettings.defaultTaskSource
-  })
+  const { taskProviderSettings, needsSave: loadedTaskProviderSettingsNeedSave } =
+    prepareLoadedTaskProviderSettings(parsed.settings)
   const primarySelectionDefaultedForLinux =
     parsed.settings?.primarySelectionMiddleClickPasteDefaultedForLinux === true
   const primarySelectionDefaultedForTerminalDefaults =
@@ -168,11 +123,7 @@ export function prepareLoadedProfileSettings(
   if (migratePrimarySelectionPlatformDefault || stampPrimarySelectionTerminalDefaults) {
     markNeedsSave()
   }
-  if (
-    !visibleTaskProvidersDefaultedForJira ||
-    !visibleTaskProvidersDefaultedForYunxiao ||
-    !visibleTaskProvidersDefaultedForCodeMerge
-  ) {
+  if (loadedTaskProviderSettingsNeedSave) {
     markNeedsSave()
   }
   const claudeAgentTeamsDefaultDisabledMigrated =
@@ -280,6 +231,7 @@ export function prepareLoadedProfileSettings(
     markNeedsSave()
   }
   return {
+    migratedPortugueseUiLanguage,
     migratedExperimentalActivity,
     migratedAutoRenameBranchFromWork,
     migratedTerminalCursorStyle,

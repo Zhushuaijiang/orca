@@ -1,3 +1,5 @@
+import { assertWorkspaceAttachmentWriteCapability } from '../../runtime/runtime-workspace-attachment-capabilities'
+import { getWorkspaceAttachments } from '../../../../shared/workspace-attachments'
 import type { StateCreator } from 'zustand'
 import type { AppState } from '../types'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
@@ -7,30 +9,32 @@ import {
 } from '../../../../shared/protocol-version'
 import {
   assertRuntimeEnvironmentCapability,
-  callRuntimeRpc,
-  getActiveRuntimeTarget
+  callRuntimeRpc
 } from '../../runtime/runtime-rpc-client'
+import {
+  runtimeTargetForOwnerEnvironment,
+  getRuntimeTargetHostId
+} from '../../runtime/runtime-client-target'
 import { folderWorkspaceKey } from '../../../../shared/workspace-scope'
 import { formatFolderWorkspaceCreateError } from '../../lib/folder-workspace-path-status'
 import {
   findFolderWorkspaceOwner,
-  getExecutionHostIdForFolderWorkspace,
-  getRuntimeEnvironmentIdForFolderWorkspace
+  getExecutionHostIdForFolderWorkspace
 } from '@/lib/folder-workspace-runtime-owner'
 import { FolderWorkspaceUpdateCoordinator } from '../slices/folder-workspace-update-coordinator'
 import type { FolderWorkspaceUpdates, RepoSlice } from '../repos/repo-state'
-import { getRuntimeTargetHostId } from '../runtime-target-host'
+import { adoptFromEndpoint } from '../adopt-from-endpoint'
+import { holdCreatedSidebarWorkspace } from '@/lib/sidebar-pending-layer'
 import {
+  folderWorkspaceOwnerTarget,
   folderWorkspaceUpdateInvalidatesPathStatus,
-  getFolderWorkspacePathStatusRouteSettings,
   mergeFolderWorkspaceUpdateResponse
 } from './folder-workspace-routing'
 import {
-  folderWorkspaceWithFetchedOwner,
-  getFolderWorkspaceHostId,
   getFolderWorkspaceUpdateIdentity,
   reconcileFailedFolderWorkspaceUpdate
 } from './folder-workspace-catalog'
+import { getFolderWorkspaceHostId } from '../../../../shared/folder-workspace-execution-host'
 import {
   captureWorkspaceChatDraftKeys,
   deleteWorkspaceChatDrafts
@@ -67,10 +71,9 @@ export function createFolderWorkspaceMutationActions(
   return {
     createFolderWorkspace: async (args, options) => {
       try {
-        // Why: a new folder has no owner yet, so creation follows the caller-selected path-status host.
-        const target = getActiveRuntimeTarget(
-          getFolderWorkspacePathStatusRouteSettings(options, get().settings)
-        )
+        // Why: a new folder has no row yet, so creation goes to the host the caller picked.
+        const target = runtimeTargetForOwnerEnvironment(options.runtimeEnvironmentId)
+        await assertWorkspaceAttachmentWriteCapability(target, args)
         if (
           target.kind === 'environment' &&
           (args.linkedTask?.provider === 'jira' ||
@@ -93,15 +96,17 @@ export function createFolderWorkspaceMutationActions(
                   { timeoutMs: 15_000 }
                 )
               ).folderWorkspace
-        const ownedWorkspace = folderWorkspaceWithFetchedOwner(
-          workspace,
-          target,
-          get().projectGroups
-        )
+        const { projectGroups } = get()
+        const ownedWorkspace = adoptFromEndpoint(target, {
+          kind: 'folderWorkspace',
+          row: workspace,
+          resolveOwnHostId: (row) => getFolderWorkspaceHostId(row, projectGroups)
+        })
         set((s) => ({
           folderWorkspaces: [ownedWorkspace, ...s.folderWorkspaces],
           folderWorkspacePathStatuses: {}
         }))
+        holdCreatedSidebarWorkspace({ folderWorkspace: ownedWorkspace })
         return ownedWorkspace
       } catch (err) {
         console.error('Failed to create folder workspace:', err)
@@ -118,18 +123,39 @@ export function createFolderWorkspaceMutationActions(
         (state.activeWorktreeId === folderWorkspaceKey(folderWorkspaceId)
           ? (state.activeWorkspaceExecutionHostId ?? undefined)
           : undefined)
-      if (!findFolderWorkspaceOwner(state, folderWorkspaceId, executionHostId)) {
+      const existingWorkspace = findFolderWorkspaceOwner(state, folderWorkspaceId, executionHostId)
+      if (!existingWorkspace) {
         return false
       }
-      const runtimeEnvironmentId = getRuntimeEnvironmentIdForFolderWorkspace(
-        state,
-        folderWorkspaceId,
-        executionHostId
-      )
       // Why: owner-scoped mutations must not follow whichever runtime happens to be focused.
-      const target = getActiveRuntimeTarget({ activeRuntimeEnvironmentId: runtimeEnvironmentId })
+      const target = folderWorkspaceOwnerTarget(state, folderWorkspaceId, executionHostId)
+      if (!target) {
+        return false
+      }
       const ownerHostId = executionHostId ?? getRuntimeTargetHostId(target)
+      const sourceWorkspace = state.folderWorkspaces.find(
+        (workspace) =>
+          workspace.id === folderWorkspaceId &&
+          getFolderWorkspaceHostId(workspace, state.projectGroups) === ownerHostId
+      )
+      if (
+        updates.linkedItems !== undefined &&
+        updates.linkedItemsBase === undefined &&
+        sourceWorkspace
+      ) {
+        updates = {
+          ...updates,
+          linkedItemsBase: getWorkspaceAttachments({
+            linkedItems: sourceWorkspace.linkedItems,
+            linkedWorkItem: sourceWorkspace.linkedTask,
+            linkedTaskSourceContext: sourceWorkspace.linkedTaskSourceContext
+          })
+        }
+      }
       const updateIdentity = getFolderWorkspaceUpdateIdentity(ownerHostId, folderWorkspaceId)
+      if (target.kind === 'environment' && updates.linkedItems !== undefined) {
+        await assertWorkspaceAttachmentWriteCapability(target, updates)
+      }
       // Why: same gate as folderWorkspace.create — an older paired runtime would drop the Jira link silently.
       if (
         target.kind === 'environment' &&
@@ -153,6 +179,17 @@ export function createFolderWorkspaceMutationActions(
         updateIdentity,
         Object.keys(updates) as FolderWorkspaceUpdateField[]
       )
+      const reconcileFailure = () =>
+        reconcileFailedFolderWorkspaceUpdate({
+          target,
+          folderWorkspaceId,
+          updateIdentity,
+          ownerHostId,
+          ticket: updateTicket,
+          coordinator: folderWorkspaceUpdates,
+          set,
+          get
+        })
       try {
         const updated =
           target.kind === 'local'
@@ -166,30 +203,15 @@ export function createFolderWorkspaceMutationActions(
                 )
               ).folderWorkspace
         if (!updated) {
-          await reconcileFailedFolderWorkspaceUpdate({
-            target,
-            folderWorkspaceId,
-            updateIdentity,
-            ownerHostId,
-            ticket: updateTicket,
-            coordinator: folderWorkspaceUpdates,
-            set,
-            get
-          })
+          await reconcileFailure()
           return false
         }
-        if (updates.diffComments !== undefined && updated.diffComments === undefined) {
-          // Why: older paired runtimes strip this optional field; reconcile instead of showing an unsaved note.
-          await reconcileFailedFolderWorkspaceUpdate({
-            target,
-            folderWorkspaceId,
-            updateIdentity,
-            ownerHostId,
-            ticket: updateTicket,
-            coordinator: folderWorkspaceUpdates,
-            set,
-            get
-          })
+        if (
+          (updates.diffComments !== undefined && updated.diffComments === undefined) ||
+          (updates.linkedItems !== undefined && updated.linkedItems === undefined)
+        ) {
+          // Older hosts can strip optional fields; reconcile instead of reporting an unsaved edit.
+          await reconcileFailure()
           return false
         }
         const latestFields = folderWorkspaceUpdates.latestFields(updateIdentity, updateTicket)
@@ -212,16 +234,7 @@ export function createFolderWorkspaceMutationActions(
         return true
       } catch (err) {
         console.error('Failed to update folder workspace:', err)
-        await reconcileFailedFolderWorkspaceUpdate({
-          target,
-          folderWorkspaceId,
-          updateIdentity,
-          ownerHostId,
-          ticket: updateTicket,
-          coordinator: folderWorkspaceUpdates,
-          set,
-          get
-        })
+        await reconcileFailure()
         return false
       } finally {
         folderWorkspaceUpdates.finish(updateIdentity, updateTicket)
@@ -239,19 +252,16 @@ export function createFolderWorkspaceMutationActions(
         folderWorkspaceId,
         executionHostId
       )
-      const runtimeEnvironmentId = getRuntimeEnvironmentIdForFolderWorkspace(
-        state,
-        folderWorkspaceId,
-        executionHostId
-      )
+      const target = folderWorkspaceOwnerTarget(state, folderWorkspaceId, executionHostId)
+      if (!target) {
+        return false
+      }
       const workspaceKey = folderWorkspaceKey(folderWorkspaceId)
       // Why before the host call: its announcement can start a refresh that drops these tabs.
       const chatDraftKeys = captureWorkspaceChatDraftKeys(state, [
         { workspaceId: workspaceKey, executionHostId: ownerHostId }
       ])
       try {
-        // Why: deletion targets the folder's owner; focus may be on a different host.
-        const target = getActiveRuntimeTarget({ activeRuntimeEnvironmentId: runtimeEnvironmentId })
         const deleted =
           target.kind === 'local'
             ? await window.api.folderWorkspaces.delete({ folderWorkspaceId })
@@ -277,7 +287,7 @@ export function createFolderWorkspaceMutationActions(
         if (!get().folderWorkspaces.some((workspace) => workspace.id === folderWorkspaceId)) {
           // Folder workspaces use the same browser registry key as worktrees;
           // tear down Chromium guests before purging the remaining renderer state.
-          await get().shutdownWorktreeBrowsers(workspaceKey)
+          await Promise.resolve(get().shutdownWorktreeBrowsers(workspaceKey))
           get().purgeWorktreeTerminalState([workspaceKey])
           deleteWorkspaceChatDrafts(chatDraftKeys)
         }

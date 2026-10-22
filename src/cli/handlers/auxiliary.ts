@@ -1,3 +1,4 @@
+import { AUXILIARY_GENERATION_REQUEST_TIMEOUT_MS } from '../../shared/auxiliary-generation-timing'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import {
@@ -49,7 +50,7 @@ export const AUXILIARY_HANDLERS: Record<string, CommandHandler> = {
         ...(primaryAgent ? { primaryAgent } : {}),
         worktree: getOptionalStringFlag(flags, 'worktree') ?? buildCurrentWorktreeSelector(cwd)
       },
-      { timeoutMs: 180_000 }
+      { timeoutMs: AUXILIARY_GENERATION_REQUEST_TIMEOUT_MS }
     )
     if (!response.result.success) {
       throw new RuntimeClientError('generation_failed', response.result.error)

@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
 import { translate } from '@/i18n/i18n'
-import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
 import { captureRuntimeEnvironmentRequestRevision } from '@/runtime/runtime-environment-revision'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import { getAgentCatalog } from '@/lib/agent-catalog'
 import { useAppStore } from '../../store'
 import type { AutomaticRoutingResult } from '../../../../shared/automatic-task-routing-types'
@@ -37,7 +38,7 @@ export function AutomaticRoutingPreview({
     if (!worktreeId || !prompt.trim()) {
       return
     }
-    const owner = getRuntimeEnvironmentIdForWorktree(useAppStore.getState(), worktreeId)
+    const owner = runtimeEnvironmentIdOrLocalUnlessTwin(useAppStore.getState(), worktreeId)
     if (owner === undefined) {
       setFailure({
         worktree: worktreeId,
@@ -49,7 +50,7 @@ export function AutomaticRoutingPreview({
       return
     }
     const generation = ++request.current
-    const target = getActiveRuntimeTarget({ activeRuntimeEnvironmentId: owner })
+    const target = runtimeTargetForOwnerEnvironment(owner)
     const revision =
       target.kind === 'environment'
         ? captureRuntimeEnvironmentRequestRevision(target.environmentId)

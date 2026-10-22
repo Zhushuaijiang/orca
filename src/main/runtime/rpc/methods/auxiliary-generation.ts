@@ -11,6 +11,7 @@ import { defineMethod } from '../core'
 export const AUXILIARY_GENERATION_METHODS = [
   defineMethod({
     name: 'auxiliary.resolveLaunch',
+    permission: 'workspace',
     params: AuxiliaryResolveLaunch,
     handler: (params, { runtime }) =>
       runtime.resolveRuntimeAuxiliaryLaunch(
@@ -22,6 +23,7 @@ export const AUXILIARY_GENERATION_METHODS = [
   }),
   defineMethod({
     name: 'auxiliary.auto',
+    permission: 'workspace',
     params: AuxiliaryAuto,
     handler: (params, { runtime }) =>
       runtime.runRuntimeAuxiliaryAuto(
@@ -34,6 +36,7 @@ export const AUXILIARY_GENERATION_METHODS = [
   }),
   defineMethod({
     name: 'auxiliary.route',
+    permission: 'workspace',
     params: AuxiliaryRoute,
     handler: (params, { runtime }) =>
       runtime.routeRuntimeAuxiliaryTask(
@@ -46,11 +49,13 @@ export const AUXILIARY_GENERATION_METHODS = [
   }),
   defineMethod({
     name: 'auxiliary.history',
+    permission: 'workspace',
     params: AuxiliaryHistory,
     handler: (params, { runtime }) => runtime.listRuntimeAuxiliaryRoutes(params.worktree)
   }),
   defineMethod({
     name: 'auxiliary.generate',
+    permission: 'workspace',
     params: AuxiliaryGenerate,
     handler: (params, { runtime }) =>
       runtime.generateRuntimeAuxiliaryTask(
@@ -64,6 +69,7 @@ export const AUXILIARY_GENERATION_METHODS = [
   }),
   defineMethod({
     name: 'auxiliary.cancel',
+    permission: 'workspace',
     params: AuxiliaryCancel,
     handler: (params, { runtime }) =>
       runtime.cancelRuntimeAuxiliaryTask(params.worktree, params.task)

@@ -1,3 +1,4 @@
+import { AUXILIARY_GENERATION_REQUEST_TIMEOUT_MS } from '../../shared/auxiliary-generation-timing'
 import { dispatch, type CommandHandler } from '../dispatch'
 import { getOptionalStringFlag } from '../flags'
 import { buildCurrentWorktreeSelector } from '../selectors'
@@ -12,7 +13,7 @@ export const AUTOMATIC_AUXILIARY_HANDLERS: Record<string, CommandHandler> = {
   'auxiliary route': async (context) => {
     const input = await readAuxiliaryCommandInput(context)
     const response = await context.client.call<AutomaticRoutingResult>('auxiliary.route', input, {
-      timeoutMs: 180_000
+      timeoutMs: AUXILIARY_GENERATION_REQUEST_TIMEOUT_MS
     })
     printResult(
       response,
@@ -25,7 +26,7 @@ export const AUTOMATIC_AUXILIARY_HANDLERS: Record<string, CommandHandler> = {
     const response = await context.client.call<AutomaticTaskExecutionResult>(
       'auxiliary.auto',
       input,
-      { timeoutMs: 360_000 }
+      { timeoutMs: AUXILIARY_GENERATION_REQUEST_TIMEOUT_MS * 2 }
     )
     const route = response.result.routing.route
     if (route?.action === 'worker' && route.agentId) {

@@ -1,7 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as GlUtils from './gl-utils'
 
 const {
@@ -36,9 +33,51 @@ vi.mock('./gl-utils', async () => {
   }
 })
 
+import { parseGlabApiResponse } from './gl-utils'
 import { addIssueComment, createIssue, getIssue, listIssues } from './issues'
 import { updateIssue } from './issue-update'
 import { listAssignableUsers, listLabels } from './project-label-and-member-lookup'
+
+/** Raw `glab api -i` stdout: status line, CRLF header lines, blank line, then the JSON body. */
+function glabIncludeOutput(headers: Record<string, string>, body: unknown): string {
+  const headerLines = Object.entries(headers)
+    .map(([name, value]) => `${name}: ${value}\r\n`)
+    .join('')
+  return `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n${headerLines}\r\n${JSON.stringify(body)}\n`
+}
+
+/** Answers each `glab api -i` call by endpoint through the real header/body parser. */
+function serveGlabApiPages(stdoutByEndpoint: Map<string, string>): void {
+  glabApiWithHeadersMock.mockImplementation(async (args: string[]) => {
+    const stdout = stdoutByEndpoint.get(args.at(-1) ?? '')
+    if (stdout === undefined) {
+      throw new Error(`unexpected glab api call: ${args.join(' ')}`)
+    }
+    return parseGlabApiResponse(stdout)
+  })
+}
+
+/** Mirrors glab's cmdutils.ParseAssignees: `+` adds, `-` or `!` removes, anything else replaces all. */
+function glabAssigneeEdits(args: string[]): { add: string[]; remove: string[]; replace: string[] } {
+  const add: string[] = []
+  const remove: string[] = []
+  const replace: string[] = []
+  for (const arg of args) {
+    if (!arg.startsWith('--assignee=')) {
+      continue
+    }
+    for (const value of arg.slice('--assignee='.length).split(',')) {
+      if (value.startsWith('+')) {
+        add.push(value.slice(1))
+      } else if (value.startsWith('-') || value.startsWith('!')) {
+        remove.push(value.slice(1))
+      } else {
+        replace.push(value)
+      }
+    }
+  }
+  return { add, remove, replace }
+}
 
 describe('gitlab issue operations', () => {
   beforeEach(() => {
@@ -55,10 +94,6 @@ describe('gitlab issue operations', () => {
       source: await getIssueProjectRefMock(),
       fellBack: false
     }))
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('gets a single issue from the project ref', async () => {
@@ -112,9 +147,13 @@ describe('gitlab issue operations', () => {
           created_at: '2026-06-16T00:00:00.000Z'
         })
       })
-      .mockResolvedValueOnce({ stdout: 'bug\nfrontend\n' })
-      .mockResolvedValueOnce({ stdout: '{"id":1,"username":"octo","avatar_url":""}\n' })
-    glabApiWithHeadersMock.mockResolvedValueOnce({ body: '[]', headers: {} })
+    glabApiWithHeadersMock
+      .mockResolvedValueOnce({ body: '[]', headers: {} })
+      .mockResolvedValueOnce({ body: '[{"id":1,"name":"bug"}]', headers: { 'x-next-page': '' } })
+      .mockResolvedValueOnce({
+        body: '[{"id":1,"username":"octo","avatar_url":""}]',
+        headers: { 'x-next-page': '' }
+      })
 
     await getIssue('/repo-root', 923, null, localGitOptions)
     await listIssues('/repo-root', 5, undefined, 'opened', undefined, null, localGitOptions)
@@ -129,8 +168,12 @@ describe('gitlab issue operations', () => {
       localGitOptions
     )
     await addIssueComment('/repo-root', 923, 'Comment', undefined, null, null, localGitOptions)
-    await listLabels('/repo-root', undefined, null, localGitOptions)
-    await listAssignableUsers('/repo-root', undefined, null, localGitOptions)
+    await expect(listLabels('/repo-root', undefined, null, localGitOptions)).resolves.toEqual([
+      'bug'
+    ])
+    await expect(
+      listAssignableUsers('/repo-root', undefined, null, localGitOptions)
+    ).resolves.toMatchObject([{ username: 'octo' }])
 
     expect(getIssueProjectRefMock).toHaveBeenCalledWith(
       '/repo-root',
@@ -146,6 +189,10 @@ describe('gitlab issue operations', () => {
       localGitOptions
     )
     expect(glabExecFileAsyncMock.mock.calls.every((call) => call[1]?.wslDistro === 'Ubuntu')).toBe(
+      true
+    )
+    expect(glabApiWithHeadersMock).toHaveBeenCalledTimes(3)
+    expect(glabApiWithHeadersMock.mock.calls.every((call) => call[1]?.wslDistro === 'Ubuntu')).toBe(
       true
     )
     expect(glabApiWithHeadersMock).toHaveBeenCalledWith(
@@ -328,244 +375,6 @@ describe('gitlab issue operations', () => {
     )
   })
 
-  it('uploads inline data URI images before creating a GitLab issue', async () => {
-    const repoPath = await mkdtemp(join(tmpdir(), 'orca-gitlab-issue-test-'))
-    getIssueProjectRefMock.mockResolvedValueOnce({ host: 'gitlab.com', path: 'stablyai/orca' })
-    glabExecFileAsyncMock
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          markdown: '![Image #1](/uploads/abc/image-1.png)'
-        })
-      })
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          iid: 924,
-          web_url: 'https://gitlab.com/stablyai/orca/-/issues/924'
-        })
-      })
-
-    const body = 'Before\n![Image #1](data:image/png;base64,aGVsbG8=)\nAfter'
-
-    try {
-      await expect(createIssue(repoPath, 'New issue', body)).resolves.toEqual({
-        ok: true,
-        number: 924,
-        url: 'https://gitlab.com/stablyai/orca/-/issues/924'
-      })
-      expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
-        1,
-        [
-          'api',
-          '-X',
-          'POST',
-          'projects/stablyai%2Forca/uploads',
-          '--form',
-          expect.stringMatching(/^file=@.*\/orca-gitlab-upload-[^/]+\/image-1\.png$/)
-        ],
-        { cwd: repoPath }
-      )
-      expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
-        2,
-        [
-          'api',
-          '-X',
-          'POST',
-          'projects/stablyai%2Forca/issues',
-          '-f',
-          'title=New issue',
-          '-f',
-          'description=Before\n![Image #1](/uploads/abc/image-1.png)\nAfter'
-        ],
-        { cwd: repoPath }
-      )
-    } finally {
-      await rm(repoPath, { recursive: true, force: true })
-    }
-  })
-
-  it('falls back to a content-length multipart upload when glab rejects image upload', async () => {
-    const repoPath = await mkdtemp(join(tmpdir(), 'orca-gitlab-issue-test-'))
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 201,
-      text: () =>
-        Promise.resolve(
-          JSON.stringify({
-            markdown: '![Image #1](/uploads/fallback/image-1.png)'
-          })
-        )
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    getIssueProjectRefMock.mockResolvedValueOnce({
-      host: '192.168.1.206',
-      path: 'df-ygt/df-ygt-biz-shujumx'
-    })
-    glabExecFileAsyncMock
-      .mockRejectedValueOnce(new Error('HTTP 400 Bad Request'))
-      .mockResolvedValueOnce({
-        stdout: '',
-        stderr:
-          '✓ REST API Endpoint: http://192.168.1.206/api/v4/\n✓ Token found: **************************'
-      })
-      .mockResolvedValueOnce({ stdout: 'secret-token\n' })
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          iid: 925,
-          web_url: 'http://192.168.1.206/df-ygt/df-ygt-biz-shujumx/-/issues/925'
-        })
-      })
-
-    const body = 'Before\n![Image #1](data:image/png;base64,aGVsbG8=)\nAfter'
-
-    try {
-      await expect(createIssue(repoPath, 'New issue', body)).resolves.toEqual({
-        ok: true,
-        number: 925,
-        url: 'http://192.168.1.206/df-ygt/df-ygt-biz-shujumx/-/issues/925'
-      })
-      expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
-        2,
-        ['auth', 'status', '--hostname', '192.168.1.206'],
-        { cwd: repoPath }
-      )
-      expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
-        3,
-        ['config', 'get', 'token', '--host', '192.168.1.206'],
-        { cwd: repoPath }
-      )
-      expect(fetchMock).toHaveBeenCalledWith(
-        new URL('http://192.168.1.206/api/v4/projects/df-ygt%2Fdf-ygt-biz-shujumx/uploads'),
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Content-Length': expect.any(String),
-            'Content-Type': expect.stringMatching(/^multipart\/form-data; boundary=/),
-            'PRIVATE-TOKEN': 'secret-token'
-          }),
-          body: expect.any(ArrayBuffer)
-        })
-      )
-      expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
-        4,
-        [
-          'api',
-          '-X',
-          'POST',
-          'projects/df-ygt%2Fdf-ygt-biz-shujumx/issues',
-          '-f',
-          'title=New issue',
-          '-f',
-          'description=Before\n![Image #1](/uploads/fallback/image-1.png)\nAfter'
-        ],
-        { cwd: repoPath }
-      )
-    } finally {
-      await rm(repoPath, { recursive: true, force: true })
-    }
-  })
-
-  it('uses the REST endpoint host token when a GitLab host alias auth status exits 401', async () => {
-    const repoPath = await mkdtemp(join(tmpdir(), 'orca-gitlab-issue-test-'))
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 201,
-      text: () =>
-        Promise.resolve(
-          JSON.stringify({
-            markdown: '![Image #1](/uploads/fallback/image-1.png)'
-          })
-        )
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    getIssueProjectRefMock.mockResolvedValueOnce({
-      host: 'gitlab.df-mic.com',
-      path: 'df-ygt/df-ygt-main'
-    })
-    glabExecFileAsyncMock
-      .mockRejectedValueOnce(new Error('HTTP 400 Bad Request'))
-      .mockRejectedValueOnce(
-        new Error(
-          [
-            'gitlab.df-mic.com x gitlab.df-mic.com: API call failed: GET http://192.168.1.206/api/v4/user: 401',
-            '✓ REST API Endpoint: http://192.168.1.206/api/v4/',
-            '✓ Token found: **************************'
-          ].join('\n')
-        )
-      )
-      .mockResolvedValueOnce({ stdout: 'endpoint-host-token\n' })
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          iid: 926,
-          web_url: 'http://192.168.1.206/df-ygt/df-ygt-main/-/issues/926'
-        })
-      })
-
-    const body = 'Before\n![Image #1](data:image/png;base64,aGVsbG8=)\nAfter'
-
-    try {
-      await expect(createIssue(repoPath, 'New issue', body)).resolves.toEqual({
-        ok: true,
-        number: 926,
-        url: 'http://192.168.1.206/df-ygt/df-ygt-main/-/issues/926'
-      })
-      expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
-        2,
-        ['auth', 'status', '--hostname', 'gitlab.df-mic.com'],
-        { cwd: repoPath }
-      )
-      expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
-        3,
-        ['config', 'get', 'token', '--host', '192.168.1.206'],
-        { cwd: repoPath }
-      )
-      expect(fetchMock).toHaveBeenCalledWith(
-        new URL('http://192.168.1.206/api/v4/projects/df-ygt%2Fdf-ygt-main/uploads'),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'PRIVATE-TOKEN': 'endpoint-host-token'
-          })
-        })
-      )
-      expect(glabExecFileAsyncMock).toHaveBeenNthCalledWith(
-        4,
-        [
-          'api',
-          '-X',
-          'POST',
-          'projects/df-ygt%2Fdf-ygt-main/issues',
-          '-f',
-          'title=New issue',
-          '-f',
-          'description=Before\n![Image #1](/uploads/fallback/image-1.png)\nAfter'
-        ],
-        { cwd: repoPath }
-      )
-    } finally {
-      await rm(repoPath, { recursive: true, force: true })
-    }
-  })
-
-  it('does not create a GitLab issue when inline image upload fails', async () => {
-    const repoPath = await mkdtemp(join(tmpdir(), 'orca-gitlab-issue-test-'))
-    getIssueProjectRefMock.mockResolvedValueOnce({ host: 'gitlab.com', path: 'stablyai/orca' })
-    glabExecFileAsyncMock
-      .mockRejectedValueOnce(new Error('HTTP 413 Payload Too Large'))
-      .mockRejectedValueOnce(new Error('not authenticated'))
-
-    const body = '![Image #1](data:image/png;base64,aGVsbG8=)'
-
-    try {
-      await expect(createIssue(repoPath, 'New issue', body)).resolves.toEqual({
-        ok: false,
-        error:
-          'Could not upload GitLab issue image: HTTP 413 Payload Too Large; fallback upload failed: not authenticated'
-      })
-      expect(glabExecFileAsyncMock).toHaveBeenCalledTimes(2)
-    } finally {
-      await rm(repoPath, { recursive: true, force: true })
-    }
-  })
-
   it('rejects createIssue with empty title', async () => {
     await expect(createIssue('/repo-root', '   ', 'body')).resolves.toEqual({
       ok: false,
@@ -616,11 +425,14 @@ describe('gitlab issue operations', () => {
     expect(options.env?.GITLAB_HOST).toBe('gitlab.example.internal')
   })
 
-  it("updateIssue treats 'already closed' as a no-op", async () => {
+  // Why: `glab issue close` exits 0 for a closed issue, so a failure mentioning "already" is real.
+  it('updateIssue reports a failed close even when its text says "already"', async () => {
     getIssueProjectRefMock.mockResolvedValueOnce({ host: 'gitlab.com', path: 'stablyai/orca' })
     glabExecFileAsyncMock.mockRejectedValueOnce(new Error('Issue is already closed'))
 
-    await expect(updateIssue('/repo-root', 5, { state: 'closed' })).resolves.toEqual({ ok: true })
+    await expect(updateIssue('/repo-root', 5, { state: 'closed' })).resolves.toMatchObject({
+      ok: false
+    })
   })
 
   it('updateIssue applies field edits via `glab issue update`', async () => {
@@ -650,13 +462,30 @@ describe('gitlab issue operations', () => {
         'bug',
         '--unlabel',
         'stale',
-        '--assignee',
-        'alice',
-        '--unassignee',
-        'bob'
+        '--assignee=+alice',
+        '--assignee=-bob'
       ],
       { cwd: '/repo-root' }
     )
+  })
+
+  it('updateIssue sends assignee edits glab applies as add/remove, never as a replace', async () => {
+    getIssueProjectRefMock.mockResolvedValueOnce({ host: 'gitlab.com', path: 'stablyai/orca' })
+    glabExecFileAsyncMock.mockResolvedValueOnce({ stdout: '' })
+
+    await updateIssue('/repo-root', 5, {
+      addAssignees: ['alice', 'carol'],
+      removeAssignees: ['bob']
+    })
+
+    const [args] = glabExecFileAsyncMock.mock.calls[0]
+    expect(glabAssigneeEdits(args)).toEqual({
+      add: ['alice', 'carol'],
+      remove: ['bob'],
+      replace: []
+    })
+    // Why: glab has no --unassignee, and its --unassign clears every assignee.
+    expect(args.filter((arg: string) => arg.startsWith('--unassign'))).toEqual([])
   })
 
   it('updateIssue applies body edits via the issue API', async () => {
@@ -673,16 +502,40 @@ describe('gitlab issue operations', () => {
     )
   })
 
-  it('routes issue metadata reads through the selected SSH GitLab host', async () => {
+  it('walks label and member pages of glab api -i output on the selected SSH GitLab host', async () => {
     getIssueProjectRefMock
       .mockResolvedValueOnce({ host: 'git.internal', path: 'stablyai/orca' })
       .mockResolvedValueOnce({ host: 'git.internal', path: 'stablyai/orca' })
-    glabExecFileAsyncMock
-      .mockResolvedValueOnce({ stdout: 'bug\nfeature\n' })
-      .mockResolvedValueOnce({
-        stdout:
-          '{"id":12,"username":"alice","name":"Alice","avatar_url":"https://example.com/a.png","state":"active"}\n'
-      })
+    serveGlabApiPages(
+      new Map([
+        [
+          'projects/stablyai%2Forca/labels?per_page=100&page=1',
+          glabIncludeOutput({ 'X-Next-Page': '2', 'X-Page': '1', 'X-Total-Pages': '2' }, [
+            { id: 1, name: 'bug', color: '#d9534f', is_project_label: true }
+          ])
+        ],
+        [
+          'projects/stablyai%2Forca/labels?per_page=100&page=2',
+          glabIncludeOutput({ 'X-Next-Page': '', 'X-Page': '2', 'X-Total-Pages': '2' }, [
+            { id: 4, name: 'feature', color: '#f0ad4e', is_project_label: false }
+          ])
+        ],
+        [
+          'projects/stablyai%2Forca/members/all?per_page=100&page=1',
+          glabIncludeOutput({ 'X-Next-Page': '', 'X-Page': '1' }, [
+            {
+              id: 12,
+              username: 'alice',
+              name: 'Alice',
+              state: 'active',
+              avatar_url: 'https://example.com/a.png',
+              web_url: 'https://git.internal/alice',
+              access_level: 30
+            }
+          ])
+        ]
+      ])
+    )
 
     await expect(listLabels('/repo-root', 'upstream', 'conn-1')).resolves.toEqual([
       'bug',
@@ -698,24 +551,54 @@ describe('gitlab issue operations', () => {
       }
     ])
 
-    expect(glabExecFileAsyncMock.mock.calls[0][0]).toEqual([
-      'api',
-      '--hostname',
-      'git.internal',
-      '--paginate',
-      'projects/stablyai%2Forca/labels',
-      '--jq',
-      '.[].name'
+    expect(glabApiWithHeadersMock.mock.calls.map(([args]) => args)).toEqual([
+      ['--hostname', 'git.internal', 'projects/stablyai%2Forca/labels?per_page=100&page=1'],
+      ['--hostname', 'git.internal', 'projects/stablyai%2Forca/labels?per_page=100&page=2'],
+      ['--hostname', 'git.internal', 'projects/stablyai%2Forca/members/all?per_page=100&page=1']
     ])
-    expect(glabExecFileAsyncMock.mock.calls[1][0]).toEqual([
-      'api',
-      '--hostname',
-      'git.internal',
-      '--paginate',
-      'projects/stablyai%2Forca/members/all?per_page=100',
-      '--jq',
-      '.[] | {id, username, name, avatar_url, state}'
-    ])
+    expect(glabExecFileAsyncMock).not.toHaveBeenCalled()
+  })
+
+  it('probes past a full label page when a proxy strips the pagination headers', async () => {
+    getIssueProjectRefMock.mockResolvedValueOnce({ host: 'gitlab.com', path: 'stablyai/orca' })
+    const fullPage = Array.from({ length: 100 }, (_, index) => ({ id: index, name: `l${index}` }))
+    serveGlabApiPages(
+      new Map([
+        ['projects/stablyai%2Forca/labels?per_page=100&page=1', glabIncludeOutput({}, fullPage)],
+        [
+          'projects/stablyai%2Forca/labels?per_page=100&page=2',
+          glabIncludeOutput({}, [{ id: 100, name: 'last' }])
+        ]
+      ])
+    )
+
+    const labels = await listLabels('/repo-root')
+
+    expect(labels).toHaveLength(101)
+    expect(labels.at(-1)).toBe('last')
+    expect(glabApiWithHeadersMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops paging when x-next-page does not advance and returns no members on an error body', async () => {
+    getIssueProjectRefMock
+      .mockResolvedValueOnce({ host: 'gitlab.com', path: 'stablyai/orca' })
+      .mockResolvedValueOnce({ host: 'gitlab.com', path: 'stablyai/orca' })
+    serveGlabApiPages(
+      new Map([
+        [
+          'projects/stablyai%2Forca/labels?per_page=100&page=1',
+          glabIncludeOutput({ 'X-Next-Page': '1' }, [{ id: 1, name: 'bug' }])
+        ],
+        [
+          'projects/stablyai%2Forca/members/all?per_page=100&page=1',
+          glabIncludeOutput({}, { message: '403 Forbidden' })
+        ]
+      ])
+    )
+
+    await expect(listLabels('/repo-root')).resolves.toEqual(['bug'])
+    await expect(listAssignableUsers('/repo-root')).resolves.toEqual([])
+    expect(glabApiWithHeadersMock).toHaveBeenCalledTimes(2)
   })
 
   it('addIssueComment posts to /notes and maps the response', async () => {

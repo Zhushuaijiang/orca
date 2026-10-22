@@ -20,6 +20,8 @@ import type {
   SpawnSourceControlAgent,
   TextGenerationOperation
 } from './source-control-text-generation-types'
+import { AUXILIARY_GENERATION_TIMEOUT_MS } from '../../shared/auxiliary-generation-timing'
+
 type GenerateParams = ResolvedSourceControlAiGenerationParams
 
 export function commandBackslashMode(
@@ -40,6 +42,9 @@ export async function executeGenerationPlan(input: {
   operation: TextGenerationOperation
   spawnAgent: SpawnSourceControlAgent
 }): Promise<InternalTextGenerationResult> {
+  const deadline = input.operation.startsWith('auxiliary:')
+    ? Date.now() + AUXILIARY_GENERATION_TIMEOUT_MS
+    : undefined
   return executeWithAuxiliaryFallback({
     ...input,
     backslash: commandBackslashMode(input.target),
@@ -65,22 +70,28 @@ export async function executeGenerationPlan(input: {
         ...input,
         params,
         target,
-        plan: planned?.ok ? planned.plan : input.plan
+        plan: planned?.ok ? planned.plan : input.plan,
+        deadline
       })
     }
   })
 }
 
 async function executeSingleGenerationPlan(
-  input: Parameters<typeof executeGenerationPlan>[0]
+  input: Parameters<typeof executeGenerationPlan>[0] & { deadline?: number }
 ): Promise<InternalTextGenerationResult> {
-  const execute = (plan: CommitMessagePlan): Promise<InternalTextGenerationResult> =>
-    input.target.kind === 'remote'
+  const execute = (plan: CommitMessagePlan): Promise<InternalTextGenerationResult> => {
+    const timeoutMs = input.deadline === undefined ? undefined : input.deadline - Date.now()
+    if (timeoutMs !== undefined && timeoutMs <= 0) {
+      return Promise.resolve({ success: false, error: `Generation timed out after ${AUXILIARY_GENERATION_TIMEOUT_MS / 1000}s.` })
+    }
+    return input.target.kind === 'remote'
       ? runRemoteSourceControlPlan({
           plan,
           target: input.target,
           emptyResultName: input.emptyResultName,
-          operation: input.operation
+          operation: input.operation,
+          timeoutMs
         })
       : runLocalPlanForAgent({
           agentId: input.params.agentId,
@@ -88,8 +99,10 @@ async function executeSingleGenerationPlan(
           target: input.target,
           emptyResultName: input.emptyResultName,
           operation: input.operation,
-          spawnAgent: input.spawnAgent
+          spawnAgent: input.spawnAgent,
+          timeoutMs
         })
+  }
   let result = await execute(input.plan)
   if (!result.success && input.params.agentId === 'opencode') {
     const retry = openCodeVariantRetryPlan(input.plan, result.failureOutput?.stderr ?? '')

@@ -3,22 +3,6 @@ import type { SetupDecision } from './worktree/create-types'
 import type { TaskSourceContext, WorkspaceRunContext } from './task-source-context'
 import type { YunxiaoRequirementGateOutcome, YunxiaoTodoPoolStatus } from './yunxiao-types'
 
-export type {
-  ExternalAutomationAction,
-  ExternalAutomationActionInput,
-  ExternalAutomationCreateInput,
-  ExternalAutomationJob,
-  ExternalAutomationManager,
-  ExternalAutomationManagerStatus,
-  ExternalAutomationProvider,
-  ExternalAutomationRun,
-  ExternalAutomationRunsInput,
-  ExternalAutomationRunsPage,
-  ExternalAutomationRunStatus,
-  ExternalAutomationTarget,
-  ExternalAutomationUpdateInput
-} from './external-automation-types'
-
 export type AutomationWorkspaceMode = 'existing' | 'new_per_run'
 export type AutomationExecutionTargetType = 'local' | 'ssh'
 export type AutomationSchedulerOwner = 'local_host_service' | 'ssh_bridge' | 'remote_host_service'
@@ -91,6 +75,20 @@ export type AutomationPrecheck = {
   timeoutSeconds: number
 }
 
+export type AutomationPrecheckResult = {
+  command: string
+  exitCode: number | null
+  timedOut: boolean
+  durationMs: number
+  stdout: string
+  stderr: string
+  stdoutTruncated: boolean
+  stderrTruncated: boolean
+  error: string | null
+  startedAt: number
+  completedAt: number
+}
+
 export type AutomationYunxiaoReviewHandoff = {
   enabled: boolean
   agentId: TuiAgent
@@ -108,20 +106,6 @@ export type AutomationYunxiaoTodoPoolClaim = {
   claimedAt: number
 }
 
-export type AutomationPrecheckResult = {
-  command: string
-  exitCode: number | null
-  timedOut: boolean
-  durationMs: number
-  stdout: string
-  stderr: string
-  stdoutTruncated: boolean
-  stderrTruncated: boolean
-  error: string | null
-  startedAt: number
-  completedAt: number
-}
-
 export type Automation = {
   id: string
   /** Optional client request key used to make cross-authority creates retry-safe. */
@@ -129,8 +113,9 @@ export type Automation = {
   name: string
   prompt: string
   precheck: AutomationPrecheck | null
-  yunxiaoTodoPool?: AutomationYunxiaoTodoPoolSource | null
   agentId: TuiAgent
+  /** Saved text appended to the host's default agent Arguments on each fresh run; absent means none. */
+  extraAgentArgs?: string
   /** Why: runContext carries the logical project + host setup identity for
    *  multi-host projects; projectId remains only as the legacy repo-id storage
    *  field for pre-host-context automations.
@@ -150,6 +135,8 @@ export type Automation = {
    *  local records, on legacy records, and on orphans whose target is gone. */
   executionTargetGeneration?: number
   schedulerOwner: AutomationSchedulerOwner
+  /** Why (fork): a Yunxiao todo-pool schedule claims queued work items before dispatch. */
+  yunxiaoTodoPool?: AutomationYunxiaoTodoPoolSource | null
   workspaceMode: AutomationWorkspaceMode
   workspaceId: string | null
   baseBranch: string | null
@@ -220,8 +207,11 @@ export type AutomationCreateInput = {
   name: string
   prompt: string
   precheck?: AutomationPrecheck | null
-  yunxiaoTodoPool?: AutomationYunxiaoTodoPoolSource | null
   agentId: TuiAgent
+  /** Why (fork): a Yunxiao todo-pool schedule claims queued work items before dispatch. */
+  yunxiaoTodoPool?: AutomationYunxiaoTodoPoolSource | null
+  /** Empty or whitespace means no extras. */
+  extraAgentArgs?: string
   runContext?: WorkspaceRunContext | null
   sourceContext?: TaskSourceContext | null
   /** @deprecated Legacy repo-id compatibility field required for older stored
@@ -245,14 +235,15 @@ export type AutomationUpdateInput = Partial<
     | 'name'
     | 'prompt'
     | 'precheck'
-    | 'yunxiaoTodoPool'
     | 'agentId'
+    | 'extraAgentArgs'
     | 'runContext'
     | 'sourceContext'
     | 'projectId'
     | 'workspaceMode'
     | 'workspaceId'
     | 'baseBranch'
+    | 'yunxiaoTodoPool'
     | 'setupDecision'
     | 'reuseSession'
     | 'timezone'
@@ -284,4 +275,74 @@ export type AutomationDispatchResult = {
   yunxiaoRequirementOutcome?: YunxiaoRequirementGateOutcome | null
   usage?: AutomationRunUsage | null
   error?: string | null
+  /** With `dispatched`: when the agent was handed the run, if not now. */
+  dispatchedAt?: number
+}
+
+export type ExternalAutomationProvider = 'openclaw'
+export type ExternalAutomationManagerStatus = 'available' | 'unavailable'
+export type ExternalAutomationAction = 'pause' | 'resume' | 'run' | 'delete'
+export type ExternalAutomationRunStatus = 'completed' | 'failed' | 'unknown'
+
+export type ExternalAutomationTarget =
+  | {
+      type: 'local'
+    }
+  | {
+      type: 'ssh'
+      connectionId: string
+    }
+
+export type ExternalAutomationJob = {
+  id: string
+  managerId: string
+  provider: ExternalAutomationProvider
+  name: string
+  schedule: string
+  rawSchedule: string | null
+  enabled: boolean
+  state: string
+  prompt: string | null
+  promptPreview: string
+  nextRunAt: string | null
+  lastRunAt: string | null
+  lastStatus: string | null
+  lastError: string | null
+  workdir: string | null
+  runCount: number
+  runCountSaturated?: true
+  runs: ExternalAutomationRun[]
+}
+
+export type ExternalAutomationRun = {
+  id: string
+  managerId: string
+  provider: ExternalAutomationProvider
+  jobId: string
+  runAt: string | null
+  status: ExternalAutomationRunStatus
+  outputPreview: string | null
+  outputContent: string | null
+  error: string | null
+  outputPath: string | null
+}
+
+export type ExternalAutomationManager = {
+  id: string
+  provider: ExternalAutomationProvider
+  label: string
+  targetLabel: string
+  target: ExternalAutomationTarget
+  status: ExternalAutomationManagerStatus
+  error: string | null
+  canManage: boolean
+  jobs: ExternalAutomationJob[]
+}
+
+export type ExternalAutomationActionInput = {
+  managerId: string
+  provider: ExternalAutomationProvider
+  target: ExternalAutomationTarget
+  jobId: string
+  action: ExternalAutomationAction
 }

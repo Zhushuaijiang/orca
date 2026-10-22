@@ -11,20 +11,26 @@ export type AuxiliaryTaskLaunch = {
 }
 
 export function resolveAuxiliaryTaskLaunch(args: {
-  settings: Pick<GlobalSettings, 'auxiliaryModels' | 'defaultTuiAgent' | 'disabledTuiAgents'>
+  settings: Partial<
+    Pick<GlobalSettings, 'auxiliaryModels' | 'defaultTuiAgent' | 'disabledTuiAgents'>
+  >
   task: AuxiliaryTaskId
   hostKey: string
   primaryAgent?: TuiAgent
   agentOverride?: TuiAgent
 }): AuxiliaryTaskLaunch {
-  const primary = args.primaryAgent ?? args.settings.defaultTuiAgent
+  const primary =
+    args.primaryAgent ??
+    (args.settings.defaultTuiAgent && args.settings.defaultTuiAgent !== 'blank'
+      ? args.settings.defaultTuiAgent
+      : null)
   const route = resolveAuxiliaryModelRoute(
     args.settings.auxiliaryModels,
     args.task,
-    primary === 'blank' ? null : primary
+    primary
   )
   const agentId = args.agentOverride ?? route?.agentId ?? primary
-  if (!agentId || agentId === 'blank' || args.settings.disabledTuiAgents?.includes(agentId)) {
+  if (!agentId || args.settings.disabledTuiAgents?.includes(agentId)) {
     throw new Error(`Choose an enabled auxiliary agent for ${args.task}.`)
   }
   // A per-run reviewer choice cannot inherit another provider's model or effort.

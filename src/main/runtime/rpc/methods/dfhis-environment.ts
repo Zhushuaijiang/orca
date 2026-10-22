@@ -5,7 +5,7 @@ import type {
   DfHisEnvironmentPrerequisiteResult
 } from '../../../../shared/dfhis-environment-types'
 import { defineMethod } from '../core'
-import { OptionalBoolean, OptionalPlainString } from '../schemas'
+import { OptionalBoolean, OptionalPlainString } from '../../../../shared/rpc-contract/rpc-param-primitives'
 import { getHisMcpConnection, getOfficialYunxiaoConnection } from '../../../yunxiao/mcp-connections'
 import {
   readDfHisEnvironmentConfigSync,
@@ -280,16 +280,19 @@ async function installDfHisEnvironment(
 export const DFHIS_ENVIRONMENT_METHODS = [
   defineMethod({
     name: 'dfhisEnvironment.getConfig',
+    permission: 'workspace',
     params: null,
     handler: () => ({ config: snapshotDfHisEnvironmentConfig() })
   }),
   defineMethod({
     name: 'dfhisEnvironment.check',
+    permission: 'workspace',
     params: null,
     handler: async () => ({ check: await checkDfHisEnvironment() })
   }),
   defineMethod({
     name: 'dfhisEnvironment.install',
+    permission: 'host-admin',
     params: DfHisEnvironmentConfigInputSchema,
     handler: async (params) => ({ result: await installDfHisEnvironment(params) })
   })

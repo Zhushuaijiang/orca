@@ -17,6 +17,7 @@ import { folderWorkspaceKey } from '../shared/workspace-scope'
 import type { RequirementReviewRecord } from '../shared/requirement-review'
 import { mergeWorktree } from './ipc/worktree-metadata-merge'
 import { folderWorkspaceToWorktree } from '../shared/folder-workspace-worktree'
+import { hostWorktreeTarget } from '../shared/worktree/host-qualified-identity'
 
 // Stub the ~/.ssh/config parser so the SSH-import test drives the real Store with deterministic hosts, not the operator's actual ~/.ssh/config.
 const { loadUserSshConfigMock, sshConfigHostsToTargetsMock } = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ const { loadUserSshConfigMock, sshConfigHostsToTargetsMock } = vi.hoisted(() => 
   sshConfigHostsToTargetsMock: vi.fn()
 }))
 
-vi.mock('./ssh/ssh-config-parser', () => ({
+vi.mock('./ssh/config/ssh-config-parser', () => ({
   loadUserSshConfig: loadUserSshConfigMock,
   sshConfigHostsToTargets: sshConfigHostsToTargetsMock
 }))
@@ -74,7 +75,9 @@ describe('Store', () => {
 
   it('setWorktreeMeta creates meta with defaults for missing fields', async () => {
     const store = await createStore()
-    const meta = store.setWorktreeMeta('wt1', { displayName: 'my-wt' })
+    const meta = store.setWorktreeMeta(hostWorktreeTarget({ id: 'wt1', hostId: 'local' }), {
+      displayName: 'my-wt'
+    })
 
     expect(meta.displayName).toBe('my-wt')
     expect(meta.comment).toBe('')
@@ -102,9 +105,14 @@ describe('Store', () => {
       },
       'pane-2': { round: 1, phase: 'failed', updatedAt: 124 }
     }
-    store.setWorktreeMeta('wt-reviews', { comment: 'git note', requirementReviews })
+    store.setWorktreeMeta(hostWorktreeTarget({ id: 'wt-reviews', hostId: 'local' }), {
+      comment: 'git note',
+      requirementReviews
+    })
     store.updateFolderWorkspace(folder.id, { comment: 'folder note', requirementReviews })
-    store.setWorktreeMeta('wt-reviews', { isPinned: true })
+    store.setWorktreeMeta(hostWorktreeTarget({ id: 'wt-reviews', hostId: 'local' }), {
+      isPinned: true
+    })
     store.updateFolderWorkspace(folder.id, { isPinned: true })
     store.flush()
 
@@ -138,7 +146,9 @@ describe('Store', () => {
       throw new Error('Folder workspace was not restored')
     }
     expect(folderWorkspaceToWorktree(restoredFolder).requirementReviews).toEqual(requirementReviews)
-    restored.setWorktreeMeta('wt-reviews', { requirementReviews: {} })
+    restored.setWorktreeMeta(hostWorktreeTarget({ id: 'wt-reviews', hostId: 'local' }), {
+      requirementReviews: {}
+    })
     restored.updateFolderWorkspace(folder.id, { requirementReviews: {} })
     restored.flush()
 
@@ -151,8 +161,13 @@ describe('Store', () => {
 
   it('setWorktreeMeta merges with existing meta', async () => {
     const store = await createStore()
-    store.setWorktreeMeta('wt1', { displayName: 'first', comment: 'hello' })
-    const updated = store.setWorktreeMeta('wt1', { comment: 'updated' })
+    store.setWorktreeMeta(hostWorktreeTarget({ id: 'wt1', hostId: 'local' }), {
+      displayName: 'first',
+      comment: 'hello'
+    })
+    const updated = store.setWorktreeMeta(hostWorktreeTarget({ id: 'wt1', hostId: 'local' }), {
+      comment: 'updated'
+    })
 
     expect(updated.displayName).toBe('first')
     expect(updated.comment).toBe('updated')
@@ -182,7 +197,10 @@ describe('Store', () => {
       accountLabel: 'ada@example.com'
     }
 
-    store.setWorktreeMeta('wt-jira', { linkedWorkItem, linkedTaskSourceContext })
+    store.setWorktreeMeta(hostWorktreeTarget({ id: 'wt-jira', hostId: 'local' }), {
+      linkedWorkItem,
+      linkedTaskSourceContext
+    })
     store.flush()
     const restored = await createStore()
 
@@ -191,12 +209,12 @@ describe('Store', () => {
       linkedTaskSourceContext
     })
     expect(
-      restored.setWorktreeMeta('wt-jira', {
+      restored.setWorktreeMeta(hostWorktreeTarget({ id: 'wt-jira', hostId: 'local' }), {
         linkedTaskSourceContext: { ...linkedTaskSourceContext, provider: 'linear' }
       }).linkedTaskSourceContext
     ).toBeNull()
     expect(
-      restored.setWorktreeMeta('wt-jira', {
+      restored.setWorktreeMeta(hostWorktreeTarget({ id: 'wt-jira', hostId: 'local' }), {
         linkedTaskSourceContext: {
           ...linkedTaskSourceContext,
           providerIdentity: {

@@ -2,6 +2,7 @@ import React, { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useAppStore } from '@/store'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { activateTabAndFocusPane } from '@/lib/activate-tab-and-focus-pane'
+import { activateTerminalTabOnOwner } from '@/lib/terminal-tab-owner-activation'
 import DashboardAgentRow from '@/components/dashboard/DashboardAgentRow'
 import { useNow } from '@/hooks/use-now'
 import { useShallow } from 'zustand/react/shallow'
@@ -27,7 +28,7 @@ import { activateRetainedAgentRow } from './worktree-card-retained-agent-activat
 import { shouldShowAgentSessionContextMenu } from './worktree-agent-session-resolution'
 import { WorktreeAgentSessionContextMenu } from './worktree-agent-session-context-menu'
 import { activateStructuredAgentSessionTab } from '@/lib/structured-agent-session-tab-activation'
-import { selectAcknowledgedAgentTimes } from './worktree-card-agent-ack-inputs'
+import { selectAgentRowsUnread } from './worktree-card-agent-ack-inputs'
 
 export const SUPPRESS_WORKTREE_LIST_SCROLL_ADJUSTMENT_EVENT =
   'orca-suppress-worktree-list-scroll-adjustment'
@@ -89,17 +90,14 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
 
   // Why: acknowledgement writes are app-global; project only this card's rows
   // so unrelated worktree activity does not rerender every agent body.
-  const acknowledgedAgentTimes = useAppStore(
-    useShallow((s) => selectAcknowledgedAgentTimes(s, agents))
-  )
+  const agentRowsUnread = useAppStore(useShallow((s) => selectAgentRowsUnread(s, agents)))
   const unvisitedByPaneKey = useMemo(() => {
     const out: Record<string, boolean> = {}
     for (const [index, agent] of agents.entries()) {
-      const ackAt = acknowledgedAgentTimes[index] ?? 0
-      out[agent.paneKey] = ackAt < agent.entry.stateStartedAt
+      out[agent.paneKey] = agentRowsUnread[index] ?? false
     }
     return out
-  }, [agents, acknowledgedAgentTimes])
+  }, [agents, agentRowsUnread])
 
   const handleDismissAgent = useCallback(
     (paneKey: string) => {
@@ -135,11 +133,14 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
           flashFocusedPane: true,
           scrollToBottomIfOutputSinceLastView: true
         })
+        activateTerminalTabOnOwner(worktreeId, tabId, parsed.leafId)
       } else if (!activateStructuredAgentSessionTab({ worktreeId, tabId })) {
         const liveEntry = useAppStore.getState().agentStatusByPaneKey[paneKey]
         if (liveEntry?.worktreeId === worktreeId) {
           // Why: orchestration worker status can be worktree-attributed before the renderer knows its tab; keep the live row and mount its terminal in the background instead of dismissing as stale.
           requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds: [tabId] })
+          // Why: a paired web owner still needs to know which tab this client revealed.
+          activateTerminalTabOnOwner(worktreeId, tabId, parsed.leafId)
           return
         }
         dismissStaleAgentRowByKey(paneKey)
@@ -308,8 +309,9 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
         cacheTimerActive={cacheTimerActive}
       />
     )
+    // Keep collapsed children from occupying a separate flex-gap slot.
     return (
-      <React.Fragment key={agent.paneKey}>
+      <div key={agent.paneKey} className="min-w-0">
         {shouldShowAgentSessionContextMenu(agent) ? (
           <WorktreeAgentSessionContextMenu
             agent={agent}
@@ -334,7 +336,7 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
             </div>
           </CompactAgentExpansion>
         ) : null}
-      </React.Fragment>
+      </div>
     )
   }
 

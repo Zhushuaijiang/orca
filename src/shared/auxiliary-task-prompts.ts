@@ -1,7 +1,7 @@
 import { AUXILIARY_TASKS, type AuxiliaryTaskId } from './auxiliary-model-types'
 import { auxiliaryAgentSupportsImages } from './auxiliary-image-agents'
 import type { ResolvedSourceControlAiGenerationParams } from './source-control-ai'
-import { quotePosixShell } from './wsl-login-shell-command'
+import { quotePosixShell } from './shell-argument-quoting'
 
 export function buildAuxiliaryTaskPrompt(
   task: AuxiliaryTaskId,

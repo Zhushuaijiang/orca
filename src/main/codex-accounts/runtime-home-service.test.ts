@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CodexManagedAccount, GlobalSettings } from '../../shared/types'
 import type * as ShellStartupEnv from '../pty/shell-startup-env'
+import type * as WslPaths from '../../shared/wsl-paths'
 
 const testState = {
   userDataDir: '',
@@ -777,7 +778,7 @@ describe('CodexRuntimeHomeService', () => {
     }))
     vi.doMock('../../shared/wsl-paths', async () => ({
       // Why spread actual: upstream also routes system-config paths through toLinuxPath.
-      ...(await vi.importActual<typeof import('../../shared/wsl-paths')>('../../shared/wsl-paths')),
+      ...(await vi.importActual<typeof WslPaths>('../../shared/wsl-paths')),
       parseWslUncPath: (candidate: string) =>
         candidate === wslRuntimeHomePath
           ? {

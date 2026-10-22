@@ -1,4 +1,3 @@
-import type { GlobalSettings } from '../../../shared/global-settings-types'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { TerminalInputKind } from '../../../shared/terminal-input-kind'
 import { TUI_AGENT_CONFIG } from '../../../shared/tui-agent-config'
@@ -6,21 +5,17 @@ import { AGENT_PROMPT_POST_PASTE_SUBMIT_DELAY_MS } from '../../../shared/agent-p
 import { resolveDraftPasteReadyTimeoutMs } from '../../../shared/draft-paste-ready-timeout'
 import { resolvePasteReadySignal } from '../../../shared/draft-paste-ready-scanner'
 import { useAppStore } from '@/store'
-import {
-  inspectRuntimeTerminalProcess,
-  sendRuntimePtyInputVerified
-} from '@/runtime/runtime-terminal-inspection'
+import { sendRuntimePtyInputVerified } from '@/runtime/runtime-terminal-verified-input'
 import {
   BRACKETED_PASTE_END,
   BRACKETED_PASTE_START
 } from '@/components/terminal-pane/terminal-bracketed-paste'
 import { runTerminalPtyInputTransaction } from '@/components/terminal-pane/terminal-pty-input-transaction'
 import { waitForAgentReady } from './agent-ready-wait'
-import { getSettingsForWorktreeRuntimeOwner } from './worktree-runtime-owner'
 import { sendAgentDraftPasteContentNow } from './agent-draft-paste-content'
 import { agentDeliversDraftViaNativePrefill } from './agent-native-draft-prefill'
 import { waitForAgentDraftInputReady } from './agent-draft-readiness'
-import { isExpectedAgentProcess } from '../../../shared/agent-process-recognition'
+import { waitForExpectedAgentOnPty } from './agent-pty-process-readiness'
 import { applyYunxiaoRequirementPromptGate } from '../../../shared/yunxiao-requirement-prompt-gate'
 export {
   AGENT_DRAFT_PASTE_CHUNK_MAX_BYTES,
@@ -47,20 +42,6 @@ export const POST_PASTE_SUBMIT_DELAY_MS = AGENT_PROMPT_POST_PASTE_SUBMIT_DELAY_M
 const PTY_SPAWN_TIMEOUT_MS = 8000
 const READINESS_TIMEOUT_MS = 8000
 
-export function getSettingsForAgentTabRuntimeOwner(
-  tabId: string
-): Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined {
-  const store = useAppStore.getState()
-  for (const [worktreeId, tabs] of Object.entries(store.tabsByWorktree ?? {})) {
-    if (tabs?.some((tab) => tab.id === tabId)) {
-      // Why: legacy remote PTY ids may not embed their runtime owner. The tab's
-      // worktree still identifies which host should receive readiness/send RPCs.
-      return getSettingsForWorktreeRuntimeOwner(store, worktreeId)
-    }
-  }
-  return store.settings
-}
-
 /**
  * Wait until the agent on `tabId` has rendered its input-accepting TUI,
  * then bracketed-paste `content` into its input buffer. By default the
@@ -86,8 +67,8 @@ export async function pasteDraftWhenAgentReady(args: {
   timeoutMs?: number
   onTimeout?: () => void
   onUnconfirmedDelivery?: () => void
-  /** Whether the paste may be written at all; readiness is observed while it is pending. */
-  sendGate?: Promise<boolean>
+  /** The launch pane's PTY once its spawn says the agent started there; null when it didn't. */
+  launchPty?: Promise<string | null>
 }): Promise<boolean> {
   const { tabId, content, agent, submit, forcePaste, timeoutMs, onTimeout, onUnconfirmedDelivery } =
     args
@@ -104,17 +85,16 @@ export async function pasteDraftWhenAgentReady(args: {
   }
 
   const readySignal = resolvePasteReadySignal(agentConfig, submit === true)
-  const settings = getSettingsForAgentTabRuntimeOwner(tabId)
   const readinessTimeoutMs = resolveDraftPasteReadyTimeoutMs(agent, timeoutMs)
   const readinessResult = waitForAgentDraftInputReadyOnTab({
     tabId,
     spawnTimeoutMs: PTY_SPAWN_TIMEOUT_MS,
     readinessTimeoutMs,
     readySignal,
-    settings
+    ...(args.launchPty ? { launchPty: args.launchPty } : {})
   })
-  // Why: a closed gate is the caller's own outcome to report; the bounded wait above just lapses.
-  if (args.sendGate && !(await args.sendGate)) {
+  // Why: a pane that didn't start is the caller's own outcome to report, not a readiness timeout.
+  if (args.launchPty && !(await args.launchPty)) {
     return false
   }
   const readiness = await readinessResult
@@ -145,7 +125,6 @@ export async function pasteDraftWhenAgentReady(args: {
   }
 
   return await sendBracketedPasteToAgent({
-    settings,
     ptyId,
     content,
     submit: submit === true,
@@ -156,7 +135,6 @@ export async function pasteDraftWhenAgentReady(args: {
 }
 
 export async function pasteDraftToAgentPtyWhenReady(args: {
-  tabId: string
   ptyId: string
   content: string
   agent?: TuiAgent
@@ -166,31 +144,21 @@ export async function pasteDraftToAgentPtyWhenReady(args: {
   onTimeout?: () => void
   onUnconfirmedDelivery?: () => void
 }): Promise<boolean> {
-  const {
-    tabId,
-    ptyId,
-    content,
-    agent,
-    submit,
-    forcePaste,
-    timeoutMs,
-    onTimeout,
-    onUnconfirmedDelivery
-  } = args
+  const { ptyId, content, agent, submit, forcePaste, timeoutMs, onTimeout, onUnconfirmedDelivery } =
+    args
   const agentConfig = agent ? TUI_AGENT_CONFIG[agent] : null
 
   if (agentDeliversDraftViaNativePrefill(agent, forcePaste)) {
     return false
   }
 
-  const settings = getSettingsForAgentTabRuntimeOwner(tabId)
   const readySignal = resolvePasteReadySignal(agentConfig, submit === true)
   const budget = resolveDraftPasteReadyTimeoutMs(agent, timeoutMs)
-  const ready = await waitForAgentDraftInputReady(ptyId, budget, readySignal, settings)
+  const ready = await waitForAgentDraftInputReady(ptyId, budget, readySignal)
   if (!ready) {
     const fallbackReady =
       agentConfig && agent !== 'codex'
-        ? await waitForExpectedAgentOnPty(ptyId, agentConfig.expectedProcess, 1000, settings)
+        ? await waitForExpectedAgentOnPty(ptyId, agentConfig.expectedProcess, 1000)
         : false
     if (!fallbackReady) {
       onTimeout?.()
@@ -200,7 +168,6 @@ export async function pasteDraftToAgentPtyWhenReady(args: {
   }
 
   return await sendBracketedPasteToAgent({
-    settings,
     ptyId,
     content,
     submit: submit === true,
@@ -216,7 +183,6 @@ export async function submitPromptToAgentPty(args: {
   content: string
 }): Promise<boolean> {
   return await sendBracketedPasteToAgent({
-    settings: getSettingsForAgentTabRuntimeOwner(args.tabId),
     ptyId: args.ptyId,
     content: args.content,
     submit: true,
@@ -231,18 +197,16 @@ export async function submitPromptToAgentPtyWhenReady(args: {
   agent: TuiAgent
   timeoutMs?: number
 }): Promise<boolean> {
-  const { tabId, ptyId, content, agent, timeoutMs } = args
+  const { ptyId, content, agent, timeoutMs } = args
   const agentConfig = TUI_AGENT_CONFIG[agent]
-  const settings = getSettingsForAgentTabRuntimeOwner(tabId)
   const budget = timeoutMs ?? READINESS_TIMEOUT_MS
   const readySignal = agentConfig.draftPasteReadySignal ?? 'render-quiet-after-bracketed-paste'
-  const ready = await waitForAgentDraftInputReady(ptyId, budget, readySignal, settings)
+  const ready = await waitForAgentDraftInputReady(ptyId, budget, readySignal)
   if (!ready) {
     const fallbackReady = await waitForExpectedAgentOnPty(
       ptyId,
       agentConfig.expectedProcess,
-      1000,
-      settings
+      1000
     )
     if (!fallbackReady) {
       return false
@@ -250,7 +214,6 @@ export async function submitPromptToAgentPtyWhenReady(args: {
   }
 
   return await sendBracketedPasteToAgent({
-    settings,
     ptyId,
     content,
     submit: true,
@@ -266,14 +229,13 @@ export async function sendBracketedPasteToRunningAgent(args: {
 }
 
 async function sendBracketedPasteToAgent(args: {
-  settings?: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null
   ptyId: string
   content: string
   submit: boolean
   agent?: TuiAgent
   inputKind: TerminalInputKind
 }): Promise<boolean> {
-  const { settings = useAppStore.getState().settings, ptyId, submit, agent } = args
+  const { ptyId, submit, agent } = args
   const { inputKind } = args
   const content = applyYunxiaoRequirementPromptGate(args.content)
   const submitRetryDelayMs = agent ? TUI_AGENT_CONFIG[agent]?.submitRetryDelayMs : undefined
@@ -281,7 +243,7 @@ async function sendBracketedPasteToAgent(args: {
     // Why: paste + Enter (+ retry Enter) must be one transaction, or a concurrent
     // paste on this PTY can slip between them and submit a half-written prompt.
     return await runTerminalPtyInputTransaction(ptyId, async () => {
-      const pasted = await sendAgentDraftPasteContentNow(settings, ptyId, content, inputKind)
+      const pasted = await sendAgentDraftPasteContentNow(ptyId, content, inputKind)
       if (!pasted || !submit) {
         return pasted
       }
@@ -290,14 +252,14 @@ async function sendBracketedPasteToAgent(args: {
       // Enter arrive in the same PTY write. Split the submit into the next turn so
       // the TUI processes bracketed-paste termination before handling Enter.
       await new Promise<void>((resolve) => window.setTimeout(resolve, POST_PASTE_SUBMIT_DELAY_MS))
-      const submitted = await sendRuntimePtyInputVerified(settings, ptyId, '\r', inputKind)
+      const submitted = await sendRuntimePtyInputVerified(ptyId, '\r', inputKind)
 
       if (submitRetryDelayMs !== undefined) {
         // Why: agents that render their composer before Enter is live silently eat
         // the first Enter; the retry is best-effort and never downgrades `submitted`.
         await new Promise<void>((resolve) => window.setTimeout(resolve, submitRetryDelayMs))
         try {
-          await sendRuntimePtyInputVerified(settings, ptyId, '\r', inputKind)
+          await sendRuntimePtyInputVerified(ptyId, '\r', inputKind)
         } catch {
           // Why: a rejected retry leaves the first Enter's verdict untouched.
         }
@@ -315,14 +277,13 @@ function waitForAgentDraftInputReadyOnTab(args: {
   spawnTimeoutMs: number
   readinessTimeoutMs: number
   readySignal: Parameters<typeof waitForAgentDraftInputReady>[2]
-  settings: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined
+  launchPty?: Promise<string | null>
 }): Promise<{ ptyId: string; ready: boolean } | null> {
   return new Promise((resolve) => {
-    let selectedPtyId: string | null = null
+    const readinessByPtyId = new Map<string, Promise<boolean>>()
     let settled = false
     let spawnTimer: number | null = null
     let unsubscribeStore: (() => void) | null = null
-
     const finish = (result: { ptyId: string; ready: boolean } | null): void => {
       if (settled) {
         return
@@ -334,83 +295,46 @@ function waitForAgentDraftInputReadyOnTab(args: {
       unsubscribeStore?.()
       resolve(result)
     }
-    const bindPty = (ptyId: string): void => {
-      if (selectedPtyId || settled) {
+    const watchPty = (ptyId: string): Promise<boolean> => {
+      const existing = readinessByPtyId.get(ptyId)
+      if (existing) {
+        return existing
+      }
+      const readiness = waitForAgentDraftInputReady(
+        ptyId,
+        args.readinessTimeoutMs,
+        args.readySignal
+      )
+      readinessByPtyId.set(ptyId, readiness)
+      return readiness
+    }
+    const deliverPty = (ptyId: string): void => {
+      if (settled) {
         return
       }
-      selectedPtyId = ptyId
       if (spawnTimer !== null) {
         window.clearTimeout(spawnTimer)
       }
       unsubscribeStore?.()
-      // Why: Zustand subscribers run inside updateTabPtyId. Registering the
-      // sidecar here precedes the transport's immediate pre-handler drain.
-      void waitForAgentDraftInputReady(
-        ptyId,
-        args.readinessTimeoutMs,
-        args.readySignal,
-        args.settings
-      ).then((ready) => finish({ ptyId, ready }))
+      void watchPty(ptyId).then((ready) => finish({ ptyId, ready }))
     }
     const bindFromState = (state: ReturnType<typeof useAppStore.getState>): void => {
-      const ptyId = state.ptyIdsByTabId[args.tabId]?.[0]
-      if (ptyId) {
-        bindPty(ptyId)
+      const ptyIds = state.ptyIdsByTabId[args.tabId] ?? []
+      if (args.launchPty) {
+        // Each pane's readiness attaches before its primary handler drains startup bytes.
+        for (const ptyId of ptyIds) {
+          watchPty(ptyId)
+        }
+      } else if (ptyIds[0]) {
+        deliverPty(ptyIds[0])
       }
     }
-
-    spawnTimer = window.setTimeout(() => finish(null), args.spawnTimeoutMs)
+    if (args.launchPty) {
+      void args.launchPty.then((ptyId) => (ptyId ? deliverPty(ptyId) : finish(null)))
+    } else {
+      spawnTimer = window.setTimeout(() => finish(null), args.spawnTimeoutMs)
+    }
     unsubscribeStore = useAppStore.subscribe(bindFromState)
     bindFromState(useAppStore.getState())
-  })
-}
-
-async function waitForExpectedAgentOnPty(
-  ptyId: string,
-  expectedProcess: string,
-  timeoutMs: number,
-  settings: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    try {
-      const process = await withDeadline(
-        inspectRuntimeTerminalProcess(settings, ptyId),
-        Math.max(0, deadline - Date.now())
-      )
-      if (!process) {
-        return false
-      }
-      const foreground = process.foregroundProcess?.toLowerCase() ?? ''
-      if (isExpectedAgentProcess(foreground, expectedProcess)) {
-        return true
-      }
-    } catch {
-      // Ignore transient PTY inspection failures and keep polling.
-    }
-    const delayMs = Math.min(120, Math.max(0, deadline - Date.now()))
-    if (delayMs > 0) {
-      await new Promise<void>((resolve) => window.setTimeout(resolve, delayMs))
-    }
-  }
-  return false
-}
-
-function withDeadline<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
-  if (timeoutMs <= 0) {
-    return Promise.resolve(null)
-  }
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => resolve(null), timeoutMs)
-    promise.then(
-      (value) => {
-        window.clearTimeout(timer)
-        resolve(value)
-      },
-      (error) => {
-        window.clearTimeout(timer)
-        reject(error)
-      }
-    )
   })
 }

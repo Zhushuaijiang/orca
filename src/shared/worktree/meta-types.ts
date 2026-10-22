@@ -7,6 +7,7 @@ import type {
   GitPushTarget,
   WorkspaceCreatorProvenance,
   WorkspaceLinkedItem,
+  WorkspaceAttachment,
   WorkspaceStatus
 } from './types'
 import type { TuiAgent } from '../tui-agent'
@@ -14,6 +15,7 @@ import type { OrcaWorkspaceLayout } from '../global-settings-types'
 import type { DiffComment, MobileDiffReviewState } from '../diff-comment-types'
 import type { ManualYunxiaoRequirementGate } from '../yunxiao-requirement-prompt-gate'
 import type { RequirementReviewRecord } from '../requirement-review'
+import type { SmartTier } from '../sidebar-list/sort-stamps'
 
 // ─── Worktree metadata (persisted user-authored fields only) ─────────
 export type WorktreeMeta = {
@@ -51,6 +53,7 @@ export type WorktreeMeta = {
   /** Optional for backward compatibility — see Worktree.linkedGiteaPR. */
   linkedGiteaPR?: number | null
   linkedWorkItem?: WorkspaceLinkedItem | null
+  linkedItems?: WorkspaceAttachment[]
   linkedTaskSourceContext?: TaskSourceContext | null
   isArchived: boolean
   isUnread: boolean
@@ -59,6 +62,12 @@ export type WorktreeMeta = {
   /** User-authored sidebar ordering. Higher values render earlier in Manual sort. */
   manualOrder?: number
   lastActivityAt: number
+  /** See {@link Worktree.smartTier}. */
+  smartTier?: SmartTier
+  /** See {@link Worktree.smartAt}. */
+  smartAt?: number
+  /** See {@link Worktree.lastTerminalUseAt}. */
+  lastTerminalUseAt?: number
   /** See {@link Worktree.createdAt}. Persisted to orca-data.json. */
   createdAt?: number
   /** See {@link Worktree.createdWithAgent}. Persisted to orca-data.json. */

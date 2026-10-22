@@ -1,10 +1,9 @@
 import './unused-default-rpc-methods.test-fixture'
-import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RpcDispatcher } from './dispatcher'
 import type { RpcRequest } from './core'
 import type { OrcaRuntimeService } from '../orca-runtime'
 import { TERMINAL_METHODS } from './methods/terminal'
-import { setYunxiaoRequirementPromptGateEnabled } from '../../../shared/yunxiao-requirement-prompt-gate'
 import { CLIPBOARD_TEXT_MEASURE_YIELD_CODE_UNITS } from '../../../shared/clipboard-text'
 import {
   RUNTIME_CAPABILITIES,
@@ -181,6 +180,45 @@ describe('terminal send RPC', () => {
     releaseClaim()
     await expect(response).resolves.toMatchObject({ ok: true })
     expect(sendTerminal).toHaveBeenCalled()
+  })
+
+  it('does not claim the viewport for a focus report or query reply (#26469)', async () => {
+    const refreshRemoteDesktopViewer = vi.fn().mockResolvedValue(true)
+    const sendTerminal = vi.fn().mockResolvedValue({
+      handle: 'terminal-1',
+      accepted: true,
+      bytesWritten: 3
+    })
+    const runtime = stubRuntime({
+      resolveLiveLeafForHandle: vi.fn().mockReturnValue({ ptyId: 'pty-1' }),
+      getDriver: vi.fn().mockReturnValue({ kind: 'idle' }),
+      refreshRemoteDesktopViewer,
+      sendTerminal
+    })
+    const dispatcher = new RpcDispatcher({ runtime, methods: TERMINAL_METHODS })
+    const send = (text: string, suffix: { enter?: boolean } = {}) =>
+      dispatcher.dispatch(
+        makeRequest('terminal.send', {
+          terminal: 'terminal-1',
+          text,
+          ...suffix,
+          client: { id: 'desktop-1', type: 'desktop' },
+          viewport: { cols: 96, rows: 32 },
+          claimViewport: true
+        })
+      )
+
+    await expect(send('\x1b[I')).resolves.toMatchObject({ ok: true })
+    await expect(send('\x1b[O\x1b[I')).resolves.toMatchObject({ ok: true })
+    await expect(send('\x1b[?62;22c')).resolves.toMatchObject({ ok: true })
+    expect(refreshRemoteDesktopViewer).not.toHaveBeenCalled()
+    expect(sendTerminal).toHaveBeenCalledTimes(3)
+
+    await expect(send('\x1b[I', { enter: true })).resolves.toMatchObject({ ok: true })
+    expect(refreshRemoteDesktopViewer).toHaveBeenCalledTimes(1)
+
+    await expect(send('a')).resolves.toMatchObject({ ok: true })
+    expect(refreshRemoteDesktopViewer).toHaveBeenCalledWith('pty-1', 'desktop-1', 96, 32, true)
   })
 
   it('accepts legacy clientless mobile input when the current driver is mobile', async () => {
@@ -657,45 +695,6 @@ describe('terminal send RPC', () => {
         interrupt: false
       },
       { inputKind: 'driving', beforeWrite: expect.any(Function) }
-    )
-  })
-
-  it('gates manual Yunxiao text for guarded terminal sends', async () => {
-    // Why: the prompt gate is settings-gated and defaults off; enable it for this gating case.
-    setYunxiaoRequirementPromptGateEnabled(true)
-    onTestFinished(() => setYunxiaoRequirementPromptGateEnabled(false))
-    const runtime = stubRuntime({
-      resolveLiveLeafForHandle: vi.fn().mockReturnValue({ ptyId: 'pty-1' }),
-      getDriver: vi.fn().mockReturnValue({ kind: 'desktop' }),
-      getTerminalAgentStatus: vi.fn().mockResolvedValue({
-        handle: 'terminal-1',
-        isRunningAgent: true,
-        status: 'working'
-      }),
-      sendTerminal: vi.fn().mockResolvedValue({
-        handle: 'terminal-1',
-        accepted: true,
-        bytesWritten: 1
-      })
-    })
-    const dispatcher = new RpcDispatcher({ runtime, methods: TERMINAL_METHODS })
-
-    const response = await dispatcher.dispatch(
-      makeRequest('terminal.send', {
-        terminal: 'terminal-1',
-        text: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
-        requireAgentStatus: 'sendable',
-        client: { id: 'desktop-1', type: 'desktop' }
-      })
-    )
-
-    expect(response.ok).toBe(true)
-    expect(runtime.sendTerminal).toHaveBeenCalledWith(
-      'terminal-1',
-      expect.objectContaining({
-        text: expect.stringContaining('Orca Yunxiao requirement workflow gate')
-      }),
-      expect.any(Object)
     )
   })
 

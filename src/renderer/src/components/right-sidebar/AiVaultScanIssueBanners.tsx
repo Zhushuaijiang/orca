@@ -20,6 +20,14 @@ export function AiVaultScanIssueBanners({
   const { oversizedSessionCount, otherNotices, otherNoticesDropped } =
     summarizeAiVaultScanNotices(scanResult)
 
+  const reasons = skippedAiVaultTranscriptReasons(scanResult)
+  const hasNoticeRows =
+    oversizedSessionCount > 0 ||
+    otherNotices.length > 0 ||
+    otherNoticesDropped > 0 ||
+    skippedTranscriptCount > 0 ||
+    reasons.length > 0
+
   return (
     <>
       {blocking ? (
@@ -27,53 +35,61 @@ export function AiVaultScanIssueBanners({
           {blocking.message}
         </div>
       ) : null}
-      {oversizedSessionCount > 0 ? (
-        <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
-          {translate(
-            'auto.components.right.sidebar.AiVaultPanel.oversizedRecordSessions',
-            '{{count}} sessions had oversized transcript records skipped (kept to the first 10 MiB)',
-            { count: oversizedSessionCount }
-          )}
-        </div>
-      ) : null}
-      {otherNotices.map((issue) => (
+      {hasNoticeRows ? (
+        // Why bounded: one notice per partly-read session can outgrow the panel and hide the list.
         <div
-          // Message is part of the key: one host can report several distinct
-          // messages for the same path, and a colliding key drops those rows.
-          key={`${issue.executionHostId ?? 'local'}:${issue.kind}:${issue.agent}:${issue.path}:${issue.message}`}
-          className={`border-b border-sidebar-border px-3 py-1.5 text-[11px] ${
-            issue.kind === 'host' ? 'text-destructive' : 'text-muted-foreground'
-          }`}
+          data-testid="ai-vault-scan-notices"
+          className="scrollbar-sleek max-h-24 shrink-0 overflow-y-auto"
         >
-          {issue.message}
-        </div>
-      ))}
-      {otherNoticesDropped > 0 ? (
-        <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
-          {translate(
-            'auto.components.right.sidebar.AiVaultPanel.moreNotices',
-            '…and {{count}} more notices',
-            { count: otherNoticesDropped }
-          )}
+          {oversizedSessionCount > 0 ? (
+            <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
+              {translate(
+                'auto.components.right.sidebar.AiVaultPanel.oversizedRecordSessions',
+                '{{count}} sessions had oversized transcript records skipped (kept to the first 10 MiB)',
+                { count: oversizedSessionCount }
+              )}
+            </div>
+          ) : null}
+          {otherNotices.map((issue) => (
+            <div
+              // Message is part of the key: one host can report several distinct
+              // messages for the same path, and a colliding key drops those rows.
+              key={`${issue.executionHostId ?? 'local'}:${issue.kind}:${issue.agent}:${issue.path}:${issue.message}`}
+              className={`border-b border-sidebar-border px-3 py-1.5 text-[11px] ${
+                issue.kind === 'host' ? 'text-destructive' : 'text-muted-foreground'
+              }`}
+            >
+              {issue.message}
+            </div>
+          ))}
+          {otherNoticesDropped > 0 ? (
+            <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
+              {translate(
+                'auto.components.right.sidebar.AiVaultPanel.moreNotices',
+                '…and {{count}} more notices',
+                { count: otherNoticesDropped }
+              )}
+            </div>
+          ) : null}
+          {skippedTranscriptCount > 0 ? (
+            <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
+              {translate(
+                'auto.components.right.sidebar.AiVaultPanel.transcriptsSkipped',
+                '{{count}} transcript skipped',
+                { count: skippedTranscriptCount }
+              )}
+            </div>
+          ) : null}
+          {reasons.map((reason) => (
+            <div
+              key={reason}
+              className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground"
+            >
+              {reason}
+            </div>
+          ))}
         </div>
       ) : null}
-      {skippedTranscriptCount > 0 ? (
-        <div className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground">
-          {translate(
-            'auto.components.right.sidebar.AiVaultPanel.transcriptsSkipped',
-            '{{count}} transcript skipped',
-            { count: skippedTranscriptCount }
-          )}
-        </div>
-      ) : null}
-      {skippedAiVaultTranscriptReasons(scanResult).map((reason) => (
-        <div
-          key={reason}
-          className="border-b border-sidebar-border px-3 py-1.5 text-[11px] text-muted-foreground"
-        >
-          {reason}
-        </div>
-      ))}
     </>
   )
 }

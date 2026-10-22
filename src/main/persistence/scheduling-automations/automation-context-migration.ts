@@ -9,6 +9,7 @@ import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { ProjectHostSetup } from '../../../shared/project-types'
 import type { Repo } from '../../../shared/repo-types'
 import { normalizeAutomationPrecheck } from '../../../shared/automation-precheck'
+import { hasExtraAgentArgs } from '../../../shared/automation-extra-agent-args'
 import { getAutomationLegacyRepoId } from '../../../shared/automation-run-identity'
 import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../../shared/yunxiao-requirement-gate-outcome'
 import { normalizeAutomationYunxiaoTodoPoolSource } from './yunxiao-automation-todo-pool-source'
@@ -99,8 +100,10 @@ export function normalizeAutomationSessionReuse(automation: Automation): Automat
     automation.workspaceMode,
     automation.setupDecision
   )
+  const { extraAgentArgs, ...rest } = automation
   return {
-    ...automation,
+    ...rest,
+    ...(hasExtraAgentArgs(extraAgentArgs) ? { extraAgentArgs } : {}),
     precheck: normalizeAutomationPrecheck(automation.precheck),
     yunxiaoTodoPool: normalizeAutomationYunxiaoTodoPoolSource(automation.yunxiaoTodoPool),
     setupDecision,
@@ -186,7 +189,11 @@ export function backfillLegacyAutomationContexts(
 } {
   let changed = false
   const contextsByAutomationId = new Map<string, Pick<Automation, 'runContext' | 'sourceContext'>>()
-  const reposById = new Map((state.repos ?? []).map((repo) => [repo.id, repo]))
+  // Why: a repo id on two hosts names no host, so the load leaves it for dispatch to refuse.
+  const reposById = new Map<string, Repo | undefined>()
+  for (const repo of state.repos ?? []) {
+    reposById.set(repo.id, reposById.has(repo.id) ? undefined : repo)
+  }
   const automations = (state.automations ?? []).map((automation) => {
     const contexts = getAutomationContextsForRepo(
       reposById.get(getAutomationLegacyRepoId(automation)),

@@ -12,6 +12,7 @@ import {
   isNativeChatTabWideFallbackSafe,
   resolveNativeChatActiveLayoutLeafId
 } from './native-chat-leaf-routing'
+import { addAppKeyListener, removeAppKeyListener } from '@/lib/app-keyboard-router'
 
 export function resolveNativeChatToggleShortcutDetectedAgent({
   terminalTabId,
@@ -88,7 +89,6 @@ export function useNativeChatToggleShortcut(worktreeId: string, isWorktreeActive
           : null
       if (
         !canToggleNativeChat({
-          experimentalNativeChatEnabled: state.settings?.experimentalNativeChat === true,
           contentType: 'terminal',
           launchAgent: detectedAgent || !tabWideFallbackSafe ? null : terminalTab?.launchAgent,
           detectedAgent,
@@ -105,9 +105,9 @@ export function useNativeChatToggleShortcut(worktreeId: string, isWorktreeActive
       e.stopPropagation()
       state.toggleTabViewMode(tab.id)
     }
-    window.addEventListener('keydown', onKeyDown, { capture: true })
+    addAppKeyListener('keydown', onKeyDown)
     return () => {
-      window.removeEventListener('keydown', onKeyDown, { capture: true })
+      removeAppKeyListener('keydown', onKeyDown)
     }
   }, [worktreeId, isWorktreeActive])
 }

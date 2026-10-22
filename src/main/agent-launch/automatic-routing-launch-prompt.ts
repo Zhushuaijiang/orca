@@ -15,8 +15,9 @@ export function prepareAutomaticRoutingLaunch(
   if (!instruction) {
     return execution
   }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: same execution, only the prompt text is extended; the union member and its target are unchanged.
   return {
     ...execution,
     intent: { ...execution.intent, prompt: { ...prompt, text: `${prompt.text}\n\n${instruction}` } }
-  }
+  } as AgentLaunchExecution
 }

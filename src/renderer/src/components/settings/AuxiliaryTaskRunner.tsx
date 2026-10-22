@@ -1,4 +1,4 @@
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import { useEffect, useRef, useState } from 'react'
 import { captureRuntimeEnvironmentRequestRevision } from '@/runtime/runtime-environment-revision'
 import {
@@ -13,7 +13,8 @@ import {
   resolveAuxiliaryGenerationParams
 } from '../../../../shared/auxiliary-generation-routing'
 import { translate } from '@/i18n/i18n'
-import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
 import { useAppStore } from '../../store'
 import { Button } from '../ui/button'
@@ -39,7 +40,7 @@ export function AuxiliaryTaskRunner({
   const [error, setError] = useState('')
   const worktreeId = useAppStore((state) => state.activeWorktreeId)
   const pending = useRef<{
-    target: ReturnType<typeof getActiveRuntimeTarget>
+    target: ReturnType<typeof runtimeTargetForOwnerEnvironment>
     worktree: string
     task: AuxiliaryTaskId
     revision?: number
@@ -66,8 +67,8 @@ export function AuxiliaryTaskRunner({
     setAnswer('')
     setRequestedModel('')
     setError('')
-    const owner = getRuntimeEnvironmentIdForWorktree(useAppStore.getState(), worktreeId)
-    const target = getActiveRuntimeTarget({ activeRuntimeEnvironmentId: owner })
+    const owner = runtimeEnvironmentIdOrLocalUnlessTwin(useAppStore.getState(), worktreeId)
+    const target = runtimeTargetForOwnerEnvironment(owner)
     const address = {
       target,
       revision:

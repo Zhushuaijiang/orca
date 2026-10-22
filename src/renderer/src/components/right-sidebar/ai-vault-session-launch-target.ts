@@ -12,6 +12,7 @@ import {
   isKnownAiVaultResumeWorkspaceTarget,
   type AiVaultSessionResumeTargetState
 } from './ai-vault-session-resume'
+import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 import { resolveAiVaultSessionWorktreeInfo } from './ai-vault-session-worktree'
 
 export function resolveAiVaultTargetWorkspacePath(
@@ -21,12 +22,12 @@ export function resolveAiVaultTargetWorkspacePath(
   const scope = parseWorkspaceKey(workspaceId)
   if (scope?.type === 'folder') {
     return (
-      state.folderWorkspaces.find((workspace) => workspace.id === scope.folderWorkspaceId)
+      selectFolderWorkspaces(state).find((workspace) => workspace.id === scope.folderWorkspaceId)
         ?.folderPath ?? null
     )
   }
   const worktreeId = scope?.type === 'worktree' ? scope.worktreeId : workspaceId
-  return findWorktreeById(state.worktreesByRepo, worktreeId)?.path ?? null
+  return findWorktreeById(selectWorktreesByRepo(state), worktreeId)?.path ?? null
 }
 
 export type AiVaultSessionLaunchTarget =

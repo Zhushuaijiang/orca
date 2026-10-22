@@ -27,7 +27,7 @@ import {
   FolderTree
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { WorktreeOpenInSubMenu } from './WorktreeOpenInMenu'
+import { WorktreeRowOpenInSubMenu } from './WorktreeRowOpenInSubMenu'
 import { WorktreeDeveloperMenu } from './WorktreeDeveloperMenu'
 import { WorkspaceSleepMenuItems } from './WorkspaceSleepMenuItems'
 import { isEventTargetInsideCurrentTarget } from './worktree-card-dom-events'
@@ -113,13 +113,11 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
       className="relative"
       {...{ [WORKTREE_CONTEXT_MENU_SCOPE_ATTR]: 'worktree' }}
       onContextMenuCapture={(event) => {
-        if (!isEventTargetInsideCurrentTarget(event.currentTarget, event.target)) {
-          return
-        }
-        if (shouldUseNativeContextMenu(event.target)) {
-          return
-        }
-        if (shouldIgnoreNestedWorktreeContextMenuScope(event.currentTarget, event.target)) {
+        if (
+          !isEventTargetInsideCurrentTarget(event.currentTarget, event.target) ||
+          shouldUseNativeContextMenu(event.target) ||
+          shouldIgnoreNestedWorktreeContextMenuScope(event.currentTarget, event.target)
+        ) {
           return
         }
         event.preventDefault()
@@ -131,9 +129,7 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
         setMenuPoint({ x: event.clientX - bounds.left, y: event.clientY - bounds.top })
         setMenuOpenState(true)
       }}
-      onClickCapture={(event) => {
-        suppressOpeningPointerEvent(event)
-      }}
+      onClickCapture={(event) => suppressOpeningPointerEvent(event)}
     >
       {children}
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpenState} modal={false}>
@@ -187,8 +183,8 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
           <DropdownMenuSeparator />
           {!isMultiContext && (
             <>
-              <WorktreeOpenInSubMenu
-                worktreePath={worktree.path}
+              <WorktreeRowOpenInSubMenu
+                worktree={worktree}
                 connectionId={repo?.connectionId ?? null}
                 disabled={isDeleting}
               />

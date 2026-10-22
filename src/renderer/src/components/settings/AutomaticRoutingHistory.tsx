@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
 import { translate } from '@/i18n/i18n'
-import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
 import { captureRuntimeEnvironmentRequestRevision } from '@/runtime/runtime-environment-revision'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import { useAppStore } from '../../store'
 import { AUXILIARY_TASKS } from '../../../../shared/auxiliary-model-types'
 import type { AutomaticTaskDecision } from '../../../../shared/automatic-task-routing-types'
@@ -38,7 +39,7 @@ export function AutomaticRoutingHistory(): React.JSX.Element {
     const generation = ++request.current
     setLoadingFor(worktreeId)
     setFailure(null)
-    const owner = getRuntimeEnvironmentIdForWorktree(useAppStore.getState(), worktreeId)
+    const owner = runtimeEnvironmentIdOrLocalUnlessTwin(useAppStore.getState(), worktreeId)
     if (owner === undefined) {
       setFailure({
         worktree: worktreeId,
@@ -50,7 +51,7 @@ export function AutomaticRoutingHistory(): React.JSX.Element {
       setLoadingFor(null)
       return
     }
-    const target = getActiveRuntimeTarget({ activeRuntimeEnvironmentId: owner })
+    const target = runtimeTargetForOwnerEnvironment(owner)
     try {
       const records = await callRuntimeRpc<RoutingRecord[]>(
         target,

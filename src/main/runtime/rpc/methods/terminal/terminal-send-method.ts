@@ -2,8 +2,9 @@ import { assertLegacyAiVaultResumeCommandAllowed } from '../../../../ai-vault/st
 import { InvalidArgumentError, defineMethod } from '../../core'
 import { isTerminalQueryReply } from '../../../../../shared/terminal-query-reply'
 import { applyYunxiaoRequirementPromptGate } from '../../../../../shared/yunxiao-requirement-prompt-gate'
+import { isUntypedTerminalInput } from '../../../../../shared/terminal-untyped-input'
 import { assertTerminalAgentSendable } from '../../terminal-agent-send-guard'
-import { TerminalSend } from './unary-schemas'
+import { TerminalSend } from '../../../../../shared/rpc-contract/terminal-unary-params'
 import {
   assertTerminalSendExactPtyBinding,
   assertTerminalSendTextWithinLimit,
@@ -23,6 +24,7 @@ import {
 export const TERMINAL_SEND_METHODS = [
   defineMethod({
     name: 'terminal.send',
+    permission: 'workspace',
     params: TerminalSend,
     handler: async (
       params,
@@ -38,15 +40,12 @@ export const TERMINAL_SEND_METHODS = [
     ) => {
       await assertTerminalSendTextWithinLimit(params.text)
       await assertTerminalSendTextWithinLimit(params.resolvedLaunchDraft?.text)
+      const ensureHost = () => runtime.ensureStructuredAgentSessionHost()
       if (params.text) {
-        await assertLegacyAiVaultResumeCommandAllowed(params.text, () =>
-          runtime.ensureStructuredAgentSessionHost()
-        )
+        await assertLegacyAiVaultResumeCommandAllowed(params.text, ensureHost)
       }
       if (params.resolvedLaunchDraft?.text) {
-        await assertLegacyAiVaultResumeCommandAllowed(params.resolvedLaunchDraft.text, () =>
-          runtime.ensureStructuredAgentSessionHost()
-        )
+        await assertLegacyAiVaultResumeCommandAllowed(params.resolvedLaunchDraft.text, ensureHost)
       }
       const queryReplyClientId = clientId ?? params.client?.id
       if (
@@ -102,7 +101,15 @@ export const TERMINAL_SEND_METHODS = [
         leaf?.ptyId &&
         params.client?.type === 'desktop' &&
         params.claimViewport === true &&
-        params.viewport
+        params.viewport &&
+        // Why: clients attach their viewport to every send, so a focus report or query reply
+        // would otherwise claim the PTY and start a resize war between two mirrors (#26469).
+        !(
+          typeof params.text === 'string' &&
+          isUntypedTerminalInput(params.text) &&
+          params.enter !== true &&
+          params.interrupt !== true
+        )
       ) {
         const claim = await updateViewportForClient(
           runtime,

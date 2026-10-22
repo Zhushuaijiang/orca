@@ -11,6 +11,7 @@ import type { Worktree } from '../../shared/worktree/types'
 import type { RuntimeStore } from './runtime-store-contract'
 import type { AutomationListParams, AutomationListResult } from '../../shared/automation-list-scope'
 import type {
+  AutomationOwnerFenceOperation,
   AutomationOwnerPrecondition,
   AutomationDestination
 } from '../../shared/automation-owner-precondition'
@@ -126,6 +127,7 @@ export class RuntimeAutomationController {
         precheck: input.precheck,
         yunxiaoTodoPool: input.yunxiaoTodoPool,
         agentId: input.agentId,
+        extraAgentArgs: input.extraAgentArgs,
         runContext: input.runContext,
         sourceContext: input.sourceContext,
         projectId: target.projectId,
@@ -209,24 +211,25 @@ export class RuntimeAutomationController {
     if (!this.service) {
       throw new Error('runtime_unavailable')
     }
-    const service = this.service
     return await runAutomationNowFenced({
       automationId: id,
-      service,
-      fence: () => {
-        if (!this.store?.assertAutomationOwnerFence) {
-          if (expectedOwner) {
-            throw new Error('runtime_unavailable')
-          }
-          return
-        }
-        this.store.assertAutomationOwnerFence({
-          id,
-          expectedOwner,
-          operation: 'execute'
-        })
-      }
+      service: this.service,
+      fence: () => this.assertOwner(id, expectedOwner, 'execute')
     })
+  }
+
+  assertOwner(
+    id: string,
+    expectedOwner: AutomationOwnerPrecondition | undefined,
+    operation: AutomationOwnerFenceOperation
+  ): void {
+    if (!this.store?.assertAutomationOwnerFence) {
+      if (expectedOwner) {
+        throw new Error('runtime_unavailable')
+      }
+      return
+    }
+    this.store.assertAutomationOwnerFence({ id, expectedOwner, operation })
   }
 
   private copyPatchValues(
@@ -239,6 +242,7 @@ export class RuntimeAutomationController {
       'precheck',
       'yunxiaoTodoPool',
       'agentId',
+      'extraAgentArgs',
       'runContext',
       'sourceContext',
       'baseBranch',
@@ -286,13 +290,8 @@ export class RuntimeAutomationController {
     const workspace = input.workspace
       ? await this.resolvers.showManagedWorktree(input.workspace)
       : null
-    const repoSelector =
-      input.repo ??
-      (workspace?.repoId
-        ? `id:${workspace.repoId}`
-        : current?.projectId
-          ? `id:${current.projectId}`
-          : null)
+    const workspaceRef = workspace?.repoId || current?.projectId
+    const repoSelector = input.repo ?? (workspaceRef ? `id:${workspaceRef}` : null)
     const repo = repoSelector ? await this.resolvers.showRepo(repoSelector) : null
     const workspaceMode =
       input.workspaceMode ??

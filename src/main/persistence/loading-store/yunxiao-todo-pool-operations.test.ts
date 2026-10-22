@@ -16,6 +16,7 @@ import {
 } from '../../persistence-test-harness'
 import type { Store } from './store'
 import { getDefaultPersistedState } from '../../../shared/constants'
+import { hostWorktreeTarget } from '../../../shared/worktree/host-qualified-identity'
 
 vi.mock('electron', () => ({
   app: {
@@ -441,7 +442,7 @@ describe('Yunxiao todo pool persistence', () => {
 
   it('blocks completed status for manual Yunxiao worktrees without a passing gate', async () => {
     const store = await trackedCreateStore()
-    store.setWorktreeMeta('wt1', {
+    store.setWorktreeMeta(hostWorktreeTarget({ id: 'wt1', hostId: 'local' }), {
       displayName: 'DFHIS-31732',
       yunxiaoRequirementGate: {
         identifier: 'DFHIS-31732',
@@ -454,7 +455,7 @@ describe('Yunxiao todo pool persistence', () => {
       }
     })
 
-    const updated = store.setWorktreeMeta('wt1', { workspaceStatus: 'completed' })
+    const updated = store.setWorktreeMeta(hostWorktreeTarget({ id: 'wt1', hostId: 'local' }), { workspaceStatus: 'completed' })
 
     expect(updated.workspaceStatus).toBe('in-review')
     expect(updated.yunxiaoRequirementGate?.lastCompletionBlocker).toContain(

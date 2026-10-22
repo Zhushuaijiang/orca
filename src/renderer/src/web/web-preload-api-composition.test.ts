@@ -47,6 +47,7 @@ describe('web preload API composition', () => {
       'yunxiao',
       'hostedReview',
       'linear',
+      'jira',
       'hooks',
       'stats',
       'memory',
@@ -73,6 +74,7 @@ describe('web preload API composition', () => {
       'pty',
       'ssh',
       'wsl',
+      'wslMove',
       'pwsh',
       'gitBash',
       'agentStatus',
@@ -82,6 +84,7 @@ describe('web preload API composition', () => {
       'telemetryGetConsentState',
       'telemetryAcknowledgeBanner'
     ])
+    expect('onFileDrop' in globals.window.api.ui).toBe(false)
     expect(Object.keys(globals.window.api.projects)).toEqual([])
     const projects: Record<string, unknown> = globals.window.api.projects
     expect(projects.then).toBeUndefined()

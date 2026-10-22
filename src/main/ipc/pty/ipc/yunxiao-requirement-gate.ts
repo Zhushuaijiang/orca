@@ -1,5 +1,6 @@
 import type { Store } from '../../../persistence'
-import type { IPtyProvider } from '../../../providers/types'
+import type { IPtyProvider } from '../../../providers/pty-provider-contract'
+import { hostWorktreeTarget } from '../../../../shared/worktree/host-qualified-identity'
 import { inspectPtyProviderProcess } from '../../../providers/pty-process-inspection'
 import {
   applyYunxiaoRequirementPromptGateToTerminalInput,
@@ -55,7 +56,7 @@ export function applyYunxiaoRequirementSpawnGate(
       const existing = store.getWorktreeMeta(args.worktreeId)?.yunxiaoRequirementGate ?? null
       const gate = createManualYunxiaoRequirementGate(yunxiaoRequirementSpawnText, existing)
       if (gate) {
-        store.setWorktreeMeta(args.worktreeId, { yunxiaoRequirementGate: gate })
+        store.setWorktreeMeta(hostWorktreeTarget({ id: args.worktreeId, hostId: 'local' }), { yunxiaoRequirementGate: gate })
       }
     }
   })()

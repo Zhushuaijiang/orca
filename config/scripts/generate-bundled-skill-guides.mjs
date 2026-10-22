@@ -14,11 +14,13 @@ const REPO_ROOT = path.resolve(SCRIPT_DIR, '..', '..')
 
 const CANONICAL_GUIDE_NAMES = [
   'computer-use',
+  'jira-tickets',
   'linear-tickets',
   'orca-cli',
   'orca-auto-routing',
   'orca-emulator',
   'orca-emulator-android',
+  'orca-jira',
   'orca-linear',
   'orca-per-workspace-env',
   'orchestration',
@@ -29,11 +31,13 @@ const CANONICAL_GUIDE_NAMES = [
 // a compatibility ledger: add entries for renames, but never remove them.
 const GUIDE_ALIASES = {
   'computer-use': [],
+  'jira-tickets': [],
   'linear-tickets': [],
   'orca-cli': [],
   'orca-auto-routing': [],
   'orca-emulator': [],
   'orca-emulator-android': [],
+  'orca-jira': [],
   'orca-linear': [],
   'orca-per-workspace-env': [],
   orchestration: [],
@@ -48,10 +52,12 @@ const GUIDE_ALIASES = {
 const STUB_TOPICS = [
   'orca-auto-routing',
   'computer-use',
+  'jira-tickets',
   'linear-tickets',
   'orca-cli',
   'orca-emulator',
   'orca-emulator-android',
+  'orca-jira',
   'orca-linear',
   'orca-per-workspace-env',
   'orchestration'

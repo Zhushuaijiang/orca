@@ -1,7 +1,7 @@
+import { WindowsCmdLineBreakError } from '@orca/process-host'
 import type { CommitMessagePlan } from '../../shared/commit-message-plan'
 import { supervisedProviderSpawnFailure } from '../provider-process/provider-spawn-failure-report'
 import { stopSupervisedChildProcess } from '../provider-process/supervised-child-process-stop'
-import { UnsafeWindowsBatchArgumentsError } from '../win32-utils'
 import { terminateWindowsProcessTree } from '../windows-process-tree-kill'
 import {
   finalizeFromAgentOutput,
@@ -24,7 +24,7 @@ import type {
   TextGenerationOperation
 } from './source-control-text-generation-types'
 
-const SOURCE_CONTROL_KILL_SITE = 'source-control-text-generation'
+export const SOURCE_CONTROL_KILL_SITE = 'source-control-text-generation'
 
 export async function killSourceControlAgentProcess(
   child: SpawnedSourceControlAgentProcess
@@ -88,6 +88,7 @@ function argumentBudgetFailure(plan: CommitMessagePlan): string | null {
 
 export function runLocalSourceControlPlan(input: {
   plan: CommitMessagePlan
+  timeoutMs?: number
   cwd: string
   env: NodeJS.ProcessEnv | undefined
   emptyResultName: string
@@ -97,6 +98,7 @@ export function runLocalSourceControlPlan(input: {
   spawnAgent: SpawnSourceControlAgent
 }): LocalProcessExecution<InternalTextGenerationResult> {
   const { plan, cwd, operation, holdHomeLockUntilExit } = input
+  const timeoutMs = input.timeoutMs ?? SOURCE_CONTROL_GENERATION_TIMEOUT_MS
   let markProcessClosed!: () => void
   const processClosed = new Promise<void>((resolve) => {
     markProcessClosed = resolve
@@ -125,8 +127,11 @@ export function runLocalSourceControlPlan(input: {
       })
     } catch (error) {
       markProcessClosed()
-      if (error instanceof UnsafeWindowsBatchArgumentsError) {
-        resolve({ success: false, error: userFacingUnsafeWindowsBatchArgs(plan.label) })
+      if (error instanceof WindowsCmdLineBreakError) {
+        resolve({
+          success: false,
+          error: userFacingUnsafeWindowsBatchArgs(plan.label)
+        })
         return
       }
       console.error('[commit-message] Failed to spawn local generator:', error)
@@ -170,16 +175,20 @@ export function runLocalSourceControlPlan(input: {
     const cancel = (): void => {
       canceledByUser = true
       startTermination()
-      finalize({ success: false, error: 'Generation canceled.', canceled: true })
+      finalize({
+        success: false,
+        error: 'Generation canceled.',
+        canceled: true
+      })
     }
     setLocalGenerationCancelToken(laneKey, cancel)
     timer = setTimeout(() => {
       startTermination()
       finalize({
         success: false,
-        error: `Generation timed out after ${SOURCE_CONTROL_GENERATION_TIMEOUT_MS / 1000}s.`
+        error: `Generation timed out after ${timeoutMs / 1000}s.`
       })
-    }, SOURCE_CONTROL_GENERATION_TIMEOUT_MS)
+    }, timeoutMs)
 
     const onStdoutData = (chunk: Buffer): void => {
       stdoutBytes += chunk.byteLength
@@ -219,7 +228,11 @@ export function runLocalSourceControlPlan(input: {
     const onClose = (code: number | null): void => {
       markClosedAfterTermination()
       if (canceledByUser) {
-        finalize({ success: false, error: 'Generation canceled.', canceled: true })
+        finalize({
+          success: false,
+          error: 'Generation canceled.',
+          canceled: true
+        })
         return
       }
       if (outputLimitExceeded) {

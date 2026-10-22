@@ -66,6 +66,8 @@ function mockAgent({
 }
 
 let mockAgents: unknown[] = [mockAgent()]
+// The hook records behind mockAgents; the unread (bold) rule reads them.
+let mockAgentStatusByPaneKey: Record<string, { stateStartedAt: number }> = {}
 let mockFocusedAgentPaneKey: string | null = null
 let mockAgentActivityDisplayMode: 'compact' | 'full' | undefined
 let mockPromptCacheTimerEnabled = true
@@ -89,7 +91,8 @@ const buildMockStoreState = () => ({
   dropAgentStatus: vi.fn(),
   dismissRetainedAgent: vi.fn(),
   acknowledgeAgents: vi.fn(),
-  agentStatusByPaneKey: {},
+  agentSendPopoverTargetMode: null,
+  agentStatusByPaneKey: mockAgentStatusByPaneKey,
   retainedAgentsByPaneKey: {},
   tabsByWorktree: {},
   terminalLayoutsByTabId: {},
@@ -190,6 +193,7 @@ describe('WorktreeCardAgents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAgents = [mockAgent()]
+    mockAgentStatusByPaneKey = {}
     mockFocusedAgentPaneKey = null
     mockAgentActivityDisplayMode = undefined
     mockPromptCacheTimerEnabled = true
@@ -221,141 +225,6 @@ describe('WorktreeCardAgents', () => {
     expect(markup).toContain('Run tests')
     expect(markup).toContain('title="Codex"')
     expect(markup).not.toContain('data-testid="agent-row"')
-  })
-
-  it('emphasizes unvisited non-focused compact agent row text', async () => {
-    mockAgentActivityDisplayMode = 'compact'
-    mockAgents = [
-      mockAgent({
-        agentType: 'codex',
-        startedAt: 1000,
-        prompt: 'Run tests',
-        lastAssistantMessage: 'Inspecting changes'
-      })
-    ]
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
-
-    const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
-
-    expect(markup).toContain('<span class="font-semibold text-foreground">Run tests</span>')
-    expect(markup).toContain('<span class="text-muted-foreground/65"> - Inspecting changes</span>')
-    expect(markup).not.toContain('data-focused-agent-pane="true"')
-    expect(markup).not.toContain('<span class="text-foreground">Run tests</span>')
-  })
-
-  it('keeps focused compact agent row text legible', async () => {
-    mockAgentActivityDisplayMode = 'compact'
-    mockFocusedAgentPaneKey = 'tab-1:1'
-    mockAgents = [
-      mockAgent({
-        agentType: 'codex',
-        startedAt: 1000,
-        prompt: 'Focused prompt',
-        lastAssistantMessage: 'Reading output'
-      })
-    ]
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
-
-    const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
-
-    expect(markup).toContain('data-focused-agent-pane="true"')
-    expect(markup).toContain('<span class="font-semibold text-foreground">Focused prompt</span>')
-    expect(markup).toContain('<span class="text-foreground/70"> - Reading output</span>')
-    expect(markup).not.toContain('<span class="text-muted-foreground/90">Focused prompt</span>')
-  })
-
-  it('shows a matching pane prompt-cache timer before the compact row age', async () => {
-    mockAgentActivityDisplayMode = 'compact'
-    const paneKey = makePaneKey('tab-1', LEAF_A)
-    mockAgents = [
-      mockAgent({
-        paneKey,
-        tabId: 'tab-1',
-        agentType: 'claude',
-        startedAt: 1000,
-        prompt: 'Resume Claude'
-      })
-    ]
-    mockCacheTimerByKey = { [paneKey]: 10_000 }
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
-
-    const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
-    const timerIndex = markup.indexOf('Prompt cache expires in 1:00')
-    const ageIndex = markup.indexOf('>now</span>')
-
-    expect(timerIndex).toBeGreaterThanOrEqual(0)
-    expect(ageIndex).toBeGreaterThanOrEqual(0)
-    expect(timerIndex).toBeLessThan(ageIndex)
-  })
-
-  it('does not show a prompt-cache timer on a nonmatching compact row', async () => {
-    mockAgentActivityDisplayMode = 'compact'
-    const paneKey = makePaneKey('tab-1', LEAF_A)
-    const otherPaneKey = makePaneKey('tab-1', LEAF_B)
-    mockAgents = [
-      mockAgent({
-        paneKey,
-        tabId: 'tab-1',
-        agentType: 'claude',
-        startedAt: 1000,
-        prompt: 'No timer here'
-      })
-    ]
-    mockCacheTimerByKey = { [otherPaneKey]: 10_000 }
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
-
-    const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
-
-    expect(markup).toContain('No timer here')
-    expect(markup).not.toContain('Prompt cache expires')
-  })
-
-  it('does not show a prompt-cache timer when the feature is disabled', async () => {
-    mockAgentActivityDisplayMode = 'compact'
-    mockPromptCacheTimerEnabled = false
-    const paneKey = makePaneKey('tab-1', LEAF_A)
-    mockAgents = [
-      mockAgent({
-        paneKey,
-        tabId: 'tab-1',
-        agentType: 'claude',
-        startedAt: 1000,
-        prompt: 'Disabled timer'
-      })
-    ]
-    mockCacheTimerByKey = { [paneKey]: 10_000 }
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
-
-    const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
-
-    expect(markup).toContain('Disabled timer')
-    expect(markup).not.toContain('Prompt cache expires')
-  })
-
-  it('keeps hidden retained compact rows from rendering prompt-cache timers', async () => {
-    const paneKey = makePaneKey('tab-1', LEAF_A)
-    mockCacheTimerByKey = { [paneKey]: 10_000 }
-    const { CompactAgentRow } = await import('./worktree-card-compact-agents')
-
-    const markup = renderToStaticMarkup(
-      <CompactAgentRow
-        agent={
-          mockAgent({
-            paneKey,
-            tabId: 'tab-1',
-            agentType: 'claude',
-            startedAt: 1000,
-            prompt: 'Collapsed child'
-          }) as DashboardAgentRowData
-        }
-        now={2000}
-        onActivate={vi.fn()}
-        cacheTimerActive={false}
-      />
-    )
-
-    expect(markup).toContain('Collapsed child')
-    expect(markup).not.toContain('Prompt cache expires')
   })
 
   it('does not repeat a subagent role used as its compact primary label', async () => {

@@ -81,9 +81,16 @@ export function getAutomationTargetAvailability({
         return runtimeAvailability
       }
     }
-    const setup = projectHostSetups.find(
-      (candidate) => candidate.id === automation.runContext?.projectHostSetupId
+    const runContext = automation.runContext
+    const setupsWithId = projectHostSetups.filter(
+      (candidate) => candidate.id === runContext.projectHostSetupId
     )
+    // Why host-scoped: legacy setup ids are the repo id, so a moved host's retained SSH setup and
+    // its managed server's setup share one id (#27454).
+    const setup =
+      setupsWithId.find((candidate) =>
+        setupHostMatchesRunContext(candidate.hostId, runContext.hostId, automationHostTarget)
+      ) ?? setupsWithId[0]
     if (!setup) {
       return unavailable(
         'missing-project-host-setup',
@@ -249,21 +256,17 @@ function getAutomationSourceAvailability(
   return null
 }
 
+const AUTOMATION_SOURCE_PROVIDER_LABELS: Record<TaskSourceContext['provider'], string> = {
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  linear: 'Linear',
+  jira: 'Jira',
+  yunxiao: 'Yunxiao',
+  'code-merge': 'Code merge'
+}
+
 function getAutomationSourceProviderLabel(provider: TaskSourceContext['provider']): string {
-  switch (provider) {
-    case 'github':
-      return 'GitHub'
-    case 'gitlab':
-      return 'GitLab'
-    case 'linear':
-      return 'Linear'
-    case 'jira':
-      return 'Jira'
-    case 'yunxiao':
-      return 'Yunxiao'
-    case 'code-merge':
-      return 'Code merge'
-  }
+  return AUTOMATION_SOURCE_PROVIDER_LABELS[provider]
 }
 
 export function getRuntimeAutomationAvailability(

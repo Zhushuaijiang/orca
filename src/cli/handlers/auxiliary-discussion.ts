@@ -1,3 +1,4 @@
+import { AUXILIARY_GENERATION_REQUEST_TIMEOUT_MS } from '../../shared/auxiliary-generation-timing'
 import type { CommandHandler } from '../dispatch'
 import { printResult } from '../format'
 import { RuntimeClientError } from '../runtime/types'
@@ -21,7 +22,7 @@ export const AUXILIARY_DISCUSSION_HANDLERS: Record<string, CommandHandler> = {
         const response = await context.client.call<AuxiliaryGenerationResult>(
           'auxiliary.generate',
           { worktree: input.worktree, task, prompt, primaryAgent: input.primaryAgent },
-          { timeoutMs: 180_000 }
+          { timeoutMs: AUXILIARY_GENERATION_REQUEST_TIMEOUT_MS }
         )
         if (meta && response._meta.runtimeId !== meta.runtimeId) {
           throw new RuntimeClientError(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runProcessSync } from '../../shared/child-process/run-process'
+import { runProcessSync } from '@orca/process-host'
 import { encodePowerShellCommand } from '../powershell-osc133-bootstrap'
 import { resolveWindowsPowerShellExecutablePath } from './windows-powershell-executable'
 import { resolveWindowsShellLaunchArgs } from './windows-shell-args'

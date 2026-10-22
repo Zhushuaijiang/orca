@@ -4,6 +4,7 @@ import type { GitHubWorkItem } from '../../../shared/github/work-item-types'
 import type { GitLabWorkItem } from '../../../shared/gitlab-types'
 import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 import { useAppStore } from '@/store'
+import { getWorkItemRepo } from '@/lib/work-item-repo-row'
 import { findGithubWorkItemWorkspaceAttachment } from '@/lib/github-work-item-workspace-attachment'
 import { activateAndRevealWorktree } from '@/lib/worktree-activation'
 import { toast } from 'sonner'
@@ -15,7 +16,7 @@ import {
 } from './task-page-source-context'
 import { getTaskWorkspaceRepoForSourceRepo } from '@/components/task-page-default-repo-selection'
 export function useTaskPageWorkspaceActions(model: TaskPageSearchActionsModel) {
-  const { repoMap, openModal, eligibleRepos, repoSelection } = model
+  const { repos, repoMap, openModal, eligibleRepos, repoSelection } = model
   const openComposerForItem = useCallback(
     (item: GitHubWorkItem): void => {
       const linkedWorkItem: LinkedWorkItemSummary = {
@@ -33,14 +34,14 @@ export function useTaskPageWorkspaceActions(model: TaskPageSearchActionsModel) {
       openModal('new-workspace-composer', {
         linkedWorkItem,
         initialGitHubWorkItem: item,
-        taskSourceContext: getTaskPageRepoSourceContext(repoMap.get(item.repoId), 'github'),
+        taskSourceContext: getTaskPageRepoSourceContext(getWorkItemRepo(repos, item), 'github'),
         prefilledName: getGitHubWorkItemWorkspaceSeed(item),
         initialRepoId: item.repoId,
         enableIssueAutomation: item.type === 'issue',
         telemetrySource: 'sidebar'
       })
     },
-    [openModal, repoMap]
+    [openModal, repos]
   )
   const handleUseWorkItem = useCallback(
     (item: GitHubWorkItem): void => {
@@ -55,7 +56,8 @@ export function useTaskPageWorkspaceActions(model: TaskPageSearchActionsModel) {
         useAppStore.getState().allWorktrees(),
         item.repoId,
         item.type,
-        item.number
+        item.number,
+        item.url
       )
       if (!currentAttached) {
         handleUseWorkItem(item)
@@ -99,7 +101,7 @@ export function useTaskPageWorkspaceActions(model: TaskPageSearchActionsModel) {
       openModal('new-workspace-composer', {
         linkedWorkItem,
         taskSourceContext: getTaskPageRepoSourceContext(
-          repoMap.get(item.repoId),
+          getWorkItemRepo(repos, item),
           'gitlab',
           item.projectRef
         ),
@@ -111,7 +113,7 @@ export function useTaskPageWorkspaceActions(model: TaskPageSearchActionsModel) {
         telemetrySource: 'sidebar'
       })
     },
-    [eligibleRepos, openModal, repoMap, repoSelection]
+    [eligibleRepos, openModal, repos, repoMap, repoSelection]
   )
   const handleUseGitLabItem = useCallback(
     (item: GitLabWorkItem): void => {

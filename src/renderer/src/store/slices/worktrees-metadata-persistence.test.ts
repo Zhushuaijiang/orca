@@ -5,10 +5,12 @@ import {
   createCompatibleRuntimeStatusResponseIfNeeded,
   type RuntimeEnvironmentCallRequest
 } from '../../runtime/runtime-compatibility-test-fixture'
-import { getDefaultSettings } from '../../../../shared/constants'
 import { persistWorktreeMeta } from './worktrees/metadata/worktree-meta-persist'
 import { getHostedReviewCacheKey } from './hosted-review-cache-identity'
-import { getGitHubPRCacheKey, getLegacyGitHubPRCacheKey } from './github-cache-key'
+import {
+  getGitHubPRCacheKey,
+  getLegacyGitHubPRCacheKey
+} from '../../../../shared/github/github-cache-key'
 import { makeWorktree } from './worktrees-slice-test-fixtures'
 import {
   createTestStore,
@@ -54,7 +56,7 @@ describe('worktree remote runtime mutations', () => {
       _meta: { runtimeId: 'runtime-owner' }
     })
     await persistWorktreeMeta(
-      { ...getDefaultSettings('/workspace'), activeRuntimeEnvironmentId: 'env-owner' },
+      { kind: 'environment', environmentId: 'env-owner' },
       'repo1::/path/wt1',
       { requirementReviews }
     )
@@ -77,7 +79,7 @@ describe('worktree remote runtime mutations', () => {
     })
     await expect(
       persistWorktreeMeta(
-        { ...getDefaultSettings('/workspace'), activeRuntimeEnvironmentId: 'env-owner' },
+        { kind: 'environment', environmentId: 'env-owner' },
         'repo1::/path/wt1',
         { requirementReviews: {} }
       )
@@ -87,7 +89,12 @@ describe('worktree remote runtime mutations', () => {
 
   it('persists worktree metadata through the active remote runtime environment', async () => {
     const store = createTestStore()
-    const wt = makeWorktree({ id: 'repo1::/path/wt1', repoId: 'repo1', path: '/path/wt1' })
+    const wt = makeWorktree({
+      id: 'repo1::/path/wt1',
+      repoId: 'repo1',
+      path: '/path/wt1',
+      hostId: 'runtime:env-1'
+    })
     runtimeEnvironmentCall.mockResolvedValue({
       id: 'rpc-set',
       ok: true,

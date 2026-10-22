@@ -369,12 +369,12 @@ function ReadySessionMenuItems({
       }
       onRevealLog={
         canOpenLocalSessionPaths
-          ? () => void window.api.shell.openPath(session.filePath)
+          ? () => void window.api.shell.openPath(session.filePath, session.executionHostId)
           : undefined
       }
       onOpenCwd={
         canOpenLocalSessionPaths && sessionCwd
-          ? () => void window.api.shell.openPath(sessionCwd)
+          ? () => void window.api.shell.openPath(sessionCwd, session.executionHostId)
           : undefined
       }
       deleteBlockedReason={null}

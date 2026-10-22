@@ -2,32 +2,24 @@
  * recovery, inherited-cwd split behavior, and agent-fork state in one hook. */
 import { useCallback, useRef } from 'react'
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
-import type { PtyTransport } from './pty-transport'
+import type { PtyTransport } from './pty-transport-types'
 import type { PaneCwdMap } from './resolve-split-cwd'
 import type { TerminalQuickCommand } from '../../../../shared/terminal-quick-command-types'
 import { isTerminalAgentQuickCommand } from '../../../../shared/terminal-quick-commands'
 import { sendTerminalQuickCommandToPane } from './terminal-quick-command-dispatch'
+import type { TerminalPasteSource } from './terminal-paste-model'
 import { getConnectionId } from '@/lib/connection-context'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
-import { pasteTerminalText } from './terminal-bracketed-paste'
+import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { pasteTerminalClipboard } from './terminal-clipboard-paste'
-import {
-  executeTerminalPastePlan,
-  planTerminalPasteWithYield,
-  type TerminalPasteSource,
-  type TerminalPasteTextOptions
-} from './terminal-paste-coordinator'
-import { formatTerminalPasteExecutionError } from './terminal-paste-errors'
-import { resolveTerminalPasteRuntime } from './terminal-paste-runtime'
-import { getTerminalPasteSshRemotePlatform } from './terminal-paste-ssh-platform'
-import { isTerminalPanePasteTargetCurrent } from './terminal-paste-target-state'
-import { writeTerminalPastePtyInput } from './terminal-pty-paste-writer'
-import { scheduleImagePasteWebglAtlasRecovery } from './terminal-webgl-atlas-recovery'
+import { resolveTerminalPasteRuntimeEnvironmentId } from './terminal-paste-runtime'
+import { requestNativeChatCoverPaste } from './native-chat-cover-paste'
+import { resolveProtectedMultilinePasteOptionsForPane } from './terminal-agent-paste-bracketing'
+import { resolveTerminalInputHostPlatform } from './terminal-input-host-platform'
+import { executeTerminalPaneMenuPasteText } from './terminal-pane-menu-paste'
 import { runQuickCommandInNewTab } from '@/lib/run-quick-command-in-new-tab'
 import type { PreparedAgentSessionFork } from './terminal-agent-session-fork'
 import type { AgentSessionContinuationRequest } from '@/lib/agent-session-continuation'
 import { useAppStore } from '@/store'
-import { recordTerminalUserInputForLeaf } from './terminal-input-activity'
 import { applyYunxiaoRequirementTerminalPasteGate } from './yunxiao-terminal-paste-gate'
 import {
   copyTerminalPaneMenuAgentSessionId,
@@ -45,6 +37,7 @@ import { useTerminalContextMenuTrigger } from './use-terminal-context-menu-trigg
 import { makePaneKey } from '../../../../shared/stable-pane-id'
 import { resolvePaneAgentSessionId } from './pane-agent-session-id'
 import { resetTerminalInputModes } from './terminal-input-mode-reset'
+import { equalizeTerminalPanes } from './terminal-pane-layout-owner-commands'
 
 type UseTerminalPaneContextMenuDeps = {
   managerRef: React.RefObject<PaneManager | null>
@@ -76,6 +69,7 @@ type TerminalMenuState = {
   menuPaneId: number | null
   reviewPaneKey: string | null
   onContextMenuCapture: (event: React.MouseEvent<HTMLDivElement>) => void
+  onMouseDownCapture: (event: React.MouseEvent<HTMLDivElement>) => void
   onPaneTitleContextMenu: (event: React.MouseEvent<HTMLElement>, paneId: number) => void
   onCopy: () => Promise<void>
   onSelectAll: () => void
@@ -134,84 +128,6 @@ export function useTerminalPaneContextMenu({
     return manager.getActivePane() ?? panes[0] ?? null
   }, [managerRef])
 
-  const getShortcutPlatform = (): NodeJS.Platform => {
-    if (navigator.userAgent.includes('Mac')) {
-      return 'darwin'
-    }
-    return navigator.userAgent.includes('Windows') ? 'win32' : 'linux'
-  }
-
-  const isPanePasteTargetMounted = (
-    pane: ManagedPane,
-    transport: PtyTransport | undefined,
-    ptyId: string | null
-  ): boolean => {
-    return isTerminalPanePasteTargetCurrent({
-      manager: managerRef.current,
-      paneTransports: paneTransportsRef.current,
-      paneId: pane.id,
-      leafId: pane.leafId,
-      transport,
-      ptyId
-    })
-  }
-
-  const executeMenuPasteText = async (
-    pane: ManagedPane,
-    source: TerminalPasteSource,
-    text: string,
-    options?: TerminalPasteTextOptions
-  ): Promise<boolean> => {
-    const connectionId = getConnectionId(worktreeId) ?? null
-    const transport = paneTransportsRef.current.get(pane.id)
-    const ptyId = transport?.getPtyId() ?? null
-    const shortcutPlatform = getShortcutPlatform()
-    const gatedText = applyYunxiaoRequirementTerminalPasteGate(text, {
-      tabId,
-      leafId: pane.leafId,
-      agentStatusByPaneKey: useAppStore.getState().agentStatusByPaneKey
-    })
-    const plan = await planTerminalPasteWithYield({
-      text: gatedText,
-      source,
-      target: {
-        kind: 'terminal',
-        paneId: pane.id,
-        leafId: pane.leafId,
-        ptyId,
-        runtime: resolveTerminalPasteRuntime({
-          platform: shortcutPlatform,
-          ptyId,
-          connectionId,
-          remotePlatform: getTerminalPasteSshRemotePlatform(connectionId),
-          transport,
-          isWindowsConpty: forceBracketedMultilineTextPaste
-        })
-      },
-      forceBracketedPaste: options?.forceBracketedPaste,
-      forceBracketedPasteForMultiline: options?.forceBracketedPasteForMultiline,
-      terminalBracketedPasteMode: pane.terminal.modes.bracketedPasteMode
-    })
-    const execution = await executeTerminalPastePlan(plan, {
-      pasteText: (pasteText, pasteOptions) =>
-        pasteTerminalText(pane.terminal, pasteText, pasteOptions),
-      writePty: (data) => writeTerminalPastePtyInput(transport, data, 'driving'),
-      isTargetCurrent: () => isPanePasteTargetMounted(pane, transport, ptyId),
-      canContinue: () => isPanePasteTargetMounted(pane, transport, ptyId)
-    })
-    if (execution.status !== 'pasted') {
-      onPasteError(formatTerminalPasteExecutionError(execution.reason))
-      return false
-    }
-    if (gatedText) {
-      recordTerminalUserInputForLeaf(tabId, pane.leafId)
-    }
-    if (options?.recoverImagePasteWebglAtlas) {
-      scheduleImagePasteWebglAtlasRecovery()
-    }
-    return true
-  }
-
   const pasteResolvedPane = async (
     source: Extract<TerminalPasteSource, 'context-menu' | 'right-click'>
   ): Promise<void> => {
@@ -219,18 +135,57 @@ export function useTerminalPaneContextMenu({
     if (!pane) {
       return
     }
+    if (requestNativeChatCoverPaste(pane)) {
+      return
+    }
+    const state = useAppStore.getState()
+    const transport = paneTransportsRef.current.get(pane.id) ?? null
     const connectionId = getConnectionId(worktreeId) ?? null
-    const runtimeEnvironmentId = getRuntimeEnvironmentIdForWorktree(
-      useAppStore.getState(),
-      worktreeId
+    const runtimeEnvironmentId = resolveTerminalPasteRuntimeEnvironmentId(
+      state,
+      worktreeId,
+      transport
     )
     const result = await pasteTerminalClipboard({
       readClipboardText: window.api.ui.readClipboardText,
       saveClipboardImageAsTempFile: window.api.ui.saveClipboardImageAsTempFile,
       connectionId,
       runtimeEnvironmentId,
-      forceBracketedMultilineTextPaste,
-      pasteText: (text, options) => executeMenuPasteText(pane, source, text, options),
+      protectedMultilineTextPasteOptions: resolveProtectedMultilinePasteOptionsForPane({
+        isWindowsClient: forceBracketedMultilineTextPaste,
+        hostPlatform: resolveTerminalInputHostPlatform({
+          clientPlatform: getShortcutPlatform(),
+          state,
+          worktreeId,
+          transport
+        }),
+        agentStatusByPaneKey: state.agentStatusByPaneKey,
+        paneForegroundAgentByPaneKey: state.paneForegroundAgentByPaneKey,
+        tabId,
+        leafId: pane.leafId
+      }),
+      pasteText: (text, options) => {
+        // Why: gate menu pastes on the same requirement prompt rule as keyboard paste.
+        const gatedText = applyYunxiaoRequirementTerminalPasteGate(text, {
+          tabId,
+          leafId: pane.leafId,
+          agentStatusByPaneKey: state.agentStatusByPaneKey
+        })
+        return executeTerminalPaneMenuPasteText(
+          {
+            managerRef,
+            paneTransportsRef,
+            tabId,
+            worktreeId,
+            forceBracketedMultilineTextPaste,
+            onPasteError
+          },
+          pane,
+          source,
+          gatedText,
+          options
+        )
+      },
       onTextPasteError: () =>
         onPasteError('Paste failed: clipboard text is too large for a safe terminal paste.'),
       onImagePasteError: (error) => {
@@ -247,14 +202,21 @@ export function useTerminalPaneContextMenu({
     pane.terminal.focus()
   }
 
-  const { open, setOpen, point, menuOpenedAtRef, onContextMenuCapture, onPaneTitleContextMenu } =
-    useTerminalContextMenuTrigger({
-      managerRef,
-      containerRef,
-      contextPaneIdRef,
-      rightClickToPaste,
-      pasteResolvedPane
-    })
+  const {
+    open,
+    setOpen,
+    point,
+    menuOpenedAtRef,
+    onContextMenuCapture,
+    onMouseDownCapture,
+    onPaneTitleContextMenu
+  } = useTerminalContextMenuTrigger({
+    managerRef,
+    containerRef,
+    contextPaneIdRef,
+    rightClickToPaste,
+    pasteResolvedPane
+  })
 
   const { onSplitRight, onSplitDown } = useTerminalPaneSplitActions({
     managerRef,
@@ -290,8 +252,11 @@ export function useTerminalPaneContextMenu({
   const onCopyPaneId = async (): Promise<void> =>
     copyTerminalPaneMenuPaneId(resolveMenuPane(), tabId)
 
-  const onCopyTerminalId = async (): Promise<void> =>
-    copyTerminalPaneMenuTerminalId(resolveMenuPane(), tabId)
+  const onCopyTerminalId = async (): Promise<void> => {
+    const pane = resolveMenuPane()
+    const ptyId = pane ? (paneTransportsRef.current?.get(pane.id)?.getPtyId() ?? null) : null
+    return copyTerminalPaneMenuTerminalId(pane, tabId, ptyId)
+  }
 
   const onCopyAgentSessionId = async (): Promise<void> => {
     const pane = resolveMenuPane()
@@ -309,8 +274,9 @@ export function useTerminalPaneContextMenu({
     if (!pane || !manager) {
       return
     }
-    manager.equalizePaneSizes()
-    pane.terminal.focus()
+    equalizeTerminalPanes({ worktreeId, tabId, getManager: () => managerRef.current }, () =>
+      pane.terminal.focus()
+    )
   }
 
   const onClosePane = (): void => {
@@ -410,6 +376,7 @@ export function useTerminalPaneContextMenu({
     menuPaneId,
     reviewPaneKey: menuPane ? makePaneKey(tabId, menuPane.leafId) : null,
     onContextMenuCapture,
+    onMouseDownCapture,
     onPaneTitleContextMenu,
     onCopy,
     onSelectAll,

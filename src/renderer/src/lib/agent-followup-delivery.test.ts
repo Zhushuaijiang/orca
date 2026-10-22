@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sendFollowupPromptWhenAgentReady } from './agent-followup-delivery'
-import {
-  inspectRuntimeTerminalProcess,
-  sendRuntimePtyInputVerified
-} from '@/runtime/runtime-terminal-inspection'
+import { inspectRuntimeTerminalProcess } from '@/runtime/runtime-terminal-inspection'
+import { sendRuntimePtyInputVerified } from '@/runtime/runtime-terminal-verified-input'
 import { TUI_AGENT_CONFIG } from '../../../shared/tui-agent-config'
 import { setYunxiaoRequirementPromptGateEnabled } from '../../../shared/yunxiao-requirement-prompt-gate'
 
 vi.mock('@/runtime/runtime-terminal-inspection', () => ({
-  inspectRuntimeTerminalProcess: vi.fn(),
+  inspectRuntimeTerminalProcess: vi.fn()
+}))
+vi.mock('@/runtime/runtime-terminal-verified-input', () => ({
   sendRuntimePtyInputVerified: vi.fn()
 }))
 
@@ -45,15 +45,14 @@ describe('sendFollowupPromptWhenAgentReady — interpreter-wrapped agents', () =
       const delivery = sendFollowupPromptWhenAgentReady({
         ptyId: 'pty-1',
         expectedProcess,
-        prompt: 'ship it',
-        settings: null
+        prompt: 'ship it'
       })
 
       await vi.advanceTimersByTimeAsync(4 * 150)
       const delivered = await delivery
 
       expect(delivered).toBe(true)
-      expect(sendRuntimePtyInputVerified).toHaveBeenCalledWith(null, 'pty-1', 'ship it\r', 'launch')
+      expect(sendRuntimePtyInputVerified).toHaveBeenCalledWith('pty-1', 'ship it\r', 'launch')
     })
 
     it(`still refuses to type into a bare ${agent} shell foreground`, async () => {
@@ -67,8 +66,7 @@ describe('sendFollowupPromptWhenAgentReady — interpreter-wrapped agents', () =
       const delivery = sendFollowupPromptWhenAgentReady({
         ptyId: 'pty-1',
         expectedProcess,
-        prompt: 'ship it',
-        settings: null
+        prompt: 'ship it'
       })
 
       await vi.advanceTimersByTimeAsync(29 * 150)
@@ -87,8 +85,7 @@ describe('sendFollowupPromptWhenAgentReady — interpreter-wrapped agents', () =
       const delivery = sendFollowupPromptWhenAgentReady({
         ptyId: 'pty-1',
         expectedProcess,
-        prompt: 'ship it',
-        settings: null
+        prompt: 'ship it'
       })
 
       await vi.advanceTimersByTimeAsync(29 * 150)
@@ -110,12 +107,11 @@ describe('sendFollowupPromptWhenAgentReady — interpreter-wrapped agents', () =
     const delivered = await sendFollowupPromptWhenAgentReady({
       ptyId: 'pty-1',
       expectedProcess: 'aider',
-      prompt: 'ship it',
-      settings: null
+      prompt: 'ship it'
     })
 
     expect(delivered).toBe(true)
-    expect(sendRuntimePtyInputVerified).toHaveBeenCalledWith(null, 'pty-1', 'ship it\r', 'launch')
+    expect(sendRuntimePtyInputVerified).toHaveBeenCalledWith('pty-1', 'ship it\r', 'launch')
   })
 
   it('gates manual Yunxiao prompts before stdin-after-start delivery', async () => {
@@ -129,8 +125,7 @@ describe('sendFollowupPromptWhenAgentReady — interpreter-wrapped agents', () =
     const delivered = await sendFollowupPromptWhenAgentReady({
       ptyId: 'pty-1',
       expectedProcess: 'aider',
-      prompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下',
-      settings: null
+      prompt: 'https://devops.aliyun.com/projex/req/DFHIS-31732 修一下'
     })
 
     expect(delivered).toBe(true)

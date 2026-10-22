@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { FileWithMtime } from './session-scanner-types'
-import { parseCodebuddySessionContent } from './session-scanner-codebuddy-parser'
+import {
+  consumeCodebuddySessionLine,
+  createCodebuddySessionParseState,
+  finalizeCodebuddySessionParseState
+} from './session-scanner-codebuddy-parser'
 
 const SESSION_ID = 'ac5f27cc-7895-480f-91a5-334f114bb403'
 
@@ -93,15 +97,17 @@ const REAL_SHAPED_LINES = [
   })
 ]
 
-async function parseLines(lines: string[], fileName = `${SESSION_ID}.jsonl`) {
-  return parseCodebuddySessionContent(
-    fileAt(`/Users/demo/.codebuddy/projects/Users-demo-workspace-yunxiao/${fileName}`),
-    `${lines.join('\n')}\n`,
-    'darwin'
+function parseLines(lines: string[], fileName = `${SESSION_ID}.jsonl`) {
+  const state = createCodebuddySessionParseState(
+    fileAt(`/Users/demo/.codebuddy/projects/Users-demo-workspace-yunxiao/${fileName}`)
   )
+  for (const line of lines) {
+    consumeCodebuddySessionLine(state, line)
+  }
+  return finalizeCodebuddySessionParseState(state, 'darwin')
 }
 
-describe('parseCodebuddySessionContent', () => {
+describe('codebuddy session parse state', () => {
   it('parses a real-shaped transcript into a vault session', async () => {
     const session = await parseLines(REAL_SHAPED_LINES)
     expect(session).toMatchObject({

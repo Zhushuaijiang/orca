@@ -1,11 +1,9 @@
-/* eslint-disable max-lines -- Why: aggregated detail-fetch for GitLabItemDialog spans issues, MRs, comments, pipelines, reviewers, approvals, and changed files; splitting would obscure the shared fetch context. */
 // Why: aggregated detail-fetch for GitLabItemDialog. Parallel of
 // src/main/github/work-item-details.ts but scoped to v1 surface —
 // description body, flattened discussion notes, MR pipeline jobs/reviewers.
 // Files / inline review-comment positioning are deferred.
 import type {
   GitLabAssignableUser,
-  GitLabMRFile,
   GitLabWorkItem,
   GitLabWorkItemDetails
 } from '../../shared/gitlab-types'
@@ -14,138 +12,20 @@ import { mapIssueToWorkItem, mapMRToWorkItem } from './mappers'
 import { mapGitLabUser, type GitLabRawUser } from './gitlab-assignable-user-mapping'
 import { encodedProject } from './project-path-encoding'
 import { fetchDiscussions, flattenDiscussions } from './mr-discussion-notes'
-import { countDiffLines } from './mr-file-diffs'
+import { fetchMRFiles, type GitLabMRFilesResult } from './mr-changed-files'
 import { fetchMRApprovalState, fetchMRReviewers } from './mr-reviewers-and-approvals'
 import { fetchPipelineJobs } from './pipeline-job-graph'
 import {
   acquire,
   getGlabKnownHosts,
   glabHostnameArgs,
-  glabRepoExecOptions,
   glabExecFileAsync,
+  glabRepoExecOptions,
   release,
   resolveIssueSource,
   type LocalGitExecOptions,
   type ProjectRef
 } from './gl-utils'
-
-// ── MR changed files ───────────────────────────────────────────────
-// Why: unlike mr-file-diffs (modern `/diffs` only), this fork keeps the
-// deprecated `/changes` endpoint as a fallback for older self-managed GitLab.
-
-type GitLabRawMRFile = {
-  new_path?: string
-  old_path?: string
-  diff?: string
-  new_file?: boolean
-  deleted_file?: boolean
-  renamed_file?: boolean
-  binary?: boolean
-  too_large?: boolean
-}
-
-type GitLabMRFilesResult = {
-  files: GitLabMRFile[]
-  filesUnavailable?: boolean
-}
-
-function mapMRFile(raw: GitLabRawMRFile): GitLabMRFile {
-  const diff = raw.diff ?? ''
-  const counts = countDiffLines(diff)
-  const status = raw.new_file
-    ? 'added'
-    : raw.deleted_file
-      ? 'removed'
-      : raw.renamed_file
-        ? 'renamed'
-        : 'modified'
-  return {
-    path: raw.new_path ?? raw.old_path ?? '',
-    ...(raw.old_path && raw.old_path !== raw.new_path ? { oldPath: raw.old_path } : {}),
-    status,
-    additions: counts.additions,
-    deletions: counts.deletions,
-    isBinary: Boolean(raw.binary || raw.too_large || !diff),
-    ...(diff ? { diff } : {})
-  }
-}
-
-function hasKnownChangedFiles(changesCount?: string | null): boolean {
-  const value = changesCount?.trim()
-  return Boolean(value && value !== '0')
-}
-
-async function fetchMRDiffFiles(
-  repoPath: string,
-  projectRef: ProjectRef,
-  iid: number,
-  connectionId?: string | null,
-  localGitOptions: LocalGitExecOptions = {}
-): Promise<GitLabMRFile[]> {
-  const { stdout } = await glabExecFileAsync(
-    [
-      'api',
-      ...glabHostnameArgs(projectRef, connectionId),
-      // Why: GitLab deprecated the all-in-one `changes` endpoint in favor of
-      // the paginated diffs endpoint; cap the file snapshot at one visible page.
-      `projects/${encodedProject(projectRef.path)}/merge_requests/${iid}/diffs?per_page=100`
-    ],
-    glabRepoExecOptions(repoPath, connectionId, localGitOptions)
-  )
-  const data = JSON.parse(stdout) as GitLabRawMRFile[]
-  return data.map(mapMRFile).filter((file) => file.path)
-}
-
-async function fetchMRLegacyChangeFiles(
-  repoPath: string,
-  projectRef: ProjectRef,
-  iid: number,
-  connectionId?: string | null,
-  localGitOptions: LocalGitExecOptions = {}
-): Promise<GitLabMRFile[]> {
-  const { stdout } = await glabExecFileAsync(
-    [
-      'api',
-      ...glabHostnameArgs(projectRef, connectionId),
-      // Why: older self-managed GitLab can lack `/diffs`; keep the deprecated
-      // endpoint as a compatibility fallback until GitLab API v5 removes it.
-      `projects/${encodedProject(projectRef.path)}/merge_requests/${iid}/changes`
-    ],
-    glabRepoExecOptions(repoPath, connectionId, localGitOptions)
-  )
-  const data = JSON.parse(stdout) as { changes?: GitLabRawMRFile[] }
-  return (data.changes ?? []).map(mapMRFile).filter((file) => file.path)
-}
-
-async function fetchMRFiles(
-  repoPath: string,
-  projectRef: ProjectRef,
-  iid: number,
-  changesCount?: string | null,
-  connectionId?: string | null,
-  localGitOptions: LocalGitExecOptions = {}
-): Promise<GitLabMRFilesResult> {
-  try {
-    const files = await fetchMRDiffFiles(repoPath, projectRef, iid, connectionId, localGitOptions)
-    if (files.length > 0 || !hasKnownChangedFiles(changesCount)) {
-      return { files }
-    }
-  } catch {
-    // Fall through to the legacy endpoint below.
-  }
-  try {
-    const files = await fetchMRLegacyChangeFiles(
-      repoPath,
-      projectRef,
-      iid,
-      connectionId,
-      localGitOptions
-    )
-    return { files }
-  } catch {
-    return { files: [], filesUnavailable: true }
-  }
-}
 
 // ── Top-level aggregator ───────────────────────────────────────────
 
@@ -178,7 +58,8 @@ export async function getWorkItemDetails(
   preference?: IssueSourcePreference,
   connectionId?: string | null,
   projectRefOverride?: ProjectRef | null,
-  localGitOptions: LocalGitExecOptions = {}
+  localGitOptions: LocalGitExecOptions = {},
+  options: { includeReviewDetails?: boolean } = {}
 ): Promise<GitLabWorkItemDetails | null> {
   // Why: detail fetches must use the same project source as the list row
   // that opened them, otherwise forked repos can show a row from one remote
@@ -202,7 +83,7 @@ export async function getWorkItemDetails(
     if (type === 'issue') {
       return await fetchIssueDetails(repoPath, projectRef, iid, connectionId, localGitOptions)
     }
-    return await fetchMRDetails(repoPath, projectRef, iid, connectionId, localGitOptions)
+    return await fetchMRDetails(repoPath, projectRef, iid, connectionId, localGitOptions, options)
   } catch {
     return null
   } finally {
@@ -249,12 +130,21 @@ async function fetchIssueDetails(
   }
 }
 
+function emptyMRFiles(): GitLabMRFilesResult {
+  return { files: [] }
+}
+
+function unavailableMRFiles(): GitLabMRFilesResult {
+  return { files: [], filesUnavailable: true }
+}
+
 async function fetchMRDetails(
   repoPath: string,
   projectRef: ProjectRef,
   iid: number,
   connectionId?: string | null,
-  localGitOptions: LocalGitExecOptions = {}
+  localGitOptions: LocalGitExecOptions = {},
+  options: { includeReviewDetails?: boolean } = {}
 ): Promise<GitLabWorkItemDetails | null> {
   // Why: MR detail + discussions in parallel. The pipeline jobs fetch
   // depends on `head_pipeline.id` from the MR payload, so it has to
@@ -287,21 +177,29 @@ async function fetchMRDetails(
           localGitOptions
         ).catch(() => [])
       : undefined
+  // Checks consumes the pipeline and discussions without the dialog's review enrichment.
+  const includeReviewDetails = options.includeReviewDetails !== false
   const [reviewers, approvalState, filesResult] = await Promise.all([
-    fetchMRReviewers(repoPath, projectRef, iid, connectionId, localGitOptions).catch(() =>
-      (mrRaw.reviewers ?? []).map(mapGitLabUser).filter((u): u is GitLabAssignableUser => !!u)
-    ),
-    fetchMRApprovalState(repoPath, projectRef, iid, connectionId, localGitOptions).catch(
-      () => undefined
-    ),
-    fetchMRFiles(
-      repoPath,
-      projectRef,
-      iid,
-      mrRaw.changes_count,
-      connectionId,
-      localGitOptions
-    ).catch(() => ({ files: [], filesUnavailable: true }))
+    includeReviewDetails
+      ? fetchMRReviewers(repoPath, projectRef, iid, connectionId, localGitOptions).catch(() =>
+          (mrRaw.reviewers ?? []).map(mapGitLabUser).filter((u): u is GitLabAssignableUser => !!u)
+        )
+      : [],
+    includeReviewDetails
+      ? fetchMRApprovalState(repoPath, projectRef, iid, connectionId, localGitOptions).catch(
+          () => undefined
+        )
+      : undefined,
+    includeReviewDetails
+      ? fetchMRFiles(
+          repoPath,
+          projectRef,
+          iid,
+          mrRaw.changes_count,
+          connectionId,
+          localGitOptions
+        ).catch(unavailableMRFiles)
+      : emptyMRFiles()
   ])
   return {
     item,

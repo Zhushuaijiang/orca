@@ -4,7 +4,7 @@ import { archiveYunxiaoRequirement, createYunxiaoRequirement } from '../../../yu
 import { listYunxiaoRequirementFieldOptions } from '../../../yunxiao/requirement-field-options'
 import { listYunxiaoWorkItems } from '../../../yunxiao/work-item-list'
 import { defineMethod } from '../core'
-import { OptionalBoolean, OptionalFiniteNumber, OptionalString, requiredString } from '../schemas'
+import { OptionalBoolean, OptionalFiniteNumber, OptionalString, requiredString } from '../../../../shared/rpc-contract/rpc-param-primitives'
 
 const YunxiaoWorkItemCategory = z.enum(['Req', 'Task', 'Bug', 'all']).optional()
 const YunxiaoRelationId = z.union([z.string(), z.null()]).optional()
@@ -80,36 +80,43 @@ const YunxiaoTodoPoolUpdate = z.object({
 export const YUNXIAO_METHODS = [
   defineMethod({
     name: 'yunxiao.listWorkItems',
+    permission: 'workspace',
     params: YunxiaoListWorkItems,
     handler: (params) => listYunxiaoWorkItems(params)
   }),
   defineMethod({
     name: 'yunxiao.createRequirement',
+    permission: 'workspace',
     params: YunxiaoCreateRequirement,
     handler: (params) => createYunxiaoRequirement(params)
   }),
   defineMethod({
     name: 'yunxiao.listRequirementFieldOptions',
+    permission: 'workspace',
     params: null,
     handler: () => listYunxiaoRequirementFieldOptions()
   }),
   defineMethod({
     name: 'yunxiao.archiveRequirement',
+    permission: 'workspace',
     params: YunxiaoArchiveRequirement,
     handler: (params) => archiveYunxiaoRequirement(params)
   }),
   defineMethod({
     name: 'yunxiao.listTodoPool',
+    permission: 'workspace',
     params: null,
     handler: (_params, { runtime }) => runtime.listYunxiaoTodoPool()
   }),
   defineMethod({
     name: 'yunxiao.addTodoPoolItems',
+    permission: 'workspace',
     params: YunxiaoTodoPoolAdd,
     handler: (params, { runtime }) => runtime.addYunxiaoTodoPoolItems(params.items)
   }),
   defineMethod({
     name: 'yunxiao.updateTodoPoolItem',
+    permission: 'workspace',
     params: YunxiaoTodoPoolUpdate,
     handler: (params, { runtime }) =>
       runtime.updateYunxiaoTodoPoolItem(
@@ -119,6 +126,7 @@ export const YUNXIAO_METHODS = [
   }),
   defineMethod({
     name: 'yunxiao.removeTodoPoolItem',
+    permission: 'workspace',
     params: requiredString('Missing Yunxiao todo pool item id'),
     handler: (params, { runtime }) => runtime.removeYunxiaoTodoPoolItem(params)
   })
