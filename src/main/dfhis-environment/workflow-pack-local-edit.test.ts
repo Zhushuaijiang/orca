@@ -9,7 +9,10 @@ import {
   getDfHisSkillPath
 } from './dfhis-workflow-pack-installer'
 import { DFHIS_WORKFLOW_PACK_NAMES } from './dfhis-workflow-pack-targets'
-import { installRemoteDfHisWorkflowPack } from './remote-workflow-pack-installer'
+import {
+  getCachedDfHisWorkflowPackPathIfPresent,
+  installRemoteDfHisWorkflowPack
+} from './remote-workflow-pack-installer'
 
 const testEnvironment = {
   getPath: () => '/tmp/orca-workflow-pack-local-edit-test',
@@ -35,8 +38,11 @@ function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex')
 }
 
-async function writeRemoteSkillPackManifest(directory: string): Promise<string> {
-  const files = DFHIS_WORKFLOW_PACK_NAMES.map((name) => {
+async function writeRemoteSkillPackManifest(
+  directory: string,
+  skillNames: readonly string[] = DFHIS_WORKFLOW_PACK_NAMES
+): Promise<string> {
+  const files = skillNames.map((name) => {
     const content = `---\nname: ${name}\n---\nremote ${name} skill\n`
     return { path: `${name}/SKILL.md`, sha256: sha256(content), content }
   })
@@ -56,6 +62,25 @@ describe('DFHIS workflow pack local edits', () => {
       temporaryDirectories
         .splice(0)
         .map((directory) => rm(directory, { recursive: true, force: true }))
+    )
+  })
+
+  it('installs a pulled DFHIS pack without the separately distributed ygt skill', async () => {
+    const homeDirectory = await createTemporaryDirectory()
+    const userDataDirectory = await createTemporaryDirectory()
+    process.env.ORCA_USER_DATA_PATH = userDataDirectory
+    const manifestPath = await writeRemoteSkillPackManifest(
+      userDataDirectory,
+      DFHIS_WORKFLOW_PACK_NAMES.filter((name) => name !== 'ygt')
+    )
+
+    await installRemoteDfHisWorkflowPack(manifestPath, homeDirectory)
+
+    await expect(readFile(getDfHisSkillPath(homeDirectory), 'utf8')).resolves.toContain(
+      'remote yunxiao-requirement-archiver skill'
+    )
+    await expect(getCachedDfHisWorkflowPackPathIfPresent()).resolves.toBe(
+      path.join(userDataDirectory, 'dfhis-workflow-pack-cache', 'dfhis')
     )
   })
 
