@@ -46,11 +46,7 @@ const DFHIS_REMOTE_PACK: RemoteSkillPackOptions = {
   cacheDirectoryName: 'dfhis-workflow-pack-cache',
   packId: 'dfhis',
   label: 'DFHIS workflow pack',
-  definition: {
-    ...DFHIS_BUNDLED_SKILL_PACK,
-    // YGT has its own remote pack, so the DFHIS server pack need not contain it.
-    skillNames: DFHIS_BUNDLED_SKILL_PACK.skillNames.filter((name) => name !== 'ygt')
-  },
+  definition: DFHIS_BUNDLED_SKILL_PACK,
   // Why: Orca releases ship frequently, and the DFHIS skills inside the app
   // lag the pack pulled from the team server. Keep that download after an
   // upgrade so the new app does not put the older bundled skills back.

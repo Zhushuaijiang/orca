@@ -28,6 +28,11 @@ export const MANIFEST_FILE_NAME = '.orca-dfhis-workflow-pack.json'
 
 export type DfHisWorkflowPackName = (typeof DFHIS_WORKFLOW_PACK_NAMES)[number]
 
+// YGT has its own remote pack, so every DFHIS cache/install path must allow its absence.
+export const DFHIS_WORKFLOW_PACK_REQUIRED_SKILL_NAMES = DFHIS_WORKFLOW_PACK_NAMES.filter(
+  (name) => name !== 'ygt'
+)
+
 export type DfHisWorkflowPackTarget = BundledSkillPackTarget<
   DfHisEnvironmentPrerequisiteId,
   'agent-skills' | TuiAgent
@@ -80,6 +85,6 @@ export const DFHIS_BUNDLED_SKILL_PACK = {
   label: 'DFHIS workflow pack',
   bundledResourcePath: BUNDLED_DFHIS_WORKFLOW_PACK_RELATIVE_PATH,
   manifestFileName: MANIFEST_FILE_NAME,
-  skillNames: DFHIS_WORKFLOW_PACK_NAMES,
+  skillNames: DFHIS_WORKFLOW_PACK_REQUIRED_SKILL_NAMES,
   targets: WORKFLOW_PACK_TARGETS
 } satisfies BundledSkillPackDefinition<DfHisWorkflowPackName, DfHisWorkflowPackTarget>

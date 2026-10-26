@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setAppEnvironment } from '../../shared/app-environment'
 import {
+  checkDfHisWorkflowPackPrerequisites,
   ensureDfHisWorkflowPackInstalled,
   getDfHisSkillPath
 } from './dfhis-workflow-pack-installer'
@@ -65,7 +66,7 @@ describe('DFHIS workflow pack local edits', () => {
     )
   })
 
-  it('installs a pulled DFHIS pack without the separately distributed ygt skill', async () => {
+  it('installs and rechecks a pulled DFHIS pack without the separate ygt skill', async () => {
     const homeDirectory = await createTemporaryDirectory()
     const userDataDirectory = await createTemporaryDirectory()
     process.env.ORCA_USER_DATA_PATH = userDataDirectory
@@ -82,6 +83,9 @@ describe('DFHIS workflow pack local edits', () => {
     await expect(getCachedDfHisWorkflowPackPathIfPresent()).resolves.toBe(
       path.join(userDataDirectory, 'dfhis-workflow-pack-cache', 'dfhis')
     )
+    await ensureDfHisWorkflowPackInstalled(homeDirectory)
+    const check = await checkDfHisWorkflowPackPrerequisites(homeDirectory)
+    expect(check.every((result) => result.status === 'ok')).toBe(true)
   })
 
   it('keeps a locally edited skill when another skill in the pulled pack changes', async () => {
