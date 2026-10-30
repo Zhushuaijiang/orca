@@ -2,6 +2,7 @@ import type { YunxiaoRequirementContractSnapshot } from './yunxiao-types'
 import { buildYgtManualPromptInstruction } from './yunxiao-requirement-workflow-profile'
 
 const DFHIS_WORK_ITEM_RE = /\bDFHIS-\d+\b/i
+const ORIGIN_WORK_ITEM_RE = /\bORIGIN-\d+\b/i
 const YUNXIAO_WORK_ITEM_URL_RE = /https?:\/\/devops\.aliyun\.com\/projex\/\S+/i
 const YUNXIAO_GATE_MARKER = 'Orca Yunxiao requirement workflow gate'
 const SOURCE_PROMPT_PREVIEW_LIMIT = 2048
@@ -18,6 +19,8 @@ export function setYunxiaoRequirementPromptGateEnabled(enabled: boolean): void {
 export const YUNXIAO_DFHIS_CODE_CONSTRAINTS = `代码红线：不得为需求修改构建/锁文件、切换为本地 project 依赖，或只改业务仓内已废弃的 *-api/DTO/Req/Feign 契约。确需契约变更时先修改共享 df-his-api，并记录发布与调用方编译计划；路径不清则停止编辑并标记 needs_clarification/blocked。`
 
 export const YUNXIAO_REQUIREMENT_COMPACT_WORKFLOW = `执行 $yunxiao-requirement-archiver：先归档证据并建立精简 Requirement Contract，再用事实卡/索引定位候选仓库，验证当前代码后在需求隔离 worktree 中编辑。低风险默认单 builder + 本地验证；只有复合高风险或证据冲突才增加独立评审，禁止因“多仓库”单一因素固定启动四个 reviewer。按改动类型提供新鲜 test/build/runtime/UI/数据证据，推送后再回写云效。详细规则按当前阶段读取 skill references，不得一次性加载全部参考资料。`
+
+export const YUNXIAO_ORIGIN_COMPACT_WORKFLOW = `执行 $yunxiao-requirement-archiver 的 Customer Request Tracking：ORIGIN 是客户诉求父项，先按 parentId 查子项 DFHIS 并输出只读台账；未定位到具体 DFHIS 子项前不得改代码、不得回写或流转工作项。`
 
 export type ManualYunxiaoRequirementGate = {
   identifier: string
@@ -38,11 +41,19 @@ const SKIP_MARKERS = [
 ]
 
 export function containsYunxiaoRequirementReference(prompt: string): boolean {
-  return DFHIS_WORK_ITEM_RE.test(prompt) || YUNXIAO_WORK_ITEM_URL_RE.test(prompt)
+  return (
+    DFHIS_WORK_ITEM_RE.test(prompt) ||
+    ORIGIN_WORK_ITEM_RE.test(prompt) ||
+    YUNXIAO_WORK_ITEM_URL_RE.test(prompt)
+  )
 }
 
 export function extractYunxiaoRequirementIdentifier(prompt: string): string | null {
-  return prompt.match(DFHIS_WORK_ITEM_RE)?.[0]?.toUpperCase() ?? null
+  const dfhisId = prompt.match(DFHIS_WORK_ITEM_RE)?.[0]
+  if (dfhisId) {
+    return dfhisId.toUpperCase()
+  }
+  return prompt.match(ORIGIN_WORK_ITEM_RE)?.[0]?.toUpperCase() ?? null
 }
 
 export function shouldApplyYunxiaoRequirementPromptGate(prompt: string): boolean {
@@ -61,16 +72,18 @@ export function applyYunxiaoRequirementPromptGate(prompt: string): string {
   if (!shouldApplyYunxiaoRequirementPromptGate(prompt)) {
     return prompt
   }
-  const workflowProfileInstruction = buildYgtManualPromptInstruction(prompt)
+  const originOnly = !DFHIS_WORK_ITEM_RE.test(prompt) && ORIGIN_WORK_ITEM_RE.test(prompt)
+  const workflowProfileInstruction = originOnly ? null : buildYgtManualPromptInstruction(prompt)
+  const codeConstraintBlock = originOnly ? '' : `${YUNXIAO_DFHIS_CODE_CONSTRAINTS}\n\n`
+  const workflow = originOnly
+    ? YUNXIAO_ORIGIN_COMPACT_WORKFLOW
+    : YUNXIAO_REQUIREMENT_COMPACT_WORKFLOW
   const identifier = extractYunxiaoRequirementIdentifier(prompt) ?? '云效工作项'
   return `${YUNXIAO_GATE_MARKER}: ${identifier}
 
-用户可见内容使用中文。${YUNXIAO_REQUIREMENT_COMPACT_WORKFLOW}
+用户可见内容使用中文。${workflow}
 
-${workflowProfileInstruction ? `${workflowProfileInstruction}\n\n` : ''}
-${YUNXIAO_DFHIS_CODE_CONSTRAINTS}
-
-原始用户请求：
+${workflowProfileInstruction ? `${workflowProfileInstruction}\n\n` : ''}${codeConstraintBlock}原始用户请求：
 ${prompt}`
 }
 

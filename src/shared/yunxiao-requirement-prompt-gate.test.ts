@@ -3,6 +3,7 @@ import {
   applyYunxiaoRequirementPromptGate,
   applyYunxiaoRequirementPromptGateToTerminalInput,
   containsYunxiaoRequirementReference,
+  extractYunxiaoRequirementIdentifier,
   setYunxiaoRequirementPromptGateEnabled,
   shouldApplyYunxiaoRequirementPromptGate
 } from './yunxiao-requirement-prompt-gate'
@@ -14,10 +15,33 @@ afterEach(() => {
 describe('Yunxiao requirement prompt gate', () => {
   it('detects DFHIS ids and Yunxiao requirement links', () => {
     expect(containsYunxiaoRequirementReference('处理 DFHIS-31732')).toBe(true)
+    expect(containsYunxiaoRequirementReference('客户诉求 ORIGIN-11194')).toBe(true)
     expect(
       containsYunxiaoRequirementReference('https://devops.aliyun.com/projex/req/DFHIS-31732')
     ).toBe(true)
     expect(containsYunxiaoRequirementReference('plain request')).toBe(false)
+  })
+
+  it('routes ORIGIN-only prompts to read-only child lookup', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
+    const gated = applyYunxiaoRequirementPromptGate('ORIGIN-11194 这个客户要什么')
+
+    expect(gated).toContain('Orca Yunxiao requirement workflow gate: ORIGIN-11194')
+    expect(gated).toContain('Customer Request Tracking')
+    expect(gated).toContain('未定位到具体 DFHIS 子项前不得改代码')
+    expect(gated).not.toContain('在需求隔离 worktree 中编辑')
+    expect(gated).not.toContain('代码红线')
+    expect(gated).not.toContain('Orca YGT workflow harness gate')
+  })
+
+  it('prefers DFHIS when a prompt carries both identifiers', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
+    const prompt = 'ORIGIN-11194 已拆成 DFHIS-31732'
+    const gated = applyYunxiaoRequirementPromptGate(prompt)
+
+    expect(extractYunxiaoRequirementIdentifier(prompt)).toBe('DFHIS-31732')
+    expect(gated).toContain('Orca Yunxiao requirement workflow gate: DFHIS-31732')
+    expect(gated).toContain('在需求隔离 worktree 中编辑')
   })
 
   it('does not gate when disabled (default)', () => {

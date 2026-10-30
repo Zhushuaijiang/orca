@@ -403,10 +403,10 @@ describe('agent-session create operation ledger', () => {
       )
     ).resolves.toMatchObject({ disposition: 'created' })
 
-    const command = createTerminal.mock.calls[0]?.[1]?.command ?? ''
-    expect(command).toContain('Orca Yunxiao requirement workflow gate')
-    expect(command).toContain('原始用户请求：')
-    expect(command).toContain('DFHIS-31732')
+    const startupPrompt = createTerminal.mock.calls[0]?.[1]?.startupPrompt ?? ''
+    expect(startupPrompt).toContain('Orca Yunxiao requirement workflow gate')
+    expect(startupPrompt).toContain('原始用户请求：')
+    expect(startupPrompt).toContain('DFHIS-31732')
   })
 
   it('refreshes the DFHIS workflow pack before launching a Yunxiao agent session', async () => {
