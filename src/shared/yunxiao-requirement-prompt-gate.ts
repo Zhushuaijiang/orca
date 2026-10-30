@@ -1,4 +1,5 @@
 import type { YunxiaoRequirementContractSnapshot } from './yunxiao-types'
+import { hasDeepeningEvidenceGaps } from './requirement-deepening'
 import { buildYgtManualPromptInstruction } from './yunxiao-requirement-workflow-profile'
 
 const DFHIS_WORK_ITEM_RE = /\bDFHIS-\d+\b/i
@@ -17,6 +18,8 @@ export function setYunxiaoRequirementPromptGateEnabled(enabled: boolean): void {
 }
 
 export const YUNXIAO_DFHIS_CODE_CONSTRAINTS = `代码红线：不得为需求修改构建/锁文件、切换为本地 project 依赖，或只改业务仓内已废弃的 *-api/DTO/Req/Feign 契约。确需契约变更时先修改共享 df-his-api，并记录发布与调用方编译计划；路径不清则停止编辑并标记 needs_clarification/blocked。`
+
+export const YUNXIAO_DEEPENING_EVIDENCE_GAP_INSTRUCTION = `需求带“待取证”清单：动手前逐条取证，把结论写回 Requirement Contract；取不到的条目标记 needs_clarification，不得凭猜测编辑代码。`
 
 export const YUNXIAO_REQUIREMENT_COMPACT_WORKFLOW = `执行 $yunxiao-requirement-archiver：先归档证据并建立精简 Requirement Contract，再用事实卡/索引定位候选仓库，验证当前代码后在需求隔离 worktree 中编辑。低风险默认单 builder + 本地验证；只有复合高风险或证据冲突才增加独立评审，禁止因“多仓库”单一因素固定启动四个 reviewer。按改动类型提供新鲜 test/build/runtime/UI/数据证据，推送后再回写云效。详细规则按当前阶段读取 skill references，不得一次性加载全部参考资料。`
 
@@ -74,6 +77,9 @@ export function applyYunxiaoRequirementPromptGate(prompt: string): string {
   }
   const originOnly = !DFHIS_WORK_ITEM_RE.test(prompt) && ORIGIN_WORK_ITEM_RE.test(prompt)
   const workflowProfileInstruction = originOnly ? null : buildYgtManualPromptInstruction(prompt)
+  const evidenceGapInstruction = hasDeepeningEvidenceGaps(prompt)
+    ? `${YUNXIAO_DEEPENING_EVIDENCE_GAP_INSTRUCTION}\n\n`
+    : ''
   const codeConstraintBlock = originOnly ? '' : `${YUNXIAO_DFHIS_CODE_CONSTRAINTS}\n\n`
   const workflow = originOnly
     ? YUNXIAO_ORIGIN_COMPACT_WORKFLOW
@@ -83,7 +89,7 @@ export function applyYunxiaoRequirementPromptGate(prompt: string): string {
 
 用户可见内容使用中文。${workflow}
 
-${workflowProfileInstruction ? `${workflowProfileInstruction}\n\n` : ''}${codeConstraintBlock}原始用户请求：
+${workflowProfileInstruction ? `${workflowProfileInstruction}\n\n` : ''}${evidenceGapInstruction}${codeConstraintBlock}原始用户请求：
 ${prompt}`
 }
 

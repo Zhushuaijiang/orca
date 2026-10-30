@@ -79,6 +79,25 @@ describe('Yunxiao requirement prompt gate', () => {
     expect(gated).toContain('--project auto --json')
   })
 
+  it('requires evidence first when the requirement carries deepening gaps', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
+    const prompt = `DFHIS-31732 退费后状态不对
+
+### 待取证
+待取证：退费消息消费方版本 / 在 152 环境查 mic-sapi 日志`
+    const gated = applyYunxiaoRequirementPromptGate(prompt)
+
+    expect(gated).toContain('需求带“待取证”清单')
+    expect(gated).toContain('needs_clarification')
+  })
+
+  it('leaves plain requirements without the evidence-first instruction', () => {
+    setYunxiaoRequirementPromptGateEnabled(true)
+    const gated = applyYunxiaoRequirementPromptGate('DFHIS-31732 修一下')
+
+    expect(gated).not.toContain('需求带“待取证”清单')
+  })
+
   it('does not wrap already gated or todo-pool prompts again', () => {
     setYunxiaoRequirementPromptGateEnabled(true)
     const gated = applyYunxiaoRequirementPromptGate('DFHIS-31732')
