@@ -7,6 +7,8 @@ description: Archive, analyze, locate code for, implement, verify, or deliver Al
 
 Keep context bounded. Run deterministic scripts first, retrieve only relevant evidence, and load one stage reference at a time. Never load every archive file, fact card, repository, or reference into the prompt.
 
+Load `his-evidence-prompt-guide` alongside this skill: it owns evidence grading, the six-view analysis, and delivery closure; this skill owns archive, code location, and Yunxiao writeback.
+
 ## Intake
 
 1. In the first visible update, include `Orca Yunxiao requirement workflow gate` and the DFHIS id.

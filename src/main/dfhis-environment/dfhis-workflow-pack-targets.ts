@@ -10,7 +10,7 @@ import type {
   BundledSkillPackTarget
 } from '../skill-packs/bundled-skill-pack-installer'
 
-export const DFHIS_WORKFLOW_PACK_NAMES = [
+const DFHIS_WORKFLOW_PACK_BASE_SKILL_NAMES = [
   'yunxiao-requirement-archiver',
   'his-workflow-harness',
   'his-release-merge',
@@ -23,13 +23,29 @@ export const DFHIS_WORKFLOW_PACK_NAMES = [
   'skill-memory',
   'dfhis-ui-test-delivery'
 ] as const
+
+// Why separate: older remote packs predate these skills. Requiring them would
+// reject an otherwise valid pack; installing them when present still closes the
+// dependency gap for bundled and refreshed remote packs.
+const DFHIS_WORKFLOW_PACK_ADDED_SKILL_NAMES = [
+  'his-evidence-prompt-guide',
+  'dfhis-data-change-sql',
+  'dfhis-frontend-unit-test-guide',
+  'dfhis-java-unit-test-guide'
+] as const
+
+export const DFHIS_WORKFLOW_PACK_NAMES = [
+  ...DFHIS_WORKFLOW_PACK_BASE_SKILL_NAMES,
+  ...DFHIS_WORKFLOW_PACK_ADDED_SKILL_NAMES
+] as const
 export const BUNDLED_DFHIS_WORKFLOW_PACK_RELATIVE_PATH = 'dfhis'
 export const MANIFEST_FILE_NAME = '.orca-dfhis-workflow-pack.json'
 
 export type DfHisWorkflowPackName = (typeof DFHIS_WORKFLOW_PACK_NAMES)[number]
 
 // YGT has its own remote pack, so every DFHIS cache/install path must allow its absence.
-export const DFHIS_WORKFLOW_PACK_REQUIRED_SKILL_NAMES = DFHIS_WORKFLOW_PACK_NAMES.filter(
+// Added skills stay optional so older team packs keep installing; bundled packs include them.
+export const DFHIS_WORKFLOW_PACK_REQUIRED_SKILL_NAMES = DFHIS_WORKFLOW_PACK_BASE_SKILL_NAMES.filter(
   (name) => name !== 'ygt'
 )
 

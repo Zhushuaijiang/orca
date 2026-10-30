@@ -391,6 +391,19 @@ describe('dfhis-environment', () => {
         )
       ).resolves.toContain('name: yunxiao-requirement-archiver')
     }
+    for (const skillName of [
+      'his-evidence-prompt-guide',
+      'dfhis-data-change-sql',
+      'dfhis-frontend-unit-test-guide',
+      'dfhis-java-unit-test-guide'
+    ]) {
+      await expect(
+        readFile(
+          path.join(homeDirectory, ...UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY, skillName, 'SKILL.md'),
+          'utf8'
+        )
+      ).resolves.toContain(`name: ${skillName}`)
+    }
   })
 
   it('pulls the remote pack during one-click install and falls back to the bundled pack', async () => {

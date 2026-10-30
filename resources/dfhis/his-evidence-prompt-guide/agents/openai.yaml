@@ -1,0 +1,6 @@
+interface:
+  display_name: 'HIS 证据化提示词指南'
+  short_description: 'DFHIS 需求与缺陷同一六维对照，证据、边界、失败处理与交付关门'
+  default_prompt: '使用 $his-evidence-prompt-guide 分析或实施这个 DFHIS 工作项，并给出可追溯证据与验证结果。'
+policy:
+  allow_implicit_invocation: true
