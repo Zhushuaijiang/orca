@@ -10,6 +10,7 @@ import type {
   YunxiaoWorkItemCategory
 } from '../../../shared/types'
 import { TaskPageYunxiaoCreateRequirementDialog } from './task-page-yunxiao-create-requirement-dialog'
+import { RequirementDeepeningBatchDialog } from './requirement-deepening-batch-dialog'
 import { TaskPageYunxiaoRequirementDecisionDialog } from './task-page-yunxiao-requirement-decision-dialog'
 import { TaskPageYunxiaoWorkItemTable } from './task-page-yunxiao-work-item-table'
 import { TaskPageYunxiaoWorkItemToolbar } from './task-page-yunxiao-work-item-toolbar'
@@ -64,6 +65,7 @@ export function TaskPageYunxiaoWorkItemList({
   const [createOpen, setCreateOpen] = useState(false)
   const [answerTarget, setAnswerTarget] = useState<YunxiaoTodoPoolItem | null>(null)
   const [selectedWorkItemIds, setSelectedWorkItemIds] = useState<Set<string>>(() => new Set())
+  const [deepenBatchOpen, setDeepenBatchOpen] = useState(false)
   const handleRequirementDecisionAnswer = useYunxiaoRequirementDecisionAnswer({
     setAnswerTarget,
     setTodoPool
@@ -273,6 +275,7 @@ export function TaskPageYunxiaoWorkItemList({
         configuringTodoPoolAutomation={configuringTodoPoolAutomation}
         loading={view === 'work-items' ? loading : todoPoolLoading}
         onAddSelected={() => void handleAddSelectedToTodoPool()}
+        onDeepenSelected={() => setDeepenBatchOpen(true)}
         onCategoryChange={(nextCategory) => {
           setCategory(nextCategory)
           setStatusIds([])
@@ -353,6 +356,11 @@ export function TaskPageYunxiaoWorkItemList({
         todoPoolItems={visibleTodoPoolItems}
         todoPoolLoading={todoPoolLoading}
         view={view}
+      />
+      <RequirementDeepeningBatchDialog
+        open={deepenBatchOpen}
+        onOpenChange={setDeepenBatchOpen}
+        items={selectedWorkItems}
       />
       <TaskPageYunxiaoCreateRequirementDialog
         open={createOpen}

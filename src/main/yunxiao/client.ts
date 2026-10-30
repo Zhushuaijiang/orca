@@ -51,7 +51,10 @@ export async function callOfficialYunxiaoTool(
   return callTool(connection, sessionId, toolName, toolArgs, timeoutMs)
 }
 
-async function getOfficialYunxiaoDefaults(): Promise<{ organizationId: string; assignee: string }> {
+export async function getOfficialYunxiaoDefaults(): Promise<{
+  organizationId: string
+  assignee: string
+}> {
   const configuredOrganizationId = process.env.YUNXIAO_ORGANIZATION_ID?.trim()
   const configuredAssignee = process.env.YUNXIAO_ASSIGNEE_ID?.trim()
   if (configuredOrganizationId && configuredAssignee) {

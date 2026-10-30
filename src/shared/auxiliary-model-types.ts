@@ -20,6 +20,7 @@ export const AUXILIARY_TASK_IDS = [
   'voice',
   'classification',
   'decomposition',
+  'requirementDeepening',
   'configDescription',
   'skillReview',
   'skillCurator',
@@ -163,6 +164,12 @@ export const AUXILIARY_TASKS: readonly AuxiliaryTaskDefinition[] = [
     id: 'decomposition',
     title: 'Task decomposition',
     description: 'Break a task into actionable steps.',
+    kind: 'text'
+  },
+  {
+    id: 'requirementDeepening',
+    title: 'Requirement deepening',
+    description: 'Rewrite a requirement into a deeper, verifiable prompt without adding scope.',
     kind: 'text'
   },
   {

@@ -17,9 +17,11 @@ type UncataloguedMethod =
   | 'yunxiao.addTodoPoolItems'
   | 'yunxiao.archiveRequirement'
   | 'yunxiao.createRequirement'
+  | 'yunxiao.getWorkItemDetail'
   | 'yunxiao.listWorkItems'
   | 'yunxiao.removeTodoPoolItem'
   | 'yunxiao.updateTodoPoolItem'
+  | 'yunxiao.updateWorkItemDescription'
 
 type IsAny<T> = 0 extends 1 & T ? true : false
 

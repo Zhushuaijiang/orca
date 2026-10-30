@@ -103,6 +103,9 @@ const yunxiaoApi: PreloadApi['yunxiao'] = {
   createRequirement: (args) => ipcRenderer.invoke('yunxiao:createRequirement', args),
   listRequirementFieldOptions: () => ipcRenderer.invoke('yunxiao:listRequirementFieldOptions'),
   archiveRequirement: (args) => ipcRenderer.invoke('yunxiao:archiveRequirement', args),
+  getWorkItemDetail: (args) => ipcRenderer.invoke('yunxiao:getWorkItemDetail', args),
+  updateWorkItemDescription: (args) =>
+    ipcRenderer.invoke('yunxiao:updateWorkItemDescription', args),
   listTodoPool: () => ipcRenderer.invoke('yunxiao:listTodoPool'),
   addTodoPoolItems: (args) => ipcRenderer.invoke('yunxiao:addTodoPoolItems', args),
   updateTodoPoolItem: (args) => ipcRenderer.invoke('yunxiao:updateTodoPoolItem', args),

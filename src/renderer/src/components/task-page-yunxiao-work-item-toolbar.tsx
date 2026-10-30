@@ -1,4 +1,4 @@
-import { Bot, ListPlus, Play, Plus, RefreshCw, Search } from 'lucide-react'
+import { Bot, ListPlus, Play, Plus, RefreshCw, Search, Sparkles } from 'lucide-react'
 import type { JSX } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -39,6 +39,7 @@ type TaskPageYunxiaoWorkItemToolbarProps = {
   onQueryInputChange: (query: string) => void
   onQuerySubmit: () => void
   onAddSelected: () => void
+  onDeepenSelected?: () => void
   onCreateRequirement: () => void
   onConfigureTodoPoolAutomation: () => void
   onRunNextTodoPoolAutomation: () => void
@@ -53,6 +54,7 @@ export function TaskPageYunxiaoWorkItemToolbar({
   loading,
   onAddSelected,
   onCategoryChange,
+  onDeepenSelected,
   onConfigureTodoPoolAutomation,
   onCreateRequirement,
   onQueryInputChange,
@@ -156,6 +158,18 @@ export function TaskPageYunxiaoWorkItemToolbar({
               <ListPlus className="size-3.5" />
               {translate('auto.components.TaskPage.yunxiaoAddSelected', 'Add selected')}
             </Button>
+            {onDeepenSelected ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                disabled={selectedCount === 0}
+                onClick={onDeepenSelected}
+              >
+                <Sparkles className="size-3.5" />
+                {translate('requirementDeepening.batchAction', '批量深化')}
+              </Button>
+            ) : null}
           </>
         ) : null}
         {view === 'todo-pool' ? (

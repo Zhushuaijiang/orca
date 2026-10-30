@@ -10,6 +10,8 @@ type WebYunxiaoRouteKey =
   | 'createRequirement'
   | 'listRequirementFieldOptions'
   | 'archiveRequirement'
+  | 'getWorkItemDetail'
+  | 'updateWorkItemDescription'
   | 'listTodoPool'
   | 'addTodoPoolItems'
   | 'updateTodoPoolItem'
@@ -20,6 +22,8 @@ type WebYunxiaoRuntimeMethod =
   | 'yunxiao.createRequirement'
   | 'yunxiao.listRequirementFieldOptions'
   | 'yunxiao.archiveRequirement'
+  | 'yunxiao.getWorkItemDetail'
+  | 'yunxiao.updateWorkItemDescription'
   | 'yunxiao.listTodoPool'
   | 'yunxiao.addTodoPoolItems'
   | 'yunxiao.updateTodoPoolItem'
@@ -30,6 +34,8 @@ export const YUNXIAO_WEB_RPC_METHODS = {
   createRequirement: 'yunxiao.createRequirement',
   listRequirementFieldOptions: 'yunxiao.listRequirementFieldOptions',
   archiveRequirement: 'yunxiao.archiveRequirement',
+  getWorkItemDetail: 'yunxiao.getWorkItemDetail',
+  updateWorkItemDescription: 'yunxiao.updateWorkItemDescription',
   listTodoPool: 'yunxiao.listTodoPool',
   addTodoPoolItems: 'yunxiao.addTodoPoolItems',
   updateTodoPoolItem: 'yunxiao.updateTodoPoolItem',
@@ -50,7 +56,17 @@ export function createYunxiaoApi(): WebYunxiaoApi {
         YUNXIAO_WEB_RPC_METHODS.listRequirementFieldOptions
       ),
     archiveRequirement: (args) =>
-      route<WebYunxiaoResult<'archiveRequirement'>>(YUNXIAO_WEB_RPC_METHODS.archiveRequirement, args),
+      route<WebYunxiaoResult<'archiveRequirement'>>(
+        YUNXIAO_WEB_RPC_METHODS.archiveRequirement,
+        args
+      ),
+    getWorkItemDetail: (args) =>
+      route<WebYunxiaoResult<'getWorkItemDetail'>>(YUNXIAO_WEB_RPC_METHODS.getWorkItemDetail, args),
+    updateWorkItemDescription: (args) =>
+      route<WebYunxiaoResult<'updateWorkItemDescription'>>(
+        YUNXIAO_WEB_RPC_METHODS.updateWorkItemDescription,
+        args
+      ),
     listTodoPool: () =>
       route<WebYunxiaoResult<'listTodoPool'>>(YUNXIAO_WEB_RPC_METHODS.listTodoPool),
     addTodoPoolItems: (args) =>

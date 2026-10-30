@@ -1454,9 +1454,11 @@ export const RPC_METHODS_WITHOUT_SHARED_PARAMS: readonly string[] = [
   'yunxiao.addTodoPoolItems',
   'yunxiao.archiveRequirement',
   'yunxiao.createRequirement',
+  'yunxiao.getWorkItemDetail',
   'yunxiao.listWorkItems',
   'yunxiao.removeTodoPoolItem',
-  'yunxiao.updateTodoPoolItem'
+  'yunxiao.updateTodoPoolItem',
+  'yunxiao.updateWorkItemDescription'
 ]
 
 export type RpcMethodName = keyof typeof RPC_PARAMS_BY_METHOD

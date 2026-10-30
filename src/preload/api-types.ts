@@ -84,7 +84,11 @@ import type {
   YunxiaoRequirementResult,
   YunxiaoTodoPoolAddArgs,
   YunxiaoTodoPoolItem,
-  YunxiaoTodoPoolUpdateArgs
+  YunxiaoTodoPoolUpdateArgs,
+  YunxiaoUpdateWorkItemDescriptionArgs,
+  YunxiaoUpdateWorkItemDescriptionResult,
+  YunxiaoWorkItemDetailArgs,
+  YunxiaoWorkItemDetailResult
 } from '../shared/yunxiao-types'
 
 // Flattens contracts that share one PreloadApi key: an intersection is not type-identical to the flat shape.
@@ -98,6 +102,10 @@ export type YunxiaoApi = {
   archiveRequirement: (
     args: YunxiaoArchiveRequirementArgs
   ) => Promise<YunxiaoArchiveRequirementResult>
+  getWorkItemDetail: (args: YunxiaoWorkItemDetailArgs) => Promise<YunxiaoWorkItemDetailResult>
+  updateWorkItemDescription: (
+    args: YunxiaoUpdateWorkItemDescriptionArgs
+  ) => Promise<YunxiaoUpdateWorkItemDescriptionResult>
   listTodoPool: () => Promise<YunxiaoTodoPoolItem[]>
   addTodoPoolItems: (args: YunxiaoTodoPoolAddArgs) => Promise<YunxiaoTodoPoolItem[]>
   updateTodoPoolItem: (args: YunxiaoTodoPoolUpdateArgs) => Promise<YunxiaoTodoPoolItem | null>
@@ -113,9 +121,7 @@ export type DfHisEnvironmentApi = {
 
 // Fork-only: finds and kills processes holding an agent session lock.
 export type AgentSessionApi = {
-  findLockHolders: (
-    sessionId: string
-  ) => Promise<{ pid: number; ppid: number; command: string }[]>
+  findLockHolders: (sessionId: string) => Promise<{ pid: number; ppid: number; command: string }[]>
   killLockHolder: (pid: number) => Promise<boolean>
 }
 

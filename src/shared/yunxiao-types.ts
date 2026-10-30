@@ -39,6 +39,23 @@ export type YunxiaoArchiveRequirementArgs = {
   reviewMode?: 'deep' | 'quick'
 }
 
+export type YunxiaoWorkItemDetailArgs = {
+  workItemIdOrUrl: string
+}
+
+export type YunxiaoWorkItemDetailResult =
+  | { ok: true; workItemId: string; subject: string; description: string; url: string | null }
+  | { ok: false; error: string }
+
+export type YunxiaoUpdateWorkItemDescriptionArgs = {
+  workItemIdOrUrl: string
+  description: string
+}
+
+export type YunxiaoUpdateWorkItemDescriptionResult =
+  | { ok: true; workItemId: string }
+  | { ok: false; error: string }
+
 export type YunxiaoWorkItemCategory = 'Req' | 'Task' | 'Bug'
 
 export type YunxiaoWorkItemPerson = {

@@ -1,10 +1,19 @@
 import { z } from 'zod'
 import type { YunxiaoTodoPoolUpdateArgs, YunxiaoWorkItem } from '../../../../shared/yunxiao-types'
 import { archiveYunxiaoRequirement, createYunxiaoRequirement } from '../../../yunxiao/client'
+import {
+  getYunxiaoWorkItemDetail,
+  updateYunxiaoWorkItemDescription
+} from '../../../yunxiao/work-item-detail'
 import { listYunxiaoRequirementFieldOptions } from '../../../yunxiao/requirement-field-options'
 import { listYunxiaoWorkItems } from '../../../yunxiao/work-item-list'
 import { defineMethod } from '../core'
-import { OptionalBoolean, OptionalFiniteNumber, OptionalString, requiredString } from '../../../../shared/rpc-contract/rpc-param-primitives'
+import {
+  OptionalBoolean,
+  OptionalFiniteNumber,
+  OptionalString,
+  requiredString
+} from '../../../../shared/rpc-contract/rpc-param-primitives'
 
 const YunxiaoWorkItemCategory = z.enum(['Req', 'Task', 'Bug', 'all']).optional()
 const YunxiaoRelationId = z.union([z.string(), z.null()]).optional()
@@ -45,6 +54,15 @@ const YunxiaoArchiveRequirement = z.object({
   workItemIdOrUrl: requiredString('Yunxiao work item id or URL is required.'),
   dispatch: OptionalBoolean,
   reviewMode: z.enum(['deep', 'quick']).optional()
+})
+
+const YunxiaoWorkItemDetail = z.object({
+  workItemIdOrUrl: requiredString('Yunxiao work item id or URL is required.')
+})
+
+const YunxiaoUpdateWorkItemDescription = z.object({
+  workItemIdOrUrl: requiredString('Yunxiao work item id or URL is required.'),
+  description: requiredString('Description is required.')
 })
 
 const YunxiaoTodoPoolStatus = z.enum([
@@ -101,6 +119,18 @@ export const YUNXIAO_METHODS = [
     permission: 'workspace',
     params: YunxiaoArchiveRequirement,
     handler: (params) => archiveYunxiaoRequirement(params)
+  }),
+  defineMethod({
+    name: 'yunxiao.getWorkItemDetail',
+    permission: 'workspace',
+    params: YunxiaoWorkItemDetail,
+    handler: (params) => getYunxiaoWorkItemDetail(params)
+  }),
+  defineMethod({
+    name: 'yunxiao.updateWorkItemDescription',
+    permission: 'workspace',
+    params: YunxiaoUpdateWorkItemDescription,
+    handler: (params) => updateYunxiaoWorkItemDescription(params)
   }),
   defineMethod({
     name: 'yunxiao.listTodoPool',

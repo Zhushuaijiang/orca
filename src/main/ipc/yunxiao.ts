@@ -5,10 +5,16 @@ import type {
   YunxiaoListWorkItemsArgs,
   YunxiaoTodoPoolAddArgs,
   YunxiaoTodoPoolUpdateArgs,
-  YunxiaoWorkItemCategory
+  YunxiaoUpdateWorkItemDescriptionArgs,
+  YunxiaoWorkItemCategory,
+  YunxiaoWorkItemDetailArgs
 } from '../../shared/yunxiao-types'
 import type { Store } from '../persistence'
 import { archiveYunxiaoRequirement, createYunxiaoRequirement } from '../yunxiao/client'
+import {
+  getYunxiaoWorkItemDetail,
+  updateYunxiaoWorkItemDescription
+} from '../yunxiao/work-item-detail'
 import { listYunxiaoRequirementFieldOptions } from '../yunxiao/requirement-field-options'
 import { listYunxiaoWorkItems } from '../yunxiao/work-item-list'
 
@@ -69,6 +75,26 @@ export function registerYunxiaoHandlers(store: Store): void {
   )
 
   ipcMain.handle('yunxiao:listRequirementFieldOptions', () => listYunxiaoRequirementFieldOptions())
+
+  ipcMain.handle('yunxiao:getWorkItemDetail', async (_event, args: YunxiaoWorkItemDetailArgs) => {
+    if (!args || typeof args.workItemIdOrUrl !== 'string') {
+      return { ok: false, error: 'Yunxiao work item id or URL is required.' }
+    }
+    return getYunxiaoWorkItemDetail({ workItemIdOrUrl: args.workItemIdOrUrl })
+  })
+
+  ipcMain.handle(
+    'yunxiao:updateWorkItemDescription',
+    async (_event, args: YunxiaoUpdateWorkItemDescriptionArgs) => {
+      if (!args || typeof args.workItemIdOrUrl !== 'string') {
+        return { ok: false, error: 'Yunxiao work item id or URL is required.' }
+      }
+      if (typeof args.description !== 'string' || !args.description.trim()) {
+        return { ok: false, error: 'Description is required.' }
+      }
+      return updateYunxiaoWorkItemDescription(args)
+    }
+  )
 
   ipcMain.handle(
     'yunxiao:archiveRequirement',

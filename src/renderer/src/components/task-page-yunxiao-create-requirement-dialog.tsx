@@ -27,6 +27,7 @@ import type {
   YunxiaoRequirementFieldOption,
   YunxiaoRequirementPriority
 } from '../../../shared/types'
+import { RequirementDeepeningDialog } from './requirement-deepening-dialog'
 import { SearchableOptionSelect } from './task-page-yunxiao-option-select'
 
 const FALLBACK_PRIORITIES: YunxiaoRequirementFieldOption[] = [
@@ -79,6 +80,7 @@ export function TaskPageYunxiaoCreateRequirementDialog({
   const [options, setOptions] = useState<FieldOptions>(FALLBACK_OPTIONS)
   const [archiveAfterCreate, setArchiveAfterCreate] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [deepening, setDeepening] = useState(false)
 
   useEffect(() => {
     if (!open) {
@@ -224,9 +226,23 @@ export function TaskPageYunxiaoCreateRequirementDialog({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-medium text-muted-foreground">
-              {translate('auto.components.TaskPage.7f3f7b4c18', 'Description (optional, markdown)')}
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-[11px] font-medium text-muted-foreground">
+                {translate(
+                  'auto.components.TaskPage.7f3f7b4c18',
+                  'Description (optional, markdown)'
+                )}
+              </label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={creating || !description.trim()}
+                onClick={() => setDeepening(true)}
+              >
+                {translate('requirementDeepening.trigger', '深化需求')}
+              </Button>
+            </div>
             <GitHubMarkdownComposer
               value={description}
               onChange={setDescription}
@@ -336,6 +352,13 @@ export function TaskPageYunxiaoCreateRequirementDialog({
             )}
           </Button>
         </DialogFooter>
+        <RequirementDeepeningDialog
+          open={deepening}
+          onOpenChange={setDeepening}
+          title={title.trim()}
+          body={description}
+          onAccept={setDescription}
+        />
       </DialogContent>
     </Dialog>
   )

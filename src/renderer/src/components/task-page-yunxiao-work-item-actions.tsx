@@ -5,9 +5,11 @@ import {
   ListPlus,
   LoaderCircle,
   MessageSquareText,
-  MoreHorizontal
+  MoreHorizontal,
+  Sparkles
 } from 'lucide-react'
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +22,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
 import type { YunxiaoTodoPoolStatus, YunxiaoWorkItem } from '../../../shared/types'
+import { RequirementDeepeningDialog } from './requirement-deepening-dialog'
 
 function todoPoolStatusActions(status: YunxiaoTodoPoolStatus | null): YunxiaoTodoPoolStatus[] {
   switch (status) {
@@ -98,6 +101,43 @@ export function TaskPageYunxiaoWorkItemActions({
   onStartWorkspace
 }: TaskPageYunxiaoWorkItemActionsProps): JSX.Element {
   const statusActions = todoPoolStatusActions(todoPoolStatus)
+  const [loadingDeepening, setLoadingDeepening] = useState(false)
+  const [deepenOpen, setDeepenOpen] = useState(false)
+  const [deepenTarget, setDeepenTarget] = useState<{ title: string; body: string } | null>(null)
+  const workItemRef = item.serialNumber ?? item.id
+
+  const openDeepening = async (): Promise<void> => {
+    setLoadingDeepening(true)
+    try {
+      const detail = await window.api.yunxiao.getWorkItemDetail({ workItemIdOrUrl: workItemRef })
+      if (!detail.ok) {
+        toast.error(detail.error)
+        return
+      }
+      if (!detail.description.trim()) {
+        toast.error(translate('requirementDeepening.noDescription', '该工作项没有可深化的描述。'))
+        return
+      }
+      setDeepenTarget({ title: detail.subject || item.title, body: detail.description })
+      setDeepenOpen(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLoadingDeepening(false)
+    }
+  }
+
+  const writeBackDeepening = async (description: string): Promise<void> => {
+    const result = await window.api.yunxiao.updateWorkItemDescription({
+      workItemIdOrUrl: workItemRef,
+      description
+    })
+    if (!result.ok) {
+      throw new Error(result.error)
+    }
+    toast.success(translate('requirementDeepening.writeBackDone', '已写回云效描述'))
+  }
+
   return (
     <div className="sticky right-0 z-10 flex h-full items-center justify-end gap-1 border-l border-border/50 bg-background pl-2 group-hover:bg-muted/45">
       <Tooltip>
@@ -169,6 +209,17 @@ export function TaskPageYunxiaoWorkItemActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={6}>
+          <DropdownMenuItem
+            onSelect={() => void openDeepening()}
+            disabled={archiving || loadingDeepening}
+          >
+            {loadingDeepening ? (
+              <LoaderCircle className="size-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="size-3.5" />
+            )}
+            {translate('requirementDeepening.menuItem', '深化需求')}
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onArchive(item)} disabled={archiving}>
             <Archive className="size-3.5" />
             {translate('auto.components.TaskPage.yunxiaoArchive', 'Archive requirement')}
@@ -202,6 +253,18 @@ export function TaskPageYunxiaoWorkItemActions({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      <RequirementDeepeningDialog
+        open={deepenOpen}
+        onOpenChange={setDeepenOpen}
+        title={deepenTarget?.title ?? item.title}
+        body={deepenTarget?.body ?? ''}
+        acceptLabel={translate('requirementDeepening.writeBack', '写回云效')}
+        notice={translate(
+          'requirementDeepening.writeBackNotice',
+          '采用后会覆盖云效工作项的描述；深化前的原文会保留在描述末尾。'
+        )}
+        onAccept={writeBackDeepening}
+      />
     </div>
   )
 }
