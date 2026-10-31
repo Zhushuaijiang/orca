@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { getTaskPageRepoSourceContext } from './task-page-source-context'
+import { getTaskPageRepoSourceContext } from './task-page/task-page-source-context'
 import type { GitLabWorkItem } from '../../../shared/gitlab-types'
 import type { Repo } from '../../../shared/repo-types'
 

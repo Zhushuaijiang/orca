@@ -10,16 +10,15 @@ import type {
 import type { TranscriptMessageSink } from './session-transcript-consumers'
 import {
   accumulatorFoldResumeState,
-  addPreviewMessage,
   createAccumulator,
   sessionIdFromFileName,
   updateTimeline
 } from './session-scanner-accumulator'
+import { addSessionContent, addSessionText } from './session-scanner-messages'
 import { addTokenUsage, tokenUsageFromRecord } from './session-scanner-token-values'
 import {
   asRecord,
   extractMessageText,
-  extractPreviewContentText,
   extractString,
   normalizeTitleText,
   parseJsonObject,
@@ -41,8 +40,7 @@ export async function parseDroidSessionFile(
   try {
     return await parseDroidSessionLines({ file, lines, platform, messages })
   } finally {
-    // readline.close() leaves the underlying stream open; destroy it so a
-    // mid-parse throw cannot leak the gated transcript handle.
+    // readline.close() leaves its input open; destroy the gated stream after parse failures too.
     lines.close()
     input.destroy()
   }
@@ -74,7 +72,7 @@ function consumeDroidRecordLine(accumulator: SessionAccumulator, line: string): 
     accumulator.messageCount++
     accumulator.totalTokens += tokenTotal(record.usage)
     addTokenUsage(accumulator, accumulator.model, tokenUsageFromRecord(record.usage))
-    addPreviewMessage(accumulator, {
+    addSessionText(accumulator, {
       role: 'assistant',
       text: extractString(record.finalText),
       timestamp: record.timestamp
@@ -125,10 +123,10 @@ function consumeDroidMessage(
       normalizeTitleText(extractString(record.text) ?? '') ||
       extractMessageText(asRecord(record.message))
   }
-  addPreviewMessage(accumulator, {
+  addSessionContent(
+    accumulator,
     role,
-    text:
-      extractString(record.text) ?? extractPreviewContentText(asRecord(record.message)?.content),
-    timestamp: record.timestamp
-  })
+    extractString(record.text) ?? asRecord(record.message)?.content,
+    record.timestamp
+  )
 }

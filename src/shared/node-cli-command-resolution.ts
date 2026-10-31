@@ -1,17 +1,21 @@
-import { accessSync, constants, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { delimiter, dirname, isAbsolute, join } from 'node:path'
-import { getNvmVersionDirectories } from './nvm-version-directories'
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path'
+import { firstWindowsPathEnvKey, isNativeExecutable } from './cli-runtime-pairing-inputs'
+import { getFnmDefaultAliasDirectories } from './fnm-default-alias-dirs'
+import { getNvmVersionDirectories, nvmVersionDirectories } from './nvm-version-directories'
+import { isRunnableCommand, runCliFsReadsSync, type CliFsReads } from './cli-fs-reads'
 import { getSystemCliInstallDirectories } from './system-cli-install-dirs'
 
-type ResolveCommandOptions = {
+export type ResolveCommandOptions = {
   pathEnv?: string | null
   platform?: NodeJS.Platform
   homePath?: string
   macApplicationsPath?: string
+  /** Skip the PATH scan; the caller already established absence there (agent detection batches it). */
+  skipPathSearch?: boolean
 }
 
-function getExecutableNames(platform: NodeJS.Platform, commandName: string): string[] {
+export function getExecutableNames(platform: NodeJS.Platform, commandName: string): string[] {
   if (platform === 'win32') {
     return [`${commandName}.cmd`, `${commandName}.exe`, `${commandName}.bat`, commandName]
   }
@@ -33,62 +37,54 @@ function splitPath(
     .filter(Boolean)
 }
 
+/** Like execvp, relative and empty PATH entries search from the launch cwd. */
+export function pathEnvRelativeTo(pathEnv: string | undefined, cwd: string): string | undefined {
+  return pathEnv
+    ?.split(delimiter)
+    .map((entry) => (isAbsolute(entry) ? entry : resolve(cwd, entry)))
+    .join(delimiter)
+}
+
+function* firstRunnable(
+  platform: NodeJS.Platform,
+  directories: string[],
+  executableNames: string[]
+): CliFsReads<string | null> {
+  for (const directory of directories) {
+    for (const executableName of executableNames) {
+      const path = join(directory, executableName)
+      if ((yield { kind: 'runnable', platform, path }) === true) {
+        return path
+      }
+    }
+  }
+  return null
+}
 function findFirstExecutable(
   platform: NodeJS.Platform,
   directories: string[],
   executableNames: string[]
 ): string | null {
-  for (const directory of directories) {
-    for (const executableName of executableNames) {
-      const candidate = join(directory, executableName)
-      if (isRunnableCommand(platform, candidate)) {
-        return candidate
-      }
-    }
-  }
-
-  return null
-}
-
-function isRunnableCommand(platform: NodeJS.Platform, candidate: string): boolean {
-  try {
-    const stats = statSync(candidate)
-    if (!stats.isFile()) {
-      return false
-    }
-    if (platform === 'win32') {
-      return true
-    }
-    // Why: GUI fallback probing should skip placeholders/directories so spawn
-    // can continue to a runnable CLI instead of failing later with EACCES/EISDIR.
-    accessSync(candidate, constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
+  return runCliFsReadsSync(firstRunnable(platform, directories, executableNames))
 }
 
 function getBaseVersionManagerDirectories(platform: NodeJS.Platform, homePath: string): string[] {
   const directories = [
     join(homePath, '.volta', 'bin'),
     join(homePath, '.asdf', 'shims'),
-    join(homePath, '.fnm', 'aliases', 'default', 'bin'),
-    // Why: mise (formerly rtx) exposes managed tool binaries via a shims
-    // directory, similar to asdf.
+    ...getFnmDefaultAliasDirectories(platform, homePath),
     join(homePath, '.local', 'share', 'mise', 'shims')
   ]
 
   if (platform === 'win32') {
-    // Why: Anthropic's native Windows installer places claude.exe here, and
-    // GUI-launched Orca may not inherit the user's PATH entry for it.
+    // Native Windows Claude installs here; GUI launches may lack the user PATH entry.
     directories.push(join(homePath, '.local', 'bin'))
     directories.push(join(homePath, 'AppData', 'Roaming', 'npm'))
     directories.push(join(homePath, 'AppData', 'Local', 'pnpm'))
     directories.push(join(homePath, 'AppData', 'Local', 'Yarn', 'bin'))
   } else {
     directories.push(join(homePath, '.local', 'bin'))
-    // Why: pnpm uses platform-specific global bin directories that differ from
-    // npm's ~/.local/bin.
+    // pnpm global bins vary by platform, unlike npm’s ~/.local/bin.
     if (platform === 'darwin') {
       directories.push(join(homePath, 'Library', 'pnpm'))
     } else {
@@ -118,10 +114,7 @@ function getVersionManagerDirectories(
   return directories
 }
 
-// Why one list for both resolvers: the system block must stay LAST so a
-// version-manager install always outranks a Homebrew/npm/snap one, and two
-// hand-spelled spreads is how the native and WSL lists drifted apart before.
-// Why: ChatGPT.app ships a bundled codex binary; a PATH-less desktop launch still finds it.
+// ChatGPT.app ships a bundled codex binary; a PATH-less desktop launch still finds it.
 function getMacAppBundledDirectories(
   platform: NodeJS.Platform,
   commandName: string,
@@ -132,40 +125,61 @@ function getMacAppBundledDirectories(
     : []
 }
 
-function getCliInstallDirectories(
+// Share native/WSL ordering: version-manager bins must precede system Homebrew/npm/snap installs.
+function* cliInstallDirectories(
   platform: NodeJS.Platform,
   homePath: string,
   commandName: string,
   macApplicationsPath: string
-): string[] {
+): CliFsReads<string[]> {
   return [
-    ...getNvmVersionDirectories(homePath),
+    ...(yield* nvmVersionDirectories(homePath)),
     ...getBaseVersionManagerDirectories(platform, homePath),
     ...getSystemCliInstallDirectories(platform, homePath),
     ...getMacAppBundledDirectories(platform, commandName, macApplicationsPath)
   ]
 }
 
+function getCliInstallDirectories(
+  platform: NodeJS.Platform,
+  homePath: string,
+  commandName: string,
+  macApplicationsPath: string
+): string[] {
+  return runCliFsReadsSync(
+    cliInstallDirectories(platform, homePath, commandName, macApplicationsPath)
+  )
+}
+
+/** PATH entries first; install dirs are listed only once PATH misses. Run with cli-fs-reads. */
+export function* cliCommandLookup(
+  commandName: string,
+  options: ResolveCommandOptions = {}
+): CliFsReads<string> {
+  const platform = options.platform ?? process.platform
+  const names = getExecutableNames(platform, commandName)
+  const pathEnv = options.pathEnv ?? process.env.PATH ?? process.env.Path ?? null
+  return (
+    (yield* firstRunnable(platform, splitPath(pathEnv), names)) ??
+    (yield* firstRunnable(
+      platform,
+      yield* cliInstallDirectories(
+        platform,
+        options.homePath ?? homedir(),
+        commandName,
+        options.macApplicationsPath ?? '/Applications'
+      ),
+      names
+    )) ??
+    commandName
+  )
+}
+
 export function resolveCliCommand(
   commandName: string,
   options: ResolveCommandOptions = {}
 ): string {
-  const platform = options.platform ?? process.platform
-  const executableNames = getExecutableNames(platform, commandName)
-  const pathEnv = options.pathEnv ?? process.env.PATH ?? process.env.Path ?? null
-  const pathCandidate = findFirstExecutable(platform, splitPath(pathEnv), executableNames)
-  if (pathCandidate) {
-    return pathCandidate
-  }
-
-  const homePath = options.homePath ?? homedir()
-  const macApps = options.macApplicationsPath ?? '/Applications'
-  const installCandidate = findFirstExecutable(
-    platform,
-    getCliInstallDirectories(platform, homePath, commandName, macApps),
-    executableNames
-  )
-  return installCandidate ?? commandName
+  return runCliFsReadsSync(cliCommandLookup(commandName, options))
 }
 
 /** Resolve a literal override without falling back to an unverified command name. */
@@ -201,7 +215,9 @@ export function resolveCliCommands(
 
   for (const commandName of new Set(commandNames)) {
     const executableNames = getExecutableNames(platform, commandName)
-    const pathCandidate = findFirstExecutable(platform, pathDirectories, executableNames)
+    const pathCandidate = options.skipPathSearch
+      ? undefined
+      : findFirstExecutable(platform, pathDirectories, executableNames)
     const macApps = options.macApplicationsPath ?? '/Applications'
     const installDirectories = getCliInstallDirectories(platform, homePath, commandName, macApps)
     const installCandidate =
@@ -220,35 +236,9 @@ export function resolveClaudeCommand(options: ResolveCommandOptions = {}): strin
   return resolveCliCommand('claude', options)
 }
 
-// Why: Win32 resolves env names case-insensitively and object order preserves
-// the block order, so the entry the child will actually read is the FIRST
-// case-insensitive match — not necessarily `Path` or `PATH`. Reading a narrower
-// set than the dedupe below deletes would destroy a third spelling unread.
-// Mirrors resolvePathEnvKey in src/main/pty/windows-path-segment-merge.ts, which
-// src/shared must not import.
-function firstWindowsPathEnvKey(env: NodeJS.ProcessEnv): string {
-  for (const key of Object.keys(env)) {
-    if (key.toLowerCase() === 'path' && env[key] !== undefined) {
-      return key
-    }
-  }
-  return 'Path'
-}
-
-/**
- * Put a resolved CLI's own directory ahead of PATH when that directory ships a
- * sibling `node`.
- *
- * Why: `resolveCliCommand` falls back to scanning every version-manager install
- * when PATH misses, so it can hand back `~/.nvm/versions/node/v20.x/bin/codex`
- * while PATH still leads with v22. The CLI's `#!/usr/bin/env node` shebang then
- * loads a v20-built native module under a v22 ABI and the agent dies on first
- * require (stablyai/orca#10932). Pair the binary with the runtime it was
- * installed against instead.
- *
- * Only prepends when the sibling `node` really exists, so a CLI resolved from a
- * directory that ships no node is left alone.
- */
+/** Pair resolved script CLIs with sibling Node on PATH to preserve their installed native-module ABI (#10932).
+ * Fallback discovery can find a v20 CLI while PATH leads with v22; env-node shebangs would crash on require.
+ * Prepend only if sibling Node exists and the CLI is not a compiled binary. */
 export function withCliRuntimeOnPath<T extends NodeJS.ProcessEnv>(
   commandPath: string,
   env: T,
@@ -259,12 +249,16 @@ export function withCliRuntimeOnPath<T extends NodeJS.ProcessEnv>(
     return env
   }
   const commandDirectory = dirname(commandPath)
-  if (!findFirstExecutable(platform, [commandDirectory], getExecutableNames(platform, 'node'))) {
+  if (
+    !findFirstExecutable(platform, [commandDirectory], getExecutableNames(platform, 'node')) ||
+    isNativeExecutable(commandPath)
+  ) {
     return env
   }
   const pathKey = platform === 'win32' ? firstWindowsPathEnvKey(env) : 'PATH'
   const pathDelimiter = platform === 'win32' ? ';' : delimiter
-  const segments = splitPath(env[pathKey], pathDelimiter)
+  // Missing child PATH inherits Orca’s; pair over that inherited value.
+  const segments = splitPath(env[pathKey] ?? process.env[pathKey], pathDelimiter)
   if (segments[0] === commandDirectory) {
     return env
   }
@@ -273,8 +267,7 @@ export function withCliRuntimeOnPath<T extends NodeJS.ProcessEnv>(
   )
   const paired = { ...env, [pathKey]: next }
   if (platform === 'win32') {
-    // Why: the spread is case-sensitive while Windows env lookup is not, so a
-    // differently-cased twin would keep shadowing the value we just wrote.
+    // Windows environment keys ignore case but object spreads do not; remove alternate-case twins that could shadow the new PATH.
     for (const name of Object.keys(paired)) {
       if (name !== pathKey && name.toLowerCase() === pathKey.toLowerCase()) {
         delete (paired as NodeJS.ProcessEnv)[name]

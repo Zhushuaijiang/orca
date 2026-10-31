@@ -7,6 +7,7 @@ import {
   AGENT_SESSION_CODEBUDDY_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_DSH_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_KIMI_RESUME_RUNTIME_CAPABILITY,
+  AGENT_SESSION_HERMES_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_CURSOR_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_MUSE_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_OPENCODE2_RESUME_RUNTIME_CAPABILITY,
@@ -89,7 +90,8 @@ describe('agentResumeHostAuthorityCapability', () => {
       dsh: AGENT_SESSION_DSH_RESUME_RUNTIME_CAPABILITY,
       // Why: jcode resumed by id (--resume <id>) through the same host-authority session enum the generic probe covers.
       jcode: undefined,
-      kiro: 'agent-session.kiro-resume.v1'
+      kiro: 'agent-session.kiro-resume.v1',
+      hermes: AGENT_SESSION_HERMES_RESUME_RUNTIME_CAPABILITY
     })
   })
 })

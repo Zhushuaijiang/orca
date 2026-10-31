@@ -7,7 +7,7 @@ import {
   UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
 } from '../../shared/agent-skill-home-directories'
 import { getProfileUserDataPath } from '../orca-profiles/profile-storage-paths'
-import { writePluginFileAtomically } from '../plugins/plugin-atomic-file-write'
+import { writePluginFileAtomically } from '../plugins/installation/plugin-atomic-file-write'
 import { ensureBundledSkillPackInstalled } from './bundled-skill-pack-installer'
 import type { BundledSkillPackDefinition } from './bundled-skill-pack-types'
 

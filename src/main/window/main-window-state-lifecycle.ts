@@ -22,13 +22,13 @@ export function installMainWindowStateLifecycle(args: {
   mainWindow.webContents.on('dom-ready', () => {
     const level = store?.getUI().uiZoomLevel ?? 0
     mainWindow.webContents.setZoomLevel(level)
-    // Why: native traffic lights don't scale with CSS zoom; reposition on startup to stay aligned with the zoomed titlebar.
+    // Native traffic lights do not scale with CSS zoom; align them with the titlebar on startup.
     if (process.platform === 'darwin') {
       syncTrafficLightPosition(mainWindow, uiZoomFactorFromLevel(level))
     }
   })
 
-  // Why: macOS+Electron 41 re-emits ready-to-show on webview-guest creation; a one-shot guard stops re-running maximize() after resize (#591).
+  // Electron 41/macOS reemits ready-to-show for webview creation; run initial maximize only once (#591).
   let handledInitialReadyToShow = false
   let initialRevealFallbackTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
     // Why: ready-to-show is best-effort across Chromium renderer/webview startup; without this a healthy process can strand the only app window hidden.
@@ -55,7 +55,7 @@ export function installMainWindowStateLifecycle(args: {
     handledInitialReadyToShow = true
     clearInitialRevealFallbackTimer()
 
-    // Why: headless E2E keeps the window off screen entirely (Playwright drives via CDP).
+    // Keep headless E2E off screen; Playwright uses CDP.
     if (isWindowlessLaunch()) {
       return
     }
@@ -69,9 +69,9 @@ export function installMainWindowStateLifecycle(args: {
     mainWindow.webContents.on('did-finish-load', revealInitialWindow)
   }
 
-  // Why: persist window bounds to restore last position/size; debounce to avoid hammering persistence during resize drags.
+  // Debounce bounds persistence during resize drags.
   let boundsTimer: ReturnType<typeof setTimeout> | null = null
-  // Why: teardown still emits resize/move/unmaximize at near-min bounds; freeze persistence once closing so they can't clobber the saved size.
+  // Teardown emits near-minimum bounds; freeze writes once closing to preserve remembered size.
   let windowClosing = false
   const saveBounds = (): void => {
     if (boundsTimer) {
@@ -82,14 +82,14 @@ export function installMainWindowStateLifecycle(args: {
       if (windowClosing || mainWindow.isDestroyed() || mainWindow.isFullScreen()) {
         return
       }
-      // Why: persist windowMaximized and windowBounds atomically; the near-min guard must not leave them a mismatched pair.
+      // Persist maximized state and bounds atomically, including near-minimum rejection.
       const isMaximized = mainWindow.isMaximized()
       if (isMaximized) {
         store?.updateUI({ windowMaximized: true })
         return
       }
       const bounds = mainWindow.getBounds()
-      // Why: never persist shrink-to-min bounds (teardown race past the freeze, PR #1269); fall back to defaultBounds next launch.
+      // Reject teardown's shrink-to-minimum bounds even after freeze races; default next launch (#1269).
       if (bounds.width <= MIN_WIDTH || bounds.height <= MIN_HEIGHT) {
         console.warn('[window] Skipping persist of near-minimum windowBounds:', bounds)
         store?.updateUI({ windowMaximized: false })
@@ -101,7 +101,7 @@ export function installMainWindowStateLifecycle(args: {
   mainWindow.on('resize', saveBounds)
   mainWindow.on('move', saveBounds)
 
-  // Why: the auto-updater calls removeAllListeners('close') before quitting, so latch on app 'before-quit' too to freeze bounds during teardown.
+  // Updater removes close listeners; before-quit must also freeze bounds.
   const freezeBoundsOnQuit = (event?: Event): void => {
     if (event?.defaultPrevented) {
       return
@@ -127,7 +127,7 @@ export function installMainWindowStateLifecycle(args: {
     }
     mainWindow.webContents.send('window:maximize-changed', false)
     const bounds = mainWindow.getBounds()
-    // Why: mirror the saveBounds guard — unmaximize during teardown can land at min size; don't persist that as remembered size.
+    // Teardown unmaximize can emit minimum bounds; apply the same persistence guard.
     if (bounds.width <= MIN_WIDTH || bounds.height <= MIN_HEIGHT) {
       console.warn('[window] Skipping unmaximize-time persist of near-min bounds:', bounds)
       store?.updateUI({ windowMaximized: false })

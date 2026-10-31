@@ -3179,70 +3179,24 @@ describe('web worktree preload API', () => {
       const { installWebPreloadApi } = await import('./web-preload-api')
       installWebPreloadApi()
 
-      await expect(globals.window.api.worktrees.list({ repoId: 'repo-1' })).resolves.toMatchObject([
-        {
-          id: 'repo-1::/srv/repo',
-          hostId: 'local',
-          runtimeOwnerEnvironmentId: environmentId
-        },
-        {
-          id: 'repo-2::/ssh/repo',
-          hostId: 'ssh:hub-private-target',
-          runtimeOwnerEnvironmentId: environmentId
-        }
-      ])
+      await expect(
+        globals.window.api.worktrees.listDetected({ repoId: 'repo-1' })
+      ).resolves.toMatchObject({
+        worktrees: [
+          {
+            id: 'repo-1::/srv/repo',
+            hostId: 'local',
+            runtimeOwnerEnvironmentId: environmentId
+          },
+          {
+            id: 'repo-2::/ssh/repo',
+            hostId: 'ssh:hub-private-target',
+            runtimeOwnerEnvironmentId: environmentId
+          }
+        ]
+      })
     }
   )
-
-  it('does not let a stale listAll response repopulate the next server cache', async () => {
-    let resolveServerA: ((response: RuntimeRpcResponse<unknown>) => void) | undefined
-    vi.doMock('./web-runtime-client', () => ({
-      WebRuntimeClient: class {
-        constructor(private readonly offer: { publicKeyB64: string }) {}
-
-        call(): Promise<RuntimeRpcResponse<unknown>> {
-          if (this.offer.publicKeyB64 === 'public-key') {
-            return new Promise((resolve) => {
-              resolveServerA = resolve
-            })
-          }
-          return Promise.resolve({
-            id: 'server-b-list',
-            ok: true,
-            result: { worktrees: [{ id: 'worktree-b', repoId: 'repo-b', path: '/srv/b' }] },
-            _meta: { runtimeId: 'runtime-b' }
-          })
-        }
-
-        close(): void {}
-      }
-    }))
-
-    const globals = installBrowserGlobals('Linux')
-    writeStoredRuntimeEnvironment(globals.storage, 'web-server-a')
-    const { installWebPreloadApi } = await import('./web-preload-api')
-    installWebPreloadApi()
-
-    const serverAList = globals.window.api.worktrees.listAll()
-    await vi.waitFor(() => expect(resolveServerA).toBeTypeOf('function'))
-    const paired = await globals.window.api.runtimeEnvironments.addFromPairingCode({
-      name: 'Server B',
-      pairingCode: encodePairingCode({ publicKeyB64: 'server-b-key' })
-    })
-    resolveServerA?.({
-      id: 'server-a-list',
-      ok: true,
-      result: { worktrees: [{ id: 'worktree-a', repoId: 'repo-a', path: '/srv/a' }] },
-      _meta: { runtimeId: 'runtime-a' }
-    })
-
-    await expect(serverAList).rejects.toThrow(
-      'The paired Orca server changed while the request was in progress.'
-    )
-    await expect(globals.window.api.worktrees.listAll()).resolves.toMatchObject([
-      { id: 'worktree-b', runtimeOwnerEnvironmentId: paired.environment.id }
-    ])
-  })
 
   it('preserves runtime-routed detected-worktree host ownership in the compatibility shape', async () => {
     vi.doMock('./web-runtime-client', () => ({

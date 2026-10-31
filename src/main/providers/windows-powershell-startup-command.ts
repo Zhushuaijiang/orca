@@ -1,11 +1,13 @@
 import {
   encodePowerShellCommand,
-  getPowerShellOsc133Bootstrap
+  getPowerShellOsc133Bootstrap,
+  getPowerShellOsc133StartupCommandMark
 } from '../powershell-osc133-bootstrap'
 import { quoteStartupArg } from '../../shared/tui-agent-startup-shell'
 
 const POWERSHELL_STARTUP_COMMAND_TEXT_MAX_CHARS = 6000
-const POWERSHELL_ENCODED_COMMAND_ARG_MAX_CHARS = 28_000
+// Includes ~400 encoded chars for the startup command mark so real commands keep the prior budget.
+const POWERSHELL_ENCODED_COMMAND_ARG_MAX_CHARS = 28_400
 
 export const POWERSHELL_STARTUP_COMMAND_ENV = 'ORCA_POWERSHELL_STARTUP_COMMAND'
 
@@ -64,7 +66,7 @@ export function getPowerShellEncodedStartupCommand(
     return { encodedCommand: encodePowerShellCommand(bootstrap) }
   }
 
-  const command = `${bootstrap}\n${startupCommand}`
+  const command = `${bootstrap}\n${getPowerShellOsc133StartupCommandMark()}\n${startupCommand}`
   const encodedCommand = encodePowerShellCommand(command)
   // Why: -EncodedCommand expands UTF-16 text into base64; keep a conservative
   // margin under Windows CreateProcess' 32,767-character command line limit.
@@ -77,7 +79,7 @@ export function getPowerShellEncodedStartupCommand(
     }
     return {
       encodedCommand: encodePowerShellCommand(
-        `${bootstrap}\n${POWERSHELL_STARTUP_COMMAND_BOOTSTRAP}`
+        `${bootstrap}\n${getPowerShellOsc133StartupCommandMark()}\n${POWERSHELL_STARTUP_COMMAND_BOOTSTRAP}`
       ),
       startupCommandDeliveredInShellArgs: true,
       startupCommandEnv: startupCommand

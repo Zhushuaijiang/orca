@@ -1,3 +1,9 @@
+import { trimActionArgumentDocument } from './source-control-action-argument-choices'
+import {
+  selectSourceControlActionRecipe,
+  type CurrentActionSelection,
+  type SelectedSourceControlActionRecipe
+} from './source-control-action-selection'
 import type { GlobalSettings } from './global-settings-types'
 import { applyAuxiliaryWorkflowRoute } from './auxiliary-workflow-routing'
 import type { Repo } from './repo-types'
@@ -5,8 +11,7 @@ import {
   readSourceControlActionDefault,
   resolveSourceControlActionCommandTemplate,
   type AiActionId,
-  type SourceControlTextActionId,
-  type SourceControlActionRecipe
+  type SourceControlTextActionId
 } from './source-control-ai-actions'
 import { commandTemplateFromOperationInstruction } from './source-control-ai-command-template'
 import { normalizeRepoSourceControlAiOverrides } from './source-control-ai-repo-settings'
@@ -183,6 +188,66 @@ export function resolveSourceControlAiEnabled(input: {
   )
 }
 
+export function captureSourceControlActionSelection(input: {
+  settings: Pick<GlobalSettings, 'sourceControlAi' | 'commitMessageAi'> | null | undefined
+  repo?: Pick<Repo, 'sourceControlAi'> | null
+  actionId: AiActionId
+}): CurrentActionSelection {
+  const source = normalizeSourceControlAiSettings(
+    input.settings?.sourceControlAi,
+    input.settings?.commitMessageAi
+  )
+  const globalRecipe = readSourceControlActionDefault(source.actions, input.actionId)
+  const repoRecipe =
+    input.actionId === 'conversationName'
+      ? undefined
+      : normalizeRepoSourceControlAiOverrides(input.repo?.sourceControlAi)?.actionOverrides?.[
+          input.actionId
+        ]
+  const commandInputTemplate = resolveSourceControlActionCommandTemplate(
+    source.actions,
+    input.actionId
+  )
+  const ownsRaw = repoRecipe?.agentArgs !== undefined
+  const raw = ownsRaw ? repoRecipe : globalRecipe
+  const {
+    launchPreferences: _globalPreferences,
+    argumentChoices: _globalDocument,
+    agentArgs: _globalArgs,
+    surface: globalSurface,
+    ...globalBase
+  } = globalRecipe
+  const current = trimActionArgumentDocument({
+    ...globalBase,
+    commandInputTemplate,
+    ...(raw?.agentArgs !== undefined ? { agentArgs: raw.agentArgs ?? '' } : {}),
+    ...(raw?.argumentChoices ? { argumentChoices: raw.argumentChoices } : {}),
+    ...((repoRecipe?.surface ?? (repoRecipe?.agentId === undefined ? globalSurface : undefined))
+      ? { surface: repoRecipe?.surface ?? globalSurface }
+      : {}),
+    ...(repoRecipe?.agentId !== undefined ? { agentId: repoRecipe.agentId } : {}),
+    ...(typeof repoRecipe?.commandInputTemplate === 'string'
+      ? { commandInputTemplate: repoRecipe.commandInputTemplate.trim() }
+      : {})
+  })
+  return {
+    current,
+    source: repoRecipe
+      ? {
+          scope: 'repo',
+          authoredAgentId: repoRecipe.agentId,
+          authoredPreferences: repoRecipe.launchPreferences,
+          parentPreferences: globalRecipe.launchPreferences,
+          ownsArgs: ownsRaw
+        }
+      : {
+          scope: 'global',
+          authoredAgentId: globalRecipe.agentId,
+          authoredPreferences: globalRecipe.launchPreferences
+        }
+  }
+}
+
 export function resolveSourceControlActionRecipe(input: {
   settings:
     | (Pick<GlobalSettings, 'sourceControlAi' | 'commitMessageAi'> &
@@ -200,48 +265,26 @@ export function resolveSourceControlActionRecipe(input: {
   discoveryHostKey?: string
   repo?: (Pick<Repo, 'sourceControlAi'> & Partial<Pick<Repo, 'connectionId'>>) | null
   actionId: AiActionId
-}): SourceControlActionRecipe {
-  const source = normalizeSourceControlAiSettings(
-    input.settings?.sourceControlAi,
-    input.settings?.commitMessageAi
+}): SelectedSourceControlActionRecipe {
+  const selection = captureSourceControlActionSelection(input)
+  const selected = selectSourceControlActionRecipe(selection)
+  const repoAuthorsLaunchFields =
+    selection.source.scope === 'repo' &&
+    (selection.source.authoredAgentId !== undefined || selection.source.ownsArgs)
+  if (repoAuthorsLaunchFields) {
+    return selected
+  }
+  // Route launch actions through auxiliary models only when the repo authored neither agent nor args.
+  const routed = applyAuxiliaryWorkflowRoute(
+    input.settings,
+    input.actionId,
+    selected,
+    input.discoveryHostKey ??
+      (input.settings?.activeRuntimeEnvironmentId
+        ? `runtime:${input.settings.activeRuntimeEnvironmentId}`
+        : input.repo?.connectionId
+          ? `ssh:${input.repo.connectionId}`
+          : 'local')
   )
-  const globalRecipe = readSourceControlActionDefault(source.actions, input.actionId)
-  const repoRecipe =
-    input.actionId === 'conversationName'
-      ? undefined
-      : normalizeRepoSourceControlAiOverrides(input.repo?.sourceControlAi)?.actionOverrides?.[
-          input.actionId
-        ]
-  const commandInputTemplate = resolveSourceControlActionCommandTemplate(
-    source.actions,
-    input.actionId
-  )
-  const recipe = repoRecipe
-    ? {
-        ...globalRecipe,
-        commandInputTemplate,
-        ...(repoRecipe.agentId !== undefined ? { agentId: repoRecipe.agentId } : {}),
-        ...(typeof repoRecipe.commandInputTemplate === 'string'
-          ? { commandInputTemplate: repoRecipe.commandInputTemplate.trim() }
-          : {}),
-        ...(typeof repoRecipe.agentArgs === 'string'
-          ? { agentArgs: repoRecipe.agentArgs.trim() }
-          : repoRecipe.agentArgs === null
-            ? { agentArgs: '' }
-            : {})
-      }
-    : { ...globalRecipe, commandInputTemplate }
-  return repoRecipe?.agentId !== undefined || repoRecipe?.agentArgs !== undefined
-    ? recipe
-    : applyAuxiliaryWorkflowRoute(
-        input.settings,
-        input.actionId,
-        recipe,
-        input.discoveryHostKey ??
-          (input.settings?.activeRuntimeEnvironmentId
-            ? `runtime:${input.settings.activeRuntimeEnvironmentId}`
-            : input.repo?.connectionId
-              ? `ssh:${input.repo.connectionId}`
-              : 'local')
-      )
+  return { ...routed, resolvedChoiceSources: selected.resolvedChoiceSources }
 }

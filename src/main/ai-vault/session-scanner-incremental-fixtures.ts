@@ -5,10 +5,6 @@ import { codexFixture } from './session-scanner-codex-fixtures'
 import { codebuddyFixture } from './session-scanner-codebuddy-fixtures'
 import { primeAgentFixture } from './session-scanner-prime-agent-fixtures'
 
-// Line builders for the incremental-parse differential tests: each agent gets
-// a seed transcript, an appended continuation, and a truncated rewrite, all in
-// that agent's real on-disk JSONL record shapes.
-
 export type IncrementalAgentFixture = {
   agent: AiVaultAgent
   fileName: string
@@ -150,8 +146,6 @@ export function openclawFixture(): IncrementalAgentFixture {
   }
 }
 
-// Pi shares OpenClaw's message-graph format and factory, but gets its own
-// fixture so the registry's 'pi' branch is exercised explicitly.
 export function piFixture(): IncrementalAgentFixture {
   return {
     agent: 'pi',
@@ -191,10 +185,7 @@ export function piFixture(): IncrementalAgentFixture {
   }
 }
 
-// OMP is a Pi fork sharing the message-graph format, but keys the model on
-// `model` (not Pi's `modelId`); its own fixture exercises the registry's 'omp'
-// branch and that model-key difference. (The session `title` is included for
-// realism only — the parser derives the title from the first user message.)
+// OMP shares the graph format but writes model rather than modelId; session title is not authoritative.
 export function ompFixture(): IncrementalAgentFixture {
   return {
     agent: 'omp',

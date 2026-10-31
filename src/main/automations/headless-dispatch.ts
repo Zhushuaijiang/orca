@@ -5,23 +5,28 @@ import type {
 } from '../../shared/automations-types'
 import type { YunxiaoRequirementGateOutcome } from '../../shared/yunxiao-types'
 import type { AutomationRunTargetResult } from './run-target-resolution'
+import type { AutomationRunFailureCodeFields } from '../../shared/automation-run-failure-copy'
 
 const MAX_HEADLESS_OUTPUT_SNAPSHOT_CHARS = 256 * 1024
 
 export type HeadlessAutomationDispatchLaunch = {
+  sessionKind?: 'terminal' | 'chat'
+  chatSessionId?: string | null
   workspaceId: string
   workspaceDisplayName?: string | null
   terminalSessionId: string | null
   terminalPaneKey?: string | null
   terminalPtyId?: string | null
-  completion?: Promise<{
-    status: 'completed' | 'dispatch_failed'
-    outputSnapshot?: AutomationRunOutputSnapshot | null
-    yunxiaoRequirementOutcomes?: YunxiaoRequirementGateOutcome[] | null
-    /** @deprecated Use yunxiaoRequirementOutcomes for per-item batch results. */
-    yunxiaoRequirementOutcome?: YunxiaoRequirementGateOutcome | null
-    error?: string | null
-  }>
+  completion?: Promise<
+    {
+      status: 'completed' | 'dispatch_failed'
+      outputSnapshot?: AutomationRunOutputSnapshot | null
+      yunxiaoRequirementOutcomes?: YunxiaoRequirementGateOutcome[] | null
+      /** @deprecated Use yunxiaoRequirementOutcomes for per-item batch results. */
+      yunxiaoRequirementOutcome?: YunxiaoRequirementGateOutcome | null
+      error?: string | null
+    } & AutomationRunFailureCodeFields
+  >
 }
 
 export type HeadlessAutomationDispatcher = (request: {
@@ -29,6 +34,15 @@ export type HeadlessAutomationDispatcher = (request: {
   run: AutomationRun
   target: Extract<AutomationRunTargetResult, { ok: true }>
 }) => Promise<HeadlessAutomationDispatchLaunch>
+
+export class AutomationRunLaunchError extends Error {
+  constructor(
+    message: string,
+    readonly target?: HeadlessAutomationDispatchLaunch
+  ) {
+    super(message)
+  }
+}
 
 export function createHeadlessAutomationOutputSnapshotBuffer(): {
   append: (chunk: string) => void

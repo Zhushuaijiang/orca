@@ -12,8 +12,7 @@ afterEach(async () => {
   tempRoots = []
 })
 
-// Point every non-Claude source at a nonexistent dir so the scan only sees the
-// Claude fixtures created per test.
+// Isolate Claude fixtures from every other source root.
 function scopedScanOptions(claudeProjectsDir: string, extra: Partial<AiVaultScanOptions>) {
   return {
     claudeProjectsDir,
@@ -75,7 +74,6 @@ describe('scanAiVaultSessions scope inclusion', () => {
     tempRoots.push(root)
     const claudeRoot = join(root, 'claude-projects')
 
-    // One old in-scope session that the recency cap would otherwise drop.
     await writeClaudeSession({
       claudeRoot,
       dirName: '-repo-app',
@@ -84,7 +82,6 @@ describe('scanAiVaultSessions scope inclusion', () => {
       iso: '2026-01-01T00:00:00.000Z',
       leadingCwdlessLine: true
     })
-    // A session in a sub-cwd directory of the same workspace path.
     await writeClaudeSession({
       claudeRoot,
       dirName: '-repo-app-packages-ui',
@@ -92,7 +89,6 @@ describe('scanAiVaultSessions scope inclusion', () => {
       cwd: '/repo/app/packages/ui',
       iso: '2026-01-02T00:00:00.000Z'
     })
-    // Recent out-of-scope sessions that fill the cap.
     for (let index = 0; index < 4; index++) {
       await writeClaudeSession({
         claudeRoot,
@@ -111,10 +107,8 @@ describe('scanAiVaultSessions scope inclusion', () => {
     const ids = (result: { sessions: { sessionId: string }[] }) =>
       result.sessions.map((session) => session.sessionId)
 
-    // The cap hides the old in-scope sessions when no scope is provided.
     expect(ids(withoutScope)).not.toContain('old-in-scope')
     expect(ids(withoutScope)).not.toContain('old-in-scope-subdir')
-    // Scope paths force them back in, including the sub-cwd directory.
     expect(ids(withScope)).toContain('old-in-scope')
     expect(ids(withScope)).toContain('old-in-scope-subdir')
   })

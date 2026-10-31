@@ -43,9 +43,7 @@ export function normalizeTaskProviderSettings(value: {
     return { visibleTaskProviders, defaultTaskSource }
   }
 
-  // Why: older profiles can keep a saved default while the visible-provider
-  // list drifted. Persist the default back into the list so every surface
-  // reads the same settings contract.
+  // Repair older/drifted profiles whose saved default disappeared from the visible list.
   return {
     defaultTaskSource,
     visibleTaskProviders: TASK_SOURCE_PICKER_PROVIDERS.filter(
@@ -69,8 +67,7 @@ export function normalizeVisibleTaskProviders(value: unknown): TaskProvider[] {
     }
   }
 
-  // Why: at least one provider must remain visible so the Tasks surface always
-  // has a valid source to select after settings hydration or manual edits.
+  // Keep a selectable source after hydration or manual settings edits; defaults keep fork providers.
   return normalized.length > 0 ? normalized : [...DEFAULT_VISIBLE_TASK_PROVIDERS]
 }
 
@@ -98,8 +95,7 @@ export function restoreAvailableDefaultTaskProvider(
 ): TaskProvider[] {
   const available = filterAvailableTaskProviders(visibleProviders, availability)
 
-  // Why: older or drifted settings can hide the saved default while another
-  // provider becomes available. Keep that default reachable after hydration.
+  // Retain access to a saved default even when other providers become available.
   if (
     isTaskProvider(preferredProvider) &&
     isTaskSourcePickerProvider(preferredProvider) &&
@@ -124,8 +120,7 @@ function isTaskProviderAvailable(
   if (provider === 'gitlab') {
     return true
   }
-  // Why: legacy/direct Jira task contexts can still resolve availability; picker
-  // visibility is enforced before this check.
+  // Disconnected Jira must remain visible as its own first-time setup entry point.
   if (provider === 'jira') {
     return true
   }

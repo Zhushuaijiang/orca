@@ -1,20 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createGlobalSettingsFixture } from '../../shared/global-settings-test-fixture'
 import { createAuxiliaryRuntimeTarget } from './auxiliary-generation-test-fixture'
 import { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
 import type { RuntimeGitTarget } from './runtime-git-command-target'
 
-const ssh = vi.hoisted(() => ({ available: true }))
-vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: () => (ssh.available ? {} : null),
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE: 'ssh_git_provider_unavailable'
-}))
-
 describe('runtime auxiliary launch routing', () => {
-  beforeEach(() => {
-    ssh.available = true
-  })
-
   function service(target: RuntimeGitTarget) {
     return new RuntimeAuxiliaryGeneration({
       getRuntimeSettings: () =>
@@ -51,19 +41,14 @@ describe('runtime auxiliary launch routing', () => {
     ).toMatchObject({ agentId: 'claude', modelId: 'local-model', hostKey: 'local' })
   })
 
-  it('selects the execution host model instead of the local model', async () => {
+  it('rejects SSH routes because upstream removed the in-process provider', async () => {
     const target = {
       ...createAuxiliaryRuntimeTarget('/remote/folder'),
       executionHostId: 'ssh:one' as const
     }
-    expect(
-      await service(target).resolveRuntimeAuxiliaryLaunch('folder', 'implementation')
-    ).toMatchObject({
-      agentId: 'claude',
-      modelId: 'ssh-model',
-      thinkingLevel: 'high',
-      hostKey: 'ssh:one'
-    })
+    await expect(
+      service(target).resolveRuntimeAuxiliaryLaunch('folder', 'implementation')
+    ).rejects.toThrow('ssh_git_provider_unavailable')
   })
 
   it('selects the WSL distro model', async () => {
@@ -76,14 +61,4 @@ describe('runtime auxiliary launch routing', () => {
     ).toMatchObject({ modelId: 'wsl-model', hostKey: 'wsl:Ubuntu' })
   })
 
-  it('does not substitute a local launch for an unavailable SSH owner', async () => {
-    ssh.available = false
-    const target = {
-      ...createAuxiliaryRuntimeTarget('/remote/folder'),
-      executionHostId: 'ssh:one' as const
-    }
-    await expect(
-      service(target).resolveRuntimeAuxiliaryLaunch('folder', 'implementation')
-    ).rejects.toThrow('ssh_git_provider_unavailable')
-  })
 })

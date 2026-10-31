@@ -8,6 +8,7 @@ import { useNow } from '@/hooks/use-now'
 import { useShallow } from 'zustand/react/shallow'
 import { useWorktreeAgentSendTargets } from './worktree-card-send-targets'
 import { useWorktreeAgentRows } from './useWorktreeAgentRows'
+import { useWorktreeAgentDisplay } from './use-worktree-agent-display'
 import { cn } from '@/lib/utils'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import { parsePaneKey } from '../../../../shared/stable-pane-id'
@@ -20,15 +21,17 @@ import {
   CompactAgentSummaryButton
 } from './worktree-card-compact-agents'
 import { buildAgentRowLineageTree } from '@/components/dashboard/agent-row-lineage-model'
-import { DEFAULT_AGENT_ACTIVITY_DISPLAY_MODE } from '../../../../shared/constants'
-import { revealElementInScrollContainer } from './worktree-sidebar-reveal'
+import { revealCompactAgentCard } from './worktree-sidebar-reveal'
 import { useWorktreeAgentExpansionState } from './worktree-card-agents-expansion-state'
 import { translate } from '@/i18n/i18n'
+import { useUiLanguageRevision } from '@/i18n/use-ui-language-revision'
 import { activateRetainedAgentRow } from './worktree-card-retained-agent-activation'
+import { activateRetainedAgentRow as activateLiveRetainedAgentRow } from './activate-retained-agent-row'
 import { shouldShowAgentSessionContextMenu } from './worktree-agent-session-resolution'
 import { WorktreeAgentSessionContextMenu } from './worktree-agent-session-context-menu'
-import { activateStructuredAgentSessionTab } from '@/lib/structured-agent-session-tab-activation'
+import { activateStructuredAgentSessionTab } from '@/lib/agent-session/structured-agent-session-tab-activation'
 import { selectAgentRowsUnread } from './worktree-card-agent-ack-inputs'
+import { opensClaudeParentConversation } from '@/lib/claude-agent-row-view'
 
 export const SUPPRESS_WORKTREE_LIST_SCROLL_ADJUSTMENT_EVENT =
   'orca-suppress-worktree-list-scroll-adjustment'
@@ -37,34 +40,24 @@ const dispatchSuppressScrollAdjustment = () => {
   window.dispatchEvent(new CustomEvent(SUPPRESS_WORKTREE_LIST_SCROLL_ADJUSTMENT_EVENT))
 }
 
-function revealCompactAgentCard(agentListRoot: HTMLElement | null): void {
-  const sidebarElement = agentListRoot?.closest('[data-worktree-sidebar]')
-  const worktreeOptionElement = agentListRoot?.closest('[role="option"]')
-  if (!(sidebarElement instanceof HTMLElement) || !worktreeOptionElement) {
-    return
-  }
-  revealElementInScrollContainer(sidebarElement, worktreeOptionElement, 'auto')
-}
-
 type Props = {
   worktreeId: string
   agents?: DashboardAgentRowData[]
-  /** Spacing from the card body above; parent decides whether a divider is appropriate. */
   className?: string
 }
 
-/** Inline agent list rendered inside WorktreeCard when 'inline-agents' is enabled. */
 const WorktreeCardAgents = React.memo(function WorktreeCardAgents({
   worktreeId,
   agents: precomputedAgents,
   className
 }: Props) {
+  useUiLanguageRevision()
   const selectedAgents = useWorktreeAgentRows(worktreeId, precomputedAgents === undefined)
   const agents = precomputedAgents ?? selectedAgents
   if (agents.length === 0) {
     return null
   }
-  // Why: mount the inner body (owns the 30s useNow tick) only for non-empty rows, so idle worktrees pay no timer cost.
+  // Only non-empty bodies mount the 30s clock, avoiding timer cost for idle worktrees.
   return <WorktreeCardAgentsBody worktreeId={worktreeId} agents={agents} className={className} />
 })
 
@@ -79,8 +72,8 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
   agents,
   className
 }: BodyProps) {
-  const agentActivityDisplayMode =
-    useAppStore((s) => s.agentActivityDisplayMode) ?? DEFAULT_AGENT_ACTIVITY_DISPLAY_MODE
+  useUiLanguageRevision()
+  const { agentActivityDisplayMode, showAgentModels } = useWorktreeAgentDisplay()
   const dropAgentStatus = useAppStore((s) => s.dropAgentStatus)
   const dismissRetainedAgent = useAppStore((s) => s.dismissRetainedAgent)
   const { isAgentSendTargetModeActive, sendTargetsByPaneKey, handleSendTargetClick } =
@@ -88,8 +81,7 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
   const focusedAgentPaneKey = useFocusedAgentPaneKey(worktreeId)
   const compactAgentListRootRef = useRef<HTMLDivElement | null>(null)
 
-  // Why: acknowledgement writes are app-global; project only this card's rows
-  // so unrelated worktree activity does not rerender every agent body.
+  // Project global acknowledgement state onto this card’s rows to avoid rerenders from other worktrees.
   const agentRowsUnread = useAppStore(useShallow((s) => selectAgentRowsUnread(s, agents)))
   const unvisitedByPaneKey = useMemo(() => {
     const out: Record<string, boolean> = {}
@@ -150,24 +142,33 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
   )
   const handleActivateRetainedAgent = useCallback(
     (tabId: string, paneKey: string) => {
-      activateRetainedAgentRow({
-        worktreeId,
-        tabId,
-        paneKey,
-        activateLiveTab: handleActivateAgentTab
-      })
+      const state = useAppStore.getState()
+      const hasTab = (state.tabsByWorktree[worktreeId] ?? []).some((tab) => tab.id === tabId)
+      const hasStructuredTab = (state.unifiedTabsByWorktree[worktreeId] ?? []).some(
+        (tab) => tab.id === tabId && tab.contentType === 'agent-session'
+      )
+      const retained = state.retainedAgentsByPaneKey[paneKey]
+      if (!hasTab && !hasStructuredTab && retained?.entry.providerSession) {
+        activateRetainedAgentRow({
+          worktreeId,
+          tabId,
+          paneKey,
+          activateLiveTab: handleActivateAgentTab
+        })
+        return
+      }
+      activateLiveRetainedAgentRow(worktreeId, tabId, paneKey)
     },
     [handleActivateAgentTab, worktreeId]
   )
 
-  // Why: one 30s tick per non-empty inline list; zero-agent cards never mount this (see WorktreeCardAgents), so idle worktrees pay no timer cost.
   const now = useNow(30_000)
   const { rootRows: rootAgents, childrenByParentPaneKey } = useMemo(
     () => buildAgentRowLineageTree(agents),
     [agents]
   )
   const hasLineage = childrenByParentPaneKey.size > 0
-  // Why: keep disclosure state out of local useState so a WorktreeCard remount (virtualizer recycle / sibling toggle) doesn't reset it.
+  // Persist disclosure outside component state so virtualizer/sibling-triggered remounts cannot reset it.
   const {
     collapsedLineageParents,
     compactRootListExpanded,
@@ -175,14 +176,14 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
     toggleCompactRootList
   } = useWorktreeAgentExpansionState(worktreeId)
 
-  // Why: reveal only on a genuine user collapse→expand; seeding an already-expanded panel from cache on remount must not re-trigger the reveal scroll.
+  // Reveal only user expansion; restoring cached expansion on remount must not scroll again.
   const previousCompactExpandedRef = useRef(compactRootListExpanded)
   useLayoutEffect(() => {
     const wasExpanded = previousCompactExpandedRef.current
     previousCompactExpandedRef.current = compactRootListExpanded
     if (!wasExpanded && compactRootListExpanded && agentActivityDisplayMode === 'compact') {
       dispatchSuppressScrollAdjustment()
-      // Why: defer the reveal scroll to next frame; running it inline forces a sync sidebar layout that janks the opening animation.
+      // Defer reveal one frame to avoid synchronous sidebar layout during the opening animation.
       const handle = requestAnimationFrame(() => {
         revealCompactAgentCard(compactAgentListRootRef.current)
       })
@@ -207,17 +208,19 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
     ancestorPaneKeys: ReadonlySet<string> = new Set()
   ): React.ReactNode => {
     if (ancestorPaneKeys.has(agent.paneKey)) {
-      // Why: orchestration metadata is external and can be malformed; bail on repeated ancestors instead of recursing forever.
+      // External lineage metadata may cycle; reject repeated ancestors before recursion.
       return null
     }
     const childAgents = childrenByParentPaneKey.get(agent.paneKey) ?? []
     const hasChildAgents = childAgents.length > 0
-    // Why: spawned child agents are actionable work, so show them as soon as the parent appears (disclosure still folds noise).
     const expanded = !collapsedLineageParents.has(agent.paneKey)
     const sendTarget = isAgentSendTargetModeActive
       ? (sendTargetsByPaneKey.get(agent.paneKey) ?? {
           status: 'disabled' as const,
-          disabledReason: 'Agent is not available'
+          disabledReason: translate(
+            'auto.components.sidebar.WorktreeCardAgents.agentUnavailable',
+            'Agent is not available'
+          )
         })
       : undefined
     const descendantAncestorPaneKeys = new Set(ancestorPaneKeys)
@@ -227,6 +230,7 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
     const agentRow = (
       <DashboardAgentRow
         agent={agent}
+        showModel={showAgentModels}
         onDismiss={handleDismissAgent}
         onActivate={onRowActivate}
         now={now}
@@ -286,7 +290,10 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
     const sendTarget = isAgentSendTargetModeActive
       ? (sendTargetsByPaneKey.get(agent.paneKey) ?? {
           status: 'disabled' as const,
-          disabledReason: 'Agent is not available'
+          disabledReason: translate(
+            'auto.components.sidebar.WorktreeCardAgents.agentUnavailable',
+            'Agent is not available'
+          )
         })
       : undefined
     const descendantAncestorPaneKeys = new Set(ancestorPaneKeys)
@@ -296,7 +303,16 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
     const agentRow = (
       <CompactAgentRow
         agent={agent}
+        showModel={showAgentModels}
         now={now}
+        parentConversationDescription={
+          opensClaudeParentConversation(agent)
+            ? translate(
+                'auto.lib.claudeAgentRowView.openParentConversation',
+                'Open parent conversation'
+              )
+            : undefined
+        }
         isUnvisited={unvisitedByPaneKey[agent.paneKey] ?? false}
         onActivate={onRowActivate}
         sendTargetStatus={sendTarget?.status}
@@ -342,9 +358,12 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
 
   if (agentActivityDisplayMode === 'compact') {
     const summaryAgents = hasLineage ? rootAgents : agents
-    // Why: compact cards collapse multiple agents to one status line, except in send-target mode where rows are the picker surface.
+    // Collapse compact multi-agent lists except when their rows are the send-target picker.
     const shouldUseSummaryRow = summaryAgents.length > 1 && !isAgentSendTargetModeActive
-    const subjectLabel = `${hasLineage ? rootAgents.length : agents.length} agents`
+    const subjectLabel = translate('sidebar.agentSummary.agentCount', '{{count}} agents', {
+      count: hasLineage ? rootAgents.length : agents.length,
+      defaultValue_one: '{{count}} agent'
+    })
 
     return (
       <div
@@ -359,7 +378,6 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
         data-compact-agent-list="true"
       >
         {agents.length === 0 ? null : shouldUseSummaryRow ? (
-          // Why: expanded compact agents stay a quiet tree; only the collapsed summary reads as a pill.
           <div
             className={cn(
               'compact-agent-summary-panel',
@@ -389,7 +407,7 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
   }
 
   return (
-    // Why: swallow bubbling so gutter clicks don't reach WorktreeCard's activate / edit-meta handlers.
+    // Gutter clicks must not bubble into card activation or metadata editing.
     <div
       className={cn('flex flex-col mt-1', className)}
       onClick={stopBubble}

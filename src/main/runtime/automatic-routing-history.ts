@@ -5,7 +5,7 @@ import { getProfileUserDataPath } from '../orca-profiles/profile-storage-paths'
 import { AutomaticTaskDecisionSchema } from '../../shared/automatic-task-routing'
 import { isTuiAgent } from '../../shared/tui-agent-config'
 import type { TuiAgent } from '../../shared/tui-agent'
-import { writePluginFileAtomically } from '../plugins/plugin-atomic-file-write'
+import { writePluginFileAtomically } from '../plugins/installation/plugin-atomic-file-write'
 
 export const RoutingHistoryRecordSchema = z.object({
   id: z.string().uuid(),

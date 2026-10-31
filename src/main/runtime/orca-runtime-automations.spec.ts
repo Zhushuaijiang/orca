@@ -112,8 +112,7 @@ export function registerOrcaRuntimeAutomationsTests(): void {
           workspaceId: null,
           setupDecision: 'skip'
         }),
-        // Owner options are absent on an unfenced RPC create; the arg still rides.
-        undefined
+        { destination: undefined, resolvedRepo: repo }
       )
       expect(automation.id).toBe('auto-1')
     })
@@ -203,7 +202,11 @@ export function registerOrcaRuntimeAutomationsTests(): void {
       const updated = await runtime.updateAutomation('auto-1', { enabled: false })
       const removed = await runtime.deleteAutomation('auto-1')
 
-      expect(store.updateAutomation).toHaveBeenCalledWith('auto-1', { enabled: false }, undefined)
+      expect(store.updateAutomation).toHaveBeenCalledWith(
+        'auto-1',
+        { enabled: false },
+        { resolvedRepo: undefined }
+      )
       expect(updated).toMatchObject({
         prompt: existingAutomation.prompt,
         baseBranch: existingAutomation.baseBranch,
@@ -220,7 +223,11 @@ export function registerOrcaRuntimeAutomationsTests(): void {
 
       await runtime.updateAutomation('auto-1', { baseBranch: null })
 
-      expect(store.updateAutomation).toHaveBeenCalledWith('auto-1', { baseBranch: null }, undefined)
+      expect(store.updateAutomation).toHaveBeenCalledWith(
+        'auto-1',
+        { baseBranch: null },
+        { resolvedRepo: undefined }
+      )
     })
 
     it('passes setup decision updates through the shared store', async () => {
@@ -232,7 +239,7 @@ export function registerOrcaRuntimeAutomationsTests(): void {
       expect(store.updateAutomation).toHaveBeenCalledWith(
         'auto-1',
         { setupDecision: 'run' },
-        undefined
+        { resolvedRepo: undefined }
       )
     })
 
@@ -251,7 +258,7 @@ export function registerOrcaRuntimeAutomationsTests(): void {
       expect(store.updateAutomation).toHaveBeenCalledWith(
         'auto-1',
         { reuseSession: true },
-        undefined
+        { resolvedRepo: undefined }
       )
     })
 
@@ -279,7 +286,7 @@ export function registerOrcaRuntimeAutomationsTests(): void {
           workspaceId: null,
           reuseSession: false
         }),
-        undefined
+        { resolvedRepo: repo }
       )
     })
 

@@ -3,8 +3,8 @@ import {
   filterAvailableTaskProviders,
   normalizeTaskProviderSettings,
   normalizeVisibleTaskProviders,
-  restoreAvailableDefaultTaskProvider,
-  resolveVisibleTaskProvider
+  resolveVisibleTaskProvider,
+  restoreAvailableDefaultTaskProvider
 } from './task-providers'
 
 describe('task providers', () => {
@@ -15,11 +15,11 @@ describe('task providers', () => {
     ])
   })
 
-  it('falls back to default providers when none are visible', () => {
+  it('falls back to fork default providers when none are visible', () => {
     expect(normalizeVisibleTaskProviders([])).toEqual(['gitlab', 'yunxiao', 'code-merge'])
   })
 
-  it('repairs drifted saved defaults by restoring them to the visible list', () => {
+  it('restores a valid saved default when provider settings drifted', () => {
     expect(
       normalizeTaskProviderSettings({
         visibleTaskProviders: ['linear'],
@@ -59,7 +59,7 @@ describe('task providers', () => {
     expect(resolveVisibleTaskProvider('github', ['linear', 'yunxiao'])).toBe('linear')
   })
 
-  it('keeps local and connected providers available before optional tooling is ready', () => {
+  it('filters runtime-unavailable providers without changing preference normalization', () => {
     expect(
       filterAvailableTaskProviders(['github', 'gitlab', 'linear'], {
         gitlabInstalled: false,

@@ -2,6 +2,7 @@ import { AuxiliaryModelsPane } from './AuxiliaryModelsPane'
 import { getAuxiliaryModelSearchEntries } from './auxiliary-model-search'
 import { AccountsPane } from './AccountsPane'
 import { AgentsPane } from './AgentsPane'
+import { AgentDefaultSurfaceSection } from './AgentDefaultSurfaceSection'
 import { ComputerUsePane } from './ComputerUsePane'
 import { LinearAgentSkillPane } from './LinearAgentSkillPane'
 import { OrchestrationPane } from './OrchestrationPane'
@@ -26,15 +27,20 @@ export function renderAgentsSettingsSection(context: SettingsRenderContext): Rea
       searchEntries={navigation.getSectionSearchEntries('agents')}
     >
       {view.isSectionMounted('agents') ? (
-        <AgentsPane
-          settings={model.settings}
-          updateSettings={model.updateSettings}
-          hostScope={model.settingsHostScope}
-          wslSupportedPlatform={terminal.localWslSupportedPlatform}
-          wslAvailable={terminal.localWindowsRuntimeCapabilities.wslAvailable}
-          wslDistros={terminal.localWindowsRuntimeCapabilities.wslDistros}
-          wslCapabilitiesLoading={terminal.localWindowsRuntimeCapabilities.isLoading}
-        />
+        <div className="space-y-8">
+          {model.settingsHostScope.target.kind === 'local' ? (
+            <AgentDefaultSurfaceSection settings={model.settings} />
+          ) : null}
+          <AgentsPane
+            settings={model.settings}
+            updateSettings={model.updateSettings}
+            hostScope={model.settingsHostScope}
+            wslSupportedPlatform={terminal.localWslSupportedPlatform}
+            wslAvailable={terminal.localWindowsRuntimeCapabilities.wslAvailable}
+            wslDistros={terminal.localWindowsRuntimeCapabilities.wslDistros}
+            wslCapabilitiesLoading={terminal.localWindowsRuntimeCapabilities.isLoading}
+          />
+        </div>
       ) : null}
     </SettingsSection>
   )

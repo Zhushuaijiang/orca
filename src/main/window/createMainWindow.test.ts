@@ -4,9 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('electron', async () =>
   (await import('./createMainWindow-test-harness')).electronModuleMock()
 )
-vi.mock('@electron-toolkit/utils', async () =>
-  (await import('./createMainWindow-test-harness')).electronToolkitUtilsMock()
-)
 vi.mock('./macos-tahoe-release', async () =>
   (await import('./createMainWindow-test-harness')).macosTahoeReleaseMock()
 )
@@ -23,6 +20,9 @@ vi.mock('../browser/browser-route-session-runtime', async () => ({
     // Why: render-process-gone retires the route renderer by webContents id.
     retireRenderer: (await import('./createMainWindow-test-harness')).retireRouteRendererMock
   }
+}))
+vi.mock('../browser/browser-javascript-dialogs', () => ({
+  installBrowserJavaScriptDialogs: vi.fn()
 }))
 vi.mock('../browser/browser-client-page-renderer-runtime', async () => {
   const harness = await import('./createMainWindow-test-harness')
@@ -54,7 +54,7 @@ import {
   attachRouteGuestMock,
   browserWindowMock,
   buildFromTemplateMock,
-  isMock,
+  appMock,
   macosTahoeMock,
   menuPopupMock,
   notificationMock,
@@ -79,6 +79,7 @@ describe('createMainWindow', () => {
       on: vi.fn(),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      setWebRTCIPHandlingPolicy: vi.fn(),
       invalidate: vi.fn(),
       setWindowOpenHandler: vi.fn(),
       send: vi.fn(),
@@ -115,8 +116,7 @@ describe('createMainWindow', () => {
   })
 
   it('enables renderer sandboxing and opens external links safely', () => {
-    // Why every handler and not the last one: two modules register `will-navigate` on this
-    // webContents, and keeping one slot per event let whichever registered last stand in for both.
+    // Retain all will-navigate listeners; one slot per event lets registration order hide a missing guard.
     const windowHandlers: Record<string, ((...args: any[]) => void)[]> = {}
     const fire = (event: string, ...args: any[]): void => {
       for (const handler of windowHandlers[event] ?? []) {
@@ -139,6 +139,7 @@ describe('createMainWindow', () => {
       }),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      setWebRTCIPHandlingPolicy: vi.fn(),
       invalidate: vi.fn(),
       setWindowOpenHandler: vi.fn((handler) => {
         windowOpenHandler = handler
@@ -173,8 +174,7 @@ describe('createMainWindow', () => {
       })
     )
     const browserWindowOptions = browserWindowMock.mock.calls[0]?.[0]
-    // Why: macOS swallows the app-activating click unless the window accepts
-    // first mouse, forcing a second click to focus the floating workspace.
+    // acceptFirstMouse lets the app-activating click focus the floating workspace without a second click.
     expect(browserWindowOptions.acceptFirstMouse).toBe(true)
     if (process.platform === 'darwin') {
       expect(browserWindowOptions).toMatchObject({
@@ -185,8 +185,7 @@ describe('createMainWindow', () => {
         titleBarStyle: 'hidden'
       })
     } else {
-      // Linux: native frame is dropped so the renderer titlebar isn't stacked
-      // under the WM title bar (double title bar). titleBarStyle stays unset.
+      // Linux frame:false avoids stacking native and renderer titlebars.
       expect(browserWindowOptions.titleBarStyle).toBeUndefined()
       expect(browserWindowOptions.frame).toBe(false)
     }
@@ -303,9 +302,7 @@ describe('createMainWindow', () => {
     expect(attachRouteGuestMock).toHaveBeenLastCalledWith(secondGuest)
   })
 
-  // Why the renderer is told this at birth rather than asked for it: it needs to know whether a
-  // client-placed page is its own guest before it interprets the first session snapshot, and
-  // Electron never answers a sendSync that lands before its listener exists.
+  // Stamp host identity before the first session snapshot; sendSync cannot answer before listener registration.
   it('stamps the browser host id into the renderer that owns the guests, and strips it from a guest that carries one', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
@@ -320,6 +317,7 @@ describe('createMainWindow', () => {
       }),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      setWebRTCIPHandlingPolicy: vi.fn(),
       invalidate: vi.fn(),
       setWindowOpenHandler: vi.fn(),
       send: vi.fn(),
@@ -349,9 +347,7 @@ describe('createMainWindow', () => {
     expect(stamped).toEqual([formatBrowserClientHostIdArgument(getBrowserClientHostId())])
     expect(readBrowserClientHostIdArgument(stamped ?? [])).toBe(getBrowserClientHostId())
 
-    // Electron 43 does not hand a guest the embedder's additionalArguments, so this stamp is one
-    // Electron would not have put there: what is pinned is that a guest cannot come out of the
-    // handler holding the id, not that it arrives holding it.
+    // Electron 43 does not inherit embedder arguments; inject a hostile stamp to prove the handler strips it.
     const guestPreferences = {
       partition: 'persist:orca-browser',
       additionalArguments: [...(stamped ?? [])]
@@ -379,6 +375,7 @@ describe('createMainWindow', () => {
         on: vi.fn(),
         setZoomLevel: vi.fn(),
         setBackgroundThrottling: vi.fn(),
+        setWebRTCIPHandlingPolicy: vi.fn(),
         invalidate: vi.fn(),
         setWindowOpenHandler: vi.fn(),
         send: vi.fn(),
@@ -423,6 +420,7 @@ describe('createMainWindow', () => {
         on: vi.fn(),
         setZoomLevel: vi.fn(),
         setBackgroundThrottling: vi.fn(),
+        setWebRTCIPHandlingPolicy: vi.fn(),
         invalidate: vi.fn(),
         setWindowOpenHandler: vi.fn(),
         send: vi.fn(),
@@ -473,6 +471,7 @@ describe('createMainWindow', () => {
       on: vi.fn(),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      setWebRTCIPHandlingPolicy: vi.fn(),
       invalidate: vi.fn(),
       isDestroyed: vi.fn(() => false),
       setWindowOpenHandler: vi.fn(),
@@ -516,7 +515,7 @@ describe('createMainWindow', () => {
     windowHandlers.get('restore')?.[0]?.()
 
     expect(webContents.invalidate).toHaveBeenCalledTimes(2)
-    // Why: the size nudge must never run inside the show/restore dispatch itself.
+    // Defer size nudges outside show/restore dispatch.
     expect(browserWindowInstance.setSize).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(0)
@@ -532,8 +531,7 @@ describe('createMainWindow', () => {
     vi.advanceTimersByTime(1)
     expect(webContents.invalidate).toHaveBeenCalledTimes(3)
 
-    // Why: focus covers occlusion-uncover with invalidate only — no setSize
-    // jiggle that would resize terminals on every window focus.
+    // Focus only invalidates; size jiggles would resize terminals on every focus.
     const setSizeCalls = browserWindowInstance.setSize.mock.calls.length
     windowHandlers.get('focus')?.[0]?.()
     expect(webContents.invalidate).toHaveBeenCalledTimes(4)
@@ -548,6 +546,7 @@ describe('createMainWindow', () => {
       on: vi.fn(),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      setWebRTCIPHandlingPolicy: vi.fn(),
       invalidate: vi.fn(),
       isDestroyed: vi.fn(() => false),
       setWindowOpenHandler: vi.fn(),
@@ -586,22 +585,22 @@ describe('createMainWindow', () => {
       .mock.calls.find(([channel]) => channel === 'ui:window-revealed')?.[1]
     expect(revealHandler).toBeTypeOf('function')
 
-    // Why: a reveal relayed by another window's webContents must not repaint this one.
+    // A reveal from another WebContents must not repaint this window.
     revealHandler?.({ sender: {} } as never)
     expect(browserWindowInstance.setSize).not.toHaveBeenCalled()
     expect(webContents.invalidate).not.toHaveBeenCalled()
 
-    // The genuine reveal runs the pre-Tahoe compositor jiggle that bare focus avoids.
+    // Genuine reveal uses the pre-Tahoe jiggle that bare focus avoids.
     revealHandler?.({ sender: webContents } as never)
     expect(webContents.invalidate).toHaveBeenCalledTimes(1)
-    // Why: the nudge is deferred off the event dispatch turn.
+    // Defer compositor nudge outside event dispatch.
     expect(browserWindowInstance.setSize).not.toHaveBeenCalled()
     vi.advanceTimersByTime(0)
     expect(browserWindowInstance.setSize).toHaveBeenNthCalledWith(1, 1201, 800)
     vi.advanceTimersByTime(32)
     expect(browserWindowInstance.setSize).toHaveBeenNthCalledWith(2, 1200, 800)
 
-    // Repeated reveal signals while a jiggle is active repaint but do not multiply terminal resizes.
+    // Coalesce reveal jiggles so repeated signals do not multiply terminal resizes.
     revealHandler?.({ sender: webContents } as never)
     revealHandler?.({ sender: webContents } as never)
     expect(webContents.invalidate).toHaveBeenCalledTimes(3)
@@ -609,7 +608,7 @@ describe('createMainWindow', () => {
     expect(browserWindowInstance.setSize).toHaveBeenNthCalledWith(3, 1201, 800)
     expect(browserWindowInstance.setSize).toHaveBeenCalledTimes(3)
 
-    // A user resize that lands during the jiggle must not be rolled back to stale bounds.
+    // Never restore stale bounds over a concurrent user resize.
     windowSize = [1400, 900]
     vi.advanceTimersByTime(32)
     expect(browserWindowInstance.setSize).toHaveBeenCalledTimes(3)
@@ -626,6 +625,7 @@ describe('createMainWindow', () => {
       on: vi.fn(),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      setWebRTCIPHandlingPolicy: vi.fn(),
       invalidate: vi.fn(),
       isDestroyed: vi.fn(() => false),
       setWindowOpenHandler: vi.fn(),
@@ -660,7 +660,7 @@ describe('createMainWindow', () => {
     windowHandlers.get('show')?.[0]?.()
     expect(webContents.invalidate).toHaveBeenCalledTimes(1)
 
-    // Why: the delayed second repaint must also stay setSize-free on Tahoe.
+    // Tahoe's delayed repaint must also avoid setSize.
     vi.advanceTimersByTime(300)
     expect(webContents.invalidate).toHaveBeenCalledTimes(2)
     expect(browserWindowInstance.setSize).not.toHaveBeenCalled()
@@ -674,6 +674,7 @@ describe('createMainWindow', () => {
       on: vi.fn(),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      setWebRTCIPHandlingPolicy: vi.fn(),
       invalidate: vi.fn(),
       isDestroyed: vi.fn(() => false),
       setWindowOpenHandler: vi.fn(),
@@ -720,6 +721,7 @@ describe('createMainWindow', () => {
       on: vi.fn(),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      setWebRTCIPHandlingPolicy: vi.fn(),
       invalidate: vi.fn(),
       isDestroyed: vi.fn(() => false),
       setWindowOpenHandler: vi.fn(),
@@ -769,6 +771,7 @@ describe('createMainWindow', () => {
   it('supports all minus key variants for terminal zoom out', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -788,7 +791,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -834,6 +837,7 @@ describe('createMainWindow', () => {
   it('routes Electron zoom command events to terminal zoom', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -853,7 +857,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -876,6 +880,7 @@ describe('createMainWindow', () => {
   it('respects custom zoom bindings for Electron zoom command fallbacks', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -895,7 +900,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -921,6 +926,7 @@ describe('createMainWindow', () => {
   it('does not intercept ctrl/cmd+r in before-input-event', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -943,7 +949,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -967,6 +973,7 @@ describe('createMainWindow', () => {
   it('forwards the platform tab-number jump shortcut to the renderer', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -989,7 +996,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1015,6 +1022,7 @@ describe('createMainWindow', () => {
   it('yields indexed-switch chords to the floating panel and contains their repeats', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1037,7 +1045,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1090,6 +1098,7 @@ describe('createMainWindow', () => {
   it('contains indexed-switch repeats without dispatching them', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1112,7 +1121,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1138,6 +1147,7 @@ describe('createMainWindow', () => {
   it('lets main-window Ctrl+Tab flow to the renderer held switcher', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1160,7 +1170,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1199,6 +1209,7 @@ describe('createMainWindow', () => {
   it('does not hardcode Ctrl+Tab when the recent-tab binding is disabled', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1221,7 +1232,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1252,6 +1263,7 @@ describe('createMainWindow', () => {
   it('only intercepts the dictation chord when enabled toggle mode can handle it', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1274,7 +1286,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1344,6 +1356,7 @@ describe('createMainWindow', () => {
   it('only intercepts double-tap dictation when enabled toggle mode can handle it', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1366,7 +1379,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1438,6 +1451,7 @@ describe('createMainWindow', () => {
   it('forwards ctrl/cmd+j to the worktree palette toggle event', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1460,7 +1474,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1503,6 +1517,7 @@ describe('createMainWindow', () => {
   it('suppresses auto-repeat quick-command menu toggles from before-input-event', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1525,7 +1540,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1567,6 +1582,7 @@ describe('createMainWindow', () => {
   it('lets Terminal-first pass risky app shortcuts through when terminal input is focused', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1589,7 +1605,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1629,6 +1645,7 @@ describe('createMainWindow', () => {
   it('allows double-tap shortcuts while terminal input is focused with Terminal-first policy', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1651,7 +1668,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1708,6 +1725,7 @@ describe('createMainWindow', () => {
   it('notifies before Orca-first captures a risky terminal-focused shortcut', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1730,7 +1748,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1773,6 +1791,7 @@ describe('createMainWindow', () => {
   it('notifies before Orca-first captures a terminal-focused double-tap shortcut', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1795,7 +1814,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1850,6 +1869,7 @@ describe('createMainWindow', () => {
   it('forwards the configured workspace delete shortcut while terminal input is focused', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1872,7 +1892,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1916,10 +1936,11 @@ describe('createMainWindow', () => {
   })
 
   it('toggles devtools on F12 in development', () => {
-    isMock.dev = true
+    appMock.isPackaged = false
 
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1942,7 +1963,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -1965,6 +1986,7 @@ describe('createMainWindow', () => {
   it('clears the quit latch when the renderer prevents unload', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -1986,7 +2008,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     const onQuitAborted = vi.fn()
@@ -2012,6 +2034,7 @@ describe('createMainWindow', () => {
   it('allows close after the renderer process is gone', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2034,7 +2057,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -2067,6 +2090,7 @@ describe('createMainWindow', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const ipcHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2089,8 +2113,8 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
-      loadURL: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
+      loadURL: vi.fn(() => Promise.resolve()),
       close: vi.fn(() => {
         windowHandlers.close({} as never)
       })
@@ -2126,6 +2150,7 @@ describe('createMainWindow', () => {
 
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2149,7 +2174,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     const updateUI = vi.fn()
@@ -2185,6 +2210,7 @@ describe('createMainWindow', () => {
   it('resumes close confirmation after a renderer process reloads', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2207,7 +2233,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -2240,6 +2266,7 @@ describe('createMainWindow', () => {
   it('allows close when Electron reports a crashed webContents', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2262,7 +2289,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2288,6 +2315,7 @@ describe('createMainWindow', () => {
   it('requests confirmation for a hung-but-alive renderer instead of bypassing', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2310,7 +2338,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2334,6 +2362,7 @@ describe('createMainWindow', () => {
     vi.useFakeTimers()
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       id: 42,
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
@@ -2360,7 +2389,7 @@ describe('createMainWindow', () => {
         maximize: vi.fn(),
         show: vi.fn(),
         destroy,
-        loadFile: vi.fn(),
+        loadFile: vi.fn(() => Promise.resolve()),
         loadURL: vi.fn()
       }
     })
@@ -2383,6 +2412,7 @@ describe('createMainWindow', () => {
       return ipcMain
     })
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       id: 42,
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
@@ -2409,7 +2439,7 @@ describe('createMainWindow', () => {
         maximize: vi.fn(),
         show: vi.fn(),
         destroy,
-        loadFile: vi.fn(),
+        loadFile: vi.fn(() => Promise.resolve()),
         loadURL: vi.fn()
       }
     })
@@ -2436,6 +2466,7 @@ describe('createMainWindow', () => {
   it('ignores traffic light sync IPC on non-macOS', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2456,7 +2487,7 @@ describe('createMainWindow', () => {
       setWindowButtonPosition: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2484,6 +2515,7 @@ describe('createMainWindow', () => {
   it('intercepts Cmd+B for sidebar when the markdown editor is not focused', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2506,7 +2538,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2537,6 +2569,7 @@ describe('createMainWindow', () => {
   it('skips Cmd+B interception when the markdown editor is focused', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2559,7 +2592,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2596,6 +2629,7 @@ describe('createMainWindow', () => {
   it('lets the shortcut recorder capture app shortcuts before main interception', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2618,7 +2652,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2655,6 +2689,7 @@ describe('createMainWindow', () => {
   it('skips Cmd+B interception when floating terminal input is focused', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2677,7 +2712,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2735,6 +2770,7 @@ describe('createMainWindow', () => {
   it('still intercepts Cmd+Shift+B and Cmd+Alt+B when the markdown editor is focused', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2757,7 +2793,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2812,6 +2848,7 @@ describe('createMainWindow', () => {
   it('coerces non-boolean setMarkdownEditorFocused payloads to false', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2834,7 +2871,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2874,6 +2911,7 @@ describe('createMainWindow', () => {
   it('opens a table-aware context menu synchronously without a renderer query', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -2898,7 +2936,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2935,12 +2973,18 @@ describe('createMainWindow', () => {
         expect.objectContaining({ label: 'Table' })
       ])
     )
-    expect(menuPopupMock).toHaveBeenCalledWith({ window: browserWindowInstance, x: 42, y: 84 })
+    expect(menuPopupMock).toHaveBeenCalledWith({
+      window: browserWindowInstance,
+      x: 42,
+      y: 84,
+      callback: expect.any(Function)
+    })
   })
 
   it('does not read destroyed webContents during closed cleanup', () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn(),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
@@ -2969,7 +3013,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -2986,244 +3030,11 @@ describe('createMainWindow', () => {
     expect(() => windowHandlers.closed?.()).not.toThrow()
   })
 
-  it('resets the markdown editor focus flag on renderer crash, navigation, and destroy', () => {
-    const windowHandlers: Record<string, (...args: any[]) => void> = {}
-    const webContents = {
-      // Why: the navigation fence compares the current document URL on did-start-navigation.
-      getURL: vi.fn(() => 'file:///opt/orca/renderer/index.html'),
-      on: vi.fn((event, handler) => {
-        windowHandlers[event] = handler
-      }),
-      setZoomLevel: vi.fn(),
-      setBackgroundThrottling: vi.fn(),
-      invalidate: vi.fn(),
-      setWindowOpenHandler: vi.fn(),
-      send: vi.fn(),
-      isDevToolsOpened: vi.fn(),
-      openDevTools: vi.fn(),
-      closeDevTools: vi.fn()
-    }
-    const browserWindowInstance = {
-      webContents,
-      on: vi.fn(),
-      isDestroyed: vi.fn(() => false),
-      isMaximized: vi.fn(() => true),
-      isFullScreen: vi.fn(() => false),
-      getSize: vi.fn(() => [1200, 800]),
-      setSize: vi.fn(),
-      maximize: vi.fn(),
-      show: vi.fn(),
-      loadFile: vi.fn(),
-      loadURL: vi.fn()
-    }
-    browserWindowMock.mockImplementation(function () {
-      return browserWindowInstance
-    })
-
-    createMainWindow(null)
-
-    const setFocusedListener = vi
-      .mocked(ipcMain.on)
-      .mock.calls.find(([channel]) => channel === 'ui:setMarkdownEditorFocused')?.[1]
-    const isDarwin = process.platform === 'darwin'
-
-    const cmdBInput = {
-      type: 'keyDown',
-      code: 'KeyB',
-      key: 'b',
-      meta: isDarwin,
-      control: !isDarwin,
-      alt: false,
-      shift: false
-    } as never
-
-    const assertInterceptsAfterReset = (): void => {
-      webContents.send.mockClear()
-      const preventDefault = vi.fn()
-      windowHandlers['before-input-event']({ preventDefault } as never, cmdBInput)
-      expect(preventDefault).toHaveBeenCalledTimes(1)
-      expect(webContents.send).toHaveBeenCalledWith('ui:toggleLeftSidebar')
-    }
-
-    // render-process-gone
-    setFocusedListener?.({ sender: webContents } as never, true)
-    windowHandlers['render-process-gone']?.()
-    assertInterceptsAfterReset()
-
-    // did-start-navigation (main frame)
-    // Why same-document URL: upstream's navigation fence resets focus only when the
-    // navigation stays inside the renderer's own document; cross-document is blocked.
-    setFocusedListener?.({ sender: webContents } as never, true)
-    windowHandlers['did-start-navigation']?.(
-      {} as never,
-      'file:///opt/orca/renderer/index.html?reload=1',
-      false,
-      true
-    )
-    assertInterceptsAfterReset()
-
-    // did-start-navigation (sub-frame) should NOT reset the flag
-    setFocusedListener?.({ sender: webContents } as never, true)
-    windowHandlers['did-start-navigation']?.({} as never, 'https://example.com/', false, false)
-    webContents.send.mockClear()
-    const subframePreventDefault = vi.fn()
-    windowHandlers['before-input-event'](
-      { preventDefault: subframePreventDefault } as never,
-      cmdBInput
-    )
-    expect(subframePreventDefault).not.toHaveBeenCalled()
-    expect(webContents.send).not.toHaveBeenCalledWith('ui:toggleLeftSidebar')
-
-    // destroyed
-    setFocusedListener?.({ sender: webContents } as never, true)
-    windowHandlers['destroyed']?.()
-    assertInterceptsAfterReset()
-  })
-
-  it('notifies the caller when the renderer process is gone', () => {
-    const windowHandlers: Record<string, (...args: any[]) => void> = {}
-    const webContents = {
-      id: 142,
-      on: vi.fn((event, handler) => {
-        windowHandlers[event] = handler
-      }),
-      setZoomLevel: vi.fn(),
-      setBackgroundThrottling: vi.fn(),
-      invalidate: vi.fn(),
-      setWindowOpenHandler: vi.fn(),
-      send: vi.fn()
-    }
-    const browserWindowInstance = {
-      webContents,
-      on: vi.fn(),
-      isDestroyed: vi.fn(() => false),
-      isMaximized: vi.fn(() => true),
-      isFullScreen: vi.fn(() => false),
-      getSize: vi.fn(() => [1200, 800]),
-      setSize: vi.fn(),
-      maximize: vi.fn(),
-      show: vi.fn(),
-      loadFile: vi.fn(),
-      loadURL: vi.fn()
-    }
-    browserWindowMock.mockImplementation(function () {
-      return browserWindowInstance
-    })
-    const onRendererProcessGone = vi.fn()
-
-    createMainWindow(null, { onRendererProcessGone })
-
-    const details = { reason: 'crashed', exitCode: 5 } as Electron.RenderProcessGoneDetails
-    windowHandlers['render-process-gone']?.({} as never, details)
-
-    expect(onRendererProcessGone).toHaveBeenCalledWith(details, 142)
-  })
-
-  it('passes the renderer webContents id through crash recording and recovery callbacks', () => {
-    vi.useFakeTimers()
-
-    const windowHandlers: Record<string, (...args: any[]) => void> = {}
-    const webContents = {
-      id: 424,
-      on: vi.fn((event, handler) => {
-        windowHandlers[event] = handler
-      }),
-      setZoomLevel: vi.fn(),
-      setBackgroundThrottling: vi.fn(),
-      invalidate: vi.fn(),
-      setWindowOpenHandler: vi.fn(),
-      send: vi.fn()
-    }
-    const browserWindowInstance = {
-      webContents,
-      on: vi.fn(),
-      isDestroyed: vi.fn(() => false),
-      isMaximized: vi.fn(() => true),
-      isFullScreen: vi.fn(() => false),
-      getSize: vi.fn(() => [1200, 800]),
-      setSize: vi.fn(),
-      maximize: vi.fn(),
-      show: vi.fn(),
-      loadFile: vi.fn(),
-      loadURL: vi.fn()
-    }
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    browserWindowMock.mockImplementation(function () {
-      return browserWindowInstance
-    })
-    const onRendererProcessGone = vi.fn()
-    const shouldRecoverRenderer = vi.fn(() => true)
-
-    try {
-      createMainWindow(null, {
-        onRendererProcessGone,
-        shouldRecoverRenderer
-      })
-
-      const details = { reason: 'crashed', exitCode: 5 } as Electron.RenderProcessGoneDetails
-      windowHandlers['render-process-gone']?.({} as never, details)
-      vi.advanceTimersByTime(250)
-
-      expect(onRendererProcessGone).toHaveBeenCalledWith(details, 424)
-      expect(shouldRecoverRenderer).toHaveBeenCalledWith(details, 424)
-    } finally {
-      consoleError.mockRestore()
-    }
-  })
-
-  it('forwards expected renderer teardowns so the recorder can diagnose suppression', () => {
-    const windowHandlers: Record<string, (...args: any[]) => void> = {}
-    const webContents = {
-      id: 142,
-      on: vi.fn((event, handler) => {
-        windowHandlers[event] = handler
-      }),
-      setZoomLevel: vi.fn(),
-      setBackgroundThrottling: vi.fn(),
-      invalidate: vi.fn(),
-      setWindowOpenHandler: vi.fn(),
-      send: vi.fn()
-    }
-    const browserWindowInstance = {
-      webContents,
-      on: vi.fn(),
-      isDestroyed: vi.fn(() => false),
-      isMaximized: vi.fn(() => true),
-      isFullScreen: vi.fn(() => false),
-      getSize: vi.fn(() => [1200, 800]),
-      setSize: vi.fn(),
-      maximize: vi.fn(),
-      show: vi.fn(),
-      loadFile: vi.fn(),
-      loadURL: vi.fn()
-    }
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    browserWindowMock.mockImplementation(function () {
-      return browserWindowInstance
-    })
-    const onRendererProcessGone = vi.fn()
-
-    createMainWindow(null, { onRendererProcessGone })
-
-    windowHandlers['render-process-gone']?.(
-      {} as never,
-      {
-        reason: 'killed',
-        exitCode: 15
-      } as Electron.RenderProcessGoneDetails
-    )
-
-    expect(onRendererProcessGone).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: 'killed', exitCode: 15 }),
-      expect.any(Number)
-    )
-
-    consoleError.mockRestore()
-  })
 
   const createRendererRecoveryWindowHarness = () => {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       id: 143,
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
@@ -3246,7 +3057,7 @@ describe('createMainWindow', () => {
       setSize: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -3281,39 +3092,6 @@ describe('createMainWindow', () => {
     consoleError.mockRestore()
   })
 
-  it('still preserves PTYs and reloads after Windows session-end', () => {
-    vi.useFakeTimers()
-
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const { browserWindowInstance, windowHandlers } = createRendererRecoveryWindowHarness()
-    const onBeforeRecoveryReload = vi.fn()
-
-    withPlatform('win32', () => {
-      createMainWindow(null, {
-        onBeforeRecoveryReload,
-        shouldRecoverRenderer: (details) =>
-          shouldRecoverRendererAfterProcessGone({
-            reason: details.reason,
-            expectedTeardown: resolveExpectedTeardownScope({
-              isQuitting: false,
-              isQuittingForUpdate: false,
-              isExpectedRendererReload: false,
-              includeSystemSessionEnd: false
-            })
-          })
-      })
-    })
-    windowHandlers['session-end']?.({} as never)
-    windowHandlers['render-process-gone']?.(
-      {} as never,
-      { reason: 'killed', exitCode: 1 } as Electron.RenderProcessGoneDetails
-    )
-    vi.runAllTimers()
-
-    expect(onBeforeRecoveryReload).toHaveBeenCalledWith(143)
-    expect(browserWindowInstance.loadFile).toHaveBeenCalledTimes(2)
-    consoleError.mockRestore()
-  })
 
   it('does not reload after renderer loss when recovery is disabled', () => {
     vi.useFakeTimers()
@@ -3465,7 +3243,7 @@ describe('createMainWindow', () => {
     consoleError.mockRestore()
   })
 
-  it('bounds renderer launch-failed recovery with the crash-loop breaker', () => {
+  it('bounds renderer launch-failed recovery with the launch-failure backoff', () => {
     vi.useFakeTimers()
 
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -3486,21 +3264,23 @@ describe('createMainWindow', () => {
         reason: 'launch-failed',
         exitCode: 18
       } as Electron.RenderProcessGoneDetails
-      const driveLaunchFailure = (): void => {
+      const driveLaunchFailure = (advanceMs: number): void => {
         windowHandlers['render-process-gone']?.({} as never, details)
-        vi.advanceTimersByTime(250)
+        vi.advanceTimersByTime(advanceMs)
       }
 
-      driveLaunchFailure()
-      driveLaunchFailure()
-      driveLaunchFailure()
-      expect(browserWindowInstance.loadFile).toHaveBeenCalledTimes(4)
+      // Refused spawns retry on the long launch-failure backoff, not the 750ms crash breaker.
+      for (const delay of [250, 1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 60_000]) {
+        driveLaunchFailure(delay)
+      }
+      expect(browserWindowInstance.loadFile).toHaveBeenCalledTimes(9)
+      expect(onRendererRecoveryExhausted).not.toHaveBeenCalled()
 
-      driveLaunchFailure()
-      expect(browserWindowInstance.loadFile).toHaveBeenCalledTimes(4)
+      driveLaunchFailure(250)
+      expect(browserWindowInstance.loadFile).toHaveBeenCalledTimes(9)
       expect(onRendererRecoveryExhausted).toHaveBeenCalledOnce()
       expect(onRendererRecoveryExhausted).toHaveBeenCalledWith(
-        expect.objectContaining({ details, recentRecoveryCount: 3 })
+        expect.objectContaining({ details, recentRecoveryCount: 8 })
       )
     } finally {
       consoleError.mockRestore()
@@ -3510,6 +3290,7 @@ describe('createMainWindow', () => {
   function createStartupRevealWindowFixture() {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
     const webContents = {
+      setWebRTCIPHandlingPolicy: vi.fn(),
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
       }),
@@ -3532,7 +3313,7 @@ describe('createMainWindow', () => {
       setWindowButtonPosition: vi.fn(),
       maximize: vi.fn(),
       show: vi.fn(),
-      loadFile: vi.fn(),
+      loadFile: vi.fn(() => Promise.resolve()),
       loadURL: vi.fn()
     }
     browserWindowMock.mockImplementation(function () {
@@ -3750,6 +3531,7 @@ describe('createMainWindow', () => {
     function setupResumeWindow() {
       const windowHandlers: Record<string, (...args: any[]) => void> = {}
       const webContents = {
+        setWebRTCIPHandlingPolicy: vi.fn(),
         on: vi.fn(),
         setZoomLevel: vi.fn(),
         setBackgroundThrottling: vi.fn(),
@@ -3772,7 +3554,7 @@ describe('createMainWindow', () => {
         setSize: vi.fn(),
         maximize: vi.fn(),
         show: vi.fn(),
-        loadFile: vi.fn(),
+        loadFile: vi.fn(() => Promise.resolve()),
         loadURL: vi.fn()
       }
       browserWindowMock.mockImplementation(function () {
@@ -3859,6 +3641,7 @@ describe('createMainWindow', () => {
     function setupCloseWindow(): CloseFixture {
       const windowHandlers: Record<string, (...args: any[]) => void> = {}
       const webContents = {
+        setWebRTCIPHandlingPolicy: vi.fn(),
         on: vi.fn((event, handler) => {
           windowHandlers[event] = handler
         }),
@@ -3884,7 +3667,7 @@ describe('createMainWindow', () => {
         maximize: vi.fn(),
         show: vi.fn(),
         hide: vi.fn(),
-        loadFile: vi.fn(),
+        loadFile: vi.fn(() => Promise.resolve()),
         loadURL: vi.fn()
       }
       browserWindowMock.mockImplementation(function () {

@@ -1,4 +1,4 @@
-import type { TaskPageComposerActionsModel } from '../../use-task-page-composer-actions'
+import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,7 @@ import {
   SelectContent,
   SelectItem
 } from '@/components/ui/select'
-import { resolveUserRepoSwitchReset } from '@/components/task-page-new-issue-draft'
+import { resolveUserRepoSwitchReset } from '@/components/task-page/task-page-new-issue-draft'
 import RepoBadgeLabel from '@/components/repo/RepoBadgeLabel'
 import { Input } from '@/components/ui/input'
 import { GitHubMarkdownComposer } from '@/components/github/GitHubMarkdownComposer'
@@ -28,10 +28,7 @@ import { GitHubIssueLabelSelector, GitHubIssueAssigneeSelector } from './IssueSe
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LoaderCircle } from 'lucide-react'
-import {
-  getNewIssueProviderLabel,
-  type NewIssueProvider
-} from '../../use-task-page-github-issue-draft'
+import { getNewIssueProviderLabel, type NewIssueProvider } from './use-task-page-github-issue-draft'
 export function TaskPageGitHubIssueDialog({
   model
 }: {
@@ -104,7 +101,7 @@ export function TaskPageGitHubIssueDialog({
                 </DialogDescription>
               )
             }
-            // Why: inline the resolved {owner}/{repo} slug as the source indicator; fall back to displayName when unresolved.
+            // Use the resolved slug as the source indicator, falling back to displayName.
             const entry = newIssueTargetRepo
               ? perRepoSourceState.find((s) =>
                   repoMatchesHostIdentity(newIssueTargetRepo, s.repoId, s.hostId)
@@ -113,12 +110,7 @@ export function TaskPageGitHubIssueDialog({
             const issuesSlug = entry?.sources?.issues
               ? `${entry.sources.issues.owner}/${entry.sources.issues.repo}`
               : null
-            const fallback =
-              newIssueTargetRepo?.displayName ??
-              translate(
-                'auto.components.task.page.dialogs.new.github.issue.dialog.e02508846c',
-                'this repository'
-              )
+            const target = issuesSlug ?? newIssueTargetRepo?.displayName
             if (
               newIssueProvider === 'gitlab' &&
               newIssueWorkspaceRepo &&
@@ -128,7 +120,11 @@ export function TaskPageGitHubIssueDialog({
               return (
                 <DialogDescription>
                   {translate('auto.components.TaskPage.a4498dc284', 'Filing GitLab issue in')}{' '}
-                  {fallback}
+                  {target ??
+                    translate(
+                      'auto.components.TaskPage.filingInThisRepository',
+                      'Filing in this repository'
+                    )}
                   {translate('auto.components.TaskPage.c4e4b59344', ', code changes in')}{' '}
                   {newIssueWorkspaceRepo.displayName}
                 </DialogDescription>
@@ -136,7 +132,14 @@ export function TaskPageGitHubIssueDialog({
             }
             return (
               <DialogDescription>
-                {translate('auto.components.TaskPage.9f2b4c03a6', 'Filing in')} {issuesSlug ?? fallback}
+                {target
+                  ? translate('auto.components.TaskPage.filingInTarget', 'Filing in {{target}}', {
+                      target
+                    })
+                  : translate(
+                      'auto.components.TaskPage.filingInThisRepository',
+                      'Filing in this repository'
+                    )}
               </DialogDescription>
             )
           })()}
@@ -144,8 +147,7 @@ export function TaskPageGitHubIssueDialog({
             if (newIssueProvider !== 'github') {
               return null
             }
-            // Why: mirror the Tasks-view target selector so a fork contributor can flip target at filing time (fork-routing regression #1076).
-            // Sibling (not nested) because DialogDescription renders a <p> and the selector a <div> — nesting is invalid HTML.
+            // Keep the fork target selector beside DialogDescription; its div cannot nest inside the description’s p.
             if (!newIssueTargetRepo) {
               return null
             }
@@ -359,7 +361,9 @@ export function TaskPageGitHubIssueDialog({
             </label>
           ) : null}
           <p className="text-[10px] text-muted-foreground">
-            {submitShortcutLabel} {translate('auto.components.TaskPage.fc0d8a1fa4', 'to submit.')}
+            {translate('auto.components.TaskPage.shortcutToSubmit', '{{shortcut}} to submit.', {
+              shortcut: submitShortcutLabel
+            })}
           </p>
         </div>
         <DialogFooter>

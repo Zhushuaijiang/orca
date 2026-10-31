@@ -2,8 +2,13 @@ import { net } from 'electron'
 import { parse } from 'yaml'
 import { compareVersions, isPrereleaseVersion, isValidVersion } from './updater-fallback'
 import type { GithubReleaseFeedConfig } from './updater-release-feed-config'
+import {
+  getGitHubReleaseAssetReadiness,
+  requestGitHubReleaseHead,
+  type ReleaseReadiness
+} from './updater-github-release-head'
 
-const DEFAULT_RELEASE_FEED: GithubReleaseFeedConfig = {
+export const DEFAULT_RELEASE_FEED: GithubReleaseFeedConfig = {
   mode: 'github',
   atomUrl: 'https://github.com/stablyai/orca/releases.atom',
   downloadBaseUrl: 'https://github.com/stablyai/orca/releases/download',
@@ -12,9 +17,7 @@ const DEFAULT_RELEASE_FEED: GithubReleaseFeedConfig = {
 const FETCH_TIMEOUT_MS = 5000
 const MAX_MANIFEST_PROBE_CANDIDATES = 6
 
-// Why: GitHub's atom feed lists every release (prerelease or stable) in a
-// single flat list. Each entry has a /releases/tag/<tag> URL we can mine
-// without any channel filtering.
+// Atom includes stable and prerelease tags without channel filtering.
 const TAG_HREF_RE = /href="[^"]*\/releases\/tag\/([^"]+)"/g
 
 export function getReleaseDownloadUrl(
@@ -29,7 +32,8 @@ function getPlatformManifestName(): string {
     return 'latest-mac.yml'
   }
   if (process.platform === 'linux') {
-    return 'latest-linux.yml'
+    // Match electron-updater getChannelFilePrefix(): non-x64 Linux appends -${arch}.
+    return process.arch === 'x64' ? 'latest-linux.yml' : `latest-linux-${process.arch}.yml`
   }
   return 'latest.yml'
 }
@@ -119,50 +123,6 @@ function getManifestAssetNames(manifestText: string): string[] {
   return [...names]
 }
 
-type ReleaseReadiness = 'ready' | 'not-ready' | 'unavailable'
-
-function getGitHubReleaseAssetReadiness(assetUrl: string): Promise<ReleaseReadiness> {
-  return new Promise((resolve) => {
-    const request = net.request({ method: 'HEAD', url: assetUrl, redirect: 'manual' })
-    let settled = false
-    const settle = (readiness: ReleaseReadiness): void => {
-      if (settled) {
-        return
-      }
-      settled = true
-      clearTimeout(timeout)
-      resolve(readiness)
-    }
-    const timeout = setTimeout(() => {
-      try {
-        request.abort()
-      } catch {
-        // The request may already have been cancelled by Electron.
-      }
-      settle('unavailable')
-    }, FETCH_TIMEOUT_MS)
-
-    request.on('redirect', (statusCode) => {
-      // Why: GitHub's 302 proves the asset exists without probing its signed storage URL.
-      settle(statusCode >= 300 && statusCode < 400 ? 'ready' : 'unavailable')
-    })
-    request.on('response', (response) => {
-      settle(
-        response.statusCode === 404
-          ? 'not-ready'
-          : response.statusCode >= 200 && response.statusCode < 300
-            ? 'ready'
-            : 'unavailable'
-      )
-    })
-    request.on('error', () => settle('unavailable'))
-    try {
-      request.end()
-    } catch {
-      settle('unavailable')
-    }
-  })
-}
 
 async function getReleaseAssetReadiness(
   tag: string,
@@ -200,9 +160,7 @@ async function getPlatformManifestReadiness(
   releaseFeed: GithubReleaseFeedConfig
 ): Promise<ReleaseReadiness> {
   try {
-    // Why: cancelled/draft releases can appear in GitHub's atom feed before
-    // they have updater manifests or the ZIP/exe/AppImage assets referenced by
-    // those manifests. Pinning to those tags makes download clicks 404.
+    // Feed entries may precede manifests or installer assets; do not offer downloads that would 404.
     const manifestUrl = getReleaseManifestUrl(tag, releaseFeed)
     const res = await net.fetch(manifestUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
     if (res.status === 404) {
@@ -234,19 +192,43 @@ async function getPlatformManifestReadiness(
   }
 }
 
-/**
- * Walks the GitHub releases atom feed and returns the tag of the newest
- * release strictly greater than `currentVersion`.
- *
- * Why: electron-updater's GitHubProvider filters the feed by channel, and
- * GitHub's /latest/download redirect can move between check and download.
- * By resolving the newest tag ourselves and pinning the generic provider at
- * `/releases/download/<tag>`, the manifest and downloaded asset stay tied to
- * the same release.
- *
- * Returns null if the fetch fails, the feed has no parseable tags, or
- * nothing in the feed is newer than `currentVersion`.
- */
+export async function fetchLatestStableReleaseTag(
+  releaseFeed: GithubReleaseFeedConfig = DEFAULT_RELEASE_FEED
+): Promise<string | null> {
+  try {
+    // Resolve only the release-page redirect; installer redirects continue on to signed storage URLs.
+    const latestUrl = releaseFeed.downloadBaseUrl.replace(
+      /\/releases\/download\/?$/,
+      '/releases/latest'
+    )
+    if (latestUrl === releaseFeed.downloadBaseUrl) {
+      return null
+    }
+    const latestOrigin = new URL(latestUrl).origin
+    const tagPrefix = `${new URL(latestUrl).pathname.replace(/\/releases\/latest$/, '')}/releases/tag/`
+    const response = await requestGitHubReleaseHead(latestUrl)
+    if (!response?.redirectUrl || response.statusCode < 300 || response.statusCode >= 400) {
+      return null
+    }
+    const target = new URL(response.redirectUrl, latestUrl)
+    if (target.origin !== latestOrigin || !target.pathname.startsWith(tagPrefix)) {
+      return null
+    }
+    const tag = decodeURIComponent(target.pathname.slice(tagPrefix.length))
+    if (!tag || tag.includes('/')) {
+      return null
+    }
+    const version = normalizeTagToVersion(tag)
+    if (!isValidVersion(version) || isPrereleaseVersion(version)) {
+      return null
+    }
+    return (await getPlatformManifestReadiness(tag, releaseFeed)) === 'ready' ? tag : null
+  } catch {
+    return null
+  }
+}
+
+// Concrete tags keep manifests and downloaded assets on the same release.
 type FetchNewerReleaseTagOptions = {
   includePrerelease?: boolean
   releaseFilter?: 'perf'
@@ -289,8 +271,7 @@ export async function fetchNewerReleaseTagsWithReadiness(
     return { tags: [], state: 'unavailable', unavailableReason: 'feed' }
   }
 
-  // Why: perf builds are explicit opt-in; regular prerelease checks should
-  // stay on the main RC/stable series even though perf tags are semver-newer.
+  // Perf builds require explicit opt-in, even when semver considers them newer.
   const candidates =
     options.releaseFilter === 'perf'
       ? tags.filter(({ tag }) => isPerfPrereleaseTag(tag))
@@ -304,8 +285,7 @@ export async function fetchNewerReleaseTagsWithReadiness(
     return { tags: [], state: 'no-newer' }
   }
 
-  // Why: a cancelled release can leave several feed entries without manifests,
-  // but update checks must not stall on an unbounded run of 5s probes.
+  // Bound probes when cancelled releases leave multiple entries without manifests.
   const probeCandidates = candidates.slice(
     newestNewerIndex,
     newestNewerIndex + MAX_MANIFEST_PROBE_CANDIDATES

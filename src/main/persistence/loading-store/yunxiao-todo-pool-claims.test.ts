@@ -4,7 +4,7 @@ import { rmSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { YunxiaoWorkItem } from '../../../shared/types'
-import { testState, createStore, closeTestStores, makeRepo } from '../../persistence-test-harness'
+import { testState, createStore, closeTestStores, makeRepo } from '../persistence-test-harness'
 import type { Store } from './store'
 
 vi.mock('electron', () => ({

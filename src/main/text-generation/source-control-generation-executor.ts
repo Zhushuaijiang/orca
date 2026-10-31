@@ -89,7 +89,6 @@ async function executeSingleGenerationPlan(
       ? runRemoteSourceControlPlan({
           plan,
           target: input.target,
-          emptyResultName: input.emptyResultName,
           operation: input.operation,
           timeoutMs
         })
@@ -97,7 +96,6 @@ async function executeSingleGenerationPlan(
           agentId: input.params.agentId,
           plan,
           target: input.target,
-          emptyResultName: input.emptyResultName,
           operation: input.operation,
           spawnAgent: input.spawnAgent,
           timeoutMs

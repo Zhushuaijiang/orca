@@ -1,6 +1,5 @@
 import { app, powerMonitor } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
 import type { ReleaseBuild, ReleaseChannel } from '../../shared/release-channel'
 import type { ReleaseBuildListOptions } from '../updater-release-build-cache'
@@ -24,9 +23,11 @@ import { recordUpdaterLifecycle } from '../updater-lifecycle-diagnostics'
 import { AUTO_UPDATE_CHECK_INTERVAL_MS } from './updater-state'
 import { UpdaterDownloadInstall } from './updater-download-install'
 import { configureMacShipItScheduling } from './macos-shipit-scheduling'
+import { handleElectronUpdaterProxyLogin } from './electron-updater-proxy-session'
 import type { PreQuitCleanupFailureMode, UpdateInstallMode } from './updater-state'
 
 export type UpdaterSetupOptions = {
+  getMainWindow?: () => BrowserWindow | null
   getLastUpdateCheckAt?: () => number | null
   onBeforeQuit?: () => void | Promise<void>
   setLastUpdateCheckAt?: (timestamp: number) => void
@@ -125,8 +126,8 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
 
   setupAutoUpdater(mainWindow: BrowserWindow | null, opts?: UpdaterSetupOptions): void {
     this.releaseFeedConfig = resolveReleaseFeedConfig(getPackageJsonPath())
-    // Why keep: headless serve sets up without a window; a later window attach must not be undone.
-    this.mainWindowRef = mainWindow ?? this.mainWindowRef
+    // Keep direct-window callers compatible; desktop composition supplies the lifecycle getter.
+    this.getMainWindow = opts?.getMainWindow ?? (mainWindow ? () => mainWindow : this.getMainWindow)
     initDfhisUpdater((status) => this.sendStatus(status))
     this.onBeforeQuitCleanup = opts?.onBeforeQuit ?? null
     this.onBeforeQuitFailure = opts?.onBeforeQuitFailure ?? 'continue'
@@ -150,10 +151,7 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
       this.sendErrorStatus(`The server update did not complete: ${serveHandoffFailure}`, true)
     }
 
-    if (!app.isPackaged && !is.dev) {
-      return
-    }
-    if (is.dev) {
+    if (!app.isPackaged) {
       return
     }
 
@@ -164,13 +162,12 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
       autoUpdater.allowDowngrade = false
       autoUpdater.disableDifferentialDownload = false
     }
-    // Why: supervised serve installs require an explicit handoff; ordinary service quits must never install implicitly.
-    // Only an explicit AppImage/non-root marker may opt into electron-updater's implicit quit install.
+    // Implicit quit install requires interactive mode and an explicit non-root/AppImage marker; serve requires handoff.
     autoUpdater.autoInstallOnAppQuit =
       this.updateInstallMode === 'interactive' && getLinuxPackageType() === 'non-root'
-    // Why: MacUpdater ignores quitAndInstall arguments; the surviving CLI supervisor must be the only serve relaunch owner.
+    // MacUpdater ignores quitAndInstall arguments; only the surviving CLI supervisor may relaunch serve.
     autoUpdater.autoRunAppAfterInstall = this.updateInstallMode === 'interactive'
-    // Why: our only on-machine window into electron-updater; otherwise an unexpected update-not-available or failed fetch is invisible.
+    // Keep native updater diagnostics visible through local logging.
     autoUpdater.logger = createUpdaterDiagnosticLogger() as never
 
     // Security: never re-add a verifyUpdateCodeSignature override — a no-op disables electron-updater's built-in Authenticode check and accepts any installer.
@@ -185,6 +182,7 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
       return
     }
     this.autoUpdaterInitialized = true
+    autoUpdater.on('login', handleElectronUpdaterProxyLogin)
 
     registerAutoUpdaterHandlers({
       autoUpdater,
@@ -204,7 +202,7 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
       isQuitAndInstallHandoffActive: () => this.isQuitAndInstallHandoffActive(),
       hasInstallableDownloadedVersion: () => this.hasInstallableDownloadedVersion(),
       isLocalBuildCheck: () => this.activeUpdateSource === 'local',
-      // Why: pinned jumps are deliberate, so update-available/-downloaded must not reject them for being older than the running version.
+      // Explicit pinned jumps may target versions older than the running build.
       isPinnedBuildCheck: () => this.isPinnedBuildActive,
       shouldHandleUpdaterErrorEvent: () => this.shouldHandleUpdaterErrorEvent(),
       clearUpdateAvailableEventPending: (attemptId) =>

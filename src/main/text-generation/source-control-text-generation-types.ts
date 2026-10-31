@@ -7,10 +7,11 @@ import type {
 } from '../../shared/commit-message-agent-spec'
 import type { CommitMessagePlan } from '../../shared/commit-message-plan'
 import type { AuxiliaryTaskId } from '../../shared/auxiliary-model-types'
+import type { TextGenerationFailureFields } from '../../shared/text-generation-failure-copy'
 
 export type GenerateCommitMessageResult =
   | { success: true; message: string; agentLabel?: string }
-  | { success: false; error: string; canceled?: boolean }
+  | ({ success: false; canceled?: boolean } & TextGenerationFailureFields)
 
 export type DiscoverCommitMessageModelsResult =
   | {
@@ -29,7 +30,11 @@ export type GeneratePullRequestFieldsResult<TFields> =
       agentLabel?: string
       branchChangedByPreparation?: boolean
     }
-  | { success: false; error: string; canceled?: boolean; branchChangedByPreparation?: boolean }
+  | ({
+      success: false
+      canceled?: boolean
+      branchChangedByPreparation?: boolean
+    } & TextGenerationFailureFields)
 
 export type RemoteCommitMessageExecResult = {
   stdout: string
@@ -72,12 +77,11 @@ export type CommitMessageGenerationTarget =
 
 export type InternalTextGenerationResult =
   | { success: true; rawOutput: string; agentLabel?: string }
-  | {
+  | ({
       success: false
-      error: string
       canceled?: boolean
       failureOutput?: AgentGenerationFailureOutput
-    }
+    } & TextGenerationFailureFields)
 
 export type GenerateBranchNameResult =
   | { success: true; slug: string; agentLabel?: string }
@@ -118,6 +122,7 @@ export type SourceControlAgentSpawnInput = {
   wslDistro?: string
   // WSL applies these in the guest; native callers already merge them into env.
   commandEnv?: Record<string, string>
+  preparation?: { script: string; args: string[] }
   stdinMode: 'ignore' | 'pipe'
   useCwdForNative: boolean
 }
@@ -125,3 +130,13 @@ export type SourceControlAgentSpawnInput = {
 export type SpawnSourceControlAgent = (
   input: SourceControlAgentSpawnInput
 ) => SpawnedSourceControlAgentProcess
+
+export type LocalSourceControlPlanInput = {
+  plan: CommitMessagePlan
+  timeoutMs?: number
+  cwd: string
+  env: NodeJS.ProcessEnv | undefined
+  operation: TextGenerationOperation
+  wslDistro?: string
+  spawnAgent: SpawnSourceControlAgent
+}

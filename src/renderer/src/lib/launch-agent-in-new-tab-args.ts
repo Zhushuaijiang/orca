@@ -1,24 +1,9 @@
-import type {
-  AgentSessionLaunchPlan,
-  AgentSessionLaunchRequest
-} from '@/lib/agent-session-launch-plan'
-import type { AgentStartupPlan } from '@/lib/tui-agent-startup'
-import type { StructuredAgentLaunchSettlement } from '@/lib/structured-agent-launch-settlement'
-import type { StructuredLaunchTerminal } from '@/lib/structured-agent-session-launch-admission'
-import type { AgentLaunchRequestId } from '@/lib/agent-launch-request-id'
-import type { NativeChatComposerFocusIntent } from '@/components/native-chat/use-native-chat-composer-reveal-focus'
+import type { AgentSessionLaunchRequest } from '@/lib/agent-session-launch-plan'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { LaunchSource } from '../../../shared/telemetry-events'
-
-/** The user action this launch serves: minted where that action is handled, or carried by the
- *  route the caller already planned for it. */
-type LaunchAgentInNewTabRequest =
-  | { requestId: AgentLaunchRequestId; agentSessionLaunchPlan?: undefined }
-  | {
-      /** Keeps a preflighted route authoritative across workspace creation. */
-      agentSessionLaunchPlan: AgentSessionLaunchPlan
-      requestId?: undefined
-    }
+import type { StructuredLaunchTerminal } from '@/lib/structured-agent-session-launch-admission'
+import type { LaunchAgentInNewTabRequest } from '@/lib/launch-agent-in-new-tab-host-agents'
+import type { NativeChatComposerFocusIntent } from '@/components/native-chat/use-native-chat-composer-reveal-focus'
 
 export type LaunchAgentInNewTabArgs = LaunchAgentInNewTabRequest & {
   requestedSurface?: AgentSessionLaunchRequest['requestedSurface']
@@ -31,8 +16,12 @@ export type LaunchAgentInNewTabArgs = LaunchAgentInNewTabRequest & {
   groupId?: string
   /** Optional initial prompt; delivery depends on `promptDelivery` and the agent's prompt mode. */
   prompt?: string
-  /** Optional CLI arguments appended to the selected agent command. */
+  /** Optional CLI arguments appended to the selected agent command; a chat has no command line. */
   agentArgs?: string | null
+  /** The launch's saved choice; a chat seeds it and a terminal applies it as flags. */
+  sessionOptions?: Readonly<Record<string, string>>
+  /** On terminals, a flag `agentArgs` sets itself wins over the inherited saved choice. */
+  sessionOptionsYieldToAgentArgs?: true
   initialCwd?: string | null
   /** How to deliver the prompt: `draft` leaves it editable, `submit-after-ready` sends it once the TUI is ready. */
   promptDelivery?: 'auto-submit' | 'draft' | 'submit-after-ready'
@@ -63,19 +52,3 @@ export type LaunchAgentInNewTabArgs = LaunchAgentInNewTabRequest & {
   /** Opens instead of this agent's terminal when the host declines its structured chat. */
   onStructuredHostDeclined?: () => StructuredLaunchTerminal
 }
-
-/** `host-published`: the surface opens once its host answers; `local-chat` opened before it did. */
-export type AgentLaunchSurface =
-  | { kind: 'local-terminal'; tabId: string }
-  | { kind: 'local-chat'; tabId: string }
-  | { kind: 'host-published' }
-
-export type LaunchAgentInNewTabResult = {
-  surface: AgentLaunchSurface
-  startupPlan: AgentStartupPlan
-  pasteDraftAfterLaunch: boolean
-  promptDeliveryResult?: Promise<{ delivered: boolean; failureNotified: boolean }>
-  /** Structured route only: what the launch did once it settled. The call stays synchronous. */
-  terminalCompletion?: StructuredLaunchTerminal['completion']
-  structuredSettlement?: Promise<StructuredAgentLaunchSettlement>
-} | null

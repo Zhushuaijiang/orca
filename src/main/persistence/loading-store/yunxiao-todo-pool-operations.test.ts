@@ -13,7 +13,7 @@ import {
   createStore,
   writeDataFile,
   readDataFile
-} from '../../persistence-test-harness'
+} from '../persistence-test-harness'
 import type { Store } from './store'
 import { getDefaultPersistedState } from '../../../shared/constants'
 import { hostWorktreeTarget } from '../../../shared/worktree/host-qualified-identity'

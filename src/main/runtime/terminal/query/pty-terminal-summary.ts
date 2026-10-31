@@ -1,4 +1,4 @@
-import { OrcaRuntimeWithGetPtyRecordForPaneKey } from '../../orchestration/terminal-pane-mail-routing'
+import { OrcaRuntimeWithMailboxTerminalIdentity } from '../../orchestration/mailbox-terminal-identity'
 import type {
   RuntimeLeafRecord,
   RuntimePtyWorktreeRecord
@@ -7,7 +7,8 @@ import type { ResolvedWorktree } from '../../runtime-worktree-path-identity'
 import { worktreeIdentityKey } from '../../../../shared/worktree/id'
 import type { RuntimeTerminalRead, RuntimeTerminalSummary } from '../../../../shared/runtime-types'
 import { getLatestPtyTitle } from '../../runtime-worktree-status-projection'
-import { parsePaneKey } from '../../../../shared/stable-pane-id'
+import { isTerminalLeafId, makePaneKey, parsePaneKey } from '../../../../shared/stable-pane-id'
+import { isValidTerminalTabId } from '../../../../shared/terminal-tab-id'
 import {
   ptyHoldsRecordedSurface,
   type PtySurfaceTopology
@@ -18,10 +19,8 @@ import { readTerminalTail } from '../../terminal-tail-read'
 import { structuredWorkerTerminalRefusal } from '../../structured-worker-terminal-refusal'
 import { randomUUID } from 'node:crypto'
 import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
-import { startedMainTerminalSurfaces } from '../surface/main-terminal-surfaces'
-import { HEADLESS_RUNTIME_WINDOW_ID } from '../../../../shared/runtime-types'
 
-export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntimeWithGetPtyRecordForPaneKey {
+export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntimeWithMailboxTerminalIdentity {
   protected abstract bindPtyIncarnationHandle(
     retained: PtyIncarnationHandleRecord,
     leaf: RuntimeLeafRecord
@@ -40,14 +39,15 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
   ): RuntimeTerminalSummary {
     const worktree = worktreesById.get(pty.worktreeId)
 
-    const pane = parsePaneKey(pty.paneKey ?? '')
-    const orphaned = !ptyHoldsRecordedSurface(pty, this.ptySurfaceTopology())
+    const recorded = this.paneOfPty(pty)
+    const pane = parsePaneKey(recorded.paneKey ?? '')
+    const orphaned = !ptyHoldsRecordedSurface(pty.ptyId, recorded, this.ptySurfaceTopology())
     const processTitle = getLatestPtyTitle(this.getPtyDisplayRecord(pty))
     const title = this.getPtyManualTitle(pty, orphaned) ?? processTitle
     const paneTitle =
-      orphaned || !pty.tabId || !pane
+      orphaned || !recorded.tabId || !pane
         ? null
-        : this.getSavedPaneTitle(pty.worktreeId, pty.tabId, pane.leafId)
+        : this.getSavedPaneTitle(pty.worktreeId, recorded.tabId, pane.leafId)
     // A live process awaiting its pane binding is not evidence of an orphan.
     if (
       orphaned &&
@@ -61,13 +61,13 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
       ptyId: pty.ptyId,
       incarnationId: pty.incarnationId,
       orphaned,
-      ...(orphaned && pane && pane.tabId === pty.tabId && pty.paneKey
-        ? { recordedPaneKey: pty.paneKey }
+      ...(orphaned && pane && pane.tabId === recorded.tabId && recorded.paneKey
+        ? { recordedPaneKey: recorded.paneKey }
         : {}),
       worktreeId: pty.worktreeId,
       worktreePath: worktree?.path ?? '',
       branch: worktree?.branch ?? '',
-      tabId: orphaned ? `pty:${pty.ptyId}` : pty.tabId!,
+      tabId: orphaned ? `pty:${pty.ptyId}` : recorded.tabId!,
       // SAFETY: A later binding read does not prove the cached pane was present.
       leafId: orphaned ? `pty:${pty.ptyId}` : pane!.leafId,
       title,
@@ -79,10 +79,10 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
       ...(pty.lastExitCause ? { exitCause: pty.lastExitCause } : {}),
       ...this.terminalExecutionHostField(pty.ptyId, pty.worktreeId),
       ...this.resolvePaneAgentIdentityField(
-        pty.launchAgent,
+        pty.launchAgent ?? pty.launchCommandAgent,
         pty.foregroundAgent,
         processTitle,
-        pty.paneKey ?? null
+        recorded.paneKey
       )
     }
   }
@@ -92,7 +92,7 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
     const tab = orphaned
       ? undefined
       : this.getWorkspaceSessionForWorktree(pty.worktreeId)?.tabsByWorktree[pty.worktreeId]?.find(
-          (candidate) => candidate.id === pty.tabId
+          (candidate) => candidate.id === this.paneOfPty(pty).tabId
         )
     return tab ? tab.customTitle?.trim() || null : (pty.manualTitle ?? null)
   }
@@ -104,10 +104,7 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
     this.assertGraphReady()
     const record = this.handles.get(handle)
     if (!record || record.runtimeId !== this.runtimeId) {
-      // A structured worker's handle is not stale — nothing went dead. It names a live agent
-      // session that simply has no terminal, and saying `terminal_handle_stale` sent callers
-      // hunting for a remint that will never exist. Read paths (`terminal read`,
-      // `isTerminalRunningAgent`, the identity probe) answer for it BEFORE reaching here.
+      // Structured workers are live sessions without terminals; read paths answer before this refusal, and stale-handle errors would send callers hunting nonexistent remints.
       throw structuredWorkerTerminalRefusal(handle, this._orchestrationDb)
     }
     if (record.rendererGraphEpoch !== this.rendererGraphEpoch) {
@@ -119,6 +116,34 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
       throw new Error('terminal_handle_stale')
     }
     return { record, leaf }
+  }
+
+  /** The terminal a handle names: its runtime PTY, the PTY its retained handle was issued for, or the PTY its window pane shows. */
+  protected getTerminalPtyForHandle(handle: string): { pty: RuntimePtyWorktreeRecord } {
+    const pty =
+      this.getLivePtyForHandle(handle)?.pty ??
+      this.getRetainedHandlePty(handle) ??
+      this.ptysById.get(this.getLiveLeafForHandle(handle).leaf.ptyId ?? '')
+    if (!pty) {
+      throw new Error('terminal_handle_stale')
+    }
+    return { pty }
+  }
+
+  /** A pane-issued handle outlives the graph (a reload) while its PTY keeps the incarnation it was issued for. */
+  protected getRetainedHandlePty(handle: string): RuntimePtyWorktreeRecord | undefined {
+    const [ptyId, retained] =
+      [...this.handleByPtyIncarnation].find(([, r]) => r.handle === handle) ?? []
+    const pty = ptyId ? this.ptysById.get(ptyId) : undefined
+    return retained?.incarnationId && pty?.incarnationId === retained.incarnationId
+      ? pty
+      : undefined
+  }
+
+  /** Whether a handle names a terminal, including one a graph reload cleared the record of. */
+  protected hasMailboxTerminalHandle(handle: string): boolean {
+    const named = this.getLivePtyForHandle(handle)?.pty ?? this.getRetainedHandlePty(handle)
+    return this.handles.has(handle) || named !== undefined
   }
 
   protected getLivePtyForHandle(handle: string): {
@@ -140,7 +165,7 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
     if (
       !record ||
       record.runtimeId !== this.runtimeId ||
-      !(record.tabId.startsWith('pty:') || this.windowlessOwnHandle(handle, record))
+      !(record.tabId.startsWith('pty:') || this.mainPaneOwnHandle(handle, record))
     ) {
       return null
     }
@@ -152,40 +177,29 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
       return null
     }
     // Why: renderer adoption can race with CLI reads; keep ptyId → handle populated so summaries don't mint a second handle for the same terminal.
-    this.handleByPtyId.set(record.ptyId, handle)
+    this.setPtyHandle(record.ptyId, handle)
     return { record, pty }
   }
 
-  /**
-   * Layout-owner builds with no window: main lists its own panes, so the pane main binds a
-   * terminal to adopts the terminal's own handle (the one it was created under). Before main
-   * listed panes with no window, that handle stayed the terminal's; it still names the terminal,
-   * as it did. With a window, the adopted handle is the pane's, as a window graph's adoption is.
-   * The own-handle check stands in for the pane's epoch fence: a new incarnation drops it.
-   */
-  private windowlessOwnHandle(handle: string, record: TerminalHandleRecord): boolean {
+  /** Main-owned panes adopt the terminal's original handle; own-handle checks fence epochs because replacement incarnations drop that handle. */
+  private mainPaneOwnHandle(handle: string, record: TerminalHandleRecord): boolean {
     if (
       !ORCA_LAYOUT_OWNER_IS_MAIN ||
-      this.authoritativeWindowId !== HEADLESS_RUNTIME_WINDOW_ID ||
       !record.ptyId ||
+      !isTerminalLeafId(record.leafId) ||
+      !isValidTerminalTabId(record.tabId) ||
       this.handleByPtyId.get(record.ptyId) !== handle
     ) {
       return false
     }
-    const pane = startedMainTerminalSurfaces(this)?.findPaneForPty(record.ptyId)
-    return pane?.tabId === record.tabId && pane.leafId === record.leafId
+    return (
+      this.paneOfPty(this.ptysById.get(record.ptyId)).paneKey ===
+      makePaneKey(record.tabId, record.leafId)
+    )
   }
 
   protected assertLiveTerminalHandleTargetsPty(handle: string, expectedPtyId: string): void {
-    const runtimePty = this.getLivePtyForHandle(handle)
-    if (runtimePty) {
-      if (runtimePty.pty.ptyId !== expectedPtyId) {
-        throw new Error('terminal_handle_stale')
-      }
-      return
-    }
-    const { leaf } = this.getLiveLeafForHandle(handle)
-    if (leaf.ptyId !== expectedPtyId) {
+    if (this.getTerminalPtyForHandle(handle).pty.ptyId !== expectedPtyId) {
       throw new Error('terminal_handle_stale')
     }
   }
@@ -250,6 +264,7 @@ export abstract class OrcaRuntimeWithBuildPtyTerminalSummary extends OrcaRuntime
     this.handleByLeafKey.set(leafKey, handle)
     if (leaf.ptyId) {
       this.handleByPtyIncarnation.set(leaf.ptyId, { handle, incarnationId, leafKey })
+      this.wakeMailForNewPtyHandle(leaf.ptyId)
     }
     return handle
   }

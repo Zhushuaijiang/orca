@@ -441,6 +441,7 @@ describe('getWorkItemDetails', () => {
     expect(fullCalls).toHaveLength(2)
   })
 
+  // Every child fetch launches glab; bound the pool during Checks polling.
   it('bounds concurrent child-pipeline fetches', async () => {
     const BRIDGE_COUNT = 25
     let inFlightJobPages = 0
@@ -497,9 +498,8 @@ describe('getWorkItemDetails', () => {
     })
 
     const details = await getWorkItemDetails('/repo', 12, 'mr')
-    // Parent page can overlap the capped child pool, so allow one above the child limit.
+    // The parent page can overlap the capped child pool.
     expect(peakJobPages).toBeLessThanOrEqual(5)
-    // Every bridge still gets a rollup row even past the 20-child expansion cap.
     expect(details?.pipelineJobs).toHaveLength(BRIDGE_COUNT)
   })
 

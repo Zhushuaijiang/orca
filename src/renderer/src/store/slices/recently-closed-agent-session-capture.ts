@@ -1,6 +1,6 @@
 import type { SleepingAgentSessionRecord } from '../../../../shared/agent-session-resume'
 import type { AppState } from '../types'
-import { collectSleepingAgentSessionRecordsForWorktree } from './agent-status'
+import { collectSleepingAgentSessionRecordsForWorktree } from './agent-status/agent-status-recovery-collection'
 
 export function collectRecentlyClosedAgentSessions(
   state: AppState,

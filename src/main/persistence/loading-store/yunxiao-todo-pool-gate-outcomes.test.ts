@@ -17,7 +17,7 @@ import {
   writePersistedStateJson,
   makeRepo,
   dataFile
-} from '../../persistence-test-harness'
+} from '../persistence-test-harness'
 import type { Store } from './store'
 
 vi.mock('electron', () => ({

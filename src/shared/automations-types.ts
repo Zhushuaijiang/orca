@@ -106,6 +106,11 @@ export type AutomationYunxiaoTodoPoolClaim = {
   claimedAt: number
 }
 
+export type AutomationLaunchSetupPatch = {
+  surface?: 'chat' | 'terminal'
+  arguments?: { kind: 'legacy-extras'; value: string }
+}
+
 export type Automation = {
   id: string
   /** Optional client request key used to make cross-authority creates retry-safe. */
@@ -114,6 +119,8 @@ export type Automation = {
   prompt: string
   precheck: AutomationPrecheck | null
   agentId: TuiAgent
+  surface?: 'chat' | 'terminal'
+  launchSetup?: { surface?: 'chat' | 'terminal'; extraAgentArgs?: string }
   /** Saved text appended to the host's default agent Arguments on each fresh run; absent means none. */
   extraAgentArgs?: string
   /** Why: runContext carries the logical project + host setup identity for
@@ -122,17 +129,14 @@ export type Automation = {
    *  @deprecated Use runContext.projectId/runContext.repoId or
    *  getAutomationRunRepoId(). */
   runContext?: WorkspaceRunContext | null
-  /** Why: task/provider data can come from a different host/account than the
-   *  workspace run target, so automations persist it separately. */
+  /** Task/provider host/account may differ from the workspace run target; persist independently. */
   sourceContext?: TaskSourceContext | null
   /** @deprecated Legacy repo-id compatibility field. New code should persist
    *  runContext and use getAutomationRunRepoId() for fallback reads. */
   projectId: string
   executionTargetType: AutomationExecutionTargetType
   executionTargetId: string
-  /** Why: pins the SSH registration incarnation this record was attached to, so a
-   *  removed-and-re-added target reusing the id can't silently adopt it. Absent on
-   *  local records, on legacy records, and on orphans whose target is gone. */
+  /** Pin SSH registration identity to prevent same-ID re-adoption after removal. Absent on local/legacy/gone-target orphans. */
   executionTargetGeneration?: number
   schedulerOwner: AutomationSchedulerOwner
   /** Why (fork): a Yunxiao todo-pool schedule claims queued work items before dispatch. */
@@ -164,14 +168,12 @@ export type AutomationRun = {
   status: AutomationRunStatus
   trigger: AutomationRunTrigger
   workspaceId: string | null
-  /** Why: run history must remain understandable after the backing workspace
-   *  is deleted and its live metadata is gone. */
+  /** Keep run history understandable after workspace deletion removes live metadata. */
   workspaceDisplayName?: string | null
-  sessionKind: 'terminal'
+  sessionKind: 'terminal' | 'chat'
   chatSessionId: string | null
   terminalSessionId: string | null
-  /** Why: a terminal tab can later point at a different pane/PTY. Automation
-   *  run reopening must target the pane that actually executed the run. */
+  /** Retain the executed pane/PTY because terminal tabs may later point elsewhere. */
   terminalPaneKey: string | null
   terminalPtyId: string | null
   outputSnapshot: AutomationRunOutputSnapshot | null
@@ -181,15 +183,15 @@ export type AutomationRun = {
   yunxiaoRequirementOutcome?: YunxiaoRequirementGateOutcome | null
   usage: AutomationRunUsage | null
   error: string | null
+  /** Localizes `error`; old records omit it and clients show `error` as stored. */
+  errorCode?: string
+  errorParams?: Record<string, string | number>
   startedAt: number | null
   dispatchedAt: number | null
   createdAt: number
-  /** Why: run titles must stay unique once retention prunes old runs, so the
-   *  number can no longer be derived from how many runs are currently kept. */
+  /** Persist unique run numbers; retention makes retained count unsuitable. */
   runNumber?: number
-  /** Why: a target that cannot resolve refuses every occurrence, so consecutive
-   *  identical refusals fold into this record instead of one row each. Counts the
-   *  occurrences the record stands for; absent means one. */
+  /** Fold consecutive identical target refusals instead of recording each occurrence; absence counts as one. */
   occurrenceCount?: number
   /** `scheduledFor` of the most recently folded occurrence; absent until one folds. */
   lastOccurrenceAt?: number
@@ -210,6 +212,7 @@ export type AutomationCreateInput = {
   agentId: TuiAgent
   /** Why (fork): a Yunxiao todo-pool schedule claims queued work items before dispatch. */
   yunxiaoTodoPool?: AutomationYunxiaoTodoPoolSource | null
+  launchSetupPatch?: AutomationLaunchSetupPatch
   /** Empty or whitespace means no extras. */
   extraAgentArgs?: string
   runContext?: WorkspaceRunContext | null
@@ -229,7 +232,7 @@ export type AutomationCreateInput = {
   missedRunGraceMinutes?: number
 }
 
-export type AutomationUpdateInput = Partial<
+export type AutomationUpdateInput = { launchSetupPatch?: AutomationLaunchSetupPatch } & Partial<
   Pick<
     Automation,
     | 'name'
@@ -262,6 +265,8 @@ export type AutomationDispatchRequest = {
 
 export type AutomationDispatchResult = {
   runId: string
+  sessionKind?: 'terminal' | 'chat'
+  chatSessionId?: string | null
   status: AutomationRunStatus
   workspaceId?: string | null
   workspaceDisplayName?: string | null
@@ -275,6 +280,8 @@ export type AutomationDispatchResult = {
   yunxiaoRequirementOutcome?: YunxiaoRequirementGateOutcome | null
   usage?: AutomationRunUsage | null
   error?: string | null
+  errorCode?: string | null
+  errorParams?: Record<string, string | number> | null
   /** With `dispatched`: when the agent was handed the run, if not now. */
   dispatchedAt?: number
 }

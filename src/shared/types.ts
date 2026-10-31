@@ -79,7 +79,7 @@ export type {
   JiraTransition,
   JiraUser,
   JiraViewer
-} from './jira-types'
+} from './jira/jira-types'
 export type {
   YunxiaoArchiveRequirementArgs,
   YunxiaoArchiveRequirementResult,

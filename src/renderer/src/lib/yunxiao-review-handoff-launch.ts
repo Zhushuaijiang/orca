@@ -9,7 +9,7 @@ import type { TuiAgent } from '../../../shared/tui-agent'
 import { isTuiAgent } from '../../../shared/tui-agent-config'
 import { loadYunxiaoReviewHandoffPreference } from '@/components/yunxiao-review-handoff-preference'
 import { resolveWorktreeAuxiliaryLaunch } from './worktree-auxiliary-launch'
-import type { SessionOptionValue } from '../../../shared/native-chat-session-options'
+import type { SessionOptionValue } from '../../../shared/native-chat/input/native-chat-session-options'
 import type {
   Automation,
   AutomationRun,

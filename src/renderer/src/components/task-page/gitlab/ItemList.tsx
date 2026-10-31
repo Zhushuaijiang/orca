@@ -1,9 +1,10 @@
-import type { TaskPageComposerActionsModel } from '../../use-task-page-composer-actions'
-import { translate } from '@/i18n/i18n'
+import type { TaskPageComposerActionsModel } from '../use-task-page-composer-actions'
+import { getIntlLocale, translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, ExternalLink, Files } from 'lucide-react'
+import { openAppHttpLink } from '@/lib/app-http-link-open'
 export function TaskPageGitLabItemList({
   model
 }: {
@@ -21,7 +22,7 @@ export function TaskPageGitLabItemList({
   } = model
   return (
     <div className="flex min-h-0 max-h-full flex-col rounded-md border border-t-0 border-border/50 bg-muted/50 overflow-hidden rounded-t-none shadow-sm">
-      <div className="flex-none grid grid-cols-[80px_minmax(0,3fr)_120px_110px_50px] gap-3 border-b border-border/50 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+      <div className="flex-none grid grid-cols-[80px_minmax(0,3fr)_120px_110px_78px] gap-3 border-b border-border/50 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
         <span>{translate('auto.components.TaskPage.eb10c32872', 'ID')}</span>
         <span>{translate('auto.components.TaskPage.16cba35bee', 'Title')}</span>
         <span>{translate('auto.components.TaskPage.00b7ffb952', 'Type / State')}</span>
@@ -40,14 +41,14 @@ export function TaskPageGitLabItemList({
           </div>
         ) : null}
         {gitlabLoading && gitlabItems.length === 0 ? (
-          // Why: shimmer rows fill the viewport so the card never flashes empty and the table doesn't jump when real rows land.
+          // Fill the viewport with shimmer rows to prevent a loading height jump.
           <div className="divide-y divide-border/50">
             {Array.from({
               length: 12
             }).map((_, i) => (
               <div
                 key={i}
-                className="grid w-full gap-3 px-3 py-2 grid-cols-[80px_minmax(0,3fr)_120px_110px_50px]"
+                className="grid w-full gap-3 px-3 py-2 grid-cols-[80px_minmax(0,3fr)_120px_110px_78px]"
               >
                 <div className="h-4 w-16 animate-pulse rounded bg-muted/70" />
                 <div>
@@ -102,7 +103,7 @@ export function TaskPageGitLabItemList({
                 · {item.state}
               </span>
               <span className="text-xs text-muted-foreground">
-                {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}
+                {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString(getIntlLocale()) : ''}
               </span>
               <div className="flex items-center justify-end gap-1">
                 {item.type === 'mr' && onOpenFiles ? (
@@ -139,14 +140,19 @@ export function TaskPageGitLabItemList({
                         event.stopPropagation()
                         handleUseGitLabItem(item)
                       }}
-                      aria-label={translate(
-                        'auto.components.TaskPage.5e8061b088',
-                        'Start workspace from {{value0}} {{value1}}',
-                        {
-                          value0: item.type === 'mr' ? 'MR' : 'issue',
-                          value1: item.number
-                        }
-                      )}
+                      aria-label={
+                        item.type === 'mr'
+                          ? translate(
+                              'auto.components.TaskPage.startWorkspaceFromMr',
+                              'Start workspace from MR {{number}}',
+                              { number: item.number }
+                            )
+                          : translate(
+                              'auto.components.TaskPage.startWorkspaceFromIssue',
+                              'Start workspace from issue {{number}}',
+                              { number: item.number }
+                            )
+                      }
                     >
                       <ArrowRight className="size-3.5" />
                     </Button>
@@ -159,7 +165,7 @@ export function TaskPageGitLabItemList({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    void window.api.shell.openUrl(item.url)
+                    openAppHttpLink(item.url, { event: e })
                   }}
                   aria-label={translate('auto.components.TaskPage.bcdc1330b2', 'Open in GitLab')}
                   className="text-muted-foreground hover:text-foreground"

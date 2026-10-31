@@ -1,3 +1,7 @@
+import {
+  getClaudeSubagentNavigationTitle,
+  getClaudeSubagentNavigationDescription
+} from './claude-subagent-navigation-copy'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { getLocalExecutionHostLabel } from '../../../../shared/execution-host'
 import { useAppStore } from '@/store'
@@ -7,6 +11,7 @@ import { SkillReviewSetting } from './SkillReviewSetting'
 import { AgentCacheTimerSection } from './AgentCacheTimerSection'
 import { AgentRuntimeSetting } from './AgentRuntimeSetting'
 import { CodexTerminalServerIsolationSetting } from './CodexTerminalServerIsolationSetting'
+import { CodexHistorySharingSetting } from './CodexHistorySharingSetting'
 import {
   getAgentGeneratedTabTitlesDescription,
   getAgentGeneratedTabTitlesTitle
@@ -71,18 +76,36 @@ export function AgentsPane({
         hostScope={hostScope}
         renderPermissions={renderAgentPermissions}
       />
+      <section className="space-y-3">
+        <CodexHistorySharingSetting
+          settings={settings}
+          updateSettings={updateSettings}
+          hostScope={hostScope}
+        />
+      </section>
       <section className="space-y-8">
         <SettingsSubsectionHeader title={getLocalExecutionHostLabel()} />
         <AgentRuntimeSetting
           settings={settings}
           updateSettings={updateSettings}
-          refresh={refreshLocalAgents}
+          refresh={() => refreshLocalAgents(undefined, { wakeWslDistro: true })}
           wslSupportedPlatform={wslSupportedPlatform}
           wslAvailable={wslAvailable}
           wslDistros={wslDistros}
           wslCapabilitiesLoading={wslCapabilitiesLoading}
         />
         <AgentStatusHooksSetting settings={settings} updateSettings={updateSettings} />
+        <SettingsSwitchRow
+          label={getClaudeSubagentNavigationTitle()}
+          description={getClaudeSubagentNavigationDescription()}
+          checked={settings.claudeSubagentNavigationEnabled !== false}
+          onChange={() =>
+            updateSettings({
+              claudeSubagentNavigationEnabled: settings.claudeSubagentNavigationEnabled === false
+            })
+          }
+          ariaLabel={getClaudeSubagentNavigationTitle()}
+        />
         <YunxiaoRequirementPromptGateSetting settings={settings} updateSettings={updateSettings} />
         {!isPairedWebClientWindow() ? (
           <>

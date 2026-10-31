@@ -1,3 +1,16 @@
+import {
+  normalizeSourceControlAiSettings,
+  resolveSourceControlActionRecipe
+} from '../../shared/source-control-ai'
+import { normalizeSourceControlActionRecipe } from '../../shared/source-control-ai-actions'
+import {
+  renderConversationNamePrompt,
+  sanitizeGeneratedConversationName
+} from '../../shared/conversation-name-generation'
+import { chatNamingAgentTarget } from './structured-chat-naming-agent-launch'
+import type { AgentLaunchProfileSettings } from '../../shared/tui-agent-launch-defaults'
+import { chatNamingFailure } from '../../shared/chat-naming-failure-copy'
+import { agentSessionCurrentContextRows } from '../../shared/agent-session-context-clear'
 import { isTuiAgent } from '../../shared/tui-agent-config'
 import { LOCAL_EXECUTION_HOST_ID, type ExecutionHostId } from '../../shared/execution-host'
 import type { CommitMessageAgentEnvironmentResolvers } from '../text-generation/commit-message-agent-environment'
@@ -17,6 +30,7 @@ type StructuredChatNamingRuntime = {
   resolveWorkspace: (
     workspaceId: string
   ) => Promise<{ path: string; executionHostId: ExecutionHostId }>
+  resolveNamingEnvironment: (agent: string) => Promise<Record<string, string>>
   getAgentEnvResolvers: () => CommitMessageAgentEnvironmentResolvers | undefined
   workerTaskTitle: StructuredChatNamingDeps['workerTaskTitle']
   retitleOpenTab: StructuredChatNamingDeps['onNamed']
@@ -25,6 +39,7 @@ type StructuredChatNamingRuntime = {
 export function structuredChatNamingDeps(
   getStore: () => {
     getSettings: () => Parameters<typeof resolveTextGenerationParams>[0] &
+      AgentLaunchProfileSettings &
       ReturnType<StructuredChatNamingDeps['getSettings']>
   },
   runtime: StructuredChatNamingRuntime,
@@ -42,11 +57,13 @@ export function structuredChatNamingDeps(
     readJournalFirstPrompt: async (sessionId) => {
       const host = getStructuredAgentSessionHost()
       return host
-        ? firstStructuredAgentSessionPrompt((await host.journalSnapshot(sessionId)).items)
+        ? firstStructuredAgentSessionPrompt(
+            agentSessionCurrentContextRows((await host.journalSnapshot(sessionId)).items).items
+          )
         : ''
     },
     workerTaskTitle: runtime.workerTaskTitle,
-    generate: async (record, firstPrompt) => {
+    generate: async (record, firstPrompt, shouldExecute) => {
       // Unsupported execution contexts keep the seed regardless of native naming settings.
       if (record.location.wslDistro !== null) {
         return null
@@ -55,28 +72,88 @@ export function structuredChatNamingDeps(
       if (workspace.executionHostId !== LOCAL_EXECUTION_HOST_ID) {
         return null
       }
+      const current = getStore().getSettings()
+      const source = normalizeSourceControlAiSettings(
+        current.sourceControlAi,
+        current.commitMessageAi
+      )
+      const recipe = resolveSourceControlActionRecipe({
+        settings: current,
+        actionId: 'conversationName'
+      })
+      const useChatAgent = !recipe.agentId && !recipe.agentArgs?.trim()
+      const log = { scope: 'conversation-name', sessionId: record.sessionId }
+      if (useChatAgent && (record.provider === 'grok' || record.provider === 'antigravity')) {
+        const generateText = getStructuredAgentSessionHost()?.deps.adapter.generateText
+        try {
+          if (!generateText) {
+            throw new Error('Native naming is unavailable')
+          }
+          if (!recipe.commandInputTemplate?.trim()) {
+            throw new Error('Chat name template is empty')
+          }
+          const output = await generateText({
+            agent: record.provider,
+            accountHome: record.accountHome,
+            prompt: renderConversationNamePrompt({ firstPrompt }, recipe),
+            shouldExecute
+          })
+          if (output === null) {
+            return null
+          }
+          const name = sanitizeGeneratedConversationName(output)
+          if (name) {
+            return { name }
+          }
+          throw new Error('The naming agent returned an empty title')
+        } catch (error) {
+          logger.warn('Native chat naming failed', { ...log, error })
+          return chatNamingFailure(record.provider === 'grok' ? 'grokFailed' : 'antigravityFailed')
+        }
+      }
       const settings = resolveTextGenerationParams(
-        getStore().getSettings(),
+        useChatAgent
+          ? {
+              ...current,
+              sourceControlAi: {
+                ...source,
+                actions: {
+                  ...source.actions,
+                  conversationName: normalizeSourceControlActionRecipe({
+                    ...recipe,
+                    agentId: record.provider
+                  })
+                }
+              }
+            }
+          : current,
         LOCAL_COMMIT_MESSAGE_HOST_KEY,
         'conversationName',
         null,
         isTuiAgent(record.provider) ? record.provider : undefined
       )
-      const log = { scope: 'conversation-name', sessionId: record.sessionId }
       if (!settings.ok) {
         logger.warn(settings.error, log)
         return { error: settings.error }
       }
-      const target = await resolveGenerationTarget(workspace.path, settings.params.agentId, runtime)
+      const target = useChatAgent
+        ? await chatNamingAgentTarget(
+            record,
+            workspace.path,
+            runtime.resolveNamingEnvironment,
+            current
+          )
+        : await resolveGenerationTarget(workspace.path, settings.params.agentId, runtime)
       if (!target) {
-        const error = 'No chat-name agent can run in this workspace.'
-        logger.warn(error, log)
-        return { error }
+        const failure = chatNamingFailure('noAgentAvailable')
+        logger.warn(failure.error, log)
+        return failure
       }
       const result = await generateConversationNameFromContext(
         { firstPrompt },
         settings.params,
-        target
+        target,
+        shouldExecute
       )
       if (result.success) {
         return { name: result.name }
