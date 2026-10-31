@@ -1,6 +1,7 @@
 import type { Store } from '../persistence'
 import type { Automation, AutomationRun } from '../../shared/automations-types'
 import { buildYunxiaoRequirementDiscussionWorkflow } from '../../shared/yunxiao-requirement-discussion-workflow'
+import { REQUIREMENT_PACKAGE_SCOPE_MARKER } from '../../shared/deepened-requirement-packages'
 import {
   DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES,
   type YunxiaoTodoPoolItem,
@@ -104,7 +105,12 @@ function buildYunxiaoTodoPoolPrompt(
         item.assignee?.name ? `负责人: ${item.assignee.name}` : null,
         item.sprint?.name ? `迭代: ${item.sprint.name}` : null,
         workItemUrl ? `链接: ${workItemUrl}` : null,
-        item.notes ? `备注: ${item.notes}` : null
+        item.notes ? `备注: ${item.notes}` : null,
+        // Why (fork): split execution packages carry their scope in notes; pin the
+        // executor to it so the shared parent description stays context, not scope.
+        item.notes?.includes(REQUIREMENT_PACKAGE_SCOPE_MARKER)
+          ? '执行边界: 本条目是拆分后的执行包，只实现备注【本包范围】内的验收标准；共享的接口事实与待取证同样以备注为准，其余模块由其他包负责。'
+          : null
       ]
         .filter(Boolean)
         .join('\n  ')

@@ -23938,6 +23938,10 @@
     "batchWriteAll": "全部写回云效",
     "batchWriteDone": "已写回 {{value0}} 条",
     "batchWritePartial": "写回 {{value0}} 条，失败 {{value1}} 条",
-    "batchOverLimit": "一次最多深化 {{value0}} 条，当前勾选 {{value1}} 条。请减少勾选后重试。"
+    "batchOverLimit": "一次最多深化 {{value0}} 条，当前勾选 {{value1}} 条。请减少勾选后重试。",
+    "packages": "工作包（按模块标签确定性拆分）",
+    "untaggedWarning": "有 {{value0}} 条验收标准缺模块标签，拆分不可用：请补标后重新拆分，或采用整单模式。",
+    "splitToPool": "拆分写入待办池",
+    "splitDone": "已写入 {{value0}} 个执行包到待办池（按 数据变更 → 后端 → 前端 → 测试 顺序）。"
   }
 }

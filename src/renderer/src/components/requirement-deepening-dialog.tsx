@@ -1,9 +1,14 @@
 import { LoaderCircle } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 
 import { translate } from '@/i18n/i18n'
 import { requestRequirementDeepening } from '@/lib/requirement-deepening-compile'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
+import {
+  splitDeepenedRequirement,
+  type RequirementPackageSplit
+} from '../../../shared/deepened-requirement-packages'
+import type { YunxiaoWorkItem } from '../../../shared/yunxiao-types'
 import {
   composeDeepenedRequirementDescription,
   exceedsRequirementGrowthLimit,
@@ -32,6 +37,8 @@ type RequirementDeepeningDialogProps = {
   onAccept: (description: string) => void | Promise<void>
   acceptLabel?: string
   notice?: string
+  /** Present when deepening an existing Yunxiao work item; enables the package split-to-pool flow. */
+  workItem?: YunxiaoWorkItem
 }
 
 const ANALYSIS_SECTIONS: { key: keyof RequirementDeepeningBrief; label: string }[] = [
@@ -70,7 +77,8 @@ function RequirementDeepeningDialogBody({
   body,
   onAccept,
   acceptLabel,
-  notice
+  notice,
+  workItem
 }: RequirementDeepeningDialogProps & { settings: GlobalSettings }): JSX.Element {
   const worktreeId = useAppStore((state) => state.activeWorktreeId)
   const hostKey = useAuxiliaryExecutionHost(settings)
@@ -79,6 +87,54 @@ function RequirementDeepeningDialogBody({
   const [brief, setBrief] = useState<RequirementDeepeningBrief | null>(null)
   const [rewritten, setRewritten] = useState('')
   const [accepting, setAccepting] = useState(false)
+  const [splitting, setSplitting] = useState(false)
+  const [splitDone, setSplitDone] = useState(0)
+
+  // Why a memo: the split is a pure function of the (editable) rewrite, so the
+  // package preview and the pool write always describe the text being accepted.
+  const split: RequirementPackageSplit | null = useMemo(
+    () =>
+      brief && workItem
+        ? splitDeepenedRequirement({
+            brief: { ...brief, rewritten },
+            requirementTitle: title,
+            parentPoolItemId: workItem.id
+          })
+        : null,
+    [brief, rewritten, title, workItem]
+  )
+  const showPackages = Boolean(split && split.packages.length > 1 && workItem)
+
+  const splitToPool = useCallback(async (): Promise<void> => {
+    if (!workItem || !split || split.packages.length <= 1) {
+      return
+    }
+    setSplitting(true)
+    setError('')
+    try {
+      await window.api.yunxiao.addTodoPoolItems({
+        items: split.packages.map((pkg) => ({
+          ...workItem,
+          // Why null: identity falls to the distinct per-package id, and the
+          // parent URL still routes the executor to the source work item.
+          serialNumber: null,
+          id: pkg.poolItemId,
+          title: pkg.title
+        }))
+      })
+      for (const pkg of split.packages) {
+        await window.api.yunxiao.updateTodoPoolItem({
+          id: pkg.poolItemId,
+          updates: { notes: pkg.note }
+        })
+      }
+      setSplitDone(split.packages.length)
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure))
+    } finally {
+      setSplitting(false)
+    }
+  }, [split, workItem])
 
   const runSeq = useRef(0)
 
@@ -120,6 +176,7 @@ function RequirementDeepeningDialogBody({
       setError('')
       setRunning(false)
       setAccepting(false)
+      setSplitDone(0)
       return
     }
     void runRef.current()
@@ -190,12 +247,65 @@ function RequirementDeepeningDialogBody({
               />
             </div>
           ) : null}
+          {showPackages && split ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                {translate('requirementDeepening.packages', '工作包（按模块标签确定性拆分）')}
+              </span>
+              {split.untaggedCriteria.length > 0 ? (
+                <p className="text-[11px] text-destructive">
+                  {translate(
+                    'requirementDeepening.untaggedWarning',
+                    '有 {{value0}} 条验收标准缺模块标签，拆分不可用：请补标后重新拆分，或采用整单模式。',
+                    { value0: split.untaggedCriteria.length }
+                  )}
+                </p>
+              ) : null}
+              {split.packages.map((pkg) => (
+                <div key={pkg.tag} className="rounded-md border border-border bg-muted/40 p-2">
+                  <p className="text-[11px] font-medium text-foreground">{pkg.title}</p>
+                  <pre className="whitespace-pre-wrap break-words text-[11px] text-muted-foreground">
+                    {pkg.criteria.join('\n')}
+                  </pre>
+                </div>
+              ))}
+              {splitDone > 0 ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {translate(
+                    'requirementDeepening.splitDone',
+                    '已写入 {{value0}} 个执行包到待办池（按 数据变更 → 后端 → 前端 → 测试 顺序）。',
+                    { value0: splitDone }
+                  )}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         {notice ? <p className="text-[11px] text-muted-foreground">{notice}</p> : null}
         <DialogFooter>
-          <Button variant="ghost" disabled={accepting} onClick={() => onOpenChange(false)}>
+          <Button
+            variant="ghost"
+            disabled={accepting || splitting}
+            onClick={() => onOpenChange(false)}
+          >
             {translate('requirementDeepening.cancel', '取消')}
           </Button>
+          {showPackages && split ? (
+            <Button
+              variant="outline"
+              disabled={
+                running ||
+                splitting ||
+                accepting ||
+                split.untaggedCriteria.length > 0 ||
+                splitDone > 0
+              }
+              onClick={() => void splitToPool()}
+            >
+              {splitting ? <LoaderCircle className="size-4 animate-spin" /> : null}
+              {translate('requirementDeepening.splitToPool', '拆分写入待办池')}
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             disabled={running || accepting || !body.trim()}

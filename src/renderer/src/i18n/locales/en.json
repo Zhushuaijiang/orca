@@ -24913,6 +24913,10 @@
     "batchWriteAll": "Write all to Yunxiao",
     "batchWriteDone": "Wrote {{value0}} work items",
     "batchWritePartial": "Wrote {{value0}}, failed {{value1}}",
-    "batchOverLimit": "At most {{value0}} work items per batch; {{value1}} selected. Reduce the selection and retry."
+    "batchOverLimit": "At most {{value0}} work items per batch; {{value1}} selected. Reduce the selection and retry.",
+    "packages": "Work packages (deterministic split by module tag)",
+    "untaggedWarning": "{{value0}} acceptance criteria lack a module tag, so the split is unavailable: add tags and split again, or keep the monolithic flow.",
+    "splitToPool": "Split into todo pool",
+    "splitDone": "Wrote {{value0}} execution packages to the todo pool (ordered 数据变更 → 后端 → 前端 → 测试)."
   }
 }

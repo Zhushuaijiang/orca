@@ -258,6 +258,7 @@ export function TaskPageYunxiaoWorkItemActions({
         onOpenChange={setDeepenOpen}
         title={deepenTarget?.title ?? item.title}
         body={deepenTarget?.body ?? ''}
+        workItem={item}
         acceptLabel={translate('requirementDeepening.writeBack', '写回云效')}
         notice={translate(
           'requirementDeepening.writeBackNotice',
