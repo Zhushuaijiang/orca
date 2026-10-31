@@ -5,6 +5,14 @@ import { resolveWindowsPowerShellExecutablePath } from './windows-powershell-exe
 import { resolveWindowsShellLaunchArgs } from './windows-shell-args'
 import { POWERSHELL_STARTUP_COMMAND_ENV } from './windows-powershell-startup-command'
 
+// Why: OSC 133 marks (invisible in a terminal) legitimately precede startup
+// command output; assertions care about the payload, not shell integration.
+const withoutOsc133Marks = (stdout: string): string =>
+  stdout.replace(
+    new RegExp(`${String.fromCharCode(27)}\\]133;[A-Z](;\\d+)?${String.fromCharCode(7)}`, 'g'),
+    ''
+  )
+
 describe.skipIf(process.platform !== 'win32')('PowerShell long command execution', () => {
   for (const shell of ['powershell.exe', 'pwsh.exe'] as const) {
     const executable = resolveWindowsPowerShellExecutablePath(shell)
@@ -43,7 +51,9 @@ describe.skipIf(process.platform !== 'win32')('PowerShell long command execution
         })
         expect(result.code, result.stderr).toBe(0)
         expect(result.stderr).toBe('')
-        expect(result.stdout.trim()).toBe('count=1;payload=quoted "value" $literal `tick;carried=')
+        expect(withoutOsc133Marks(result.stdout).trim()).toBe(
+          'count=1;payload=quoted "value" $literal `tick;carried='
+        )
       }
     )
   }
