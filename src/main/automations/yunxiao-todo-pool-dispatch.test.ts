@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { Automation, AutomationRun } from '../../shared/automations-types'
 import type { YunxiaoWorkItem } from '../../shared/yunxiao-types'
 import { prepareYunxiaoTodoPoolRun } from './yunxiao-todo-pool-dispatch'
+import { setRequirementDeepeningDeps } from './yunxiao-requirement-deepening'
 
 const makeAutomation = (): Automation =>
   ({
@@ -65,9 +66,9 @@ const makeYunxiaoWorkItem = (overrides: Partial<YunxiaoWorkItem> = {}): YunxiaoW
   ...overrides
 })
 
-function preparePrompt(item: YunxiaoWorkItem): string {
+async function preparePrompt(item: YunxiaoWorkItem): Promise<string> {
   const run = makeRun()
-  const result = prepareYunxiaoTodoPoolRun({
+  const result = await prepareYunxiaoTodoPoolRun({
     automation: makeAutomation(),
     run,
     store: {
@@ -82,9 +83,9 @@ function preparePrompt(item: YunxiaoWorkItem): string {
   return result.automation.prompt
 }
 
-function prepareRun(items: YunxiaoWorkItem[]): AutomationRun {
+async function prepareRun(items: YunxiaoWorkItem[]): Promise<AutomationRun> {
   const run = makeRun()
-  const result = prepareYunxiaoTodoPoolRun({
+  const result = await prepareYunxiaoTodoPoolRun({
     automation: makeAutomation(),
     run,
     store: {
@@ -103,14 +104,18 @@ function prepareRun(items: YunxiaoWorkItem[]): AutomationRun {
 }
 
 describe('prepareYunxiaoTodoPoolRun', () => {
-  it('names a claimed run after its Yunxiao work item', () => {
-    const run = prepareRun([makeYunxiaoWorkItem()])
+  afterEach(() => {
+    setRequirementDeepeningDeps(null)
+  })
+
+  it('names a claimed run after its Yunxiao work item', async () => {
+    const run = await prepareRun([makeYunxiaoWorkItem()])
 
     expect(run.title).toBe('DFHIS-31704 折扣套餐，医嘱名称变更后，同步变更')
   })
 
-  it('keeps batch run titles concise', () => {
-    const run = prepareRun([
+  it('keeps batch run titles concise', async () => {
+    const run = await prepareRun([
       makeYunxiaoWorkItem(),
       makeYunxiaoWorkItem({ id: 'item-2', serialNumber: 'DFHIS-31705' })
     ])
@@ -118,8 +123,8 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(run.title).toBe('DFHIS-31704 折扣套餐，医嘱名称变更后，同步变更 +1')
   })
 
-  it('puts the full Yunxiao URL in the claim commit message field', () => {
-    const prompt = preparePrompt(makeYunxiaoWorkItem())
+  it('puts the full Yunxiao URL in the claim commit message field', async () => {
+    const prompt = await preparePrompt(makeYunxiaoWorkItem())
 
     expect(prompt).toContain('提交信息: https://devops.aliyun.com/projex/bug/DFHIS-31704')
     expect(prompt).toContain('链接: https://devops.aliyun.com/projex/bug/DFHIS-31704')
@@ -137,8 +142,8 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(prompt.length).toBeLessThan(4_000)
   })
 
-  it('synthesizes a full Yunxiao URL from category and serial number when the item has no URL', () => {
-    const prompt = preparePrompt(
+  it('synthesizes a full Yunxiao URL from category and serial number when the item has no URL', async () => {
+    const prompt = await preparePrompt(
       makeYunxiaoWorkItem({ serialNumber: 'DFHIS-31762', category: 'Bug', url: null })
     )
 
@@ -146,8 +151,8 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(prompt).toContain('链接: https://devops.aliyun.com/projex/bug/DFHIS-31762')
   })
 
-  it('adds the YGT harness profile for 医共体 page governance items', () => {
-    const prompt = preparePrompt(
+  it('adds the YGT harness profile for 医共体 page governance items', async () => {
+    const prompt = await preparePrompt(
       makeYunxiaoWorkItem({
         serialNumber: 'DFHIS-31812',
         category: 'Req',
@@ -163,5 +168,35 @@ describe('prepareYunxiaoTodoPoolRun', () => {
     expect(prompt).toContain("node scripts/harness/ygt-workflow.mjs /ygt 'DFHIS-31812")
     expect(prompt).toContain('--project auto --json')
     expect(prompt).toContain('df-web-base layout README 和 STYLE_CONSTRAINTS.md')
+  })
+
+  it('deepens claimed tickets before the dispatch prompt is built', async () => {
+    const run = makeRun()
+    const written: string[] = []
+    const automation = {
+      ...makeAutomation(),
+      workspaceId: 'repo-1::/workspace/yunxiao'
+    }
+    setRequirementDeepeningDeps({
+      readDescription: async () => '处方签 2 个以上药品时医师签名为空，目标：全部正常显示。',
+      generate: async () => '## 重写稿\n处方签多药品场景签名图逐行渲染，单药品不回归。',
+      writeDescription: async (workItemId, description) => {
+        written.push(`${workItemId}|${description}`)
+      }
+    })
+    const result = await prepareYunxiaoTodoPoolRun({
+      automation,
+      run,
+      store: {
+        claimYunxiaoTodoPoolItems: () => [{ ...makeYunxiaoWorkItem(), claimedAt: 1 }],
+        setAutomationRunYunxiaoTodoPoolClaim: () => run,
+        updateAutomationRun: () => run
+      } as never
+    })
+
+    expect(result.ok).toBe(true)
+    expect(written).toHaveLength(1)
+    expect(written[0]).toContain('item-1|')
+    expect(written[0]).toContain('处方签多药品场景签名图逐行渲染')
   })
 })

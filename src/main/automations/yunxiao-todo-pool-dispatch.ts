@@ -2,6 +2,11 @@ import type { Store } from '../persistence'
 import type { Automation, AutomationRun } from '../../shared/automations-types'
 import { buildYunxiaoRequirementDiscussionWorkflow } from '../../shared/yunxiao-requirement-discussion-workflow'
 import { REQUIREMENT_PACKAGE_SCOPE_MARKER } from '../../shared/deepened-requirement-packages'
+import { splitWorktreeIdForFilesystem } from '../../shared/worktree/id'
+import {
+  deepenClaimedRequirements,
+  getRequirementDeepeningDeps
+} from './yunxiao-requirement-deepening'
 import {
   DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES,
   type YunxiaoTodoPoolItem,
@@ -23,11 +28,11 @@ export type PreparedYunxiaoTodoPoolRun =
   | { ok: true; automation: Automation; run: AutomationRun }
   | { ok: false; run: AutomationRun }
 
-export function prepareYunxiaoTodoPoolRun(args: {
+export async function prepareYunxiaoTodoPoolRun(args: {
   store: Store
   automation: Automation
   run: AutomationRun
-}): PreparedYunxiaoTodoPoolRun {
+}): Promise<PreparedYunxiaoTodoPoolRun> {
   const source = args.automation.yunxiaoTodoPool
   if (!source || source.kind !== 'yunxiao-todo-pool') {
     return { ok: true, automation: args.automation, run: args.run }
@@ -48,6 +53,9 @@ export function prepareYunxiaoTodoPoolRun(args: {
     return { ok: false, run: skipped }
   }
   const claimedAt = claimed[0]?.claimedAt ?? Date.now()
+  // Why (fork): deepening is the default working mode, so the ticket the agent archives is
+  // already rewritten; a failed pass keeps the original text and never blocks dispatch.
+  await deepenClaimedRequirementsBeforeDispatch(args.automation, claimed)
   const updatedRun = args.store.setAutomationRunYunxiaoTodoPoolClaim(
     args.run.id,
     {
@@ -64,6 +72,33 @@ export function prepareYunxiaoTodoPoolRun(args: {
     },
     run: updatedRun
   }
+}
+
+async function deepenClaimedRequirementsBeforeDispatch(
+  automation: Automation,
+  claimed: readonly YunxiaoTodoPoolItem[]
+): Promise<void> {
+  const deps = getRequirementDeepeningDeps()
+  const worktreePath = automation.workspaceId
+    ? splitWorktreeIdForFilesystem(automation.workspaceId)?.worktreePath
+    : null
+  if (!deps || !worktreePath) {
+    return
+  }
+  const outcomes = await deepenClaimedRequirements(
+    claimed.map((item) => ({
+      workItemId: item.id,
+      title: item.title,
+      worktreePath,
+      primaryAgent: automation.agentId
+    })),
+    deps
+  )
+  outcomes.forEach((outcome, index) => {
+    if (outcome === 'failed') {
+      console.warn('[yunxiao-todo-pool] requirement deepening failed:', claimed[index]?.id)
+    }
+  })
 }
 
 function buildYunxiaoTodoPoolRunTitle(items: readonly YunxiaoTodoPoolItem[]): string {

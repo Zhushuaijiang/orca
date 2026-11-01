@@ -8,6 +8,9 @@
 
 export const REQUIREMENT_DEEPENING_GROWTH_LIMIT = 1.2
 
+/** Marker that a ticket description already carries a deepening rewrite. */
+export const REQUIREMENT_DEEPENING_ORIGINAL_TRAILER = '**原始需求（深化前，留档）**'
+
 export const REQUIREMENT_DEEPENING_SECTIONS = {
   delta: '1. 领域增量',
   sources: '2. 一手素材',
@@ -182,9 +185,13 @@ export function composeDeepenedRequirementDescription(args: {
     parts.push(`### 待取证\n${gaps}`)
   }
   if (original && rewritten !== original) {
-    parts.push(`---\n**原始需求（深化前，留档）**\n\n${original}`)
+    parts.push(`---\n${REQUIREMENT_DEEPENING_ORIGINAL_TRAILER}\n\n${original}`)
   }
   return parts.join('\n\n')
+}
+
+export function isDeepenedRequirementDescription(description: string): boolean {
+  return description.includes(REQUIREMENT_DEEPENING_ORIGINAL_TRAILER)
 }
 
 export function hasDeepeningEvidenceGaps(description: string): boolean {

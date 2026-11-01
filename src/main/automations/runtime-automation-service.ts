@@ -12,6 +12,8 @@ import { getSystemCodexHomePath } from '../codex/codex-home-paths'
 import { resolveHeadlessAutomationLaunchPreferences } from './headless-workspace-create'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import { AutomationService } from './service'
+import { createRuntimeRequirementDeepening } from './runtime-yunxiao-requirement-deepening'
+import { setRequirementDeepeningDeps } from './yunxiao-requirement-deepening'
 import { createHeadlessRunTerminalRetention } from './headless-run-terminal-retention'
 import {
   getTuiAgentDetectCommands,
@@ -45,6 +47,8 @@ export function createRuntimeAutomationService(input: {
         store.listAutomations().find((entry) => entry.id === run.automationId)?.agentId
       )
   })
+  // Why (fork): deepening is the default before any Yunxiao todo pool item is dispatched.
+  setRequirementDeepeningDeps(createRuntimeRequirementDeepening(runtime))
   const service = new AutomationService(store, {
     claudeUsage,
     codexUsage,

@@ -99,11 +99,30 @@ function run(command, args, options = {}) {
   return output.trim()
 }
 
-function runText(command, args) {
+function runText(command, args, options = {}) {
   try {
-    return run(command, args)
+    return run(command, args, options)
   } catch {
     return ''
+  }
+}
+
+// Why: the download server accepts key auth too, so the pipeline must not demand a password.
+function remoteSshReachable() {
+  try {
+    run('ssh', [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ConnectTimeout=10',
+      '-o',
+      'StrictHostKeyChecking=no',
+      REMOTE,
+      'true'
+    ])
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -122,22 +141,26 @@ async function runLogged(command, args, options = {}) {
 }
 
 async function remoteLatestVersion() {
-  if (process.env.ORCA_RELEASE_SSH_PASSWORD) {
-    const viaSsh = runText('sshpass', [
-      '-e',
-      'ssh',
-      '-o',
-      'StrictHostKeyChecking=no',
-      '-o',
-      'UserKnownHostsFile=/dev/null',
-      REMOTE,
-      `cat ${JSON.stringify(`${REMOTE_DIR}/latest.json`)}`
-    ])
-    try {
-      return JSON.parse(viaSsh).version
-    } catch {
-      // fall through to HTTP
-    }
+  const password = process.env.ORCA_RELEASE_SSH_PASSWORD
+  const sshArgs = [
+    '-o',
+    'StrictHostKeyChecking=no',
+    '-o',
+    'UserKnownHostsFile=/dev/null',
+    '-o',
+    'BatchMode=yes',
+    REMOTE,
+    `cat ${JSON.stringify(`${REMOTE_DIR}/latest.json`)}`
+  ]
+  const viaSsh = password
+    ? runText('sshpass', ['-e', 'ssh', ...sshArgs], {
+        env: { ...process.env, SSHPASS: password }
+      })
+    : runText('ssh', sshArgs)
+  try {
+    return JSON.parse(viaSsh).version
+  } catch {
+    // fall through to HTTP
   }
   for (const base of DOWNLOAD_BASE_URLS) {
     try {
@@ -300,7 +323,11 @@ async function releaseOnce(chainIndex) {
       '--notes',
       `DFHIS auto release ${version} from ${sha.slice(0, 10)}; Windows CI run ${ciRun.databaseId} passed update-survival E2E.`
     ],
-    { env: { ORCA_RELEASE_SSH_PASSWORD: process.env.ORCA_RELEASE_SSH_PASSWORD } }
+    {
+      env: process.env.ORCA_RELEASE_SSH_PASSWORD
+        ? { ORCA_RELEASE_SSH_PASSWORD: process.env.ORCA_RELEASE_SSH_PASSWORD }
+        : {}
+    }
   )
   await logLine(`Published ${version}`)
   return { version, sha, released: true }
@@ -362,8 +389,10 @@ async function main() {
     await skip(`release commit "${headSubject}"`)
     return
   }
-  if (!process.env.ORCA_RELEASE_SSH_PASSWORD) {
-    await skip('ORCA_RELEASE_SSH_PASSWORD is not set')
+  if (!process.env.ORCA_RELEASE_SSH_PASSWORD && !remoteSshReachable()) {
+    await skip(
+      'ORCA_RELEASE_SSH_PASSWORD is not set and SSH key auth to the download server failed'
+    )
     return
   }
 

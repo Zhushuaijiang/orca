@@ -295,7 +295,7 @@ export class AutomationService {
     return this.runInAutomationLane(automation.id, async () => {
       // Why (fork): the yunxiao todo pool claims its items and rewrites the run before any
       // dispatch check, so an empty pool never reaches the shared dispatch path.
-      const prepared = prepareYunxiaoTodoPoolRun({ store: this.store, automation, run })
+      const prepared = await prepareYunxiaoTodoPoolRun({ store: this.store, automation, run })
       if (!prepared.ok) {
         return prepared.run
       }
