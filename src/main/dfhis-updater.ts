@@ -11,6 +11,7 @@ import { app, dialog, net, shell } from 'electron'
 
 import { compareAppVersions } from '../shared/app-version'
 import type { UpdateStatus } from '../shared/types'
+import { installDfhisUpdateOnMac } from './dfhis-mac-update-install'
 
 const execFileAsync = promisify(execFile)
 
@@ -54,6 +55,12 @@ type DfhisUpdaterDeps = {
   revealPath: (target: string) => void
   showInstallInstructions: (message: string) => Promise<void>
   spawnDetached: (file: string) => void
+  /** Installed bundle to replace; the running app decides, not a hardcoded path. */
+  getInstallBundlePath: () => string
+  extractAppArchive: (archivePath: string, destDir: string) => Promise<void>
+  /** Queue a script that survives this process (launchd job on macOS). */
+  submitDetachedInstaller: (args: { label: string; scriptPath: string }) => Promise<void>
+  quitApp: () => void
 }
 
 let sendStatusRef: ((status: UpdateStatus) => void) | null = null
@@ -155,6 +162,14 @@ async function fetchManifest(
   throw lastError instanceof Error ? lastError : new Error(String(lastError))
 }
 
+function defaultInstallBundlePath(): string {
+  // Why: app.getAppPath() is <bundle>/Contents/Resources/app.asar in a packaged
+  // build; a nearby Orca.app may also be a dev checkout. Only adopt a real bundle.
+  const appPath = app.getAppPath()
+  const bundle = path.resolve(appPath, '..', '..', '..')
+  return bundle.endsWith('.app') ? bundle : '/Applications/Orca.app'
+}
+
 function defaultDeps(): DfhisUpdaterDeps {
   return {
     fetchImpl: (url, init) => net.fetch(url, init),
@@ -174,6 +189,18 @@ function defaultDeps(): DfhisUpdaterDeps {
     spawnDetached: (file) => {
       const options: SpawnOptions = { detached: true, stdio: 'ignore' }
       spawn(file, [], options).unref()
+    },
+    getInstallBundlePath: defaultInstallBundlePath,
+    extractAppArchive: async (archivePath, destDir) => {
+      await execFileAsync('ditto', ['-xk', archivePath, destDir])
+    },
+    submitDetachedInstaller: async ({ label, scriptPath }) => {
+      // Why: a stale job from a failed attempt would hold the label; replace it.
+      await execFileAsync('launchctl', ['remove', label]).catch(() => {})
+      await execFileAsync('launchctl', ['submit', '-l', label, '--', '/bin/zsh', scriptPath])
+    },
+    quitApp: () => {
+      app.quit()
     }
   }
 }
@@ -294,16 +321,9 @@ export async function installDfhisUpdate(deps: DfhisUpdaterDeps = defaultDeps())
     deps.sendStatus({ state: 'idle' })
     return
   }
-  // macOS: adhoc 签名过不了 Squirrel.Mac，解压后引导用户手动替换
-  const destDir = path.join(path.dirname(file.path), 'app')
-  await rm(destDir, { recursive: true, force: true })
-  await execFileAsync('ditto', ['-xk', file.path, destDir])
-  const appPath = path.join(destDir, 'Orca.app')
-  deps.revealPath(appPath)
-  await deps.showInstallInstructions(
-    `新版本 ${file.version} 已下载并解压。请在 Finder 中将 Orca.app 拖入「应用程序」文件夹替换旧版本（替换前请先退出 Orca）。`
-  )
-  deps.sendStatus({ state: 'idle' })
+  // macOS: ad-hoc signing cannot pass Squirrel.Mac, so hand off to a detached
+  // replacement that waits for this process to exit.
+  return installDfhisUpdateOnMac({ version: file.version, filePath: file.path }, deps)
 }
 
 // test-only: reset module state between cases

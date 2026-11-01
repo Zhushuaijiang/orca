@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { mkdtempSync, existsSync } from 'node:fs'
-import { rm } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -76,6 +76,10 @@ function makeDeps(overrides: Partial<Parameters<typeof checkDfhisUpdate>[1]> = {
       revealPath: vi.fn(),
       showInstallInstructions: vi.fn(async () => {}),
       spawnDetached: vi.fn(),
+      getInstallBundlePath: () => '/Applications/Orca.app',
+      extractAppArchive: vi.fn(async () => {}),
+      submitDetachedInstaller: vi.fn(async () => {}),
+      quitApp: vi.fn(),
       ...overrides
     }
   }
@@ -258,6 +262,98 @@ describe('installDfhisUpdate', () => {
       path.join(tempDir, 'orca-dfhis-update-1.4.164-dfhis.16', 'orca-windows-setup.exe')
     )
     expect(statuses.at(-1)).toEqual({ state: 'idle' })
+    await rm(tempDir, { recursive: true, force: true })
+  })
+
+  it('queues a detached installer that replaces the app after quit', async () => {
+    const payload = new TextEncoder().encode('zip')
+    const sha256 = createHash('sha256').update(payload).digest('hex')
+    const tempDir = mkdtempSync(path.join(tmpdir(), 'dfhis-updater-mac-'))
+    const submitDetachedInstaller = vi.fn(
+      async (_args: { label: string; scriptPath: string }) => {}
+    )
+    const quitApp = vi.fn()
+    const { statuses, deps } = makeDeps({
+      platform: 'darwin',
+      getTempDir: () => tempDir,
+      getInstallBundlePath: () => '/Applications/Orca.app',
+      submitDetachedInstaller,
+      quitApp,
+      fetchImpl: vi.fn(async (url: string) =>
+        url.endsWith('latest.json')
+          ? jsonResponse({
+              version: '1.4.164-dfhis.16',
+              downloads: {
+                macos: {
+                  path: 'releases/x/orca-macos-arm64.zip',
+                  size: payload.byteLength,
+                  sha256
+                }
+              }
+            })
+          : streamResponse([payload])
+      )
+    })
+    await checkDfhisUpdate({ userInitiated: true }, deps)
+    await downloadDfhisUpdate(deps)
+    await installDfhisUpdate(deps)
+
+    expect(submitDetachedInstaller).toHaveBeenCalledOnce()
+    const submitted = submitDetachedInstaller.mock.calls[0][0] as {
+      label: string
+      scriptPath: string
+    }
+    expect(submitted.label).toContain('1.4.164-dfhis.16')
+    const script = await readFile(submitted.scriptPath, 'utf8')
+    expect(script).toContain('EXPECTED_VERSION=')
+    expect(script).toContain("'/Applications/Orca.app'")
+    expect(script).toContain('pgrep -f "$INSTALL_APP/Contents"')
+    expect(script).toContain('ditto "$NEW_APP" "$INSTALL_APP"')
+    expect(script).toContain('xattr -rd com.apple.provenance')
+    expect(script).toContain('open "$INSTALL_APP"')
+    expect(quitApp).toHaveBeenCalledOnce()
+    expect(statuses.at(-1)).toEqual({ state: 'idle' })
+    await rm(tempDir, { recursive: true, force: true })
+  })
+
+  it('falls back to manual replacement when the detached job cannot start', async () => {
+    const payload = new TextEncoder().encode('zip')
+    const sha256 = createHash('sha256').update(payload).digest('hex')
+    const tempDir = mkdtempSync(path.join(tmpdir(), 'dfhis-updater-mac-fallback-'))
+    const quitApp = vi.fn()
+    const showInstallInstructions = vi.fn(async (_message: string) => {})
+    const revealPath = vi.fn()
+    const { deps } = makeDeps({
+      platform: 'darwin',
+      getTempDir: () => tempDir,
+      quitApp,
+      showInstallInstructions,
+      revealPath,
+      submitDetachedInstaller: vi.fn(async () => {
+        throw new Error('launchd refused')
+      }),
+      fetchImpl: vi.fn(async (url: string) =>
+        url.endsWith('latest.json')
+          ? jsonResponse({
+              version: '1.4.164-dfhis.16',
+              downloads: {
+                macos: {
+                  path: 'releases/x/orca-macos-arm64.zip',
+                  size: payload.byteLength,
+                  sha256
+                }
+              }
+            })
+          : streamResponse([payload])
+      )
+    })
+    await checkDfhisUpdate({ userInitiated: true }, deps)
+    await downloadDfhisUpdate(deps)
+    await installDfhisUpdate(deps)
+
+    expect(quitApp).not.toHaveBeenCalled()
+    expect(revealPath).toHaveBeenCalledOnce()
+    expect(String(showInstallInstructions.mock.calls[0][0])).toContain('自动安装未能启动')
     await rm(tempDir, { recursive: true, force: true })
   })
 })
