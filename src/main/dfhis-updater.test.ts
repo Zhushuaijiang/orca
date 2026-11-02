@@ -307,7 +307,9 @@ describe('installDfhisUpdate', () => {
     const script = await readFile(submitted.scriptPath, 'utf8')
     expect(script).toContain('EXPECTED_VERSION=')
     expect(script).toContain("'/Applications/Orca.app'")
-    expect(script).toContain('pgrep -f "$INSTALL_APP/Contents"')
+    // Why: bundle-wide pgrep also matches CLI/daemon children and never clears.
+    expect(script).not.toContain('pgrep -f')
+    expect(script).toContain('grep -Fxq "$INSTALL_APP/Contents/MacOS/Orca"')
     expect(script).toContain('ditto "$NEW_APP" "$INSTALL_APP"')
     expect(script).toContain('xattr -rd com.apple.provenance')
     expect(script).toContain('open "$INSTALL_APP"')

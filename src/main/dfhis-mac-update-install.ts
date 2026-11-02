@@ -41,12 +41,17 @@ INSTALL_APP=${installApp}
 EXPECTED_VERSION=${expected}
 exec >>"$LOG" 2>&1
 echo "[$(date '+%F %T')] installing $EXPECTED_VERSION"
-for _ in {1..600}; do
-  pgrep -f "$INSTALL_APP/Contents" >/dev/null 2>&1 || break
+# Why: CLI and daemon children keep the bundle path in their command line, so a
+# bundle-wide pgrep never clears; only the GUI main process (binary, no args) blocks.
+gui_running() {
+  ps -axo command= | sed 's/[[:space:]]*$//' | grep -Fxq "$INSTALL_APP/Contents/MacOS/Orca"
+}
+for _ in {1..900}; do
+  gui_running || break
   sleep 1
 done
 sleep 1
-if pgrep -f "$INSTALL_APP/Contents" >/dev/null 2>&1; then
+if gui_running; then
   echo "timed out waiting for Orca to exit"
   exit 1
 fi
@@ -100,9 +105,7 @@ export async function installDfhisUpdateOnMac(
       label: `com.stablyai.orca.dfhis-install-${args.version.replace(/[^A-Za-z0-9.-]/g, '-')}`,
       scriptPath
     })
-    await deps.showInstallInstructions(
-      `新版本 ${args.version} 已下载。Orca 现在会自动退出，替换完成后自动重新打开；若弹出确认框请选择退出。`
-    )
+    // Why: a modal here blocks quitApp until the user dismisses it, so the swap never starts.
     deps.sendStatus({ state: 'idle' })
     deps.quitApp()
   } catch (error) {
