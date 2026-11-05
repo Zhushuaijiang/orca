@@ -1,6 +1,5 @@
 import type { Store } from '../persistence'
 import type { Automation, AutomationRun } from '../../shared/automations-types'
-import { buildYunxiaoRequirementDiscussionWorkflow } from '../../shared/yunxiao-requirement-discussion-workflow'
 import { REQUIREMENT_PACKAGE_SCOPE_MARKER } from '../../shared/deepened-requirement-packages'
 import { splitWorktreeIdForFilesystem } from '../../shared/worktree/id'
 import {
@@ -68,7 +67,7 @@ export async function prepareYunxiaoTodoPoolRun(args: {
     ok: true,
     automation: {
       ...args.automation,
-      prompt: buildYunxiaoTodoPoolPrompt(args.automation.prompt, claimed, args.automation.agentId)
+      prompt: buildYunxiaoTodoPoolPrompt(args.automation.prompt, claimed)
     },
     run: updatedRun
   }
@@ -122,8 +121,7 @@ function getYunxiaoTodoPoolClaimStatuses(
 
 function buildYunxiaoTodoPoolPrompt(
   basePrompt: string,
-  items: readonly YunxiaoTodoPoolItem[],
-  primaryAgent: Automation['agentId']
+  items: readonly YunxiaoTodoPoolItem[]
 ): string {
   const targets = items
     .map((item, index) => {
@@ -161,7 +159,6 @@ ${targets}
 
 用户可见内容使用中文。
 ${YUNXIAO_REQUIREMENT_COMPACT_WORKFLOW}
-${buildYunxiaoRequirementDiscussionWorkflow(primaryAgent)}
 - 代码根目录按 YUNXIAO_CODE_WORKSPACE_ROOT → YUNXIAO_DEFAULT_CODE_ROOT → DFHIS Setup hisCodeRoot 解析；UI 必须用路由/挂载/import 证据确认真实仓库。
 - 代码提交信息必须精确使用 claim 的“提交信息”完整 URL。
 - 自动化结果返回 yunxiaoRequirementOutcomes；阻断时写明合同状态和精确原因。

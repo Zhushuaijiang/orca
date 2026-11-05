@@ -2,7 +2,6 @@ import {
   createAutomationRunOutputSnapshotBuffer,
   selectAutomationRunOutputSnapshot
 } from '@/components/automations/automation-run-output-snapshot'
-import { maybeLaunchYunxiaoReviewHandoff } from '@/lib/yunxiao-review-handoff-launch'
 import { useAppStore } from '@/store'
 import type {
   Automation,
@@ -19,7 +18,6 @@ import {
 import type { Worktree } from '../../../shared/worktree/types'
 import { isProvenProcessExit } from '../../../shared/terminal-exit-cause'
 import { extractYunxiaoRequirementGateOutcomesFromSnapshot } from '../../../shared/yunxiao-requirement-gate-outcome'
-import { shouldLaunchYunxiaoReviewHandoff } from '../../../shared/yunxiao-review-handoff'
 import type { AutomationTerminalOwnership } from '@/lib/automation-terminal-ownership'
 
 type MarkDispatchResult = (result: AutomationDispatchResult) => Promise<void>
@@ -42,21 +40,9 @@ export function createAutomationDispatchCompletion(args: {
   let pendingDone = false
   let completionMarked = false
   let contactLost = false
-  let implementerPaneKey: string | null = null
   let unsubscribeAgentStatus = (): void => {}
   let unsubscribeSessionObserver = (): void => {}
   let releaseReuseDispatchTab = (): void => {}
-  const launchReviewHandoff = (outputSnapshot: ReturnType<typeof getOutputSnapshot>): void => {
-    void maybeLaunchYunxiaoReviewHandoff({
-      automation: args.automation,
-      run: args.run,
-      worktreeId: args.worktree.id,
-      implementerPaneKey,
-      outputSnapshot
-    }).catch((error) => {
-      console.error('[automations] Failed to launch Yunxiao review handoff:', error)
-    })
-  }
   const cleanupRunObservers = (): void => {
     unsubscribeAgentStatus()
     unsubscribeSessionObserver()
@@ -64,26 +50,6 @@ export function createAutomationDispatchCompletion(args: {
     unsubscribeAgentStatus = (): void => {}
     unsubscribeSessionObserver = (): void => {}
     releaseReuseDispatchTab = (): void => {}
-  }
-  const finalizeSuccessfulTerminal = async (): Promise<void> => {
-    const source = args.automation.yunxiaoTodoPool
-    if (
-      source?.kind === 'yunxiao-todo-pool' &&
-      shouldLaunchYunxiaoReviewHandoff({
-        reviewHandoff: source.reviewHandoff,
-        interrupted: implementerPaneKey
-          ? useAppStore.getState().agentStatusByPaneKey[implementerPaneKey]?.interrupted
-          : undefined,
-        outcomes:
-          args.run.yunxiaoRequirementOutcomes ??
-          extractYunxiaoRequirementGateOutcomesFromSnapshot(getOutputSnapshot())
-      })
-    ) {
-      // The original agent must stay available for the review's repair instructions.
-      args.releaseTerminalOwnership()
-      return
-    }
-    await retireRunTerminal()
   }
   const markCompletionResult = async (): Promise<void> => {
     if (completionMarked) {
@@ -104,12 +70,11 @@ export function createAutomationDispatchCompletion(args: {
         precheckResult: args.precheckResult,
         error: null
       })
-      launchReviewHandoff(outputSnapshot)
     } catch (error) {
       args.releaseTerminalOwnership()
       throw error
     }
-    await finalizeSuccessfulTerminal()
+    await retireRunTerminal()
   }
   const retireRunTerminal = async (): Promise<void> => {
     const retirement = await args.finalizeTerminalOwnership({
@@ -166,15 +131,12 @@ export function createAutomationDispatchCompletion(args: {
         precheckResult: args.precheckResult,
         error: code === 0 ? null : `Automation process exited with code ${code}.`
       })
-      if (code === 0) {
-        launchReviewHandoff(outputSnapshot)
-      }
     } catch (error) {
       args.releaseTerminalOwnership()
       throw error
     }
     if (code === 0) {
-      await finalizeSuccessfulTerminal()
+      await retireRunTerminal()
     } else {
       args.releaseTerminalOwnership()
     }
@@ -275,9 +237,7 @@ export function createAutomationDispatchCompletion(args: {
     handleAgentDone,
     handleExit,
     observeAgentStatus,
-    setImplementerPaneKey: (paneKey: string | null) => {
-      implementerPaneKey = paneKey
-    },
+    setImplementerPaneKey: (_paneKey: string | null) => {},
     setReuseDispatchTabRelease: (release: () => void) => {
       releaseReuseDispatchTab = release
     },

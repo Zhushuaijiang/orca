@@ -1,17 +1,6 @@
 import { GLOBAL_FLAGS, type CommandSpec } from '../args'
 
 export const AUXILIARY_COMMAND_SPECS: CommandSpec[] = [
-  {
-    path: ['auxiliary', 'discuss'],
-    summary:
-      'Discuss requirement evidence with the configured research, architecture, review and decomposition models',
-    usage:
-      'orca auxiliary discuss --prompt-file <evidence> [--worktree <selector>] [--primary-agent <agent>] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'prompt', 'prompt-file', 'worktree', 'primary-agent'],
-    notes: [
-      'Read-only discussion; a blocked or unclear decision returns a non-zero exit code. Each stage reports its actual agent and model.'
-    ]
-  },
   ...(['route', 'auto'] as const).map((action) => ({
     path: ['auxiliary', action],
     summary:

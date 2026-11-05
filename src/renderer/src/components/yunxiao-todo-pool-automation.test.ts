@@ -44,17 +44,8 @@ describe('Yunxiao todo pool automation', () => {
       reuseSession: false,
       yunxiaoTodoPool: {
         kind: 'yunxiao-todo-pool',
-        reviewHandoff: { enabled: true, agentId: 'codex' }
+        reviewHandoff: null
       }
-    })
-  })
-
-  it('keeps a caller-selected review agent on the todo pool source', () => {
-    const input = buildTodoPoolAutomationInput({ repo }, { enabled: true, agentId: 'codex' })
-
-    expect(input.yunxiaoTodoPool?.reviewHandoff).toEqual({
-      enabled: true,
-      agentId: 'codex'
     })
   })
 })

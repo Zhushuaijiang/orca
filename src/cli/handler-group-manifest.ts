@@ -19,13 +19,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
   REFERENCE_HANDLER_GROUP,
   {
     name: 'auxiliary',
-    keys: [
-      'auxiliary run',
-      'auxiliary route',
-      'auxiliary auto',
-      'auxiliary history',
-      'auxiliary discuss'
-    ],
+    keys: ['auxiliary run', 'auxiliary route', 'auxiliary auto', 'auxiliary history'],
     load: async () => (await import('./handlers/auxiliary.js')).AUXILIARY_HANDLERS
   },
   {

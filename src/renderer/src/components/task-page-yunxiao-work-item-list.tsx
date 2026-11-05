@@ -74,10 +74,8 @@ export function TaskPageYunxiaoWorkItemList({
   const {
     configureTodoPoolAutomation,
     configuringTodoPoolAutomation,
-    reviewHandoff,
     runNextTodoPoolAutomation,
-    runningTodoPoolAutomation,
-    updateReviewHandoff
+    runningTodoPoolAutomation
   } = useYunxiaoTodoPoolAutomation({
     onTodoPoolChanged: () => setTodoPoolNonce((value) => value + 1)
   })
@@ -283,8 +281,6 @@ export function TaskPageYunxiaoWorkItemList({
           setPage(1)
         }}
         onConfigureTodoPoolAutomation={() => void configureTodoPoolAutomation()}
-        onReviewHandoffChange={(next) => void updateReviewHandoff(next)}
-        reviewHandoff={reviewHandoff}
         onCreateRequirement={() => setCreateOpen(true)}
         onQueryInputChange={setQueryInput}
         onQuerySubmit={() => {

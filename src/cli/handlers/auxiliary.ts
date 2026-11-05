@@ -12,12 +12,10 @@ import { buildCurrentWorktreeSelector } from '../selectors'
 import { RuntimeClientError } from '../runtime/types'
 import { isTuiAgent } from '../../shared/tui-agent-config'
 import { AUTOMATIC_AUXILIARY_HANDLERS } from './auxiliary-automatic-routing'
-import { AUXILIARY_DISCUSSION_HANDLERS } from './auxiliary-discussion'
 import { runAuxiliaryWorkflow } from './auxiliary-workflow'
 
 export const AUXILIARY_HANDLERS: Record<string, CommandHandler> = {
   ...AUTOMATIC_AUXILIARY_HANDLERS,
-  ...AUXILIARY_DISCUSSION_HANDLERS,
   'auxiliary run': async (context) => {
     const { client, flags, cwd, json } = context
     const task = getRequiredStringFlag(flags, 'task')

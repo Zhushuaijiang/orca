@@ -38,7 +38,6 @@ import { AgentSessionContextCopyMenuItem } from './AgentSessionContextCopyMenuIt
 import { ClearPaneTitleMenuItem } from './ClearPaneTitleMenuItem'
 import type { TerminalQuickCommandMenuHost } from '@/hooks/use-terminal-quick-command-hosts'
 import { TerminalQuickCommandsSubmenu } from './TerminalQuickCommandsSubmenu'
-import { RequirementReviewMenuItems } from '@/components/requirement-review-menu-items'
 
 type TerminalContextMenuProps = {
   open: boolean
@@ -138,7 +137,6 @@ export default function TerminalContextMenu(props: TerminalContextMenuProps): Re
 
 // Build menu rows only when Radix mounts the open content, after terminal activation.
 function TerminalContextMenuItems({
-  reviewTarget,
   onOpenChange,
   canClosePane,
   closePaneLabel,
@@ -223,7 +221,6 @@ function TerminalContextMenuItems({
         onClose={() => onOpenChange(false)}
         onAdd={onAddQuickCommand}
       />
-      {reviewTarget ? <RequirementReviewMenuItems {...reviewTarget} /> : null}
       {canContinueAgentSessionInNewSession ? (
         <AgentSessionContinuationMenuItem onSelect={onContinueAgentSessionInNewSession} />
       ) : null}
