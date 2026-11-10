@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Why: one declarative panel keeps its atoms, handlers and views together; splitting it would hide the panel state machine */
 // The knowledge base panel: connect, browse (lazy tree), search, preview and edit text
 // files. All data flows through `plugin.request` to the worker; the frame never touches
 // the network.
@@ -9,6 +10,8 @@ import {
   update,
   files,
   plugin,
+  shell,
+  ui,
   Badge,
   Button,
   Callout,
@@ -19,7 +22,6 @@ import {
   Heading,
   IconButton,
   Input,
-  Link,
   Markdown,
   RelativeTime,
   Row,
@@ -66,6 +68,9 @@ type ConnectForm = {
 
 const EDIT_MAX_CHARS = 60_000
 const PREVIEW_MAX_CHARS = 64_000
+// `files.saveAs` carries 64 MiB; leave headroom for the base64 envelope.
+const BLOB_MAX_BYTES = 45 * 1024 * 1024
+const BLOB_CHUNK_BYTES = 512 * 1024
 
 const status = atom<Status>('kb.status-view', { phase: 'loading' })
 const dirEntries = atom<ReadonlyMap<string, readonly KbEntry[]>>(new Map())
@@ -88,11 +93,33 @@ const connectForm = atom<ConnectForm>({
 })
 const lastError = atom<string | null>(null)
 const shareUrl = atom<string | null>(null)
+const sharePreparing = atom(false)
 const downloading = atom(false)
+const downloadHint = atom<string | null>(null)
+const searchIndexed = atom(true)
+const searchSource = atom<'index' | 'ocs'>('index')
+const searchIndexSize = atom(0)
+const searchIndexTruncated = atom(false)
 const uploadPath = atom('kb.upload.path', '', { persist: 'plugin' })
 const uploadBusy = atom(false)
 const uploadDir = atom<string | null>('kb.upload.dir', null, { persist: 'plugin' })
 const uploadMessage = atom<string | null>(null)
+const mkdirOpen = atom(false)
+const mkdirName = atom('')
+const mkdirBusy = atom(false)
+const pendingDelete = atom<string | null>(null)
+const deleteBusy = atom(false)
+const renameOpen = atom(false)
+const renameValue = atom('')
+const renameBusy = atom(false)
+
+// The save dialog must run inside a one-shot press grant (about one second), so file
+// bytes are prefetched while the preview opens and the 下载 press only writes them out.
+let blobCache: { path: string; data: ArrayBuffer } | null = null
+let blobPrefetch: { path: string; promise: Promise<void> } | null = null
+// The share link is also prefetched: 在线打开 then opens the browser with no round trip.
+let shareCache: { path: string; url: string } | null = null
+let sharePrefetch: { path: string; promise: Promise<void> } | null = null
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -169,13 +196,6 @@ function hostOf(serverUrl: string): string {
   return /^https?:\/\/([^/]+)/i.exec(serverUrl)?.[1] ?? serverUrl
 }
 
-function fileUrl(serverUrl: string, entry: KbEntry): string | null {
-  if (entry.fileId !== null && entry.fileId !== '') {
-    return `${serverUrl}/f/${entry.fileId}`
-  }
-  return `${serverUrl}/apps/files/?dir=${encodeURIComponent(parentPath(entry.path))}`
-}
-
 function depthOf(path: string): number {
   return path === '/' ? 0 : path.split('/').filter(Boolean).length
 }
@@ -191,10 +211,10 @@ async function hydrateExpanded(): Promise<void> {
   }
 }
 
-async function refreshStatus(): Promise<void> {
+async function refreshStatus(refreshIndex = false): Promise<void> {
   set(status, { phase: 'loading' })
   try {
-    const result = await plugin.request('kb.status', {})
+    const result = await plugin.request('kb.status', { refreshIndex })
     if (!result.configured) {
       set(status, { phase: 'unconfigured' })
       return
@@ -235,12 +255,110 @@ async function loadDir(path: string): Promise<void> {
   }
 }
 
+function startBlobPrefetch(entry: KbEntry): void {
+  if (entry.dir || entry.size > BLOB_MAX_BYTES) {
+    return
+  }
+  const request: { path: string; promise: Promise<void> } = {
+    path: entry.path,
+    promise: Promise.resolve()
+  }
+  request.promise = (async () => {
+    try {
+      const chunks: string[] = []
+      let offset = 0
+      for (;;) {
+        const chunk = await plugin.request('kb.blobChunk', {
+          path: entry.path,
+          offset,
+          length: BLOB_CHUNK_BYTES
+        })
+        if (blobPrefetch !== request) {
+          return
+        }
+        if (chunk.byteLength === 0) {
+          break
+        }
+        chunks.push(chunk.base64)
+        offset += chunk.byteLength
+        if (chunk.done || (chunk.total !== null && offset >= chunk.total)) {
+          break
+        }
+      }
+      // Decode while there is no press to race: 下载 then hands bytes straight to the save dialog.
+      const data = await decodeBlob(chunks.join(''))
+      if (blobPrefetch === request) {
+        blobCache = { path: entry.path, data }
+      }
+    } catch {
+      // A failed prefetch must be restartable by the next 下载 press.
+      if (blobPrefetch === request) {
+        blobPrefetch = null
+      }
+    }
+  })()
+  blobPrefetch = request
+}
+
+function startSharePrefetch(entry: KbEntry): void {
+  const request: { path: string; promise: Promise<void> } = {
+    path: entry.path,
+    promise: Promise.resolve()
+  }
+  request.promise = (async () => {
+    try {
+      const { url } = await plugin.request('kb.share', { path: entry.path })
+      if (sharePrefetch === request) {
+        shareCache = { path: entry.path, url }
+      }
+    } catch {
+      if (sharePrefetch === request) {
+        sharePrefetch = null
+      }
+    }
+  })()
+  sharePrefetch = request
+}
+
+/** Reuse-or-fetch the public share URL; null when the server refuses or the fetch failed. */
+async function ensureShare(entry: KbEntry): Promise<string | null> {
+  if (shareCache?.path === entry.path) {
+    return shareCache.url
+  }
+  set(sharePreparing, true)
+  try {
+    if (sharePrefetch?.path === entry.path) {
+      await sharePrefetch.promise
+    } else {
+      startSharePrefetch(entry)
+      await sharePrefetch?.promise
+    }
+  } finally {
+    set(sharePreparing, false)
+  }
+  return shareCache?.path === entry.path ? shareCache.url : null
+}
+
+async function decodeBlob(base64: string): Promise<ArrayBuffer> {
+  // No network in the hidden guest; decode here during the prefetch, away from the press grant.
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return bytes.buffer
+}
+
 async function openFile(entry: KbEntry): Promise<void> {
   set(activeTab, 'preview')
   set(selectedKey, entry.path)
   set(shareUrl, null)
+  set(downloadHint, null)
   set(editor, { editing: false, draft: '', saving: false, error: null })
   set(preview, { phase: 'loading', name: entry.name, path: entry.path })
+  // Both run while the person reads the preview, so the buttons act instantly on press.
+  startBlobPrefetch(entry)
+  startSharePrefetch(entry)
   try {
     const result = await plugin.request('kb.read', { path: entry.path, maxBytes: 256 * 1024 })
     if (read(selectedKey) !== entry.path) {
@@ -265,9 +383,18 @@ async function openFile(entry: KbEntry): Promise<void> {
 }
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
+let indexPollTimer: ReturnType<typeof setTimeout> | null = null
+
+function stopIndexPoll(): void {
+  if (indexPollTimer !== null) {
+    clearTimeout(indexPollTimer)
+    indexPollTimer = null
+  }
+}
 
 function onSearchChange(value: string): void {
   set(term, value)
+  stopIndexPoll()
   if (searchTimer !== null) {
     clearTimeout(searchTimer)
     searchTimer = null
@@ -278,9 +405,10 @@ function onSearchChange(value: string): void {
     return
   }
   const query = value.trim()
+  // Local index filtering is one fast round trip; keep typing responsive.
   searchTimer = setTimeout(() => {
     void runSearch(query, null, true)
-  }, 350)
+  }, 120)
 }
 
 async function runSearch(query: string, cursor: string | null, reset: boolean): Promise<void> {
@@ -292,6 +420,20 @@ async function runSearch(query: string, cursor: string | null, reset: boolean): 
     }
     set(searchResults, reset ? result.entries : [...read(searchResults), ...result.entries])
     set(searchCursor, result.cursor)
+    set(searchIndexed, result.indexed)
+    set(searchSource, result.source)
+    set(searchIndexSize, result.indexSize)
+    set(searchIndexTruncated, result.indexTruncated)
+    stopIndexPoll()
+    if (!result.indexed && reset) {
+      // The crawl keeps filling in the background; re-filter the same query until it completes.
+      indexPollTimer = setTimeout(() => {
+        indexPollTimer = null
+        if (read(term).trim() === query) {
+          void runSearch(query, null, true)
+        }
+      }, 1500)
+    }
   } catch (error) {
     set(lastError, `搜索失败：${errorMessage(error)}`)
   } finally {
@@ -392,19 +534,82 @@ async function connect(): Promise<void> {
   }
 }
 
+async function downloadCurrent(): Promise<void> {
+  const state = read(preview)
+  if (state.phase !== 'text' && state.phase !== 'binary') {
+    return
+  }
+  await downloadEntry(state.entry)
+}
 
-const DOWNLOAD_CHUNK_BYTES = 512 * 1024
+/** Works for any entry: the tree's action bar and the preview header share it. */
+async function downloadEntry(entry: KbEntry): Promise<void> {
+  if (entry.dir || read(downloading)) {
+    return
+  }
+  if (entry.size > BLOB_MAX_BYTES) {
+    set(
+      downloadHint,
+      entry.dir ? '文件夹请在浏览器中打开后下载。' : '文件超过 45 MB，请在线打开后在浏览器下载。'
+    )
+    return
+  }
+  if (blobCache?.path !== entry.path) {
+    set(downloadHint, null)
+    set(downloading, true)
+    if (blobPrefetch?.path === entry.path) {
+      await blobPrefetch.promise
+    } else {
+      startBlobPrefetch(entry)
+      await blobPrefetch?.promise
+    }
+    set(downloading, false)
+    if (blobCache?.path !== entry.path) {
+      set(downloadHint, '文件尚未就绪，请再次点击「下载」。')
+      return
+    }
+  }
+  const cached = blobCache
+  try {
+    await files.saveAs({
+      suggestedName: entry.name,
+      mimeType: mimeFor(entry.name),
+      data: cached.data
+    })
+    set(downloadHint, null)
+  } catch (error) {
+    set(lastError, `下载失败：${errorMessage(error)}（文件已就绪，可再次点击「下载」重试）`)
+  }
+}
 
 async function shareCurrent(): Promise<void> {
   const state = read(preview)
   if (state.phase !== 'text' && state.phase !== 'binary') {
     return
   }
-  try {
-    const { url } = await plugin.request('kb.share', { path: state.entry.path })
+  const url = await ensureShare(state.entry)
+  if (url !== null) {
     set(shareUrl, url)
+  } else {
+    set(lastError, '分享失败：服务器可能禁止了公开链接分享')
+  }
+}
+
+/** 在线打开：share link renders in the browser without a Nextcloud login. */
+async function openOnline(): Promise<void> {
+  const state = read(preview)
+  if ((state.phase !== 'text' && state.phase !== 'binary') || read(sharePreparing)) {
+    return
+  }
+  const url = await ensureShare(state.entry)
+  if (url === null) {
+    set(lastError, '获取在线链接失败：服务器可能禁止了公开链接分享')
+    return
+  }
+  try {
+    await shell.openExternal(url)
   } catch (error) {
-    set(lastError, `分享失败：${errorMessage(error)}`)
+    set(lastError, `在线打开失败：${errorMessage(error)}（若为交互超时，请再次点击）`)
   }
 }
 
@@ -427,47 +632,13 @@ function mimeFor(name: string): string {
   }
 }
 
-async function downloadCurrent(): Promise<void> {
-  const state = read(preview)
-  if (state.phase !== 'text' && state.phase !== 'binary' || read(downloading)) {
-    return
-  }
-  const entry = state.entry
-  set(downloading, true)
-  try {
-    const parts: Uint8Array<ArrayBuffer>[] = []
-    let offset = 0
-    let total: number | null = null
-    for (;;) {
-      const chunk = await plugin.request('kb.range', {
-        path: entry.path,
-        offset,
-        length: DOWNLOAD_CHUNK_BYTES
-      })
-      const bytes = Uint8Array.from(atob(chunk.base64), (char) => char.charCodeAt(0))
-      parts.push(bytes)
-      offset += bytes.byteLength
-      total = chunk.total ?? total
-      if (chunk.done || bytes.byteLength === 0) {
-        break
-      }
-    }
-    const data = await new Blob(parts, { type: mimeFor(entry.name) }).arrayBuffer()
-    const { status } = await files.saveAs({ suggestedName: entry.name, mimeType: mimeFor(entry.name), data })
-    void status
-  } catch (error) {
-    set(lastError, `下载失败：${errorMessage(error)}`)
-  } finally {
-    set(downloading, false)
-  }
-}
-
 async function uploadLocal(): Promise<void> {
   const localPath = read(uploadPath).trim()
   if (localPath === '' || read(uploadBusy)) {
     return
   }
-  const name = localPath.split('/').filter(Boolean).pop() ?? ''
+  const trimmed = localPath.replace(/\/+$/, '')
+  const name = trimmed.slice(trimmed.lastIndexOf('/') + 1)
   if (name === '') {
     set(uploadMessage, '本地路径不合法')
     return
@@ -484,6 +655,99 @@ async function uploadLocal(): Promise<void> {
     set(uploadMessage, `上传失败：${errorMessage(error)}`)
   } finally {
     set(uploadBusy, false)
+  }
+}
+
+function joinPath(dir: string, name: string): string {
+  const clean = name.trim()
+  return `${dir.replace(/\/+$/, '')}/${clean}`
+}
+
+async function createFolder(): Promise<void> {
+  const name = read(mkdirName).trim()
+  if (name === '' || name.includes('/') || read(mkdirBusy)) {
+    return
+  }
+  const parent = read(uploadDir) ?? '/'
+  const target = joinPath(parent, name)
+  set(mkdirBusy, true)
+  try {
+    await plugin.request('kb.mkdir', { path: target })
+    set(mkdirOpen, false)
+    set(mkdirName, '')
+    set(selectedKey, target)
+    set(uploadDir, target)
+    void loadDir(parent)
+  } catch (error) {
+    set(lastError, `新建文件夹失败：${errorMessage(error)}`)
+  } finally {
+    set(mkdirBusy, false)
+  }
+}
+
+async function deleteSelected(): Promise<void> {
+  const target = read(pendingDelete)
+  if (target === null || read(deleteBusy)) {
+    return
+  }
+  set(deleteBusy, true)
+  try {
+    await plugin.request('kb.delete', { path: target })
+    set(pendingDelete, null)
+    if (read(selectedKey) === target) {
+      set(selectedKey, null)
+    }
+    const previewState = read(preview)
+    if (
+      (previewState.phase === 'text' || previewState.phase === 'binary') &&
+      previewState.entry.path === target
+    ) {
+      set(preview, { phase: 'idle' })
+    }
+    void loadDir(parentPath(target))
+  } catch (error) {
+    set(lastError, `删除失败：${errorMessage(error)}`)
+  } finally {
+    set(deleteBusy, false)
+  }
+}
+
+async function renameSelected(): Promise<void> {
+  const target = read(selectedKey)
+  if (target === null || target === '/') {
+    return
+  }
+  const entry = findEntry(target)
+  const name = read(renameValue).trim()
+  if (entry === null || name === '' || name.includes('/') || read(renameBusy)) {
+    return
+  }
+  if (name === entry.name) {
+    set(renameOpen, false)
+    return
+  }
+  const toPath = joinPath(parentPath(target), name)
+  const wasSelected = read(selectedKey) === target
+  set(renameBusy, true)
+  try {
+    await plugin.request('kb.move', { fromPath: target, toPath })
+    set(renameOpen, false)
+    set(renameValue, '')
+    if (wasSelected) {
+      set(selectedKey, toPath)
+    }
+    const previewState = read(preview)
+    if (
+      (previewState.phase === 'text' || previewState.phase === 'binary') &&
+      previewState.entry.path === target
+    ) {
+      set(preview, { phase: 'idle' })
+    }
+    void loadDir(parentPath(toPath))
+  } catch (error) {
+    set(lastError, `重命名失败：${errorMessage(error)}`)
+  } finally {
+    set(renameBusy, false)
   }
 }
 
@@ -514,14 +778,207 @@ function treeItemsFor(dir: string): TreeItemData[] {
   }))
 }
 
+/** Double-click and the action bar's 打开: the browser shows the file, no preview detour. */
+async function openEntryOnline(entry: KbEntry): Promise<void> {
+  set(selectedKey, entry.path)
+  set(downloadHint, null)
+  startBlobPrefetch(entry)
+  startSharePrefetch(entry)
+  const url = await ensureShare(entry)
+  if (url === null) {
+    set(lastError, '获取在线链接失败：服务器可能禁止了公开链接分享')
+    return
+  }
+  try {
+    await shell.openExternal(url)
+  } catch (error) {
+    set(lastError, `在线打开失败：${errorMessage(error)}（若为交互超时，请再次双击）`)
+  }
+}
+
+// The right-click menu needs Orca's catalog 5 (`ui.catalog` 5); older builds drop the props.
+const TREE_CONTEXT_MENU = ui.has('Tree', 'contextMenu')
+
+const TREE_CONTEXT_ITEMS = [
+  { key: 'upload-here', label: '上传文件到此处', icon: 'upload' },
+  { key: 'new-folder', label: '新建文件夹', icon: 'folder' },
+  { key: 'rename', label: '重命名', icon: 'edit' },
+  { key: 'delete', label: '删除', icon: 'delete', danger: true }
+] as const
+
+function onTreeContextAction({ item, action }: { item: string; action: string }): void {
+  const entry = item === '/' ? null : findEntry(item)
+  // A file's "here" is its parent directory.
+  const dir = item === '/' ? '/' : entry?.dir ? entry.path : entry ? parentPath(entry.path) : null
+  set(selectedKey, item)
+  if (action === 'upload-here') {
+    if (dir === null) {
+      return
+    }
+    set(uploadDir, dir)
+    set(renameOpen, false)
+    set(pendingDelete, null)
+    set(
+      uploadMessage,
+      `已切换上传目标到 ${dir === '/' ? '根目录' : dir}，请在上方输入本地文件路径。`
+    )
+    return
+  }
+  if (action === 'new-folder') {
+    if (dir === null) {
+      return
+    }
+    set(uploadDir, dir)
+    set(mkdirOpen, true)
+    set(mkdirName, '')
+    set(renameOpen, false)
+    set(pendingDelete, null)
+    return
+  }
+  if (action === 'rename') {
+    if (entry === null) {
+      return
+    }
+    set(renameValue, entry.name)
+    set(renameOpen, true)
+    set(pendingDelete, null)
+    return
+  }
+  if (action === 'delete' && item !== '/') {
+    set(pendingDelete, item)
+    set(renameOpen, false)
+  }
+}
+
 function onTreeToggle({ key, expanded }: { key: string; expanded: boolean }): void {
-  update(expandedKeys, (keys) => (expanded ? [...new Set([...keys, key])] : keys.filter((k) => k !== key)))
+  update(expandedKeys, (keys) =>
+    expanded ? [...new Set([...keys, key])] : keys.filter((k) => k !== key)
+  )
   if (expanded) {
     set(uploadDir, key)
   }
   if (expanded && !read(dirEntries).has(key)) {
     void loadDir(key)
   }
+}
+
+function onTreeSelect({ key }: { key: string }): void {
+  set(selectedKey, key)
+  const entry = findEntry(key)
+  if (entry?.dir) {
+    set(uploadDir, key)
+    return
+  }
+  if (entry) {
+    // Warm both caches while the person aims, so 打开/下载 land inside the one-shot press grant.
+    startBlobPrefetch(entry)
+    startSharePrefetch(entry)
+  }
+}
+
+/** The action bar under the tree: open, download, rename and delete for the selected entry. */
+function SelectionActions() {
+  const selected = read(selectedKey)
+  const entry = selected !== null && selected !== '/' ? findEntry(selected) : null
+  if (entry === null) {
+    return null
+  }
+  const rename = read(renameOpen)
+  const deleting = read(pendingDelete) === entry.path
+  return (
+    <Stack gap="xs">
+      <Row justify="between" gap="xs" wrap>
+        <Text muted size="xs" truncate>
+          {entry.dir ? `${entry.name}/` : `${entry.name}（${formatSize(entry.size)}）`}
+        </Text>
+        <Row gap="xs">
+          {!entry.dir ? (
+            <>
+              <Button
+                variant="outline"
+                icon="open-external"
+                disabled={read(sharePreparing)}
+                onPress={() => void openEntryOnline(entry)}
+              >
+                打开
+              </Button>
+              <Button
+                variant="outline"
+                icon="download"
+                disabled={read(downloading)}
+                onPress={() => void downloadEntry(entry)}
+              >
+                下载
+              </Button>
+              <IconButton icon="file-text" label="预览" onPress={() => void openFile(entry)} />
+            </>
+          ) : null}
+          <IconButton
+            icon="edit"
+            label="重命名"
+            disabled={read(renameBusy)}
+            onPress={() => {
+              set(renameValue, entry.name)
+              set(renameOpen, !rename)
+              set(pendingDelete, null)
+            }}
+          />
+          <IconButton
+            icon="delete"
+            label="删除"
+            disabled={read(deleteBusy)}
+            onPress={() => {
+              set(pendingDelete, deleting ? null : entry.path)
+              set(renameOpen, false)
+            }}
+          />
+        </Row>
+      </Row>
+      {rename ? (
+        <Row gap="xs">
+          <Input
+            label="新名称"
+            labelHidden
+            value={read(renameValue)}
+            placeholder="新名称"
+            disabled={read(renameBusy)}
+            onChange={(value) => set(renameValue, value)}
+            onSubmit={() => void renameSelected()}
+          />
+          <IconButton
+            icon="check"
+            label="确认重命名"
+            disabled={read(renameBusy)}
+            onPress={() => void renameSelected()}
+          />
+          <IconButton
+            icon="close"
+            label="取消重命名"
+            disabled={read(renameBusy)}
+            onPress={() => set(renameOpen, false)}
+          />
+        </Row>
+      ) : null}
+      {deleting ? (
+        <Row gap="xs">
+          <Text size="xs">
+            确认删除{entry.dir ? '文件夹' : '文件'}「{entry.name}」？
+            {entry.dir ? '（含全部内容）' : ''}
+          </Text>
+          <Button variant="solid" disabled={read(deleteBusy)} onPress={() => void deleteSelected()}>
+            {read(deleteBusy) ? '删除中…' : '确认删除'}
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={read(deleteBusy)}
+            onPress={() => set(pendingDelete, null)}
+          >
+            取消
+          </Button>
+        </Row>
+      ) : null}
+    </Stack>
+  )
 }
 
 function ConnectView() {
@@ -560,7 +1017,12 @@ function ConnectView() {
       <Row gap="sm">
         <Button
           variant="solid"
-          disabled={form.busy || form.serverUrl.trim() === '' || form.username.trim() === '' || form.appPassword === ''}
+          disabled={
+            form.busy ||
+            form.serverUrl.trim() === '' ||
+            form.username.trim() === '' ||
+            form.appPassword === ''
+          }
           onPress={() => void connect()}
         >
           {form.busy ? '连接中…' : '连接并保存'}
@@ -615,7 +1077,7 @@ export default function Panel() {
             onPress={() => {
               set(dirEntries, new Map())
               set(preview, { phase: 'idle' })
-              void refreshStatus()
+              void refreshStatus(true)
             }}
           />
         </Row>
@@ -628,7 +1090,7 @@ export default function Panel() {
             <FilesTab serverUrl={view.serverUrl} />
           </Tab>
           <Tab value="preview" label="预览" icon="file">
-            <PreviewTab serverUrl={view.serverUrl} />
+            <PreviewTab />
           </Tab>
         </Tabs>
       </Stack>
@@ -661,6 +1123,7 @@ function FilesTab({ serverUrl }: { serverUrl: string }) {
     }
   ]
   const upload = read(uploadPath).trim()
+  const mkdirTarget = read(uploadDir) ?? '/'
   return (
     <Stack gap="sm">
       <Row gap="xs">
@@ -668,7 +1131,7 @@ function FilesTab({ serverUrl }: { serverUrl: string }) {
           label="上传本地文件"
           labelHidden
           value={read(uploadPath)}
-          placeholder="上传本地文件，如 /Users/me/报告.pdf"
+          placeholder={`上传本地文件到 /${mkdirTarget === '/' ? '' : mkdirTarget.replace(/^\//, '')}，如 /Users/me/报告.pdf`}
           disabled={read(uploadBusy)}
           onChange={(value) => set(uploadPath, value)}
           onSubmit={() => void uploadLocal()}
@@ -679,27 +1142,66 @@ function FilesTab({ serverUrl }: { serverUrl: string }) {
           disabled={read(uploadBusy) || upload === ''}
           onPress={() => void uploadLocal()}
         />
+        <IconButton
+          icon="folder"
+          label="新建文件夹"
+          disabled={read(mkdirBusy)}
+          onPress={() => {
+            set(mkdirOpen, !read(mkdirOpen))
+            set(pendingDelete, null)
+            set(renameOpen, false)
+          }}
+        />
       </Row>
+      {read(mkdirOpen) ? (
+        <Row gap="xs">
+          <Input
+            label="文件夹名称"
+            labelHidden
+            value={read(mkdirName)}
+            placeholder={`在 ${mkdirTarget} 下新建文件夹`}
+            disabled={read(mkdirBusy)}
+            onChange={(value) => set(mkdirName, value)}
+            onSubmit={() => void createFolder()}
+          />
+          <IconButton
+            icon="check"
+            label="创建文件夹"
+            disabled={read(mkdirBusy)}
+            onPress={() => void createFolder()}
+          />
+          <IconButton
+            icon="close"
+            label="取消新建"
+            disabled={read(mkdirBusy)}
+            onPress={() => set(mkdirOpen, false)}
+          />
+        </Row>
+      ) : null}
       {read(uploadMessage) !== null ? (
         <Text muted size="xs">
           {read(uploadMessage)}
         </Text>
       ) : null}
+      <SelectionActions />
       <Tree
         label="知识库文件"
-      items={rootItems}
-      expanded={read(expandedKeys)}
-      selected={read(selectedKey) ?? undefined}
-      onToggle={onTreeToggle}
-      onSelect={({ key }) => set(selectedKey, key)}
-      onAction={({ key }) => {
-        const entry = findEntry(key)
-        if (entry && !entry.dir) {
-          void openFile(entry)
-        } else if (key !== '/' && !read(dirEntries).has(key)) {
-          void loadDir(key)
-        }
-      }}
+        items={rootItems}
+        expanded={read(expandedKeys)}
+        selected={read(selectedKey) ?? undefined}
+        onToggle={onTreeToggle}
+        onSelect={onTreeSelect}
+        {...(TREE_CONTEXT_MENU
+          ? { contextMenu: TREE_CONTEXT_ITEMS, onContextAction: onTreeContextAction }
+          : {})}
+        onAction={({ key }) => {
+          const entry = findEntry(key)
+          if (entry && !entry.dir) {
+            void openEntryOnline(entry)
+          } else if (key !== '/' && !read(dirEntries).has(key)) {
+            void loadDir(key)
+          }
+        }}
       />
     </Stack>
   )
@@ -716,29 +1218,43 @@ function SearchResults() {
     }
   }))
   return (
-    <Table
-      label="搜索结果"
-      columns={[
-        { key: 'name', label: '名称', minWidth: 'sm' },
-        { key: 'path', label: '位置', hideBelow: 'md' }
-      ]}
-      rows={rows}
-      emptyText="没有匹配的文件"
-      loading={read(searchLoading) && rows.length === 0}
-      hasMore={read(searchCursor) !== null}
-      onLoadMore={() => void runSearch(query, read(searchCursor), false)}
-      onRowAction={({ key }) => {
-        const index = Number(key.slice(0, key.indexOf('|')))
-        const target = results[index]
-        if (target) {
-          void revealPath(target)
-        }
-      }}
-    />
+    <Stack gap="xs">
+      {!read(searchIndexed) ? (
+        <Text muted size="xs">
+          {read(searchSource) === 'index'
+            ? `正在建立本地文件索引（已扫描 ${read(searchIndexSize)} 项），结果会逐步补全；完成后每次检索即时返回。`
+            : '本地索引尚未覆盖该结果，本次为服务器搜索；索引就绪后搜索会明显变快。'}
+        </Text>
+      ) : null}
+      {read(searchIndexed) && read(searchIndexTruncated) ? (
+        <Text muted size="xs">
+          索引已达扫描上限，深层目录中的文件可能未被收录；零结果时会自动改用服务器搜索。
+        </Text>
+      ) : null}
+      <Table
+        label="搜索结果"
+        columns={[
+          { key: 'name', label: '名称', minWidth: 'sm' },
+          { key: 'path', label: '位置', hideBelow: 'md' }
+        ]}
+        rows={rows}
+        emptyText="没有匹配的文件"
+        loading={read(searchLoading) && rows.length === 0}
+        hasMore={read(searchCursor) !== null}
+        onLoadMore={() => void runSearch(query, read(searchCursor), false)}
+        onRowAction={({ key }) => {
+          const index = Number(key.slice(0, key.indexOf('|')))
+          const target = results[index]
+          if (target) {
+            void revealPath(target)
+          }
+        }}
+      />
+    </Stack>
   )
 }
 
-function PreviewTab({ serverUrl }: { serverUrl: string }) {
+function PreviewTab() {
   const state = read(preview)
   const edit = read(editor)
   if (state.phase === 'idle') {
@@ -766,7 +1282,6 @@ function PreviewTab({ serverUrl }: { serverUrl: string }) {
     )
   }
   const entry = state.entry
-  const url = fileUrl(serverUrl, entry)
   const header = (
     <Row justify="between" gap="xs" wrap>
       <Stack gap="none">
@@ -782,28 +1297,69 @@ function PreviewTab({ serverUrl }: { serverUrl: string }) {
         </Text>
       </Stack>
       <Row gap="xs">
-        <IconButton icon="link" label="分享链接" disabled={read(downloading)} onPress={() => void shareCurrent()} />
+        <IconButton
+          icon="link"
+          label="分享链接"
+          disabled={read(sharePreparing)}
+          onPress={() => void shareCurrent()}
+        />
         <IconButton
           icon="download"
           label="下载"
           disabled={read(downloading)}
           onPress={() => void downloadCurrent()}
         />
-        {url !== null ? <Link href={url}>在线打开</Link> : null}
+        <IconButton
+          icon="open-external"
+          label="在线打开"
+          disabled={read(sharePreparing)}
+          onPress={() => void openOnline()}
+        />
       </Row>
     </Row>
   )
+  const hint = read(downloadHint)
+  const hints =
+    hint !== null || read(shareUrl) !== null ? (
+      <Stack gap="xs">
+        {read(shareUrl) !== null ? <Code>{read(shareUrl)}</Code> : null}
+        {hint !== null ? (
+          <Text muted size="xs">
+            {hint}
+          </Text>
+        ) : null}
+      </Stack>
+    ) : null
   if (state.phase === 'binary') {
     return (
       <Stack gap="sm">
         {header}
-        {read(shareUrl) !== null ? <Code>{read(shareUrl)}</Code> : null}
-        {read(downloading) ? <Spinner label="正在下载" /> : null}
-        <EmptyState
-          title="暂不支持此类型预览"
-          description={`${entry.name}（${formatSize(entry.size)}）请在 Nextcloud 中查看。`}
-          icon="file"
-        />
+        {hints}
+        {read(downloading) ? <Spinner label="正在准备下载" /> : null}
+        <Stack gap="sm">
+          <Text muted>
+            此类型在面板内不内建预览：在线打开会使用浏览器预览（PDF、图片、Office
+            等，已自动登录），下载保存到本地。
+          </Text>
+          <Row gap="sm">
+            <Button
+              variant="solid"
+              icon="open-external"
+              disabled={read(sharePreparing)}
+              onPress={() => void openOnline()}
+            >
+              {read(sharePreparing) ? '正在准备链接…' : '在线打开'}
+            </Button>
+            <Button
+              variant="outline"
+              icon="download"
+              disabled={read(downloading)}
+              onPress={() => void downloadCurrent()}
+            >
+              下载
+            </Button>
+          </Row>
+        </Stack>
       </Stack>
     )
   }
@@ -811,8 +1367,8 @@ function PreviewTab({ serverUrl }: { serverUrl: string }) {
   return (
     <Stack gap="sm">
       {header}
-      {read(shareUrl) !== null ? <Code>{read(shareUrl)}</Code> : null}
-      {read(downloading) ? <Spinner label="正在下载" /> : null}
+      {hints}
+      {read(downloading) ? <Spinner label="正在准备下载" /> : null}
       {edit.error !== null ? (
         <Callout tone={edit.error.code === 'conflict' ? 'warning' : 'danger'} title="保存失败">
           {edit.error.message}

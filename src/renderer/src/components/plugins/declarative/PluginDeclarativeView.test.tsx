@@ -39,6 +39,30 @@ function view(raw: unknown, onEvent = vi.fn(), onOpenLink = vi.fn()) {
 }
 
 describe('PluginDeclarativeView', () => {
+  it('emits a Tree row action with a press grant, and context-menu picks as plain events', () => {
+    const { onEvent } = view(
+      node('Tree', {
+        label: '知识库文件',
+        items: [{ key: '/a.md', label: 'A' }],
+        onSelect: cb('sel'),
+        onAction: cb('act'),
+        onContextAction: cb('ctx'),
+        contextMenu: [
+          { key: 'rename', label: '重命名' },
+          { key: 'delete', label: '删除', danger: true }
+        ]
+      })
+    )
+    const row = screen.getByRole('treeitem', { name: 'A' })
+    fireEvent.doubleClick(row)
+    expect(onEvent).toHaveBeenCalledWith('act', [{ key: '/a.md' }], {
+      press: { control: 'ListItem', gestureId: 'cb:act:/a.md', grants: true }
+    })
+    fireEvent.contextMenu(row)
+    fireEvent.click(screen.getByText('删除'))
+    expect(onEvent).toHaveBeenLastCalledWith('ctx', [{ item: '/a.md', action: 'delete' }])
+  })
+
   it('keeps typing the guest has not seen, and Enter submits what is on screen', () => {
     const raw = (value: string, edit: number) =>
       node('Input', { label: 'Title', value, $edit: edit, onChange: cb('c0'), onSubmit: cb('c1') })

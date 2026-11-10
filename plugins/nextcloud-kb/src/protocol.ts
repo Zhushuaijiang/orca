@@ -35,15 +35,19 @@ export type KbReadResult =
       modifiedMs: number | null
     }
 
-export {}
-
 declare module 'orca' {
   // oxlint-disable-next-line typescript/consistent-type-definitions -- declaration merging needs an interface
   interface PluginRequests {
-    /** Connection state; `ok` re-validates the stored credentials with a cheap PROPFIND. */
+    /** Connection state; `ok` re-validates the stored credentials with a cheap PROPFIND. `refreshIndex` drops the local search index first. */
     'kb.status': {
-      input: {}
-      output: { configured: boolean; serverUrl: string; username: string; ok: boolean; error: string | null }
+      input: { refreshIndex?: boolean }
+      output: {
+        configured: boolean
+        serverUrl: string
+        username: string
+        ok: boolean
+        error: string | null
+      }
     }
     /** Validate and persist server URL, username and app password (settings + secret). */
     'kb.connect': {
@@ -52,10 +56,18 @@ declare module 'orca' {
     }
     /** One directory level of the user's files root (PROPFIND Depth 1), folders first. */
     'kb.list': { input: { path: string }; output: { entries: KbEntry[] } }
-    /** Filename search through Nextcloud's unified `files` provider, cursor-paged. */
+    /** Filename search; served from a worker-side name index (built lazily, `indexed: false` means server search). */
     'kb.search': {
-      input: { term: string; cursor: string | null }
-      output: { entries: KbSearchEntry[]; cursor: string | null }
+      input: { term: string; cursor: string | null; refresh?: boolean }
+      output: {
+        entries: KbSearchEntry[]
+        cursor: string | null
+        /** `indexed` is false while the crawl is still filling; `ocs` is the server fallback. */
+        indexed: boolean
+        source: 'index' | 'ocs'
+        indexSize: number
+        indexTruncated: boolean
+      }
     }
     /** Read one file; text kinds are decoded UTF-8 and capped at `maxBytes`. */
     'kb.read': {
@@ -67,18 +79,24 @@ declare module 'orca' {
       input: { path: string; text: string; etag: string | null }
       output: { ok: true; etag: string | null }
     }
-    /** Create a public link share for one entry. */
-    'kb.share': { input: { path: string }; output: { url: string } }
+    /** Reuse-or-create the public link share for one entry; the URL opens without a Nextcloud login. */
+    'kb.share': { input: { path: string }; output: { url: string; reused: boolean } }
     /** Create a directory (fails with `conflict` when the name exists). */
     'kb.mkdir': { input: { path: string }; output: { ok: true } }
     /** Delete a file or directory (recursively). */
     'kb.delete': { input: { path: string }; output: { ok: true } }
     /** Move/rename an entry; `conflict` when the target exists. */
     'kb.move': { input: { fromPath: string; toPath: string }; output: { ok: true } }
-    /** One byte range of a file, base64, for chunked downloads. */
-    'kb.range': {
+    /** One 512 KiB slice of a file, base64, for background-prefetched downloads. */
+    'kb.blobChunk': {
       input: { path: string; offset: number; length: number }
-      output: { base64: string; done: boolean; total: number | null }
+      output: {
+        base64: string
+        byteLength: number
+        total: number | null
+        done: boolean
+        etag: string | null
+      }
     }
     /** Upload a local file from this machine into the knowledge base. */
     'kb.uploadLocal': {

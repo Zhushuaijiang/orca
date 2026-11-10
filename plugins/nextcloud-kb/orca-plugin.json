@@ -4,9 +4,11 @@
   "execution": "trusted-worker",
   "id": "nextcloud-kb",
   "name": "Nextcloud 知识库",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "浏览、预览、搜索并编辑 Nextcloud 知识库文件（WebDAV + OCS）。",
-  "engines": { "orca": ">=1.4.246" },
+  "engines": {
+    "orca": ">=1.4.246"
+  },
   "pluginApi": 1,
   "main": "worker/main.ts",
   "contributes": {
@@ -36,5 +38,12 @@
       }
     ]
   },
-  "capabilities": [{ "kind": "settings:own" }, { "kind": "secrets:own" }]
+  "capabilities": [
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "secrets:own"
+    }
+  ]
 }

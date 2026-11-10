@@ -50,7 +50,11 @@ export default defineCheck({
   预览: {
     persisted: {
       plugin: {
-        'kb.status-view': { phase: 'ready', serverUrl: 'http://192.168.1.10:18100', username: 'ncadmin' },
+        'kb.status-view': {
+          phase: 'ready',
+          serverUrl: 'http://192.168.1.10:18100',
+          username: 'ncadmin'
+        },
         'kb.tab': 'preview',
         'kb.selected': '/部署手册.md'
       }

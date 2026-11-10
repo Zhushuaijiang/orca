@@ -11,6 +11,8 @@ export const PLUGIN_PANEL_UI_SINCE = '1.4.246'
 export const PLUGIN_COMPONENTS_CATALOG_2_SINCE = '1.4.247'
 /** First release whose components panels draw catalog 4 (`ui.catalog` 4: Box). */
 export const PLUGIN_COMPONENTS_CATALOG_4_SINCE = '1.4.248'
+/** First release whose components panels draw catalog 5 (`ui.catalog` 5: Tree context menu). */
+export const PLUGIN_COMPONENTS_CATALOG_5_SINCE = '1.4.214-rc.23'
 /** Build-less `.ts/.tsx/.mts/.jsx` panel and editor files ship with components panels. */
 export const PLUGIN_SOURCE_MODULES_SINCE = PLUGIN_PANEL_UI_SINCE
 /** Panels reach their worker, storage, settings and events; `contributes.settings` arrives. */

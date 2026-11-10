@@ -1,12 +1,22 @@
-import { useRef, useState } from 'react'
+import { useContext, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { useTranslate } from '@/i18n/use-translate'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger
+} from '@/components/ui/context-menu'
 import type { PluginDeclarativeProps } from '../../../../../shared/plugins/declarative/plugin-declarative-catalog'
 import { usePluginDeclarativeHostValue } from './plugin-declarative-host-value'
 import { usePluginDeclarativeActExpansion } from './plugin-declarative-act-targets'
 import type { PluginDeclarativeEmit } from './PluginDeclarativeControls'
 import { PluginDeclarativeIconGlyph } from './plugin-declarative-icons'
+import {
+  PluginDeclarativeGestureContext,
+  pluginDeclarativeGestureId
+} from './plugin-declarative-gesture-geometry'
 import { visibleTreeRows, type PluginDeclarativeTreeRow } from './plugin-declarative-tree-rows'
 
 type ItemRow = Extract<PluginDeclarativeTreeRow, { kind: 'item' }>
@@ -43,6 +53,15 @@ export function PluginDeclarativeTree({
   })
   const [focused, setFocused] = useState<string | null>(null)
   const elements = useRef(new Map<string, HTMLElement>())
+  const gestures = useContext(PluginDeclarativeGestureContext)
+  const actionCallback = props.onAction?.$callback
+  // One stable id per row, so a fast double click is judged on that row's placement alone.
+  const actionGestureId = (key: string): string | null =>
+    actionCallback ? `${pluginDeclarativeGestureId.callback(actionCallback)}:${key}` : null
+  const trackActionGesture = (key: string): ((element: Element | null) => void) | undefined => {
+    const id = actionGestureId(key)
+    return id && gestures ? gestures.refFor(id) : undefined
+  }
   const rows = visibleTreeRows(props.items, expanded)
   const items = rows.filter((row): row is ItemRow => row.kind === 'item')
   const tabStop = items.find((row) => row.item.key === (focused ?? selection.value)) ?? items[0]
@@ -82,7 +101,12 @@ export function PluginDeclarativeTree({
   const act = (row: ItemRow): void => {
     const callback = props.onAction?.$callback
     if (callback && !row.item.disabled) {
-      emit(callback, [{ key: row.item.key }])
+      const gestureId = actionGestureId(row.item.key)
+      emit(
+        callback,
+        [{ key: row.item.key }],
+        gestureId === null ? undefined : { press: { control: 'ListItem', gestureId, grants: true } }
+      )
     }
   }
   const onKeyDown = (event: React.KeyboardEvent, row: ItemRow): void => {
@@ -105,6 +129,65 @@ export function PluginDeclarativeTree({
     }
   }
 
+  const menu = props.contextMenu
+  const menuCallback = props.onContextAction?.$callback
+
+  const rowNode = (row: ItemRow): React.JSX.Element => (
+    <div
+      key={row.item.key}
+      ref={(element) => {
+        trackActionGesture(row.item.key)?.(element)
+        if (element) {
+          elements.current.set(row.item.key, element)
+        } else {
+          elements.current.delete(row.item.key)
+        }
+      }}
+      role="treeitem"
+      aria-level={row.level}
+      aria-expanded={row.expandable ? row.expanded : undefined}
+      aria-selected={selection.value === row.item.key}
+      aria-disabled={row.item.disabled || undefined}
+      tabIndex={row === tabStop ? 0 : -1}
+      data-current={selection.value === row.item.key}
+      className="flex h-7 min-w-0 cursor-pointer items-center gap-1 rounded-md pr-2 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[current=true]:bg-accent"
+      style={{ paddingLeft: `${(row.level - 1) * 12 + 4}px` }}
+      onFocus={() => setFocused(row.item.key)}
+      onKeyDown={(event) => onKeyDown(event, row)}
+      onClick={() => select(row)}
+      onDoubleClick={() => act(row)}
+      onContextMenu={() => select(row)}
+    >
+      <span
+        aria-hidden
+        className="flex size-5 shrink-0 items-center justify-center text-muted-foreground"
+        onClick={(event) => {
+          if (row.expandable) {
+            event.stopPropagation()
+            toggle(row, !row.expanded)
+          }
+        }}
+      >
+        {row.expandable ? (
+          <ChevronRight
+            data-expanded={row.expanded}
+            className="size-4 transition-transform data-[expanded=true]:rotate-90 motion-reduce:transition-none"
+          />
+        ) : null}
+      </span>
+      {row.item.icon ? (
+        <PluginDeclarativeIconGlyph
+          name={row.item.icon}
+          className="size-4 shrink-0 text-muted-foreground"
+        />
+      ) : null}
+      <span className="truncate text-foreground">{row.item.label}</span>
+      {row.item.description ? (
+        <span className="truncate text-xs text-muted-foreground">{row.item.description}</span>
+      ) : null}
+    </div>
+  )
+
   return (
     <div
       role="tree"
@@ -124,58 +207,26 @@ export function PluginDeclarativeTree({
             <LoadingSpinner className="size-3.5" />
             {t('auto.components.plugins.declarative.Tree.loading', 'Loading…')}
           </div>
+        ) : menu !== undefined && menuCallback !== undefined && !row.item.disabled ? (
+          <ContextMenu key={row.item.key} modal={false}>
+            <ContextMenuTrigger asChild>{rowNode(row)}</ContextMenuTrigger>
+            <ContextMenuContent>
+              {menu.map((entry) => (
+                <ContextMenuItem
+                  key={entry.key}
+                  variant={entry.danger ? 'destructive' : undefined}
+                  onSelect={() => emit(menuCallback, [{ item: row.item.key, action: entry.key }])}
+                >
+                  {entry.icon ? (
+                    <PluginDeclarativeIconGlyph name={entry.icon} className="size-4 shrink-0" />
+                  ) : null}
+                  {entry.label}
+                </ContextMenuItem>
+              ))}
+            </ContextMenuContent>
+          </ContextMenu>
         ) : (
-          <div
-            key={row.item.key}
-            ref={(element) => {
-              if (element) {
-                elements.current.set(row.item.key, element)
-              } else {
-                elements.current.delete(row.item.key)
-              }
-            }}
-            role="treeitem"
-            aria-level={row.level}
-            aria-expanded={row.expandable ? row.expanded : undefined}
-            aria-selected={selection.value === row.item.key}
-            aria-disabled={row.item.disabled || undefined}
-            tabIndex={row === tabStop ? 0 : -1}
-            data-current={selection.value === row.item.key}
-            className="flex h-7 min-w-0 cursor-pointer items-center gap-1 rounded-md pr-2 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[current=true]:bg-accent"
-            style={{ paddingLeft: `${(row.level - 1) * 12 + 4}px` }}
-            onFocus={() => setFocused(row.item.key)}
-            onKeyDown={(event) => onKeyDown(event, row)}
-            onClick={() => select(row)}
-            onDoubleClick={() => act(row)}
-          >
-            <span
-              aria-hidden
-              className="flex size-5 shrink-0 items-center justify-center text-muted-foreground"
-              onClick={(event) => {
-                if (row.expandable) {
-                  event.stopPropagation()
-                  toggle(row, !row.expanded)
-                }
-              }}
-            >
-              {row.expandable ? (
-                <ChevronRight
-                  data-expanded={row.expanded}
-                  className="size-4 transition-transform data-[expanded=true]:rotate-90 motion-reduce:transition-none"
-                />
-              ) : null}
-            </span>
-            {row.item.icon ? (
-              <PluginDeclarativeIconGlyph
-                name={row.item.icon}
-                className="size-4 shrink-0 text-muted-foreground"
-              />
-            ) : null}
-            <span className="truncate text-foreground">{row.item.label}</span>
-            {row.item.description ? (
-              <span className="truncate text-xs text-muted-foreground">{row.item.description}</span>
-            ) : null}
-          </div>
+          rowNode(row)
         )
       )}
     </div>

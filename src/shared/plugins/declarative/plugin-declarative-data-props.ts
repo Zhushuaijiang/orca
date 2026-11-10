@@ -171,6 +171,24 @@ const treeProps = z
     onToggle: callback,
     /** `{ key }` on Enter or a double click. */
     onAction: callback,
+    /** Right-click entries offered on every row; omitted rows open the browser menu instead. */
+    contextMenu: z
+      .array(
+        z
+          .object({
+            key: itemKey,
+            label: requiredLabel,
+            icon: icon.optional(),
+            danger: flag
+          })
+          .strict()
+      )
+      .min(1)
+      .max(LIMITS.maxContextMenuItems)
+      .refine(uniqueKeys, 'context menu keys must be unique')
+      .optional(),
+    /** `{ item, action }` when a person picks a context-menu entry for a row. */
+    onContextAction: callback,
     ...editAck
   })
   .strict()

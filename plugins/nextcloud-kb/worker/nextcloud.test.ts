@@ -6,6 +6,7 @@ import { test, assert } from 'orca/testing'
 import { propfindRootXml } from './fixtures/propfind-root-fixture'
 import { searchMarketJson } from './fixtures/search-market-fixture'
 import {
+  bytesToBase64,
   encodeDavPath,
   isTextPath,
   listDirectory,
@@ -55,10 +56,19 @@ test('parsePropfindBody decodes entries and sorts folders first', () => {
     entries.map((entry) => entry.name).sort(),
     ['README.md', '东昉协作', '市场支持', '部署手册.md', '架构图.png'].sort()
   )
-  assert.deepEqual(entries.slice(0, 2).map((entry) => entry.dir), [true, true])
-  assert.deepEqual(entries.slice(2).map((entry) => entry.dir), [false, false, false])
+  assert.deepEqual(
+    entries.slice(0, 2).map((entry) => entry.dir),
+    [true, true]
+  )
+  assert.deepEqual(
+    entries.slice(2).map((entry) => entry.dir),
+    [false, false, false]
+  )
   // Pinyin order within the two Chinese file names is stable across ICU builds.
-  assert.ok(entries.findIndex((e) => e.name === '部署手册.md') < entries.findIndex((e) => e.name === '架构图.png'))
+  assert.ok(
+    entries.findIndex((e) => e.name === '部署手册.md') <
+      entries.findIndex((e) => e.name === '架构图.png')
+  )
   assert.equal(entries[0].fileId, '14290')
   const readme = entries.find((entry) => entry.name === 'README.md')
   assert.equal(readme?.dir, false)
@@ -72,7 +82,9 @@ test('listDirectory sends PROPFIND Depth 1 with basic auth and parses the body',
   const fetchLike: FetchLike = (url, init) => {
     seen.url = url
     seen.init = init
-    return Promise.resolve(response(propfindRootXml, { headers: { 'Content-Type': 'application/xml' } }))
+    return Promise.resolve(
+      response(propfindRootXml, { headers: { 'Content-Type': 'application/xml' } })
+    )
   }
   const entries = await listDirectory(fetchLike, connection, '/')
   assert.equal(seen.url, 'http://192.168.1.10:18100/remote.php/dav/files/ncadmin/')
@@ -166,4 +178,9 @@ test('isTextPath matches common text and code extensions', () => {
   assert.equal(isTextPath('/.gitignore'), true)
   assert.equal(isTextPath('/a/b/架构图.png'), false)
   assert.equal(isTextPath('/a/b/发布包.zip'), false)
+})
+
+test('bytesToBase64 encodes files larger than V8 spread-argument limits', () => {
+  const bytes = new Uint8Array(300_000).fill(65)
+  assert.equal(bytesToBase64(bytes), 'QUFB'.repeat(100_000))
 })

@@ -16,6 +16,8 @@ export const PLUGIN_DECLARATIVE_LIMITS = {
   /** Items across every level of one Tree, and how deep it nests. */
   maxTreeItems: 2000,
   maxTreeItemDepth: 16,
+  /** Entries in one Tree's right-click menu. */
+  maxContextMenuItems: 8,
   maxKeyValueItems: 200,
   /** Markdown and CodeView text: more than one text child, still inside the tree byte budget. */
   maxDocumentLength: 64 * 1024,

@@ -40,6 +40,33 @@ describe('parsePluginDeclarativeTree', () => {
     ])
   })
 
+  it('keeps a Tree context menu and drops its invalid entries with a warning', () => {
+    const menu = (entries: unknown[]) => ({
+      label: 'Files',
+      items: [{ key: 'a', label: 'A' }],
+      onContextAction: { $callback: 'c9' },
+      contextMenu: entries
+    })
+    const good = parsePluginDeclarativeTree(
+      node(
+        'Tree',
+        menu([
+          { key: 'open', label: '打开', icon: 'file' },
+          { key: 'delete', label: '删除', danger: true }
+        ])
+      )
+    )
+    expect(good.ok && good.tree?.type === 'Tree' ? good.tree.props.contextMenu : null).toEqual([
+      { key: 'open', label: '打开', icon: 'file' },
+      { key: 'delete', label: '删除', danger: true }
+    ])
+    const bad = parsePluginDeclarativeTree(
+      node('Tree', menu([{ key: 'x' }, { key: 'x', label: '重复' }, { label: '无名' }]))
+    )
+    expect(bad.ok && bad.tree?.type === 'Tree' ? bad.tree.props.contextMenu : null).toBeUndefined()
+    expect(bad.ok && bad.warnings).toEqual(['Tree: ignored invalid contextMenu'])
+  })
+
   it('draws unknown components, and known ones missing a required prop, as placeholders', () => {
     const result = parsePluginDeclarativeTree(
       node('Stack', {}, [
