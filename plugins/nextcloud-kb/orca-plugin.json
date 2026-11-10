@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "execution": "trusted-worker",
+  "id": "nextcloud-kb",
+  "name": "Nextcloud 知识库",
+  "version": "0.1.0",
+  "description": "浏览、预览、搜索并编辑 Nextcloud 知识库文件（WebDAV + OCS）。",
+  "engines": { "orca": ">=1.4.246" },
+  "pluginApi": 1,
+  "main": "worker/main.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "kb",
+        "title": "知识库",
+        "icon": "database",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ],
+    "settings": [
+      {
+        "key": "serverUrl",
+        "title": "服务器地址",
+        "description": "Nextcloud 站点根地址，例如 http://192.168.1.10:18100",
+        "type": "string",
+        "default": "",
+        "placeholder": "http://192.168.1.10:18100"
+      },
+      {
+        "key": "username",
+        "title": "用户名",
+        "type": "string",
+        "default": ""
+      }
+    ]
+  },
+  "capabilities": [{ "kind": "settings:own" }, { "kind": "secrets:own" }]
+}
