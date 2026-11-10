@@ -1,4 +1,4 @@
-import { type TerminalTab } from '../../../../../../shared/workspace-layout/terminal-tab-types'
+import type { TerminalTab } from '../../../../../../shared/workspace-layout/terminal-tab-types'
 import { agentRowDisplayDotState } from '@/lib/agent-row-dot-state'
 import type { AppState } from '@/store/types'
 import { resolveRuntimePaneTitleLeafId } from '../../../../../../shared/runtime-pane-title-leaf-id'

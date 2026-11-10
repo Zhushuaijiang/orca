@@ -1,4 +1,4 @@
-import { type ManualYunxiaoRequirementGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
+import type { ManualYunxiaoRequirementGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
 import { formatTerminalStartFailure } from '../../../../shared/terminal/pty/lifecycle/terminal-start-failure'
 import { readableWslDistroHoldText } from '../../../../shared/wsl-distro-stopped-hold'
 import { RuntimeLineageError } from '../lineage/runtime-lineage-error'

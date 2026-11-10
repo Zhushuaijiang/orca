@@ -39,8 +39,8 @@ export type { AppMemory, HostAvailableMemorySource, HostMemory, MemorySnapshot, 
 export type { NestedRepoCandidate, NestedRepoScanOptions, NestedRepoScanResult, ProjectGroup, ProjectGroupCreatedFrom, ProjectGroupImportMode, ProjectGroupImportProjectResult, ProjectGroupImportResult } from './project-group-types'
 export type { Project, ProjectHostSetup, ProjectHostSetupCloneArgs, ProjectHostSetupCreateArgs, ProjectHostSetupCreateResult, ProjectHostSetupDeleteArgs, ProjectHostSetupDeleteResult, ProjectHostSetupExistingFolderArgs, ProjectHostSetupMethod, ProjectHostSetupResult, ProjectHostSetupState, ProjectHostSetupUpdateArgs, ProjectHostSetupUpdateResult, ProjectProviderIdentity, ProjectUpdateArgs, RepoProjectHostSetupMethod } from './project-types'
 export type { BaseRefDefaultResult, BaseRefSearchResult, ExternalWorktreeVisibility, IssueSourcePreference, Repo, RepoKind } from './repo-types'
-import { z } from 'zod'
-import { FolderWorkspaceLinkedTask as FolderWorkspaceLinkedTaskSchema } from './rpc-contract/folder-workspace-params'
+import type { z } from 'zod'
+import type { FolderWorkspaceLinkedTask as FolderWorkspaceLinkedTaskSchema } from './rpc-contract/folder-workspace-params'
 export type FolderWorkspaceLinkedTask = z.infer<typeof FolderWorkspaceLinkedTaskSchema>
 export type { PathSource, ShellHydrationFailureReason } from './shell/launch/shell-path-hydration-types'
 export type { CommitMessageAiModelCapability, CommitMessageAiSettings } from './source-control/ai/generation/commit-message-ai-types'

@@ -1,4 +1,4 @@
-import { type RuntimeClientSettings } from '../runtime/client/settings/runtime-client-settings-shape'
+import type { RuntimeClientSettings } from '../runtime/client/settings/runtime-client-settings-shape'
 import { EVERY_AGENT_CHAT } from '../../shared/native-chat/every-agent-chat.test-fixture'
 import { describe, expect, it, vi } from 'vitest'
 import { executeAgentLaunch, type AgentLaunchExecution } from './agent-launch-executor'

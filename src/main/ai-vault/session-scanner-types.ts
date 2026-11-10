@@ -1,4 +1,4 @@
-import { type AiVaultTokenUsage } from '../../shared/ai-vault/contracts/ai-vault-types'
+import type { AiVaultTokenUsage } from '../../shared/ai-vault/contracts/ai-vault-types'
 import type { Dirent } from 'node:fs'
 import type {
   AiVaultAgent,

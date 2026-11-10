@@ -1,4 +1,4 @@
-import { TuiAgent } from '../agent-launch/catalog/tui-agent'
+import type { TuiAgent } from '../agent-launch/catalog/tui-agent'
 import { isTuiAgent } from '../agent-launch/catalog/tui-agent-config'
 import { isGitHistoryRefName } from '../git/history/git-history-revisions'
 import { normalizeSourceControlAiActionDefaults } from '../source-control/ai/recipes/source-control-ai-actions'

@@ -1,4 +1,4 @@
-import { type YunxiaoRequirementGateOutcome } from '../../shared/yunxiao-types'
+import type { YunxiaoRequirementGateOutcome } from '../../shared/yunxiao-types'
 import type { Automation } from '../../shared/automations/automation-definition'
 import type {
   AutomationDispatchResult,

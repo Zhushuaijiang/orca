@@ -1,4 +1,4 @@
-import { type AiVaultSession } from '../../../shared/ai-vault/contracts/ai-vault-types'
+import type { AiVaultSession } from '../../../shared/ai-vault/contracts/ai-vault-types'
 import { existsSync } from 'node:fs'
 import { appendFile, mkdir, mkdtemp, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import * as fsPromises from 'node:fs/promises'

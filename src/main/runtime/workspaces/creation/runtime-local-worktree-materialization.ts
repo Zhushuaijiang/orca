@@ -1,4 +1,4 @@
-import { type ManualYunxiaoRequirementGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
+import type { ManualYunxiaoRequirementGate } from '../../../../shared/yunxiao-requirement-prompt-gate'
 import type { LocalGitExecOptions } from '../../../git/repo-default-base-ref'
 import { randomUUID } from 'node:crypto'
 import { getRepoExecutionHostId } from '../../../../shared/execution-host'

@@ -1,4 +1,4 @@
-import { type RuntimeYunxiaoCommandSurface } from './runtime-yunxiao-command-surface'
+import type { RuntimeYunxiaoCommandSurface } from './runtime-yunxiao-command-surface'
 import type { SessionOptionValue } from '../../shared/native-chat/input/native-chat-session-options'
 import { conversationRecordReader } from './orchestration/addressing/session-lineage/structured-session-lineage'
 import type { RuntimeLinearCommandSurface } from './integrations/linear/runtime-linear-command-surface'

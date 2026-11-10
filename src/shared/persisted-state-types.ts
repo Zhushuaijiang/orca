@@ -1,4 +1,4 @@
-import { type YunxiaoTodoPoolItem } from './yunxiao-types'
+import type { YunxiaoTodoPoolItem } from './yunxiao-types'
 import type { ExecutionHostId } from './execution-host'
 import type {
   RemovedSshTargetTombstone,

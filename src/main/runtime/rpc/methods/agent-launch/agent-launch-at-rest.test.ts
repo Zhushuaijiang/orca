@@ -1,4 +1,4 @@
-import { type RuntimeClientSettings } from '../../../client/settings/runtime-client-settings-shape'
+import type { RuntimeClientSettings } from '../../../client/settings/runtime-client-settings-shape'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AGENT_LAUNCH_RUNTIME_CAPABILITY } from '../../../../../shared/agent-launch/contracts/agent-launch-runtime-capability'
 import {

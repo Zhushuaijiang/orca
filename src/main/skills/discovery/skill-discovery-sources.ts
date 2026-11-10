@@ -1,4 +1,4 @@
-import { TuiAgent } from '../../../shared/agent-launch/catalog/tui-agent'
+import type { TuiAgent } from '../../../shared/agent-launch/catalog/tui-agent'
 import { homedir } from 'node:os'
 import { basename, join, type posix } from 'node:path'
 import type { SkillDiscoverySource, SkillProvider, SkillSourceKind } from '../../../shared/skills'

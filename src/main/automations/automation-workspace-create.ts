@@ -1,4 +1,4 @@
-import { type AgentLaunchPreferences } from '../../shared/agent-session/agent-session-host-authority'
+import type { AgentLaunchPreferences } from '../../shared/agent-session/agent-session-host-authority'
 import { automationTerminalLaunchInputs } from '../../shared/automations/launch/automation-launch-setup'
 import { hostQualifiedRepoSelector } from '../runtime/workspaces/catalog/runtime-repo-selector'
 import { getRepoExecutionHostId } from '../../shared/execution-host'

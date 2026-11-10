@@ -1,4 +1,4 @@
-import { type RequirementReviewRecord } from '../requirement-review'
+import type { RequirementReviewRecord } from '../requirement-review'
 import type { ExecutionHostId } from '../execution-host'
 import type { TaskSourceContext } from '../work-items/task-source-context'
 import type { TuiAgent } from '../agent-launch/catalog/tui-agent'

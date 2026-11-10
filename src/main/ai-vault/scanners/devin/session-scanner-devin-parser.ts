@@ -1,4 +1,4 @@
-import { type AiVaultTokenUsage } from '../../../../shared/ai-vault/contracts/ai-vault-types'
+import type { AiVaultTokenUsage } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 import { addTokenUsage } from '../../session-scanner-token-values'
 import { readStreamedSessionDocument } from '../../transcripts/session-document-stream'
 import { openTranscriptReadStream } from '../../../native-chat/wsl-transcript-fs-access'

@@ -1,4 +1,4 @@
-import { type AiVaultTokenUsage } from '../../../../shared/ai-vault/contracts/ai-vault-types'
+import type { AiVaultTokenUsage } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 import { wslGatedReaddir } from '../../../native-chat/wsl-transcript-fs-access'
 import { addTokenUsage } from '../../session-scanner-token-values'
 import { dirname, join } from 'node:path'

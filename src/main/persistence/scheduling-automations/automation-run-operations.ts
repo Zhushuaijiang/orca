@@ -1,4 +1,4 @@
-import { type YunxiaoRequirementGateOutcome, type YunxiaoTodoPoolItem, type YunxiaoTodoPoolStatus } from '../../../shared/yunxiao-types'
+import type { YunxiaoRequirementGateOutcome, YunxiaoTodoPoolItem, YunxiaoTodoPoolStatus } from '../../../shared/yunxiao-types'
 import { reconcileAutomationRunTodoPool } from './automation-run-todo-pool-state'
 export { setAutomationRunYunxiaoTodoPoolClaim } from './automation-run-todo-pool-state'
 import { normalizeAutomationYunxiaoTodoPoolClaim } from './yunxiao-automation-todo-pool-source'
