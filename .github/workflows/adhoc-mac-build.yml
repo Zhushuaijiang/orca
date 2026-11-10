@@ -72,7 +72,7 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" = "$version"
           codesign --verify --deep --strict --verbose=2 "$app"
           codesign -d --entitlements - "$app/Contents/MacOS/Orca" >dist/mac-entitlements.txt 2>&1
-          for entitlement in allow-jit allow-unsigned-executable-memory allow-dyld-environment-variables; do
+          for entitlement in allow-jit allow-unsigned-executable-memory; do
             grep -q "com.apple.security.cs.$entitlement" dist/mac-entitlements.txt
           done
           profile="$RUNNER_TEMP/orca-dfhis-release-profile"

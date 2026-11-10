@@ -205,8 +205,7 @@ function verifyMacEntitlements(macApp) {
   ])
   for (const key of [
     'com.apple.security.cs.allow-jit',
-    'com.apple.security.cs.allow-unsigned-executable-memory',
-    'com.apple.security.cs.allow-dyld-environment-variables'
+    'com.apple.security.cs.allow-unsigned-executable-memory'
   ]) {
     if (!entitlements.includes(key)) {
       throw new Error(`macOS app entitlement missing: ${key}`)
