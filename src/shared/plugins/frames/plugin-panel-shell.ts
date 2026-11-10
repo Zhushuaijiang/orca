@@ -216,6 +216,15 @@ ${PLUGIN_FRAME_FACADES_SCRIPT}  if (C.user) {
         return userCall(C.user.saveAs, params).then(function (result) {
           return { status: result && result.status === 'saved' ? 'saved' : 'cancelled' }
         })
+      },
+      pick: function (options) {
+        var params = { multiple: Boolean(options && options.multiple) }
+        return userCall(C.user.pick, params).then(function (result) {
+          return {
+            status: result && result.status === 'picked' ? 'picked' : 'cancelled',
+            paths: result && Array.isArray(result.paths) ? result.paths : []
+          }
+        })
       }
     })
   }

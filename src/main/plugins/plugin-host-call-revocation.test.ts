@@ -42,7 +42,8 @@ async function createSavingPlugin() {
       scope.assertActive()
       writes.push(pluginId)
       return true
-    }
+    },
+    pickFiles: async () => ({ status: 'cancelled', paths: [] })
   }
   const service = new PluginService({
     userDataPath: root,

@@ -189,6 +189,8 @@ const treeProps = z
       .optional(),
     /** `{ item, action }` when a person picks a context-menu entry for a row. */
     onContextAction: callback,
+    /** `{ item, files }` for OS files dropped on a row (`item: null` on the tree background). */
+    onFilesDrop: callback,
     ...editAck
   })
   .strict()

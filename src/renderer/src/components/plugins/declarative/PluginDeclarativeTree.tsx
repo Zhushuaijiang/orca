@@ -1,6 +1,7 @@
-import { useContext, useRef, useState } from 'react'
+import { useCallback, useContext, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { useOsFileDropOwner } from '@/hooks/use-os-file-drop-owner'
 import { useTranslate } from '@/i18n/use-translate'
 import {
   ContextMenu,
@@ -20,6 +21,11 @@ import {
 import { visibleTreeRows, type PluginDeclarativeTreeRow } from './plugin-declarative-tree-rows'
 
 type ItemRow = Extract<PluginDeclarativeTreeRow, { kind: 'item' }>
+
+const TREE_ROW_KEY_ATTRIBUTE = 'data-plugin-tree-key'
+const MAX_TREE_DROPPED_FILES = 32
+const MAX_TREE_DROPPED_PATH_LENGTH = 4096
+const MAX_TREE_DROPPED_NAME_LENGTH = 255
 
 /** A WAI-ARIA tree: one tab stop, arrow keys move, expand and collapse, Enter acts. */
 export function PluginDeclarativeTree({
@@ -65,6 +71,61 @@ export function PluginDeclarativeTree({
   const rows = visibleTreeRows(props.items, expanded)
   const items = rows.filter((row): row is ItemRow => row.kind === 'item')
   const tabStop = items.find((row) => row.item.key === (focused ?? selection.value)) ?? items[0]
+
+  const menu = props.contextMenu
+  const menuCallback = props.onContextAction?.$callback
+  const menuGestureId =
+    menuCallback === undefined ? null : pluginDeclarativeGestureId.callback(menuCallback)
+  const trackMenuGesture =
+    menuGestureId !== null && gestures ? gestures.refFor(menuGestureId) : undefined
+  const dropCallback = props.onFilesDrop?.$callback
+  const rootRef = useRef<HTMLElement | null>(null)
+  const attachDropRoot = useOsFileDropOwner(rootRef, {
+    kind: 'files',
+    onFiles: (files, context) => {
+      if (!dropCallback) {
+        return
+      }
+      const fs = window.api?.fs
+      const getPathForFile = fs && 'getPathForFile' in fs ? fs.getPathForFile : undefined
+      if (!getPathForFile) {
+        return
+      }
+      const row =
+        context.target instanceof Element
+          ? context.target.closest(`[${TREE_ROW_KEY_ATTRIBUTE}]`)
+          : null
+      const item =
+        row && rootRef.current?.contains(row) ? row.getAttribute(TREE_ROW_KEY_ATTRIBUTE) : null
+      const dropped: { path: string; name: string; size: number }[] = []
+      for (const file of files.slice(0, MAX_TREE_DROPPED_FILES)) {
+        try {
+          const path = getPathForFile(file)
+          if (!path || path.length > MAX_TREE_DROPPED_PATH_LENGTH) {
+            continue
+          }
+          dropped.push({
+            path,
+            name: file.name.slice(0, MAX_TREE_DROPPED_NAME_LENGTH),
+            size: file.size
+          })
+        } catch {
+          // A virtual file has no local path.
+        }
+      }
+      if (dropped.length > 0) {
+        emit(dropCallback, [{ item, files: dropped }])
+      }
+    }
+  })
+  const attachRoot = useCallback(
+    (element: HTMLDivElement | null): void => {
+      // Without an onFilesDrop handler, the tree must not claim drops that belong to another owner.
+      attachDropRoot(dropCallback ? element : null)
+      trackMenuGesture?.(element)
+    },
+    [attachDropRoot, dropCallback, trackMenuGesture]
+  )
 
   const focus = (row: ItemRow | undefined): void => {
     if (row) {
@@ -129,9 +190,6 @@ export function PluginDeclarativeTree({
     }
   }
 
-  const menu = props.contextMenu
-  const menuCallback = props.onContextAction?.$callback
-
   const rowNode = (row: ItemRow): React.JSX.Element => (
     <div
       key={row.item.key}
@@ -150,6 +208,7 @@ export function PluginDeclarativeTree({
       aria-disabled={row.item.disabled || undefined}
       tabIndex={row === tabStop ? 0 : -1}
       data-current={selection.value === row.item.key}
+      {...{ [TREE_ROW_KEY_ATTRIBUTE]: row.item.key }}
       className="flex h-7 min-w-0 cursor-pointer items-center gap-1 rounded-md pr-2 outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[current=true]:bg-accent"
       style={{ paddingLeft: `${(row.level - 1) * 12 + 4}px` }}
       onFocus={() => setFocused(row.item.key)}
@@ -190,6 +249,7 @@ export function PluginDeclarativeTree({
 
   return (
     <div
+      ref={attachRoot}
       role="tree"
       aria-label={props.label}
       data-max-height={props.maxHeight ?? 'none'}
@@ -215,7 +275,21 @@ export function PluginDeclarativeTree({
                 <ContextMenuItem
                   key={entry.key}
                   variant={entry.danger ? 'destructive' : undefined}
-                  onSelect={() => emit(menuCallback, [{ item: row.item.key, action: entry.key }])}
+                  onSelect={() =>
+                    emit(
+                      menuCallback,
+                      [{ item: row.item.key, action: entry.key }],
+                      menuGestureId === null
+                        ? undefined
+                        : {
+                            press: {
+                              control: 'ContextMenuItem',
+                              gestureId: menuGestureId,
+                              grants: true
+                            }
+                          }
+                    )
+                  }
                 >
                   {entry.icon ? (
                     <PluginDeclarativeIconGlyph name={entry.icon} className="size-4 shrink-0" />

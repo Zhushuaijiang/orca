@@ -51,6 +51,11 @@ export type PluginDesktopFrameServices = {
     input: { suggestedName?: string; mimeType?: string; data: string | ArrayBuffer | Uint8Array },
     scope: PluginHostCallScope
   ): Promise<boolean>
+  pickFiles(
+    pluginId: string,
+    input: { multiple: boolean },
+    scope: PluginHostCallScope
+  ): Promise<{ status: 'picked' | 'cancelled'; paths: string[] }>
 }
 
 export type PluginHostServices = {
@@ -227,6 +232,9 @@ const HANDLERS: Record<PluginHostMethodName, BoundPluginHostMethod> = {
     const saved = await requireDesktop(services).saveFile(pluginId, params, scope)
     return { status: saved ? ('saved' as const) : ('cancelled' as const) }
   }),
+  'files.pick': bind(api['files.pick'], async (params, { pluginId, services, scope }) =>
+    requireDesktop(services).pickFiles(pluginId, { multiple: params.multiple === true }, scope)
+  ),
   ...PLUGIN_PANEL_BRIDGE_HANDLERS,
   ...PLUGIN_STATUS_BAR_HANDLERS,
   ...PLUGIN_WORKSPACE_ACTION_HANDLERS

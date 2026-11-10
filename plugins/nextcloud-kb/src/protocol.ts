@@ -18,23 +18,6 @@ export type KbSearchEntry = {
   subline: string
 }
 
-export type KbReadResult =
-  | {
-      kind: 'text'
-      text: string
-      truncated: boolean
-      byteLength: number
-      etag: string | null
-      modifiedMs: number | null
-    }
-  | {
-      kind: 'binary'
-      byteLength: number
-      contentType: string | null
-      etag: string | null
-      modifiedMs: number | null
-    }
-
 declare module 'orca' {
   // oxlint-disable-next-line typescript/consistent-type-definitions -- declaration merging needs an interface
   interface PluginRequests {
@@ -68,16 +51,6 @@ declare module 'orca' {
         indexSize: number
         indexTruncated: boolean
       }
-    }
-    /** Read one file; text kinds are decoded UTF-8 and capped at `maxBytes`. */
-    'kb.read': {
-      input: { path: string; maxBytes: number }
-      output: KbReadResult
-    }
-    /** Overwrite one text file. A stale `etag` fails with code `conflict`. */
-    'kb.write': {
-      input: { path: string; text: string; etag: string | null }
-      output: { ok: true; etag: string | null }
     }
     /** Reuse-or-create the public link share for one entry; the URL opens without a Nextcloud login. */
     'kb.share': { input: { path: string }; output: { url: string; reused: boolean } }

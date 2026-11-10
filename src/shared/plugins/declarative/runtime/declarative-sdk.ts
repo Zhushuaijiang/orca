@@ -101,6 +101,9 @@ export function createOrcaSdk(source: SdkSource) {
         ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
         : data
       return host.call('files.saveAs', { ...options, data: bytes })
+    },
+    pick(options?: { multiple?: boolean }): Promise<unknown> {
+      return host.call('files.pick', { multiple: options?.multiple === true })
     }
   })
 

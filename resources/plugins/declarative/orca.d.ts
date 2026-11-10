@@ -107,6 +107,8 @@ declare module 'orca' {
     "shell.openExternal": { params: { url: string }; result: { opened: boolean; reason?: "cancelled" | "consent-unavailable" } }
     /** Offers data (a string or ArrayBuffer, up to 64 MiB) in Orca's save dialog; the plugin never learns the path. Needs a click or key press in the frame; desktop app only. */
     "files.saveAs": { params: { suggestedName?: string; mimeType?: string; data: string | ArrayBuffer }; result: { status: "saved" | "cancelled" } }
+    /** Opens Orca's native file chooser and returns the chosen absolute paths (up to 64, files only; pass `multiple: true` for more than one). Needs a click or key press in the frame; desktop app only; cancelling is `{ status: "cancelled", paths: [] }`, not an error. */
+    "files.pick": { params: { multiple?: boolean }; result: { status: "picked" | "cancelled"; paths: string[] } }
     /** Asks the plugin's own worker to run the handler it registered with `orca.panels.handle(name)`, starting the worker if needed; resolves with what the handler returned. `unknown_method` when no handler has that name. */
     "plugin.request": { params: { name: string; input?: JsonValue; timeoutMs?: number }; result: { output: JsonValue } }
     /** The agents in the focused workspace: their terminal, title, agent kind and status. `agent.status.changed` reports each change after. */

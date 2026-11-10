@@ -46,7 +46,7 @@ Everything a components panel (`"ui": "components"`) imports comes from `orca`. 
 - `Toolbar` (children: any): `label: string; gap?: Gap`
 - `Grid` (children: any): `columns?: 1 | 2 | 3 | 4 | 5 | 6; minItemWidth?: 'xs' | 'sm' | 'md' | 'lg'; gap?: Gap`
 - `Table` (children: none): `label: string; columns: readonly TableColumn[]; rows: readonly TableRow[]; sort?: TableSort; selectionMode?: 'none' | 'single' | 'multiple'; selected?: readonly string[]; defaultSelected?: readonly string[]; hasMore?: boolean; loading?: boolean; emptyText?: string; maxHeight?: MaxHeight; onSortChange?: (sort: TableSort) => void; onSelectionChange?: (selection: { keys: string[] }) => void; onRowAction?: (row: { key: string }) => void; onLoadMore?: () => void`
-- `Tree` (children: none): `label: string; items: readonly TreeItem[]; selected?: string; defaultSelected?: string; expanded?: readonly string[]; defaultExpanded?: readonly string[]; maxHeight?: MaxHeight; onSelect?: (item: { key: string }) => void; onToggle?: (item: { key: string; expanded: boolean }) => void; onAction?: (item: { key: string }) => void`
+- `Tree` (children: none): `label: string; items: readonly TreeItem[]; selected?: string; defaultSelected?: string; expanded?: readonly string[]; defaultExpanded?: readonly string[]; maxHeight?: MaxHeight; onSelect?: (item: { key: string }) => void; onToggle?: (item: { key: string; expanded: boolean }) => void; onAction?: (item: { key: string }) => void; contextMenu?: readonly TreeContextMenuItem[]; onContextAction?: (event: { item: string; action: string }) => void; onFilesDrop?: (event: TreeFilesDropEvent) => void`
 - `Markdown` (children: none): `content: string`
 - `CodeView` (children: none): `code: string; language?: string; label?: string; lineNumbers?: boolean; wrap?: boolean; maxHeight?: MaxHeight`
 - `Image` (children: none): `src: string; alt: string; size?: 'xs' | 'sm' | 'md' | 'lg' | 'full'; fit?: 'contain' | 'cover'; rounded?: boolean`
@@ -77,6 +77,7 @@ Everything a components panel (`"ui": "components"`) imports comes from `orca`. 
 - `ui.has(component: string, prop?: string)`: Whether this Orca draws `component` (and accepts `prop` on it, when given).
 - `shell.openExternal(url: string)`: Needs a press on one of the panel's controls; see "User gestures".
 - `files.saveAs(options: HostMethods['files.saveAs']['params'])`: Needs a press on one of the panel's controls; see "User gestures".
+- `files.pick(options?: HostMethods['files.pick']['params'])`: Needs a press on one of the panel's controls; see "User gestures".
 - `plugin: PluginBridgeApi`
 - `storage: StorageApi`
 - `settings: SettingsApi`

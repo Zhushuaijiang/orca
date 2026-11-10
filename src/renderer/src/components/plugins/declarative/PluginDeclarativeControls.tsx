@@ -15,7 +15,7 @@ import { usePluginDeclarativeHostValue } from './plugin-declarative-host-value'
 
 /** A press on one of Orca's own controls, which may grant the panel one user gesture. */
 export type PluginDeclarativePress = {
-  control: 'Button' | 'IconButton' | 'ListItem' | 'Link'
+  control: 'Button' | 'IconButton' | 'ListItem' | 'Link' | 'ContextMenuItem'
   /** Which tracked element the press landed on, for the settle check. */
   gestureId: string
   /** False when the same press already opened a Link's href. */

@@ -20,7 +20,7 @@ export type PluginServiceOptions = {
   workerFactory?: PluginWorkerFactory
   maxActiveWorkers?: number
   idleReapMs?: number
-  /** Desktop main only: the sinks behind `shell.openExternal` and `files.saveAs`. */
+  /** Desktop main only: the sinks behind `shell.openExternal`, `files.saveAs` and `files.pick`. */
   getDesktopFrameServices?: () => PluginDesktopFrameServices | null
   /** Desktop main only: what `statusBar.update` writes for the windows' status bars. */
   statusBar?: PluginStatusBarState

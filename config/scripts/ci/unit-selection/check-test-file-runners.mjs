@@ -95,6 +95,14 @@ const NON_UNIT_TEST_RUNNERS = [
     mirrors: ['readdirSync(EXAMPLES)']
   },
   {
+    // `orca plugin test .` runs the checked-in KB plugin's own tests; CI does not invoke it.
+    name: 'nextcloud-kb plugin tests (orca plugin test)',
+    manual: true,
+    include: ['plugins/nextcloud-kb/src/**/*.test.ts', 'plugins/nextcloud-kb/worker/**/*.test.ts'],
+    sources: ['src/cli/plugin-authoring/plugin-test-runner.ts', 'plugins/nextcloud-kb/README.md'],
+    mirrors: ['findPluginTestFiles', 'orca plugin test .']
+  },
+  {
     name: 'docs site',
     include: ['docs/site/tests/*.test.mjs'],
     sources: ['docs/site/package.json'],

@@ -25887,6 +25887,9 @@
       "title": "Save File",
       "allFiles": "All Files"
     },
+    "framePickFiles": {
+      "title": "Choose Files"
+    },
     "frameOpenExternal": {
       "open": "Open",
       "cancel": "Cancel",

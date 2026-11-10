@@ -18,13 +18,20 @@ const eventScalarSchema = z.union([
   z.null()
 ])
 const eventListSchema = z.array(eventScalarSchema).max(LIMITS.maxEventArgItems)
-/** A scalar, a list of scalars (a Slider value, selected keys), or one flat object of either
- *  (`{ keys }`, `{ column, direction }`): plain JSON a handler can read without checks. */
+const eventFieldSchema = z.union([eventScalarSchema, eventListSchema])
+const eventObjectSchema = z
+  .record(z.string().max(64), eventFieldSchema)
+  .refine((value) => Object.keys(value).length <= 16, 'too many fields')
+const eventObjectListSchema = z.array(eventObjectSchema).max(LIMITS.maxEventArgItems)
+/** A scalar, a scalar list, a flat object, a list of those objects, or a flat object holding one
+ *  (dropped files): plain JSON a handler can read without checks. */
 export const pluginDeclarativeEventArgSchema = z.union([
   eventScalarSchema,
   eventListSchema,
+  eventObjectSchema,
+  eventObjectListSchema,
   z
-    .record(z.string().max(64), z.union([eventScalarSchema, eventListSchema]))
+    .record(z.string().max(64), z.union([eventFieldSchema, eventObjectListSchema]))
     .refine((value) => Object.keys(value).length <= 16, 'too many fields')
 ])
 export type PluginDeclarativeEventArg = z.infer<typeof pluginDeclarativeEventArgSchema>

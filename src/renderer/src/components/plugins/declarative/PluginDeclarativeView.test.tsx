@@ -39,7 +39,7 @@ function view(raw: unknown, onEvent = vi.fn(), onOpenLink = vi.fn()) {
 }
 
 describe('PluginDeclarativeView', () => {
-  it('emits a Tree row action with a press grant, and context-menu picks as plain events', () => {
+  it('emits a Tree row action and a context-menu pick with press grants', () => {
     const { onEvent } = view(
       node('Tree', {
         label: '知识库文件',
@@ -60,7 +60,9 @@ describe('PluginDeclarativeView', () => {
     })
     fireEvent.contextMenu(row)
     fireEvent.click(screen.getByText('删除'))
-    expect(onEvent).toHaveBeenLastCalledWith('ctx', [{ item: '/a.md', action: 'delete' }])
+    expect(onEvent).toHaveBeenLastCalledWith('ctx', [{ item: '/a.md', action: 'delete' }], {
+      press: { control: 'ContextMenuItem', gestureId: 'cb:ctx', grants: true }
+    })
   })
 
   it('keeps typing the guest has not seen, and Enter submits what is on screen', () => {

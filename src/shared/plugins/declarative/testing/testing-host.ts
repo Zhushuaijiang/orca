@@ -57,6 +57,7 @@ const DEFAULT_RESULTS: Record<string, unknown> = {
   'notifications.show': { delivered: true },
   'shell.openExternal': { opened: true },
   'files.saveAs': { status: 'saved' },
+  'files.pick': { status: 'cancelled', paths: [] },
   'agents.list': { agents: [] }
 }
 

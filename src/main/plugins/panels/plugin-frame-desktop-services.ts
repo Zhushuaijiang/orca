@@ -2,7 +2,11 @@ import { app, BrowserWindow, dialog, shell, webContents } from 'electron'
 import { writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { normalizeBrowserDownloadFilename } from '../../../shared/browser-download-filename'
-import { isPluginExternalUrl } from '../../../shared/plugins/workers/plugin-host-api'
+import {
+  isPluginExternalUrl,
+  PLUGIN_PICK_FILE_PATH_MAX_LENGTH,
+  PLUGIN_PICK_FILES_MAX_PATHS
+} from '../../../shared/plugins/workers/plugin-host-api'
 import { createPanelMessageBudget } from '../../../shared/plugins/frames/plugin-panel-message-budget'
 import type { PanelMessageBudget } from '../../../shared/plugins/frames/plugin-panel-message-budget'
 import type { PluginDesktopFrameServices } from '../workers/plugin-host-method-bindings'
@@ -129,6 +133,26 @@ export function installPluginDesktopFrameServices(
       await writeFile(result.filePath, data instanceof ArrayBuffer ? new Uint8Array(data) : data)
       await markPluginSavedFileAsDownloaded(result.filePath)
       return true
+    },
+    async pickFiles(pluginId, input, scope) {
+      const parent = callingWindow(scope)
+      admit(parent, pluginId)
+      const result = await dialog.showOpenDialog(parent, {
+        title: translateMain('plugins.framePickFiles.title', 'Choose Files'),
+        defaultPath: app.getPath('home'),
+        properties: ['openFile', ...(input.multiple ? (['multiSelections'] as const) : [])]
+      })
+      if (result.canceled) {
+        return { status: 'cancelled', paths: [] }
+      }
+      // The dialog may have stayed open while the plugin was disabled or removed.
+      scope.assertActive()
+      return {
+        status: 'picked',
+        paths: result.filePaths
+          .slice(0, PLUGIN_PICK_FILES_MAX_PATHS)
+          .filter((path) => path.length > 0 && path.length <= PLUGIN_PICK_FILE_PATH_MAX_LENGTH)
+      }
     }
   }
 }

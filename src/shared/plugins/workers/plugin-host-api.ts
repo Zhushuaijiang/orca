@@ -2,10 +2,10 @@ import { z } from 'zod'
 import type { PluginSurface } from '../frames/plugin-protocol'
 import * as stored from './plugin-host-api-storage-schemas'
 import { PLUGIN_PANEL_BRIDGE_API } from './plugin-host-api-panel-methods'
+import { PLUGIN_USER_ACTIONS_API } from './plugin-host-api-user-methods'
 import { PLUGIN_WORKER_ACTIONS_API } from './plugin-host-api-worker-actions'
 import {
   ALL_SURFACES,
-  FRAMES_ONLY,
   pluginHostMethodSinceFor,
   spec,
   WORKER_ONLY,
@@ -13,6 +13,15 @@ import {
 } from './plugin-host-method-spec'
 
 export type { PluginHostMethodSpec } from './plugin-host-method-spec'
+export {
+  isPluginExternalUrl,
+  PLUGIN_EXTERNAL_URL_MAX_LENGTH,
+  PLUGIN_EXTERNAL_URL_PROTOCOLS,
+  PLUGIN_FRAME_USER_METHODS,
+  PLUGIN_PICK_FILE_PATH_MAX_LENGTH,
+  PLUGIN_PICK_FILES_MAX_PATHS,
+  PLUGIN_SAVE_AS_MAX_BYTES
+} from './plugin-host-api-user-methods'
 
 /**
  * Host API 1 (`pluginApi: 1`) — the separately-versioned public facade plugins call. Every
@@ -80,57 +89,6 @@ export {
   PLUGIN_STORAGE_VALUE_MAX_BYTES,
   type PluginJsonValue
 } from './plugin-host-api-storage-schemas'
-
-/** Frame methods that only run on a click or key press in the frame (`userActivation`). */
-export const PLUGIN_FRAME_USER_METHODS = {
-  openExternal: 'shell.openExternal',
-  saveAs: 'files.saveAs'
-} as const
-
-export const PLUGIN_EXTERNAL_URL_MAX_LENGTH = 8192
-export const PLUGIN_EXTERNAL_URL_PROTOCOLS: readonly string[] = ['http:', 'https:', 'mailto:']
-export const PLUGIN_SAVE_AS_MAX_BYTES = 64 * 1024 * 1024
-
-const shellOpenExternalParams = z.strictObject({
-  url: z
-    .string()
-    .min(1)
-    .max(PLUGIN_EXTERNAL_URL_MAX_LENGTH)
-    .refine(isPluginExternalUrl, 'url must be an http:, https: or mailto: URL')
-})
-/** `reason`, when not opened: the person said no, or nobody could be asked (Orca's window hidden). */
-const shellOpenExternalResult = z.object({
-  opened: z.boolean(),
-  reason: z.enum(['cancelled', 'consent-unavailable']).optional()
-})
-
-const saveAsDataSchema = z.union([
-  z.string().max(PLUGIN_SAVE_AS_MAX_BYTES),
-  // Why Uint8Array too: IPC between Orca's own processes may hand bytes over as a view.
-  z
-    .custom<ArrayBuffer | Uint8Array>(
-      (value) => value instanceof ArrayBuffer || value instanceof Uint8Array,
-      'data must be a string or ArrayBuffer'
-    )
-    .refine((value) => value.byteLength <= PLUGIN_SAVE_AS_MAX_BYTES, 'data exceeds 64 MiB')
-    // Names the type in the generated reference, which otherwise prints unrepresentable as JSON.
-    .meta({ type: 'ArrayBuffer' })
-])
-const filesSaveAsParams = z.strictObject({
-  suggestedName: z.string().min(1).max(255).optional(),
-  mimeType: z.string().min(1).max(255).optional(),
-  data: saveAsDataSchema
-})
-/** The chosen path never reaches the plugin; a cancelled dialog is a result, not an error. */
-const filesSaveAsResult = z.object({ status: z.enum(['saved', 'cancelled']) })
-
-export function isPluginExternalUrl(url: string): boolean {
-  try {
-    return PLUGIN_EXTERNAL_URL_PROTOCOLS.includes(new URL(url).protocol)
-  } catch {
-    return false
-  }
-}
 
 export const PLUGIN_HOST_API = {
   'workspace.readContext': spec({
@@ -276,30 +234,7 @@ export const PLUGIN_HOST_API = {
     params: stored.settingsSetParams,
     result: stored.settingsSetResult
   }),
-  'shell.openExternal': spec({
-    summary:
-      'Opens an http:, https: or mailto: URL in the default browser. Needs a click or key press in the frame; desktop app only. Orca asks the person before an http(s) host the plugin was not allowed; `opened` is false if they cancel.',
-    since: 1,
-    scope: 'desktop',
-    capability: null,
-    userActivation: true,
-    mutation: false,
-    surfaces: FRAMES_ONLY,
-    params: shellOpenExternalParams,
-    result: shellOpenExternalResult
-  }),
-  'files.saveAs': spec({
-    summary:
-      "Offers data (a string or ArrayBuffer, up to 64 MiB) in Orca's save dialog; the plugin never learns the path. Needs a click or key press in the frame; desktop app only.",
-    since: 1,
-    scope: 'desktop',
-    capability: null,
-    userActivation: true,
-    mutation: true,
-    surfaces: FRAMES_ONLY,
-    params: filesSaveAsParams,
-    result: filesSaveAsResult
-  }),
+  ...PLUGIN_USER_ACTIONS_API,
   ...PLUGIN_PANEL_BRIDGE_API,
   ...PLUGIN_WORKER_ACTIONS_API
 }

@@ -14,6 +14,9 @@ declare module 'orca' {
     saveAs(
       options: HostMethods['files.saveAs']['params']
     ): Promise<HostMethods['files.saveAs']['result']>
+    pick(
+      options?: HostMethods['files.pick']['params']
+    ): Promise<HostMethods['files.pick']['result']>
   }
   /** Events a panel can subscribe to: the theme, and workspace and agent events (each needs the
    *  read capability of its domain: `workspace:read` or `agent:read`). */

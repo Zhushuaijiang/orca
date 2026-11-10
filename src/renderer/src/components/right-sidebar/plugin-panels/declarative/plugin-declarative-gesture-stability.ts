@@ -8,7 +8,7 @@ import { pluginDeclarativeGestureId } from '@/components/plugins/declarative/plu
  * A control must sit unchanged this long (same place in the tree, same type, label and target, and,
  * tracked by the renderer, the same on-screen rect) before a press on it counts, so a plugin cannot
  * slide one under the pointer just before the click. One rule for every control that grants:
- * Button, IconButton, ListItem, Link, and the links in a Markdown block.
+ * Button, IconButton, ListItem, Link, the links in a Markdown block, and a Tree's context menu.
  */
 export const PLUGIN_DECLARATIVE_SETTLE_MS = 500
 
@@ -18,7 +18,8 @@ const GRANTING: ReadonlySet<string> = new Set([
   'IconButton',
   'ListItem',
   'Link',
-  'Markdown'
+  'Markdown',
+  'Tree'
 ])
 
 export type PluginDeclarativeGestureStability = {
@@ -41,15 +42,21 @@ function signatureOf(node: PluginDeclarativeNode, path: string): string {
   const visible = ['label', 'title', 'description', 'icon', 'href', 'variant', 'tone', 'content']
     .map((name) => String(props[name] ?? ''))
     .join('\u0000')
-  return `${path}\u0001${node.type}\u0001${visible}\u0001${textOf(node.children)}`
+  const menu = 'contextMenu' in props ? JSON.stringify(props.contextMenu ?? null) : ''
+  return `${path}\u0001${node.type}\u0001${visible}\u0001${menu}\u0001${textOf(node.children)}`
 }
 
 function callbackOf(node: PluginDeclarativeNode): string | null {
   const props: object = node.props
-  const onPress: unknown = 'onPress' in props ? props.onPress : undefined
+  const binding: unknown =
+    'onContextAction' in props
+      ? props.onContextAction
+      : 'onPress' in props
+        ? props.onPress
+        : undefined
   const id: unknown =
-    typeof onPress === 'object' && onPress !== null && '$callback' in onPress
-      ? onPress.$callback
+    typeof binding === 'object' && binding !== null && '$callback' in binding
+      ? binding.$callback
       : null
   return typeof id === 'string' ? id : null
 }

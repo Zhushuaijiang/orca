@@ -32,7 +32,7 @@ export const PLUGIN_DECLARATIVE_MESSAGES = {
 } as const
 
 /** Grows with the component catalog, so plugins can feature-detect with `ui.catalog`. */
-export const PLUGIN_DECLARATIVE_CATALOG_VERSION = 5
+export const PLUGIN_DECLARATIVE_CATALOG_VERSION = 6
 
 /** Each catalog component's prop names, mirrored by the zod catalog (parity-tested). */
 export const PLUGIN_DECLARATIVE_COMPONENT_PROPS = {
@@ -148,7 +148,8 @@ export const PLUGIN_DECLARATIVE_COMPONENT_PROPS = {
     'onToggle',
     'onAction',
     'contextMenu',
-    'onContextAction'
+    'onContextAction',
+    'onFilesDrop'
   ],
   Markdown: ['content'],
   CodeView: ['code', 'language', 'label', 'lineNumbers', 'wrap', 'maxHeight'],

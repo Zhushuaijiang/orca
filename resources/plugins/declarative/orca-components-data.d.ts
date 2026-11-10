@@ -56,6 +56,20 @@ declare module 'orca' {
     hasChildren?: boolean
     children?: readonly TreeItem[]
   }
+  /** A right-click entry on every row; `danger` draws it destructively. */
+  export type TreeContextMenuItem = {
+    key: string
+    label: string
+    icon?: IconName
+    danger?: boolean
+  }
+  /** One OS file dropped on the tree; `path` is absolute on the machine running Orca. */
+  export type TreeDroppedFile = { path: string; name: string; size: number }
+  /** `item` is the row under the pointer, or null on the tree background. */
+  export type TreeFilesDropEvent = {
+    item: string | null
+    files: readonly TreeDroppedFile[]
+  }
   /** Arrow keys move, expand and collapse; Enter calls `onAction`. Keys are unique across levels. */
   export type TreeProps = Leaf & {
     label: string
@@ -72,6 +86,11 @@ declare module 'orca' {
     onSelect?: (item: { key: string }) => void
     onToggle?: (item: { key: string; expanded: boolean }) => void
     onAction?: (item: { key: string }) => void
+    /** Right-click entries on every row (catalog 5); older hosts ignore these props. */
+    contextMenu?: readonly TreeContextMenuItem[]
+    onContextAction?: (event: { item: string; action: string }) => void
+    /** OS files dropped on a row or the tree background (catalog 6); older hosts ignore it. */
+    onFilesDrop?: (event: TreeFilesDropEvent) => void
   }
   /** GitHub-flavoured Markdown, sanitized. Links open like `Link`; images must be plugin files. */
   export type MarkdownProps = Leaf & { content: string }

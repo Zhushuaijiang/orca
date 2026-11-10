@@ -46,36 +46,5 @@ export default defineCheck({
         ]
       }
     }
-  },
-  预览: {
-    persisted: {
-      plugin: {
-        'kb.status-view': {
-          phase: 'ready',
-          serverUrl: 'http://192.168.1.10:18100',
-          username: 'ncadmin'
-        },
-        'kb.tab': 'preview',
-        'kb.selected': '/部署手册.md'
-      }
-    },
-    requests: {
-      'kb.status': {
-        configured: true,
-        serverUrl: 'http://192.168.1.10:18100',
-        username: 'ncadmin',
-        ok: true,
-        error: null
-      },
-      'kb.list': { entries: [] },
-      'kb.read': {
-        kind: 'text',
-        text: '# 部署手册\n\n1. 安装依赖\n2. 启动服务\n',
-        truncated: false,
-        byteLength: 48,
-        etag: 'aa11bb22cc33',
-        modifiedMs: 1769304000000
-      }
-    }
   }
 })

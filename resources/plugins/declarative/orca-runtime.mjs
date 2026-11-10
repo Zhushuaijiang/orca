@@ -376,7 +376,7 @@ var PLUGIN_DECLARATIVE_MESSAGES = {
   /** host → guest, `{ document }`: put the atoms back to the last `ui.snapshot`. */
   restore: "ui.restore"
 };
-var PLUGIN_DECLARATIVE_CATALOG_VERSION = 4;
+var PLUGIN_DECLARATIVE_CATALOG_VERSION = 6;
 var PLUGIN_DECLARATIVE_COMPONENT_PROPS = {
   Stack: ["gap", "align"],
   Row: ["gap", "align", "justify", "wrap"],
@@ -488,7 +488,10 @@ var PLUGIN_DECLARATIVE_COMPONENT_PROPS = {
     "maxHeight",
     "onSelect",
     "onToggle",
-    "onAction"
+    "onAction",
+    "contextMenu",
+    "onContextAction",
+    "onFilesDrop"
   ],
   Markdown: ["content"],
   CodeView: ["code", "language", "label", "lineNumbers", "wrap", "maxHeight"],
@@ -1379,6 +1382,9 @@ function createOrcaSdk(source) {
       const { data } = options;
       const bytes = ArrayBuffer.isView(data) ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) : data;
       return host2.call("files.saveAs", { ...options, data: bytes });
+    },
+    pick(options) {
+      return host2.call("files.pick", { multiple: options?.multiple === true });
     }
   });
   function on2(event, handler) {

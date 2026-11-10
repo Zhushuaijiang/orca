@@ -14,19 +14,16 @@ import {
   moveEntry,
   NextcloudError,
   normalizeServerUrl,
-  readFile as readDavFile,
   readBlobChunk,
   searchFiles,
   uploadBytes,
   whoAmI,
-  writeFile,
   type FetchLike,
   type NextcloudConnection
 } from './nextcloud.ts'
 
 const fetchLike: FetchLike = (url, init) => fetch(url, init)
 
-const MAX_READ_BYTES = 512 * 1024
 const MAX_UPLOAD_BYTES = 512 * 1024 * 1024
 const MAX_BLOB_BYTES = 45 * 1024 * 1024
 const MAX_BLOB_CHUNK_BYTES = 512 * 1024
@@ -57,8 +54,13 @@ const UPLOAD_CONTENT_TYPES: Record<string, string> = {
 }
 
 function baseName(name: string): string {
-  const clean = name.replace(/\/+$/, '').split('/').pop() ?? ''
-  if (clean === '' || clean === '.' || clean === '..' || clean.includes('/')) {
+  // Windows file choosers and drops hand over backslash-separated paths.
+  const clean =
+    name
+      .replace(/[\\/]+$/, '')
+      .split(/[\\/]/)
+      .pop() ?? ''
+  if (clean === '' || clean === '.' || clean === '..' || /[\\/]/.test(clean)) {
     throw new NextcloudError('invalid_params', '名称不合法')
   }
   return clean
@@ -314,24 +316,6 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
     }
   })
 
-  orca.panels.handle('kb.read', async ({ path, maxBytes }) => {
-    const connection = requireConnection(await currentConnection())
-    if (!connection) {
-      throw new NextcloudError('invalid_params', '尚未配置连接，请先保存服务器与凭据')
-    }
-    const capped = Math.min(Math.max(Math.floor(maxBytes), 1024), MAX_READ_BYTES)
-    return readDavFile(fetchLike, connection, path, capped)
-  })
-
-  orca.panels.handle('kb.write', async ({ path, text, etag }) => {
-    const connection = requireConnection(await currentConnection())
-    if (!connection) {
-      throw new NextcloudError('invalid_params', '尚未配置连接，请先保存服务器与凭据')
-    }
-    const result = await writeFile(fetchLike, connection, path, text, etag)
-    invalidateIndex()
-    return { ok: true as const, etag: result.etag }
-  })
   orca.panels.handle('kb.share', async ({ path }) => {
     const connection = requireConnection(await currentConnection())
     if (!connection) {
