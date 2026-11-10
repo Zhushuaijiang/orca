@@ -1,4 +1,4 @@
-import type { ParsedAgentStatusPayload } from '../../shared/agent-status-types'
+import type { ParsedAgentStatusPayload } from '../../shared/agent-status/contracts/agent-status-types'
 import { extractYunxiaoRequirementGateOutcomesFromText } from '../../shared/yunxiao-requirement-gate-outcome'
 import {
   applyYunxiaoRequirementPromptGate,
@@ -10,7 +10,7 @@ import {
   ensureDfHisWorkflowPackCurrentForYunxiaoText,
   isYunxiaoRequirementAgentCommand
 } from '../dfhis-environment/workflow-pack-refresh'
-import type { RuntimeStore } from './runtime-store-contract'
+import type { RuntimeStore } from './construction/runtime-store-contract'
 import type { ExecutionHostId } from '../../shared/execution-host'
 import { hostWorktreeTarget } from '../../shared/worktree/host-qualified-identity'
 

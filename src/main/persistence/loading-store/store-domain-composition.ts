@@ -14,12 +14,15 @@ import { TerminalBindingRecoveryOperations } from './terminal-binding-recovery'
 import { SessionHostPartitionOperations } from './session-host-partitions'
 import { SessionSnapshotOperations } from './session-snapshot-operations'
 import { MetadataLineageOperations } from './metadata-lineage-operations'
+import { CrossStoreLineagePersistence } from './cross-store-lineage-persistence'
+import { FolderParentLineagePersistence } from './folder-parent-lineage-persistence'
 import { ProjectCollectionOperations } from './project-collection-operations'
 import { AutomationPersistence } from './automation-persistence'
 import { YunxiaoTodoPoolOperations } from './yunxiao-todo-pool-operations'
 import { YunxiaoTodoPoolClaimOperations } from './yunxiao-todo-pool-claims'
 import { MobileTabSelectionPersistence } from './mobile-tab-selection-persistence'
 import { RemoteLayoutSnapshotPersistence } from '../../remote-layout-snapshot/remote-layout-snapshot-persistence'
+import { HostRepoCatalogSnapshotPersistence } from '../../host-repo-catalog-snapshot/host-repo-catalog-snapshot-persistence'
 import { SparsePresetPersistence } from './sparse-preset-persistence'
 import { PtyBindingPersistenceOperations } from './pty-binding-persistence'
 import { LayoutCommandPersistence } from '../terminal-topology/layout-command-persistence'
@@ -36,9 +39,12 @@ export type StoreDomainOperations = WriteSchedulingOperations &
   RepoLifecycleOperations &
   MobileTabSelectionPersistence &
   RemoteLayoutSnapshotPersistence &
+  HostRepoCatalogSnapshotPersistence &
   SparsePresetPersistence &
   AutomationPersistence &
   MetadataLineageOperations &
+  CrossStoreLineagePersistence &
+  FolderParentLineagePersistence &
   ProfilePreferences &
   SessionHostPartitionOperations &
   SessionSnapshotOperations &
@@ -68,12 +74,15 @@ export type StoreDomains = {
   sessions: SessionHostPartitionOperations
   sessionSnapshots: SessionSnapshotOperations
   metadata: MetadataLineageOperations
+  crossStoreLineage: CrossStoreLineagePersistence
+  folderParentLineage: FolderParentLineagePersistence
   projects: ProjectCollectionOperations
   automations: AutomationPersistence
   yunxiaoTodoPool: YunxiaoTodoPoolOperations
   yunxiaoTodoPoolClaims: YunxiaoTodoPoolClaimOperations
   mobileTabSelections: MobileTabSelectionPersistence
   remoteLayoutSnapshots: RemoteLayoutSnapshotPersistence
+  hostRepoCatalogSnapshots: HostRepoCatalogSnapshotPersistence
   sparsePresets: SparsePresetPersistence
   ptyBindings: PtyBindingPersistenceOperations
   layoutCommands: LayoutCommandPersistence
@@ -92,11 +101,14 @@ export const STORE_DOMAIN_OPERATION_CLASSES = [
   RepoLifecycleOperations,
   MobileTabSelectionPersistence,
   RemoteLayoutSnapshotPersistence,
+  HostRepoCatalogSnapshotPersistence,
   SparsePresetPersistence,
   AutomationPersistence,
   YunxiaoTodoPoolOperations,
   YunxiaoTodoPoolClaimOperations,
   MetadataLineageOperations,
+  CrossStoreLineagePersistence,
+  FolderParentLineagePersistence,
   ProfilePreferences,
   SessionHostPartitionOperations,
   SessionSnapshotOperations,
@@ -180,12 +192,15 @@ export function createStoreDomains(runtime: StoreRuntimeState): StoreDomains {
     sessions,
     sessionSnapshots,
     metadata,
+    crossStoreLineage: new CrossStoreLineagePersistence(runtime, scheduling),
+    folderParentLineage: new FolderParentLineagePersistence(runtime, scheduling),
     projects,
     automations,
     yunxiaoTodoPool,
     yunxiaoTodoPoolClaims,
     mobileTabSelections,
     remoteLayoutSnapshots,
+    hostRepoCatalogSnapshots: new HostRepoCatalogSnapshotPersistence(runtime, scheduling),
     sparsePresets,
     ptyBindings,
     layoutCommands: new LayoutCommandPersistence(

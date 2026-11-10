@@ -3,7 +3,7 @@ import type {
   YunxiaoTodoPoolUpdateArgs,
   YunxiaoWorkItem
 } from '../../shared/yunxiao-types'
-import type { RuntimeStore } from './runtime-store-contract'
+import type { RuntimeStore } from './construction/runtime-store-contract'
 
 export type RuntimeYunxiaoCommandSurface = {
   listYunxiaoTodoPool(): YunxiaoTodoPoolItem[]

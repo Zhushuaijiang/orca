@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SleepingAgentSessionRecord } from '../../../../shared/agent-session-resume'
+import type { SleepingAgentSessionRecord } from '../../../../shared/agent-session/lifecycle/agent-session-resume'
 
 const mocks = vi.hoisted(() => ({
   takeRecentlyClosedAgentSessions: vi.fn(),
@@ -16,11 +16,11 @@ vi.mock('@/store', () => ({
   }
 }))
 
-vi.mock('@/lib/sleeping-agent-session-launch', () => ({
+vi.mock('@/lib/agent-session/resume/sleeping-agent-session-launch', () => ({
   launchSleepingAgentSession: mocks.launchSleepingAgentSession
 }))
 
-vi.mock('@/lib/worktree-activation', () => ({
+vi.mock('@/lib/workspace/activation/worktree-activation', () => ({
   activateAndRevealWorktree: mocks.activateAndRevealWorktree,
   activateAndRevealFolderWorkspace: mocks.activateAndRevealFolderWorkspace
 }))

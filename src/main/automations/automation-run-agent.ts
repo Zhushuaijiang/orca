@@ -1,4 +1,4 @@
-import type { TuiAgent } from '../../shared/tui-agent'
+import type { TuiAgent } from '../../shared/agent-launch/catalog/tui-agent'
 import { getRepoExecutionHostId } from '../../shared/execution-host'
 import { parseWslUncPath } from '../../shared/wsl-paths'
 import type { AutomationRunTargetResult } from './run-target-resolution'

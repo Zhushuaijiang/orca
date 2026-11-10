@@ -1,7 +1,7 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+import type { AiVaultSession } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenuItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

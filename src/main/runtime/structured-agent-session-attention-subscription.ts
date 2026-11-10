@@ -1,5 +1,5 @@
-import type { StructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-host'
-import type { StructuredAttentionMobileDelivery } from './structured-agent-session-mobile-attention'
+import type { StructuredAgentSessionHost } from '../native-chat/agent-session-wire/host/structured-agent-session-host'
+import type { StructuredAttentionMobileDelivery } from './agent-session/structured-agent-session-mobile-attention'
 
 /** Lives exactly as long as the host: teardown drops the host and its subscribers together. */
 export function subscribeHostAttentionDelivery(

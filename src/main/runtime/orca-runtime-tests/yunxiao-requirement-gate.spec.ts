@@ -14,7 +14,7 @@ import {
   makeFolderProjectGroup,
   makeFolderWorkspace,
   store
-} from '../orca-runtime-test-fixtures.spec'
+} from './orca-runtime-test-fixtures.spec'
 
 describe('Yunxiao requirement gate', () => {
   beforeEach(() => setDfHisWorkflowPackRefreshInstallerForTests(async () => undefined))

@@ -10,6 +10,7 @@ import { renderMobileTasksProviderControls } from './mobile-tasks-provider-contr
 import { selectMobileTasksProvider } from './mobile-tasks-provider-pickers'
 import type { Translate } from '../i18n/mobile-i18n'
 import { useMobileTranslation } from '../i18n/use-mobile-translation'
+import { useRefreshHint } from '../query/refresh-hint'
 
 function refreshLabels(t: Translate) {
   return {
@@ -41,7 +42,8 @@ export function renderMobileTasksChrome(model: ConnectionPresentationModel) {
                 disabled={!taskUiReady}
                 fill
                 testIDPrefix="mobile-tasks-provider-"
-                style={styles.providerSwitch}
+                // Hold the row's space but hide the default sources until the desktop says which exist, so chips never reflow.
+                style={[styles.providerSwitch, !taskUiReady && { opacity: 0 }]}
               />
             ) : null}
 
@@ -72,10 +74,12 @@ export function MobileTasksStatusBar({
     refreshGitHubProject,
     refreshTasks,
     refreshing,
+    revalidating,
     router,
     taskUiReady
   } = model
   const t = useMobileTranslation()
+  const showRefreshLine = useRefreshHint(revalidating)
   return (
     <NavBar
       leading={
@@ -107,6 +111,7 @@ export function MobileTasksStatusBar({
         />
       }
       accessory={accessory}
+      refreshing={showRefreshLine}
     />
   )
 }

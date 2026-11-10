@@ -3,7 +3,7 @@ import type {
   AuxiliaryTaskId,
   AuxiliaryGenerationResult
 } from './auxiliary-model-types'
-import type { TuiAgent } from './tui-agent'
+import type { TuiAgent } from './agent-launch/catalog/tui-agent'
 
 export const TASK_DIFFICULTIES = ['simple', 'standard', 'complex'] as const
 export type TaskDifficulty = (typeof TASK_DIFFICULTIES)[number]

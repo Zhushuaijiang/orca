@@ -15,7 +15,7 @@ import {
   resolveVisibleTaskProvider,
   DEFAULT_TASK_SOURCE,
   type TaskProvider
-} from '../../../../shared/task-providers'
+} from '../../../../shared/work-items/task-providers'
 import {
   getSourceOptions,
   getGitHubModeButtons,
@@ -30,7 +30,7 @@ import {
 } from '@/components/task-page/task-page-localized-options'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
-import { getTaskPageRepoSourceContext } from './task-page-source-context'
+import { getTaskPageRepoSourceContext } from '../../lib/task-repo-source-context'
 export function useTaskPageRepoSelection(model: TaskPageStoreBindingsModel) {
   const {
     settings,

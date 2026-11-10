@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/tui-agent-config'
+import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/agent-launch/catalog/tui-agent-config'
 import {
-  buildAgentStartupPlan,
   buildAgentDraftLaunchPlan,
-  buildAgentResumeStartupPlan
-} from '../../shared/tui-agent-startup'
-import { RESUMABLE_TUI_AGENTS } from '../../shared/agent-session-resume'
+  buildAgentStartupPlan
+} from '../../shared/agent-launch/startup/tui-agent-startup'
+import { buildAgentResumeStartupPlan } from '../../shared/agent-launch/startup/tui-agent-resume-startup'
+import { RESUMABLE_TUI_AGENTS } from '../../shared/agent-session/lifecycle/agent-session-resume'
 import { buildYunxiaoReviewHandoffPrompt } from '../../shared/yunxiao-review-handoff'
 import { resolveWindowsShellLaunchArgs } from './windows-shell-args'
 import { buildWindowsPowerShellSpawnAttempts } from './windows-shell-fallback-chain'

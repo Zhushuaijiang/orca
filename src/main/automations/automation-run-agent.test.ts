@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Automation, AutomationRun } from '../../shared/automations-types'
-import type { TuiAgent } from '../../shared/tui-agent'
+import type { TuiAgent } from '../../shared/agent-launch/catalog/tui-agent'
 import type { Repo } from '../../shared/repo-types'
 import type { Store } from '../persistence'
 import type { AutomationRunWriter } from './automation-run-writer'
@@ -96,8 +96,8 @@ describe('resolveAutomationRunAgent', () => {
   })
 })
 
-/** Drives one dispatch through the renderer channel and reports the payload it received. */
-async function dispatchThroughRenderer(agentId: TuiAgent): Promise<Automation | null> {
+/** Drives one dispatch through the launcher and reports the automation it received. */
+async function dispatchThroughLauncher(agentId: TuiAgent): Promise<Automation | null> {
   const automation = makeAutomation(agentId)
   let run: AutomationRun = {
     id: 'run-1',
@@ -138,13 +138,10 @@ async function dispatchThroughRenderer(agentId: TuiAgent): Promise<Automation | 
       store,
       runs,
       isActive: () => true,
-      getRenderer: () => ({
-        isDestroyed: () => false,
-        send: (_channel: string, request: { automation: Automation }) => {
-          payload = request.automation
-        }
-      }),
-      headlessDispatcher: null,
+      launcher: () => async (request) => {
+        payload = request.automation
+        return { workspaceId: 'wt1', terminalSessionId: null }
+      },
       resolveTarget: () => target,
       runPrecheck: async () => null,
       markDispatchResult: async () => run,
@@ -165,13 +162,13 @@ describe('automation dispatch agent resolution', () => {
   it('sends plain Claude when a teams automation runs on native Windows', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
 
-    expect(await dispatchThroughRenderer('claude-agent-teams')).toMatchObject({ agentId: 'claude' })
+    expect(await dispatchThroughLauncher('claude-agent-teams')).toMatchObject({ agentId: 'claude' })
   })
 
   it('sends teams unchanged off Windows', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
 
-    expect(await dispatchThroughRenderer('claude-agent-teams')).toMatchObject({
+    expect(await dispatchThroughLauncher('claude-agent-teams')).toMatchObject({
       agentId: 'claude-agent-teams'
     })
   })

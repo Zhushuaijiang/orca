@@ -2,7 +2,7 @@ import type React from 'react'
 import { Coins } from 'lucide-react'
 import { formatTokens } from '@/components/stats/usage-formatters'
 import { translate } from '@/i18n/i18n'
-import type { AiVaultSession, AiVaultTokenUsage } from '../../../../shared/ai-vault-types'
+import type { AiVaultSession, AiVaultTokenUsage } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 
 // Per-session token receipt: overall total, category rows, and one group per
 // model when more than one model contributed usage.

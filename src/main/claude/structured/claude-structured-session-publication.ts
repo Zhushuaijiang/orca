@@ -1,24 +1,28 @@
-import { refreshClaudeStructuredSessionOptions } from '../claude-structured-session-options'
+import { withAgentSessionCreatePhase } from '../../observability/agent-session-instrumentation'
+import { agentSessionAccountHome } from '../../../shared/agent-session/lifecycle/agent-session-account-home'
+import { CLAUDE_STRUCTURED_AGENT } from './claude-structured-agent-definition'
+import { randomUUID } from 'node:crypto'
+import { refreshClaudeStructuredSessionOptions } from './launch/claude-structured-session-options'
 import type {
   AgentSessionAcquisition,
   StructuredAgentSessionAcquireInput
-} from '../../native-chat/agent-session-wire/structured-agent-session-adapter'
+} from '../../native-chat/agent-session-wire/providers/structured-agent-session-adapter'
 import { claudeProviderHandleLink } from './claude-structured-owner-identity'
 import type { ClaudePromptRegistry } from '../claude-prompt-registry'
 import type { ClaudeJournalTranslator } from '../claude-journal-translator-contract'
-import {
-  mintClaudeAcquisitionGeneration,
-  type ClaudeSession,
-  type ClaudeAcquisitionAttempt,
-  type ClaudeAcquireCallbacks,
-  type ClaudeStructuredSessionEvent,
-  type ClaudeStructuredSessionAdapterDeps
+import type {
+  ClaudeSession,
+  ClaudeSessionExit,
+  ClaudeAcquisitionAttempt,
+  ClaudeAcquireCallbacks,
+  ClaudeStructuredSessionEvent,
+  ClaudeStructuredSessionAdapterDeps
 } from './claude-structured-session-state'
 import { ClaudeBackgroundTaskTracker } from '../claude-background-task-tracker'
 import { ClaudeChildWorkDecoder } from '../claude-child-work-decoder'
 import { ClaudeSlashCommandCatalog } from '../claude-slash-command-catalog'
-import type { ClaudeStructuredLaunch } from '../claude-structured-launch-resolution'
-import type { ClaudeAcquisitionLaunch } from '../claude-structured-acquisition-launch'
+import type { ClaudeStructuredLaunch } from './launch/claude-structured-launch-resolution'
+import type { ClaudeAcquisitionLaunch } from './launch/claude-structured-acquisition-launch'
 import type { ClaudeNamingGeneration } from '../claude-naming-generation'
 import { readClaudeStartupFacts } from './claude-structured-session-startup'
 
@@ -27,12 +31,13 @@ function claudeSessionInitialization(input: {
   proof: ClaudeSession['initialization']['proof']
   contextActivity: number
   onLateRefusal: ClaudeSession['initialization']['onLateRefusal']
+  startup: ClaudeSession['initialization']['startup']
   connection: ClaudeSession['connection']
   emit: (event: ClaudeStructuredSessionEvent) => void
   naming: ClaudeNamingGeneration | undefined
   requestTimeoutMs: number | undefined
 }): ClaudeSession['initialization'] {
-  const { launch, proof, contextActivity, onLateRefusal, naming, connection } = input
+  const { launch, proof, contextActivity, onLateRefusal, startup, naming, connection } = input
   const facts = naming
     ? readClaudeStartupFacts({
         connection,
@@ -63,6 +68,7 @@ function claudeSessionInitialization(input: {
     proof,
     ...(facts ? { facts } : {}),
     account: launch.account,
+    ...(launch.accountRecipe ? { accountRecipe: launch.accountRecipe } : {}),
     resumesTranscript: launch.resumesTranscript,
     claudeConfigDir: launch.claudeConfigDir,
     cwd: launch.cwd,
@@ -71,9 +77,13 @@ function claudeSessionInitialization(input: {
       covered: !launch.resumesTranscript || launch.resumeLeafUuid === null,
       contextActivity
     },
-    onLateRefusal
+    onLateRefusal,
+    startup
   }
 }
+
+const mintClaudeAcquisitionGeneration = (deps: ClaudeStructuredSessionAdapterDeps) =>
+  deps.mintAcquisitionGeneration?.() ?? randomUUID()
 
 export function createClaudeSessionPublication(input: {
   connection: ClaudeSession['connection']
@@ -104,7 +114,9 @@ export function createClaudeSessionPublication(input: {
   return {
     acquisition: {
       process: input.process,
-      acquisitionGeneration
+      acquisitionGeneration,
+      ...(input.launch.accountRecipe ? { accountRecipe: input.launch.accountRecipe } : {}),
+      accountHome: agentSessionAccountHome(CLAUDE_STRUCTURED_AGENT, input.launch.claudeConfigDir)
     },
     session: {
       connection: input.connection,
@@ -131,7 +143,7 @@ export function createClaudeSessionPublication(input: {
       // Only options included at launch can skip their first control write.
       appliedInputOptions: new Map(
         [...(input.launch.savedOptions.options ?? [])].filter(
-          ([key]) => key === 'model' || key === 'effort'
+          ([key, value]) => key === 'model' || (key === 'effort' && value !== 'ultracode')
         )
       ),
       fastModeAtStart: false,
@@ -174,4 +186,36 @@ export function reportClaudeOptions(
         })
       )
   ).catch(() => {})
+}
+
+export async function publishClaudeSessionAttempt({
+  sessionId,
+  session,
+  attempt,
+  callbacks,
+  sessions,
+  exits,
+  recordPhase
+}: {
+  sessionId: string
+  session: ClaudeSession
+  attempt: ClaudeAcquisitionAttempt
+  callbacks: ClaudeAcquireCallbacks
+  sessions: ReadonlyMap<string, ClaudeSession>
+  exits: ReadonlyMap<string, ClaudeSessionExit>
+  recordPhase: StructuredAgentSessionAcquireInput['recordPhase']
+}): Promise<void> {
+  await withAgentSessionCreatePhase('publish', recordPhase, async () => {
+    callbacks.publish(session)
+    attempt.published = true
+    for (const event of attempt.buffered.splice(0)) {
+      event()
+    }
+  })
+  // Buffered exit delivery can remove the session during publication.
+  if (sessions.get(sessionId) !== session) {
+    throw (
+      exits.get(sessionId)?.error ?? new Error('claude session ended before acquisition returned')
+    )
+  }
 }

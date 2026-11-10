@@ -7,7 +7,7 @@ import {
   type LinkedWorkItemSummary
 } from '@/lib/new-workspace'
 import { buildYunxiaoWorkspaceSource } from '../../../shared/new-workspace/workspace-source'
-import type { TaskSourceContext } from '../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../shared/work-items/task-source-context'
 import type { Repo } from '../../../shared/repo-types'
 import type { YunxiaoWorkItem } from '../../../shared/types'
 import {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/tui-agent-config'
-import { createAdapter } from './daemon-pty-router-test-fixture'
-import { DaemonPtyRouter } from './daemon-pty-router'
-import { PREVIOUS_DAEMON_PROTOCOL_VERSIONS, PROTOCOL_VERSION } from './daemon-protocol-version'
+import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/agent-launch/catalog/tui-agent-config'
+import { createAdapter } from './providers/routing/testing/daemon-pty-router-test-fixture'
+import { DaemonPtyRouter } from './providers/routing/daemon-pty-router'
+import { PREVIOUS_DAEMON_PROTOCOL_VERSIONS, PROTOCOL_VERSION } from './protocol/daemon-protocol-version'
 
 describe('Windows agent startup daemon upgrade', () => {
   it('isolates the startup fix from existing v42 daemons', () => {

@@ -1,34 +1,28 @@
-import { captureSourceControlActionSelection } from '../../../../../../shared/source-control-ai-operation-policy'
-import type { SelectedSourceControlActionRecipe } from '../../../../../../shared/source-control-action-selection'
-import { useSavedSourceControlActionStart } from '../../use-saved-source-control-action-start'
-import type { SourceControlAgentActionDialogProps } from '../../SourceControlAgentActionDialog'
-import { useCallback, useMemo, useState } from 'react'
-import { useAppStore } from '@/store'
+import { useSourceControlScope } from '../panel/worktree-scope'
+import { repoMatchesHostIdentity } from '@/store/repos/repo-host-identity'
+import { getRepoExecutionHostId } from '../../../../../../shared/execution-host'
 import {
-  DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS,
+  captureSourceControlActionSelection,
   resolveSourceControlActionRecipe,
   resolveSourceControlAiEnabled,
-  resolveSourceControlAiForOperation,
-  resolveSourceControlAiPrCreationDefaults,
-  type ResolvedSourceControlAiGenerationParams
-} from '../../../../../../shared/source-control-ai'
-import type {
-  SourceControlActionRecipe,
-  SourceControlLaunchActionId,
-  SourceControlTextActionId
-} from '../../../../../../shared/source-control-ai-actions'
-import type { SourceControlAiWriteTarget } from '../../../../../../shared/source-control-ai-recipe-save'
-import {
-  saveSourceControlAiActionRecipeForTarget,
-  saveSourceControlTextGenerationDefaults
-} from './recipe-persistence'
+  resolveSourceControlAiPrCreationDefaults
+} from '../../../../../../shared/source-control/ai/source-control-ai-operation-policy'
+import type { SelectedSourceControlActionRecipe } from '../../../../../../shared/source-control/ai/recipes/source-control-action-selection'
+import { useSavedSourceControlActionStart } from './use-saved-source-control-action-start'
+import type { SourceControlAgentActionDialogProps } from './SourceControlAgentActionDialog'
+import { useCallback, useMemo, useState } from 'react'
+import { useAppStore } from '@/store'
+import { DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS } from '../../../../../../shared/source-control/ai/settings/source-control-ai-settings'
+import { useSourceControlAiDiscoveryHostKey } from './discovery-host-key'
+import { resolveSourceControlAiForOperation } from '../../../../../../shared/source-control/ai/source-control-ai-operation-resolution'
+import type { SourceControlLaunchActionId } from '../../../../../../shared/source-control/ai/recipes/source-control-ai-actions'
+import { useSourceControlAiRecipeSaves } from './use-recipe-saves'
 import type { SourceControlAiControllerParams } from './controller-types'
-import { openSourceControlAiSettingsTarget } from '../../source-control-ai-settings-navigation'
+import { openSourceControlAiSettingsTarget } from '../panel/source-control-ai-settings-navigation'
 import { useSourceControlRecoveryAi } from './use-recovery-ai'
 import { useConflictRecoveryComposer } from './use-conflict-recovery-composer'
-import { useSourceControlAiDiscoveryHostKey } from './discovery-host-key'
 import { toast } from 'sonner'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 
 export function useSourceControlAi({
   settings,
@@ -52,6 +46,9 @@ export function useSourceControlAi({
   openSettingsPage,
   getStoreState = useAppStore.getState
 }: SourceControlAiControllerParams) {
+  const t = useTranslate()
+  const scope = useSourceControlScope()
+  const repoHostId = activeRepo ? getRepoExecutionHostId(activeRepo) : undefined
   const savedStart = useSavedSourceControlActionStart()
   const [resolveConflictsEditor, setResolveConflictsEditor] = useState<
     Partial<SourceControlAgentActionDialogProps>
@@ -79,25 +76,13 @@ export function useSourceControlAi({
         : null,
     [activeRepo, settings, sourceControlAiDiscoveryHostKey]
   )
-  const resolvedPrCreationDefaults = useMemo(() => {
-    if (!settings) {
-      return DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS
-    }
-    const resolved = resolveSourceControlAiForOperation({
-      settings,
-      repo: activeRepo,
-      operation: 'pullRequest',
-      discoveryHostKey: sourceControlAiDiscoveryHostKey,
-      prCreationProductDefaults: DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS
-    })
-    return resolved.ok
-      ? resolved.value.prCreationDefaults
-      : resolveSourceControlAiPrCreationDefaults({
-          settings,
-          repo: activeRepo,
-          prCreationProductDefaults: DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS
-        })
-  }, [activeRepo, settings, sourceControlAiDiscoveryHostKey])
+  const resolvedPrCreationDefaults = useMemo(
+    () =>
+      settings
+        ? resolveSourceControlAiPrCreationDefaults({ settings, repo: activeRepo })
+        : DEFAULT_SOURCE_CONTROL_AI_PR_CREATION_DEFAULTS,
+    [activeRepo, settings]
+  )
 
   const getLaunchActionRecipe = useCallback(
     (actionId: SourceControlLaunchActionId): SelectedSourceControlActionRecipe =>
@@ -109,40 +94,29 @@ export function useSourceControlAi({
       }),
     [activeRepo, settings, sourceControlAiDiscoveryHostKey]
   )
-  const saveActionRecipeForTarget = useCallback(
-    (
-      target: SourceControlAiWriteTarget,
-      actionId: SourceControlTextActionId | SourceControlLaunchActionId,
-      recipe: SourceControlActionRecipe,
-      customAgentCommand?: string
-    ): Promise<void> =>
-      saveSourceControlAiActionRecipeForTarget({
-        getStoreState,
-        updateSettings,
-        updateRepo,
-        target,
-        actionId,
-        recipe,
-        customAgentCommand
-      }),
-    [getStoreState, updateRepo, updateSettings]
+  const getCurrentLaunchActionRecipe = useCallback(
+    (actionId: SourceControlLaunchActionId) => {
+      const state = getStoreState()
+      const repo = activeRepo
+        ? (state.repos.find((candidate) =>
+            repoMatchesHostIdentity(candidate, activeRepo.id, getRepoExecutionHostId(activeRepo))
+          ) ?? null)
+        : null
+      return resolveSourceControlActionRecipe({ settings: state.settings, repo, actionId })
+    },
+    [activeRepo, getStoreState]
   )
-  const saveLaunchActionDefault = useCallback(
-    (
-      target: SourceControlAiWriteTarget,
-      actionId: SourceControlLaunchActionId,
-      recipe: SourceControlActionRecipe
-    ): Promise<void> =>
-      saveSourceControlAiActionRecipeForTarget({
-        getStoreState,
-        updateSettings: updateSettingsOrThrow,
-        updateRepo,
-        target,
-        actionId,
-        recipe
-      }),
-    [getStoreState, updateRepo, updateSettingsOrThrow]
-  )
+  const {
+    saveLaunchActionDefault,
+    handleSaveCommitMessageGenerationDefaults,
+    handleSavePullRequestGenerationDefaults
+  } = useSourceControlAiRecipeSaves({
+    repoHostId,
+    getStoreState,
+    updateSettings,
+    updateSettingsOrThrow,
+    updateRepo
+  })
 
   const openSourceControlAiSettings = useCallback((): void => {
     openSourceControlAiSettingsTarget({
@@ -169,14 +143,19 @@ export function useSourceControlAi({
     onAdmitted: async (recoveryContext, signal) => {
       const editor = {
         initialSelection: captureSourceControlActionSelection({
-          settings,
+          settings: getStoreState().settings,
           repo: activeRepo,
           actionId: 'resolveConflicts'
         }),
         recoveryContext,
         baseCommandInput: resolveConflictsPrompt,
         worktreeId: activeWorktreeId,
-        groupId: activeGroupId,
+        placementWorkspaceId: scope?.placementWorkspaceId,
+        initialCwd: scope ? (worktreePath ?? undefined) : undefined,
+        groupId:
+          (scope
+            ? useAppStore.getState().activeGroupIdByWorktree[scope.placementWorkspaceId]
+            : undefined) ?? activeGroupId,
         connectionId: activeConnectionId,
         repoId: activeRepo?.id,
         launchPlatform: activeSourceControlLaunchPlatform
@@ -186,15 +165,15 @@ export function useSourceControlAi({
         basePrompt: resolveConflictsPrompt,
         ...editor,
         actionId: 'resolveConflicts',
-        settings,
         repo: activeRepo,
         promptDelivery: 'submit-after-ready',
         launchSource: 'conflict_resolution',
         signal,
         onClose: () => {},
-        onLaunched: () =>
+        onLaunched: (backgroundWorkspaceId) =>
+          !backgroundWorkspaceId &&
           toast.success(
-            translate(
+            t(
               'auto.components.right.sidebar.SourceControl.e48caaf0dd',
               'Started an AI agent for the conflicts.'
             )
@@ -227,37 +206,9 @@ export function useSourceControlAi({
     commitError,
     pushRecoveryPrompt,
     stagedEntries,
-    getLaunchActionRecipe,
+    getLaunchActionRecipe: getCurrentLaunchActionRecipe,
     getStoreState
   })
-
-  const handleSaveCommitMessageGenerationDefaults = useCallback(
-    (
-      target: SourceControlAiWriteTarget,
-      params: ResolvedSourceControlAiGenerationParams
-    ): Promise<void> =>
-      saveSourceControlTextGenerationDefaults({
-        saveActionRecipeForTarget,
-        target,
-        actionId: 'commitMessage',
-        params
-      }),
-    [saveActionRecipeForTarget]
-  )
-
-  const handleSavePullRequestGenerationDefaults = useCallback(
-    (
-      target: SourceControlAiWriteTarget,
-      params: ResolvedSourceControlAiGenerationParams
-    ): Promise<void> =>
-      saveSourceControlTextGenerationDefaults({
-        saveActionRecipeForTarget,
-        target,
-        actionId: 'pullRequest',
-        params
-      }),
-    [saveActionRecipeForTarget]
-  )
 
   const openCommitGenerationDialog = useCallback((): void => {
     setCommitGenerationDialogOpen(true)

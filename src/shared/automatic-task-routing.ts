@@ -11,7 +11,7 @@ import {
   type AutomaticTaskRoute
 } from './automatic-task-routing-types'
 import type { GlobalSettings } from './global-settings-types'
-import type { TuiAgent } from './tui-agent'
+import type { TuiAgent } from './agent-launch/catalog/tui-agent'
 
 export const AutomaticTaskDecisionSchema = z.object({
   task: z.custom<AuxiliaryTaskId>(

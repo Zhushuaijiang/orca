@@ -1,3 +1,4 @@
+import { getTaskWorkspaceRepoForSourceRepo } from './task-page-default-repo-selection'
 import type { TaskPageSearchActionsModel } from './use-task-page-search-actions'
 import { useCallback } from 'react'
 import type { GitHubWorkItem } from '../../../../shared/github/work-item-types'
@@ -5,17 +6,15 @@ import type { GitLabWorkItem } from '../../../../shared/gitlab-types'
 import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 import { useAppStore } from '@/store'
 import { getWorkItemRepo } from '@/lib/work-item-repo-row'
-import { findGithubWorkItemWorkspaceAttachment } from '@/lib/github-work-item-workspace-attachment'
-import { activateAndRevealWorktree } from '@/lib/worktree-activation'
+import { findGithubWorkItemWorkspaceAttachment } from '@/lib/work-items/github/github-work-item-workspace-attachment'
+import { activateAndRevealWorktree } from '@/lib/workspace/activation/worktree-activation'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import {
   getGitHubWorkItemWorkspaceSeed,
-  getGitLabWorkItemWorkspaceSeed,
-  getTaskPageRepoSourceContext
+  getGitLabWorkItemWorkspaceSeed
 } from './task-page-source-context'
-import { getTaskWorkspaceRepoForSourceRepo } from './task-page-default-repo-selection'
-
+import { getTaskPageRepoSourceContext } from '../../lib/task-repo-source-context'
 type TaskPageWorkspaceActionsInput = Pick<TaskPageSearchActionsModel, 'repos' | 'openModal'> &
   Partial<Pick<TaskPageSearchActionsModel, 'repoMap' | 'eligibleRepos' | 'repoSelection'>>
 

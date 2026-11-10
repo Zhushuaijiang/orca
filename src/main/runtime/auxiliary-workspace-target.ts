@@ -1,7 +1,7 @@
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { parseWorkspaceKey } from '../../shared/workspace-scope'
 import { isFloatingWorkspaceSelector } from '../../shared/floating-workspace-worktree'
-import type { RuntimeGitTarget } from './runtime-git-command-target'
+import type { RuntimeGitTarget } from './integrations/git/runtime-git-command-target'
 
 export async function resolveAuxiliaryWorkspaceTarget(
   selector: string,

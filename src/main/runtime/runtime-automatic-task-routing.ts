@@ -9,17 +9,17 @@ import type {
   AutomaticRoutingResult,
   AutomaticTaskExecutionResult
 } from '../../shared/automatic-task-routing-types'
-import { getCommitMessageAgentSpec } from '../../shared/commit-message-agent-spec'
+import { getCommitMessageAgentSpec } from '../../shared/source-control/ai/generation/commit-message-agent-spec'
 import {
   getAuxiliaryBaselineAgentSpec,
   resolveAuxiliaryGenerationParams
 } from '../../shared/auxiliary-generation-routing'
-import type { TuiAgent } from '../../shared/tui-agent'
-import { isTuiAgent } from '../../shared/tui-agent-config'
+import type { TuiAgent } from '../../shared/agent-launch/catalog/tui-agent'
+import { isTuiAgent } from '../../shared/agent-launch/catalog/tui-agent-config'
 import { AutomaticRoutingHistory } from './automatic-routing-history'
 import type { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
-import { modelDiscoveryHostKeyForTarget } from './runtime-git-generation-context'
-import { runtimeGitRouteForTarget, type RuntimeGitCommandHost } from './runtime-git-command-target'
+import { modelDiscoveryHostKeyForTarget } from './integrations/git/runtime-git-generation-context'
+import { runtimeGitRouteForTarget, type RuntimeGitCommandHost } from './integrations/git/runtime-git-command-target'
 
 export class RuntimeAutomaticTaskRouting {
   constructor(

@@ -1,103 +1,5 @@
 [
   {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "Idioma",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "Langue",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "Dil",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "Sprache",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "언어",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "言語",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "語言",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "语言",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/terminal-advanced-platform-search.ts",
-    "kind": "object-property:keywords",
-    "text": "ghostty",
-    "dynamic": false,
-    "count": 2
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/terminal-advanced-platform-search.ts",
-    "kind": "object-property:keywords",
-    "text": "Ghostty",
-    "dynamic": false,
-    "count": 2
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/terminal-pane-appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "ghostty",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/terminal-pane-appearance-search.ts",
-    "kind": "object-property:keywords",
-    "text": "Ghostty",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/sidebar/worktree-card-meta-row.tsx",
-    "kind": "jsx-attribute:label",
-    "text": "sidebar",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/onboarding/OnboardingLanguageSwitcher.tsx",
-    "kind": "jsx-text",
-    "text": "Switch language",
-    "dynamic": false,
-    "count": 1
-  },
-  {
     "filePath": "src/renderer/src/component-fixtures/component-fixture-explorer.tsx",
     "kind": "jsx-text",
     "text": "Component fixtures",
@@ -112,49 +14,7 @@
     "count": 1
   },
   {
-    "filePath": "src/renderer/src/components/settings/ChatFontFamilySetting.tsx",
-    "kind": "jsx-text",
-    "text": "fontFamily",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/worktree-palette-evidence.ts",
-    "kind": "object-property:accessibilityLabel",
-    "text": "Workspace comment",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/worktree-palette-evidence.ts",
-    "kind": "object-property:accessibilityLabel",
-    "text": "Created by automation",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/worktree-palette-evidence.ts",
-    "kind": "object-property:accessibilityLabel",
-    "text": "Linked task",
-    "dynamic": false,
-    "count": 2
-  },
-  {
-    "filePath": "src/renderer/src/lib/worktree-palette-evidence.ts",
-    "kind": "object-property:accessibilityLabel",
-    "text": "Linked issue",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/lib/worktree-palette-evidence.ts",
-    "kind": "object-property:accessibilityLabel",
-    "text": "Listening port",
-    "dynamic": false,
-    "count": 1
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/AgentDefaultSurfacePreviews.tsx",
+    "filePath": "src/renderer/src/components/agent/launch-settings/AgentDefaultSurfacePreviews.tsx",
     "kind": "jsx-attribute:title",
     "text": "Claude",
     "dynamic": false,
@@ -162,23 +22,7 @@
     "reason": "Canonical agent brand in the approved Claude CLI still; preserve the exact brand."
   },
   {
-    "filePath": "src/renderer/src/components/settings/AgentDefaultSurfacePreviews.tsx",
-    "kind": "jsx-text",
-    "text": "Claude Code",
-    "dynamic": false,
-    "count": 1,
-    "reason": "Canonical CLI product name in the approved terminal still; preserve the exact brand."
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/AgentDefaultSurfacePreviews.tsx",
-    "kind": "jsx-text",
-    "text": "· ~/projects/acme-web",
-    "dynamic": false,
-    "count": 1,
-    "reason": "Literal sample workspace path and CLI separator in the terminal still; paths are not translated."
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/AgentDefaultSurfacePreviews.tsx",
+    "filePath": "src/renderer/src/components/agent/launch-settings/AgentDefaultSurfacePreviews.tsx",
     "kind": "jsx-text",
     "text": "&gt;",
     "dynamic": false,
@@ -186,15 +30,7 @@
     "reason": "Literal Claude CLI prompt marker in the terminal still; preserve command-line syntax."
   },
   {
-    "filePath": "src/renderer/src/components/settings/AgentDefaultSurfacePreviews.tsx",
-    "kind": "jsx-text",
-    "text": "Read",
-    "dynamic": false,
-    "count": 1,
-    "reason": "Actual Claude CLI tool label in the terminal still; preserve the external interface text."
-  },
-  {
-    "filePath": "src/renderer/src/components/settings/AgentDefaultSurfacePreviews.tsx",
+    "filePath": "src/renderer/src/components/agent/launch-settings/AgentDefaultSurfacePreviews.tsx",
     "kind": "jsx-text",
     "text": "(src/",
     "dynamic": false,
@@ -202,11 +38,854 @@
     "reason": "Literal tool-argument path prefix in the terminal still; preserve path and CLI syntax."
   },
   {
-    "filePath": "src/renderer/src/components/settings/AgentDefaultSurfacePreviews.tsx",
+    "filePath": "src/renderer/src/components/agent/launch-settings/AgentDefaultSurfacePreviews.tsx",
+    "kind": "jsx-text",
+    "text": "Claude Code",
+    "dynamic": false,
+    "count": 1,
+    "reason": "Canonical CLI product name in the approved terminal still; preserve the exact brand."
+  },
+  {
+    "filePath": "src/renderer/src/components/agent/launch-settings/AgentDefaultSurfacePreviews.tsx",
+    "kind": "jsx-text",
+    "text": "Read",
+    "dynamic": false,
+    "count": 1,
+    "reason": "Actual Claude CLI tool label in the terminal still; preserve the external interface text."
+  },
+  {
+    "filePath": "src/renderer/src/components/agent/launch-settings/AgentDefaultSurfacePreviews.tsx",
+    "kind": "jsx-text",
+    "text": "· ~/projects/acme-web",
+    "dynamic": false,
+    "count": 1,
+    "reason": "Literal sample workspace path and CLI separator in the terminal still; paths are not translated."
+  },
+  {
+    "filePath": "src/renderer/src/components/agent/launch-settings/AgentDefaultSurfacePreviews.tsx",
     "kind": "jsx-text",
     "text": "⎿ Read 84 lines",
     "dynamic": false,
     "count": 1,
     "reason": "Actual Claude CLI tool-result line in the terminal still; preserve the illustrative output and line count."
+  },
+  {
+    "filePath": "src/renderer/src/components/emulator-pane/use-emulator-video-stream.ts",
+    "kind": "object-property:error",
+    "text": "This build does not support WebCodecs H.264 decoding.",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/onboarding/OnboardingLanguageSwitcher.tsx",
+    "kind": "jsx-text",
+    "text": "Switch language",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/requirement-deepening-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "requirementDeepening.delta",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/requirement-deepening-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "requirementDeepening.dropped",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/requirement-deepening-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "requirementDeepening.gaps",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/requirement-deepening-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "requirementDeepening.method",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/requirement-deepening-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "requirementDeepening.oracle",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/requirement-deepening-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "requirementDeepening.sources",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/AutomaticTaskRoutingCard.tsx",
+    "kind": "object-property:description",
+    "text": "Architecture, migrations, cross-module debugging and ambiguous requirements.",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/AutomaticTaskRoutingCard.tsx",
+    "kind": "object-property:description",
+    "text": "Routine implementation, tests and code review.",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/AutomaticTaskRoutingCard.tsx",
+    "kind": "object-property:description",
+    "text": "Wording, extraction, formatting and small mechanical changes.",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/AutomaticTaskRoutingCard.tsx",
+    "kind": "object-property:title",
+    "text": "Complex tasks",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/AutomaticTaskRoutingCard.tsx",
+    "kind": "object-property:title",
+    "text": "Simple tasks",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/AutomaticTaskRoutingCard.tsx",
+    "kind": "object-property:title",
+    "text": "Standard tasks",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisAiConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "deepseek/deepseek-v4-flash",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisAiConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "https://.../dfhis-skill-pack.json",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisAiConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "sk-... (empty = built-in default)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisAiConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "sk-... (empty = relay uses k3 only)",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/.cache/orca/his-index/fact-cards.json",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/.cache/orca/project-index/code-graph.json",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/.cache/orca/project-index/knowledge.json",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/.cache/orca/project-index/manifest.json",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/knowledge/01-fact-cards",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/workspace/<project>/code",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/workspace/<project>/ygt-workspace",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/workspace/his-workflow-catalog.json",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisPathsConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "~/workspace/yunxiao",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisSmtpConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "HIS需求质量审核",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisSmtpConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "pm@example.com, dev@example.com",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisSmtpConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "sender@example.com",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/DfHisSmtpConfigDialog.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "smtp.exmail.qq.com",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "Dil",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "Idioma",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "Langue",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "Sprache",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "言語",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "語言",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "语言",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "언어",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/appearance/chat/ChatFontFamilySetting.tsx",
+    "kind": "jsx-text",
+    "text": "fontFamily",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/auxiliary-model-search.ts",
+    "kind": "object-property:keywords",
+    "text": "agent",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/auxiliary-model-search.ts",
+    "kind": "object-property:keywords",
+    "text": "auxiliary",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/auxiliary-model-search.ts",
+    "kind": "object-property:keywords",
+    "text": "model",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/auxiliary-model-search.ts",
+    "kind": "object-property:keywords",
+    "text": "任务路由",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/auxiliary-model-search.ts",
+    "kind": "object-property:keywords",
+    "text": "辅助模型",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/appearance/terminal-pane-appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "Ghostty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/appearance/terminal-pane-appearance-search.ts",
+    "kind": "object-property:keywords",
+    "text": "ghostty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/configuration/terminal-config-import-search.ts",
+    "kind": "object-property:keywords",
+    "text": "Ghostty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/configuration/terminal-config-import-search.ts",
+    "kind": "object-property:keywords",
+    "text": "Kitty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/configuration/terminal-config-import-search.ts",
+    "kind": "object-property:keywords",
+    "text": "ghostty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/configuration/terminal-config-import-search.ts",
+    "kind": "object-property:keywords",
+    "text": "kitty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/configuration/terminal-config-import-search.ts",
+    "kind": "object-property:keywords",
+    "text": "kitty.conf",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/platform/terminal-advanced-platform-search.ts",
+    "kind": "object-property:keywords",
+    "text": "Ghostty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/settings/terminal/platform/terminal-advanced-platform-search.ts",
+    "kind": "object-property:keywords",
+    "text": "ghostty",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/sidebar/workspace-card/metadata/worktree-card-meta-row.tsx",
+    "kind": "jsx-attribute:label",
+    "text": "sidebar",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/sidebar/workspace-card/template/card-identity-parts.tsx",
+    "kind": "jsx-attribute:label",
+    "text": "sidebar",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/sidebar/workspace-card/template/card-primitives.tsx",
+    "kind": "object-property:title",
+    "text": "text-[13px] leading-5",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-model.ts",
+    "kind": "object-property:label",
+    "text": "执行模式",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-model.ts",
+    "kind": "object-property:label",
+    "text": "清单入口",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-model.ts",
+    "kind": "object-property:label",
+    "text": "源仓库",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-model.ts",
+    "kind": "object-property:label",
+    "text": "目标版本",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workflow.ts",
+    "kind": "object-property:title",
+    "text": "· HIS 发版代码合并",
+    "dynamic": true,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-attribute:label",
+    "text": "打开记录",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-attribute:label",
+    "text": "查看日志",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-attribute:placeholder",
+    "text": "搜索服务、分支或负责人",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-expression",
+    "text": "· 待预检",
+    "dynamic": true,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-expression",
+    "text": "待导入 Excel 清单",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-expression",
+    "text": "未导入 Excel 清单",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "15.3 → release_2.15.3_250515",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "16.1 → RC_2.16.1_250514",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "Excel 行待确认",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "· 候选提交",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "先点击导入 Excel 选择清单文件。导入不会创建工作区，预检和开始合并才会创建 agent 任务。",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "冲突",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "冲突复核",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "导入 Excel",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "尚未导入清单",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "开始合并",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "开始合并前不会修改 HIS 源码根目录。",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "当前批次",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "当前记录",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "打开冲突",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "执行日志",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "批次",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "操作",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "服务 / 分支",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "服务 / 分支 / 目标版本",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "服务分组",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "服务映射",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "标记复核",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "源仓库只读",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "状态",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "目标",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "等待预检结果",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "行号",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "记录",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "读取 Excel",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "负责人",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "逐条合并",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "隔离克隆",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "隔离工作区会由 agent 任务创建",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "预检",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "预检会列出服务映射、目标分支、候选提交和冲突风险。",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "预检后显示当前记录",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "jsx-text",
+    "text": "预检报告",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "user-visible-call",
+    "text": "请先导入 Excel 清单",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-code-merge-workspace.tsx",
+    "kind": "user-visible-call",
+    "text": "请选择 .xlsx 或 .xls Excel 清单",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-yunxiao-create-requirement-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "C类（评估处理）",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-yunxiao-create-requirement-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "东昉",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-yunxiao-create-requirement-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "其他",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/task-page-yunxiao-create-requirement-dialog.tsx",
+    "kind": "object-property:label",
+    "text": "紧急",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/workspace/search/worktrees/worktree-palette-evidence.ts",
+    "kind": "object-property:accessibilityLabel",
+    "text": "Created by automation",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/workspace/search/worktrees/worktree-palette-evidence.ts",
+    "kind": "object-property:accessibilityLabel",
+    "text": "Linked issue",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/workspace/search/worktrees/worktree-palette-evidence.ts",
+    "kind": "object-property:accessibilityLabel",
+    "text": "Linked task",
+    "dynamic": false,
+    "count": 2
+  },
+  {
+    "filePath": "src/renderer/src/lib/workspace/search/worktrees/worktree-palette-evidence.ts",
+    "kind": "object-property:accessibilityLabel",
+    "text": "Listening port",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/workspace/search/worktrees/worktree-palette-evidence.ts",
+    "kind": "object-property:accessibilityLabel",
+    "text": "Workspace comment",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/lib/yunxiao-review-handoff-return.ts",
+    "kind": "user-visible-call",
+    "text": "：审核结果未送达原 agent 终端，请从审核终端查看并转交。",
+    "dynamic": true,
+    "count": 1
   }
 ]

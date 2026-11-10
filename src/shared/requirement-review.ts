@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { AgentStatusEntry } from './agent-status-types'
+import type { AgentStatusEntry } from './agent-status/contracts/agent-status-types'
 
 export const RequirementReviewPhaseSchema = z.enum([
   'reviewing',

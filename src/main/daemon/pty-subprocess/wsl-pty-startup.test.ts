@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mockPtyProcess } from '../pty-subprocess-test-harness'
+import { mockPtyProcess } from './testing/pty-subprocess-test-harness'
 import { wslPtyStartupShouldRetry } from './wsl-pty-startup'
 
 describe('wslPtyStartupShouldRetry', () => {

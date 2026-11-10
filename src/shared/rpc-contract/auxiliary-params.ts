@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { AUXILIARY_TASK_IDS } from '../auxiliary-model-types'
 import { ResolvedSourceControlAiGenerationParams } from './git-params'
-import { isTuiAgent } from '../tui-agent-config'
-import type { TuiAgent } from '../tui-agent'
+import { isTuiAgent } from '../agent-launch/catalog/tui-agent-config'
+import type { TuiAgent } from '../agent-launch/catalog/tui-agent'
 
 export const AuxiliaryGenerate = z.object({
   worktree: z.string().min(1),

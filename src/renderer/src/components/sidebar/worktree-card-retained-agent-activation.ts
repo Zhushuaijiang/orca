@@ -1,8 +1,8 @@
 import { useAppStore } from '@/store'
-import { activateAndRevealWorktree } from '@/lib/worktree-activation'
-import { launchSleepingAgentSession } from '@/lib/sleeping-agent-session-launch'
-import { isResumableTuiAgent } from '../../../../shared/agent-session-resume'
-import { dismissStaleAgentRowByKey } from '../terminal-pane/stale-agent-row'
+import { activateAndRevealWorktree } from '../../lib/workspace/activation/worktree-activation'
+import { launchSleepingAgentSession } from '../../lib/agent-session/resume/sleeping-agent-session-launch'
+import { isResumableTuiAgent } from '../../../../shared/agent-session/lifecycle/agent-session-resume'
+import { dismissStaleAgentRowByKey } from '../terminal-pane/agent-status/stale-agent-row'
 
 export function activateRetainedAgentRow(args: {
   worktreeId: string

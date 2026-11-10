@@ -12,7 +12,7 @@ import { GitLabMRFileDiff } from '@/components/gitlab-mr-file-diff'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import type { GitLabMRFile, GitLabWorkItem, GitLabWorkItemDetails } from '../../../shared/types'
-import type { TaskSourceContext } from '../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../shared/work-items/task-source-context'
 
 type Props = {
   open: boolean

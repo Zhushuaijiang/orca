@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runProcessSync } from '@orca/process-host'
-import { encodePowerShellCommand } from '../powershell-osc133-bootstrap'
+import { encodePowerShellCommand } from '../../shared/powershell-command-encoding'
 import { resolveWindowsPowerShellExecutablePath } from './windows-powershell-executable'
 import { resolveWindowsShellLaunchArgs } from './windows-shell-args'
 import { POWERSHELL_STARTUP_COMMAND_ENV } from './windows-powershell-startup-command'

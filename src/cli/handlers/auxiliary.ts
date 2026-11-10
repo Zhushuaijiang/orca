@@ -10,7 +10,7 @@ import { getOptionalStringFlag, getRequiredStringFlag, getRepeatedStringFlag } f
 import { printResult } from '../format'
 import { buildCurrentWorktreeSelector } from '../selectors'
 import { RuntimeClientError } from '../runtime/types'
-import { isTuiAgent } from '../../shared/tui-agent-config'
+import { isTuiAgent } from '../../shared/agent-launch/catalog/tui-agent-config'
 import { AUTOMATIC_AUXILIARY_HANDLERS } from './auxiliary-automatic-routing'
 import { runAuxiliaryWorkflow } from './auxiliary-workflow'
 

@@ -1,5 +1,5 @@
 import type { AppState } from '@/store/types'
-import { findWorktreeById } from '@/store/slices/worktree-helpers'
+import { getIndexedWorktreeById } from '@/store/slices/worktrees/listing/worktree-catalog-index'
 import {
   getWorktreeExecutionHostId,
   LOCAL_EXECUTION_HOST_ID,
@@ -8,8 +8,8 @@ import {
   type ExecutionHostId
 } from '../../../../shared/execution-host'
 import { folderWorkspaceKey, parseWorkspaceKey } from '../../../../shared/workspace-scope'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
-import type { AiVaultSessionResumeTargetState } from '../right-sidebar/ai-vault-session-resume'
+import type { AiVaultSession } from '../../../../shared/ai-vault/contracts/ai-vault-types'
+import type { AiVaultSessionResumeTargetState } from '../right-sidebar/ai-vault/session-actions/ai-vault-session-resume'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import {
   resolveFolderWorkspaceYunxiaoRequirementId,
@@ -68,7 +68,7 @@ export function resolveAgentRowWorkspaceTarget(
       ...(yunxiaoRequirementId ? { yunxiaoRequirementId } : {})
     }
   }
-  const worktree = findWorktreeById(state.worktreesByRepo, workspaceId)
+  const worktree = getIndexedWorktreeById(state.worktreesByRepo, workspaceId)
   if (!worktree) {
     return null
   }

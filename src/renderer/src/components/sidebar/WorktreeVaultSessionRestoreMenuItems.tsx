@@ -6,7 +6,7 @@ import {
   DropdownMenuSubTrigger
 } from '@/components/ui/dropdown-menu'
 import { translate } from '@/i18n/i18n'
-import { aiVaultAgentLabel, type AiVaultSession } from '../../../../shared/ai-vault-types'
+import { aiVaultAgentLabel, type AiVaultSession } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 
 export function WorktreeVaultSessionRestoreMenuItems({
   canRestoreSession,

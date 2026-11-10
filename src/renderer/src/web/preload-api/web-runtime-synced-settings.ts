@@ -1,5 +1,5 @@
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
-import { normalizePRBotAuthorOverrides } from '../../../../shared/pr-bot-author-overrides'
+import { normalizePRBotAuthorOverrides } from '../../../../shared/source-control/review-comments/pr-bot-author-overrides'
 
 /** The subset of settings the paired runtime owns; only well-typed values cross the wire. */
 export function pickRuntimeSyncedSettings(

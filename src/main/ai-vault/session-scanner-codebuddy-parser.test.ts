@@ -4,7 +4,7 @@ import {
   consumeCodebuddySessionLine,
   createCodebuddySessionParseState,
   finalizeCodebuddySessionParseState
-} from './session-scanner-codebuddy-parser'
+} from './scanners/codebuddy/session-scanner-codebuddy-parser'
 
 const SESSION_ID = 'ac5f27cc-7895-480f-91a5-334f114bb403'
 

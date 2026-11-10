@@ -3,7 +3,7 @@ import type {
   AutomationYunxiaoTodoPoolClaim,
   AutomationYunxiaoTodoPoolSource
 } from '../../../shared/automations-types'
-import { isTuiAgent } from '../../../shared/tui-agent-config'
+import { isTuiAgent } from '../../../shared/agent-launch/catalog/tui-agent-config'
 import { DEFAULT_YUNXIAO_TODO_POOL_AUTOMATION_STATUSES } from '../../../shared/yunxiao-types'
 import {
   normalizeOptionalNonEmptyString,

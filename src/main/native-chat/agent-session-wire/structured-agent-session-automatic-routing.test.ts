@@ -5,9 +5,9 @@ import {
   CALLER,
   envelope,
   hostTestState
-} from './structured-agent-session-host-test-harness'
-import { HOST_TEST_SESSION as SESSION } from './structured-agent-session-host-test-data'
-import type { AgentJournalMessageItem } from '../../../shared/agent-session-journal-types'
+} from './host/testing/structured-agent-session-host-test-harness'
+import { HOST_TEST_SESSION as SESSION } from './host/testing/structured-agent-session-host-test-data'
+import type { AgentJournalMessageItem } from '../../../shared/agent-session/journal/agent-session-journal-types'
 
 describe('automatic routing in native message delivery', () => {
   it('delivers routing instructions while retaining the original user message and receipt', async () => {

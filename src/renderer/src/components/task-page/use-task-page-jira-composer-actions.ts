@@ -8,7 +8,7 @@ import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 import { getJiraIssueWorkspaceSeed } from './task-page-source-context'
 import { findJiraIssueDefaultRepo } from '../../../../shared/jira/jira-project-reference'
 import { getRepoWorkspaceCreationTargetHint } from '@/lib/project-host-workspace-target'
-import type { TaskPageJiraListEffectsModel } from '../use-task-page-jira-list-effects'
+import type { TaskPageJiraListEffectsModel } from './jira/use-task-page-jira-list-effects'
 
 export function useTaskPageJiraComposerActions(model: TaskPageJiraListEffectsModel): {
   openComposerForJiraItem: (issue: JiraIssue) => void

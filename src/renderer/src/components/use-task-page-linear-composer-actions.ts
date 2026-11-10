@@ -4,10 +4,10 @@ import type { LinearWorkspaceSelection } from '../../../shared/linear/workspace-
 import { buildLinearIssueLinkedWorkItem } from '@/lib/linear-linked-work-item'
 import { getLinearIssueWorkspaceName } from '../../../shared/workspace-name'
 import { useAppStore } from '@/store'
-import { openLinearIssueWorkspaceOrStart } from '@/lib/linear-issue-workspace-open'
+import { openLinearIssueWorkspaceOrStart } from '../lib/work-items/linear/linear-issue-workspace-open'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
-import type { TaskPageJiraListEffectsModel } from './use-task-page-jira-list-effects'
+import type { TaskPageJiraListEffectsModel } from './task-page/jira/use-task-page-jira-list-effects'
 
 type LinearComposerModel = Pick<
   TaskPageJiraListEffectsModel,

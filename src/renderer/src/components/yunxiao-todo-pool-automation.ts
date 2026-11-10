@@ -4,8 +4,8 @@ import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import { getAgentCatalog } from '@/lib/agent-catalog'
 import { useAppStore } from '@/store'
-import { filterEnabledTuiAgents, isTuiAgentEnabled } from '../../../shared/tui-agent-selection'
-import { buildAutomationRrule } from '../../../shared/automation-schedule-occurrences'
+import { filterEnabledTuiAgents, isTuiAgentEnabled } from '../../../shared/agent-launch/catalog/tui-agent-selection'
+import { buildAutomationRrule } from '../../../shared/automations/scheduling/automation-schedule-occurrences'
 import {
   createAutomationForTarget,
   listAutomationsForTarget,
@@ -21,7 +21,7 @@ import {
   buildWorkspaceRunContext,
   type TaskSourceContext,
   type WorkspaceRunContext
-} from '../../../shared/task-source-context'
+} from '../../../shared/work-items/task-source-context'
 import { projectHostSetupProjectionFromRepos } from '../../../shared/project-host-setup-projection'
 import type {
   Automation,

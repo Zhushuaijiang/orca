@@ -1,7 +1,7 @@
 import type React from 'react'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { translate } from '@/i18n/i18n'
-import type { AiVaultScope } from '../../../../shared/ai-vault-types'
+import type { AiVaultScope } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 
 // Why: match ToggleGroup's spacing+outline qualifiers so selected edges out-specify its border-l-0 collapse.
 const VAULT_SCOPE_SELECTED_EDGE_CLASS =

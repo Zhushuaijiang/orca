@@ -1,5 +1,5 @@
 import { translate } from '@/i18n/i18n'
-import { searchKeywords } from './settings-search-keywords'
+import { searchKeywords } from './search/settings-search-keywords'
 
 const TITLE_KEY = 'auto.components.settings.skill-review-setting-copy.c7d86b9e8e'
 const DESCRIPTION_KEY = 'auto.components.settings.skill-review-setting-copy.86cb0bd866'

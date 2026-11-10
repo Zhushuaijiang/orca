@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createGlobalSettingsFixture } from '../../shared/global-settings-test-fixture'
 import { createAuxiliaryRuntimeTarget } from './auxiliary-generation-test-fixture'
 import { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
-import type { RuntimeGitTarget } from './runtime-git-command-target'
+import type { RuntimeGitTarget } from './integrations/git/runtime-git-command-target'
 
 describe('runtime auxiliary launch routing', () => {
   function service(target: RuntimeGitTarget) {

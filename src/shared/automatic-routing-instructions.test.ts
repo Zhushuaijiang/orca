@@ -3,8 +3,8 @@ import {
   automaticRoutingInstructions,
   prepareAutomaticRoutingMessage
 } from './automatic-routing-instructions'
-import { TUI_AGENT_CONFIG } from './tui-agent-config'
-import type { AgentJournalMessageItem } from './agent-session-journal-types'
+import { TUI_AGENT_CONFIG } from './agent-launch/catalog/tui-agent-config'
+import type { AgentJournalMessageItem } from './agent-session/journal/agent-session-journal-types'
 
 const settings = { automatic: { enabled: true } }
 const message: AgentJournalMessageItem = {

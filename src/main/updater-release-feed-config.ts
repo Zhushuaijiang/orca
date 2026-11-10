@@ -20,6 +20,9 @@ const DEFAULT_GITHUB_FEED: GithubReleaseFeedConfig = {
   latestDownloadUrl: 'https://github.com/stablyai/orca/releases/latest/download'
 }
 
+/** Feed used when no packaged/env override resolves; exported for updater plumbing defaults. */
+export const DEFAULT_RELEASE_FEED: GithubReleaseFeedConfig = DEFAULT_GITHUB_FEED
+
 type PackagedReleaseFeedConfig = {
   mode?: unknown
   atomUrl?: unknown

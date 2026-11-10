@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AutomationDispatchRequest } from '../../shared/automations-types'
 import { AutomationService } from './service'
-import type { HeadlessAutomationDispatcher } from './headless-dispatch'
+import type { AutomationLauncher } from './automation-launch'
+import { runNowSettled } from './automation-run-now-settled.test-fixture'
 import { reconcileYunxiaoTodoPoolClaims } from '../persistence/scheduling-automations/yunxiao-todo-pool-claim-reconciliation'
 import {
   createWorkerMaintenanceFixture,
@@ -69,35 +69,32 @@ describe('Yunxiao claim prompt and automation configuration fence', () => {
     'dispatches a %s workspace through %s on a %s run with the claimed prompt',
     async (workspaceMode, transport, trigger) => {
       const { store, automation, clock, readState } = await fixture(workspaceMode)
-      const launch = vi.fn<HeadlessAutomationDispatcher>(async () => ({
+      let finishDelivery: (result: { error: string | null }) => void = () => {}
+      const delivery = new Promise<{ error: string | null }>((resolve) => {
+        finishDelivery = resolve
+      })
+      const launch = vi.fn<AutomationLauncher>(async () => ({
         workspaceId: 'repo-local::/fixture/local',
-        terminalSessionId: 'run-tab'
+        terminalSessionId: 'run-tab',
+        ...(transport === 'renderer' ? { delivery } : {})
       }))
-      const send = vi.fn<(channel: string, payload: AutomationDispatchRequest) => void>()
-      const service = new AutomationService(
-        store,
-        transport === 'headless' ? { headlessDispatcher: launch } : {}
-      )
+      const service = new AutomationService(store, {
+        terminalLauncher: { launch, available: () => true }
+      })
       try {
         if (trigger === 'scheduled') {
           clock.mockReturnValue(automation.nextRunAt)
-        }
-        if (transport === 'renderer') {
-          service.setWebContents({ isDestroyed: () => false, send })
-          service.setRendererReady()
-        } else if (trigger === 'scheduled') {
           service.start()
-        }
-        if (trigger === 'manual') {
+        } else {
           await service.runNow(automation.id)
         }
         await vi.waitFor(() => {
-          expect(transport === 'renderer' ? send : launch).toHaveBeenCalledOnce()
+          expect(launch).toHaveBeenCalledOnce()
         })
-        const dispatched =
-          transport === 'renderer'
-            ? send.mock.calls[0][1].automation
-            : launch.mock.calls[0][0].automation
+        if (transport === 'headless') {
+          await service.runInAutomationLane(automation.id, async () => undefined)
+        }
+        const dispatched = launch.mock.calls[0][0].automation
         expect(dispatched.prompt).toContain('DFHIS-32684')
         expect(dispatched.prompt).toContain('Yunxiao todo pool claim:')
         expect(
@@ -114,6 +111,8 @@ describe('Yunxiao claim prompt and automation configuration fence', () => {
             status: 'dispatched',
             workspaceId: 'repo-local::/fixture/local'
           })
+          finishDelivery({ error: null })
+          await service.runInAutomationLane(automation.id, async () => undefined)
         }
         expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
           poolStatus: 'done',
@@ -121,11 +120,12 @@ describe('Yunxiao claim prompt and automation configuration fence', () => {
           requirementContract: null
         })
         clock.mockReturnValue(Date.now() + 1_000)
-        await expect(service.runNow(automation.id)).resolves.toMatchObject({
+        await expect(runNowSettled(service, store, automation.id)).resolves.toMatchObject({
           status: 'skipped_precheck'
         })
-        expect(transport === 'renderer' ? send : launch).toHaveBeenCalledOnce()
+        expect(launch).toHaveBeenCalledOnce()
       } finally {
+        finishDelivery({ error: null })
         service.stop()
       }
     }
@@ -136,13 +136,16 @@ describe('Yunxiao claim prompt and automation configuration fence', () => {
     async (status) => {
       const { store, automation } = await fixture('new_per_run')
       const service = new AutomationService(store, {
-        headlessDispatcher: async () => ({
-          workspaceId: 'repo-local::/fixture/local',
-          terminalSessionId: 'run-tab'
-        })
+        terminalLauncher: {
+          launch: async () => ({
+            workspaceId: 'repo-local::/fixture/local',
+            terminalSessionId: 'run-tab'
+          }),
+          available: () => true
+        }
       })
       try {
-        const run = await service.runNow(automation.id)
+        const run = await runNowSettled(service, store, automation.id)
         await service.markDispatchResult({
           runId: run.id,
           status,
@@ -209,13 +212,15 @@ describe('Yunxiao claim prompt and automation configuration fence', () => {
       }
       await flush(options)
     })
-    const dispatcher = vi.fn<HeadlessAutomationDispatcher>(async () => ({
+    const dispatcher = vi.fn<AutomationLauncher>(async () => ({
       workspaceId: 'repo-local::/fixture/local',
       terminalSessionId: 'run-tab'
     }))
-    const service = new AutomationService(store, { headlessDispatcher: dispatcher })
+    const service = new AutomationService(store, {
+      terminalLauncher: { launch: dispatcher, available: () => true }
+    })
     try {
-      const pending = service.runNow(automation.id)
+      const pending = runNowSettled(service, store, automation.id)
       await blocked.promise
       store.updateAutomation(automation.id, { prompt: 'Changed instructions.' })
       release.resolve()

@@ -1,15 +1,17 @@
+import { planWindowsCmdStartupCommand } from './windows-cmd-startup-command'
+import { getPowerShellEncodedStartupCommand } from './windows-powershell-startup-command'
 import { win32 as pathWin32 } from 'node:path'
-import { isWindowsGitBashShellPath } from '../git-bash'
-import { parseWslPath, toLinuxPath, toWindowsWslPath } from '../wsl'
+import { isWindowsGitBashShellPath } from '../pty/shell-startup/git-bash'
+import { parseWslPath } from '../wsl/filesystem/unc-path-access'
+import { toLinuxPath, toWindowsWslPath } from '../../shared/wsl-paths'
 import {
   buildWslExecArgs,
   buildWslInteractiveLoginShellCommand
 } from '../../shared/wsl-login-shell-command'
-import { quotePosixShell } from '../../shared/shell-argument-quoting'
-import { getBashWrapperLaunchArgs } from './local-pty-shell-ready'
-import { ensureShellReadyWrappersAt } from './local-pty-shell-ready-wrapper-generation'
-import { getPowerShellEncodedStartupCommand } from './windows-powershell-startup-command'
-import { planWindowsCmdStartupCommand } from './windows-cmd-startup-command'
+import { quotePosixShell } from '../../shared/shell/launch/shell-argument-quoting'
+import { getBashWrapperLaunchArgs } from './local-pty/local-pty-shell-ready'
+import { ensureShellReadyWrappersAt } from './local-pty/local-pty-shell-ready-wrapper-generation'
+import { WSL_GUEST_ROOT_MARKER_COMMAND } from '../../shared/wsl-guest-root-marker'
 
 /** cmd.exe's own documented ceiling; callers that go through sshd budget below it. */
 export { CMD_EXE_COMMAND_LINE_MAX_CHARS } from './windows-cmd-startup-command'
@@ -58,6 +60,8 @@ function buildWslShellArgs(linuxCwd: string, distro?: string): string[] {
   const setupCommand = [
     `cd ${quotePosixShell(linuxCwd)}`,
     'export PATH="$HOME/.local/bin:$PATH"',
+    // Before any user startup file: the PTY owner binds this guest root to its live terminal.
+    WSL_GUEST_ROOT_MARKER_COMMAND,
     buildWslInteractiveLoginShellCommand()
   ].join(' && ')
   // Match the distro login shell used by environment detection, including customized zsh.

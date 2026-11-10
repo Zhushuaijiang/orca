@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAppStore } from '@/store'
-import { hasRestorableAgentSession } from '@/store/slices/recently-closed-tabs'
+import { hasRestorableAgentSession } from '../../store/slices/tabs/recently-closed-tabs'
 import { restoreRecentlyClosedAgentSession } from './worktree-closed-agent-session'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+import type { AiVaultSession } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 import {
   notifyVaultSessionRestoreFailure,
   restoreAiVaultSession,
@@ -11,7 +11,7 @@ import {
 import {
   EMPTY_RECENTLY_CLOSED_TERMINAL_TABS,
   selectMenuScopedMap
-} from './worktree-context-menu-policy'
+} from './workspace-actions/context-menu/worktree-context-menu-policy'
 
 export type WorktreeVaultSessionRestore = {
   canRestoreSession: boolean

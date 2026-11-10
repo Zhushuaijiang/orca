@@ -1,9 +1,8 @@
 import type { ConnectionPresentationModel } from './use-mobile-tasks-connection-presentation'
 import { translate } from '../i18n/mobile-i18n'
-import { isBrokenCheck } from '../../../src/shared/pr-checks-fix-prompt'
+import { isBrokenCheck } from '../../../src/shared/source-control/checks/pr-checks-fix-prompt'
 import {
   View,
-  ActivityIndicator,
   colors,
   Text,
   Pressable,
@@ -26,11 +25,11 @@ import {
   renderMobileTasksItemFiles
 } from './mobile-tasks-item-review-sections'
 import { renderMobileTasksItemFieldEditors } from './mobile-tasks-item-field-editors'
-import { ListGroup } from '../components/list/ListGroup'
-import { ListRow } from '../components/list/ListRow'
-import { SectionHeader } from '../components/list/SectionHeader'
+import { ListGroup, SectionHeader, ListRow } from '../components/list/ListGroup'
+import { MobileLoadErrorState, MobileStateView } from '../components/MobileStateView'
 import type { ActionableTaskItem } from './mobile-tasks-project-workspace-types'
 import type { DetailPayload } from './mobile-tasks-provider-detail-types'
+import { pressedStyle } from '../theme/mobile-theme'
 
 function pipelineJobsSummary(count: number): string {
   return count === 1
@@ -86,6 +85,7 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
     actionItem,
     addHostedItemComment,
     addLinearComment,
+    commentSendNotice,
     createLinearSubIssue,
     detailCommentGroups,
     detailError,
@@ -100,6 +100,7 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
     renderCommentComposer,
     renderDetailCommentGroup,
     rerunGitHubChecks,
+    setDetailRefreshSeq,
     setItemCommentDraft,
     setLinearCommentDraft,
     setLinearSubIssueTitle
@@ -108,13 +109,15 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
     return null
   }
   return detailLoading ? (
-    <View style={styles.detailLoading}>
-      <ActivityIndicator size="small" color={colors.textSecondary} />
-    </View>
+    <MobileStateView
+      loading
+      title={translate('tasks.itemDetailContent.loading', 'Loading details…')}
+    />
   ) : detailError ? (
-    <View style={styles.itemSectionBody}>
-      <Text style={styles.detailError}>{detailError}</Text>
-    </View>
+    <MobileLoadErrorState
+      error={detailError}
+      onRetry={() => setDetailRefreshSeq((current) => current + 1)}
+    />
   ) : detailPayload ? (
     <>
       <SectionHeader title={translate('tasks.itemDetailContent.details', 'Details')} />
@@ -151,7 +154,7 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
             trailing={
               <View style={styles.inlineActionRow}>
                 <Pressable
-                  style={styles.inlineSaveButtonCompact}
+                  style={({ pressed }) => [styles.inlineSaveButtonCompact, pressed && pressedStyle]}
                   disabled={mutatingStatus}
                   onPress={() => void refreshGitHubChecks(actionItem)}
                 >
@@ -160,16 +163,16 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
                   </Text>
                 </Pressable>
                 <Pressable
-                  style={styles.inlineSaveButtonCompact}
+                  style={({ pressed }) => [styles.inlineSaveButtonCompact, pressed && pressedStyle]}
                   disabled={mutatingStatus || !detailPayload.checks.some(isBrokenCheck)}
                   onPress={() => void rerunGitHubChecks(actionItem, true)}
                 >
                   <Text style={styles.inlineSaveText}>
-                    {translate('tasks.itemDetailContent.rerunFailed', 'Rerun failed')}
+                    {translate('tasks.rerunUnsuccessful', 'Retry checks')}
                   </Text>
                 </Pressable>
                 <Pressable
-                  style={styles.inlineSaveButtonCompact}
+                  style={({ pressed }) => [styles.inlineSaveButtonCompact, pressed && pressedStyle]}
                   disabled={mutatingStatus || detailPayload.checks.length === 0}
                   onPress={() => void rerunGitHubChecks(actionItem, false)}
                 >
@@ -189,7 +192,10 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
               detailPayload.checks.map((check) => (
                 <Pressable
                   key={`${check.name}:${check.status}:${check.url ?? ''}`}
-                  style={styles.fileActionRow}
+                  style={({ pressed }) => [
+                    styles.fileActionRow,
+                    pressed && { backgroundColor: colors.translucentFill }
+                  ]}
                   disabled={!check.url}
                   onPress={() => {
                     if (check.url) {
@@ -237,7 +243,7 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
                 return (
                   <Pressable
                     key={`${job.id ?? job.stage}:${job.name}`}
-                    style={styles.fileCard}
+                    style={({ pressed }) => [styles.fileCard, pressed && pressedStyle]}
                     disabled={!job.webUrl}
                     onPress={() => {
                       if (job.webUrl) {
@@ -288,7 +294,10 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
               detailPayload.children.map((child) => (
                 <Pressable
                   key={child.id}
-                  style={styles.fileActionRow}
+                  style={({ pressed }) => [
+                    styles.fileActionRow,
+                    pressed && { backgroundColor: colors.translucentFill }
+                  ]}
                   disabled={mutatingStatus}
                   onPress={() => void openLinearSubIssue(child, actionItem.source.workspaceId)}
                 >
@@ -306,7 +315,7 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
               placeholder={translate('tasks.itemDetailContent.subIssueTitle', 'Sub-issue title')}
             />
             <Pressable
-              style={styles.inlineSaveButton}
+              style={({ pressed }) => [styles.inlineSaveButton, pressed && pressedStyle]}
               disabled={mutatingStatus || linearSubIssueTitle.trim().length === 0}
               onPress={() => void createLinearSubIssue(actionItem)}
             >
@@ -330,6 +339,9 @@ export function renderMobileTasksItemDetailContent(model: ConnectionPresentation
         ) : (
           detailCommentGroups.map(renderDetailCommentGroup)
         )}
+        {commentSendNotice ? (
+          <Text style={styles.detailError}>{commentSendNotice.text}</Text>
+        ) : null}
         {(detailPayload.provider === 'github' && actionItem.provider === 'github') ||
         (detailPayload.provider === 'gitlab' && actionItem.provider === 'gitlab')
           ? renderCommentComposer({

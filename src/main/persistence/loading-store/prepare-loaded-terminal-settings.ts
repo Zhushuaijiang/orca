@@ -1,4 +1,4 @@
-import { migrateActionPermissionArgs } from '../../../shared/source-control-action-permission-lift'
+import { migrateActionPermissionArgs } from '../../../shared/source-control/ai/recipes/source-control-action-permission-lift'
 import { homedir } from 'node:os'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import type {
@@ -8,14 +8,14 @@ import type {
 import type { Repo } from '../../../shared/repo-types'
 import { getDefaultPersistedState } from '../../../shared/constants'
 import { migrateExternalWorktreeVisibilityDefaults } from '../../../shared/external-worktree-visibility'
-import {
-  mergeLegacyCommitMessageAiIntoSourceControlAi,
-  sourceControlAiSettingsFromLegacy
-} from '../../../shared/source-control-ai'
+import { mergeLegacyCommitMessageAiIntoSourceControlAi } from '../../../shared/source-control/ai/settings/source-control-ai-legacy-reconciliation'
+import { sourceControlAiSettingsFromLegacy } from '../../../shared/source-control/ai/settings/source-control-ai-settings'
 import {
   normalizeOsc52ClipboardDefaultOn,
   osc52ClipboardDefaultOnOverridesPersistedOff
 } from '../../../shared/osc52-clipboard-settings'
+import { splitLegacyTerminalColorOverrides } from '../../../shared/terminal-themes/terminal-color-overrides'
+import { migrateWindowsTerminalFontWeight } from '../../../shared/terminal/appearance/terminal-font-weight-windows-regular'
 import {
   migrateTerminalScrollbackRows,
   migrateTerminalTuiScrollSensitivityDefault
@@ -33,6 +33,7 @@ export type PreparedLoadedTerminalSettings = {
     changed: boolean
   }
   migratedTerminalScrollback: { rows: number; needsSave: boolean }
+  migratedTerminalFontWeight: ReturnType<typeof migrateWindowsTerminalFontWeight>
   migratedTerminalTuiScrollSensitivity: {
     settings: Pick<
       GlobalSettings,
@@ -47,6 +48,7 @@ export type PreparedLoadedTerminalSettings = {
     GlobalSettings,
     'terminalAllowOsc52Clipboard' | 'terminalAllowOsc52ClipboardDefaultedOnForAllUsers'
   >
+  migratedTerminalColorOverrides: ReturnType<typeof splitLegacyTerminalColorOverrides>
   migratedFloatingTerminalCwd: GlobalSettings['floatingTerminalCwd']
   migratedFloatingTerminalTrustedCwds: GlobalSettings['floatingTerminalTrustedCwds']
   osc52ClipboardNoticePending: boolean
@@ -69,8 +71,20 @@ export function prepareLoadedTerminalSettings(
   if (migratedTerminalScrollback.needsSave) {
     markNeedsSave()
   }
-  // Why: upstream retires enableGitHubAttribution and re-saves when present; the
-  // fork keeps it as a live setting, so its presence must not dirty every load.
+  if (
+    parsed.settings &&
+    typeof parsed.settings === 'object' &&
+    Object.hasOwn(parsed.settings, 'enableGitHubAttribution')
+  ) {
+    markNeedsSave()
+  }
+  const migratedTerminalFontWeight = migrateWindowsTerminalFontWeight(
+    parsed.settings,
+    process.platform
+  )
+  if (Object.keys(migratedTerminalFontWeight).length > 0) {
+    markNeedsSave()
+  }
   const migratedTerminalTuiScrollSensitivity = migrateTerminalTuiScrollSensitivityDefault(
     parsed.settings
   )
@@ -130,6 +144,10 @@ export function prepareLoadedTerminalSettings(
   if (parsed.settings?.terminalAllowOsc52ClipboardDefaultedOnForAllUsers !== true) {
     markNeedsSave()
   }
+  const migratedTerminalColorOverrides = splitLegacyTerminalColorOverrides(parsed.settings)
+  if (parsed.settings?.terminalColorOverridesSplit !== true) {
+    markNeedsSave()
+  }
   const floatingTerminalCwdMigrated =
     parsed.settings?.floatingTerminalCwdMigratedToAppWorkspace === true
   // Repair the old empty notes-directory migration; terminal cwd and notes now resolve separately.
@@ -172,11 +190,13 @@ export function prepareLoadedTerminalSettings(
     defaults,
     migratedExternalVisibility,
     migratedTerminalScrollback,
+    migratedTerminalFontWeight,
     migratedTerminalTuiScrollSensitivity,
     migratedSourceControlAi,
     migratedOptionAsAlt,
     migratedFloatingTerminalEnabled,
     migratedOsc52Clipboard,
+    migratedTerminalColorOverrides,
     migratedFloatingTerminalCwd,
     migratedFloatingTerminalTrustedCwds,
     osc52ClipboardNoticePending

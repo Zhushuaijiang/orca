@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { AiVaultScope, AiVaultSession } from '../../../../shared/ai-vault-types'
+import type { AiVaultScope, AiVaultSession } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 
 // Why: index hits live outside the recency-capped scan list; the main process
 // owns the incremental transcript index, so the tab queries it per keystroke.

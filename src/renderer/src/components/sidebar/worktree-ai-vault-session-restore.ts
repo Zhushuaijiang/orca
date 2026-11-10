@@ -1,19 +1,19 @@
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
-import { buildAiVaultResumeStartupForWorktree } from '@/lib/ai-vault-resume-command'
-import { prepareAiVaultSessionForResume } from '@/lib/ai-vault-session-resume-preparation'
+import { buildAiVaultResumeStartupForWorktree } from '../../lib/agent-session/resume/history/ai-vault-resume-command'
+import { prepareAiVaultSessionForResume } from '../../lib/agent-session/resume/history/ai-vault-session-resume-preparation'
 import { launchAiVaultSessionInNewTab } from '@/lib/launch-ai-vault-session'
 import {
   activateAndRevealFolderWorkspace,
   activateAndRevealWorktree
-} from '@/lib/worktree-activation'
+} from '../../lib/workspace/activation/worktree-activation'
 import type { AppState } from '@/store/types'
 import {
   aiVaultAgentLabel,
   isAiVaultSessionResumableContent,
   type AiVaultSession
-} from '../../../../shared/ai-vault-types'
+} from '../../../../shared/ai-vault/contracts/ai-vault-types'
 import {
   LOCAL_EXECUTION_HOST_ID,
   normalizeExecutionHostId

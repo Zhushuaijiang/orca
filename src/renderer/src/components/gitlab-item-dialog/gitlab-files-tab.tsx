@@ -1,8 +1,9 @@
+import { translate } from '@/i18n/i18n'
+import { GitLabMRFileDiff } from '../gitlab-mr-file-diff'
 import { LoaderCircle, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TabsContent } from '@/components/ui/tabs'
-import { GitLabMRFileDiff } from '@/components/gitlab-mr-file-diff'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { hasBoundedCommentBodyText } from '@/lib/comment-body-submit-state'
 import type { GitLabWorkItem } from '../../../../shared/gitlab-types'
 import type { GitLabItemDialogState } from './use-gitlab-item-dialog-state'
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export function GitLabFilesTab({ item, state, reviewActions, onOpenFiles }: Props) {
+  const t = useTranslate()
   if (item.type !== 'mr') {
     return null
   }
@@ -64,9 +66,7 @@ export function GitLabFilesTab({ item, state, reviewActions, onOpenFiles }: Prop
                 onChange={(event) => setInlineCommentFilePath(event.target.value)}
                 className="h-8 min-w-0 rounded-md border border-input bg-background px-2 text-xs text-foreground"
               >
-                <option value="">
-                  {translate('auto.components.GitLabItemDialog.ceb08a733d', 'File')}
-                </option>
+                <option value="">{t('auto.components.GitLabItemDialog.ceb08a733d', 'File')}</option>
                 {details.files.map((file) => (
                   <option key={file.path} value={file.path}>
                     {file.path}
@@ -77,7 +77,7 @@ export function GitLabFilesTab({ item, state, reviewActions, onOpenFiles }: Prop
                 value={inlineCommentLine}
                 onChange={(event) => setInlineCommentLine(event.target.value)}
                 inputMode="numeric"
-                placeholder={translate('auto.components.GitLabItemDialog.7a7204417f', 'Line')}
+                placeholder={t('auto.components.GitLabItemDialog.7a7204417f', 'Line')}
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
               />
             </div>
@@ -85,10 +85,7 @@ export function GitLabFilesTab({ item, state, reviewActions, onOpenFiles }: Prop
               value={inlineCommentBody}
               onChange={(event) => setInlineCommentBody(event.target.value)}
               rows={2}
-              placeholder={translate(
-                'auto.components.GitLabItemDialog.21f8dde18a',
-                'Inline comment'
-              )}
+              placeholder={t('auto.components.GitLabItemDialog.21f8dde18a', 'Inline comment')}
               className="mt-2 w-full resize-none rounded-md border border-input bg-background px-2.5 py-1.5 text-sm shadow-xs focus:border-ring focus:outline-none focus:ring-[3px] focus:ring-ring/50"
             />
             <div className="mt-2 flex justify-end">
@@ -108,7 +105,7 @@ export function GitLabFilesTab({ item, state, reviewActions, onOpenFiles }: Prop
                 ) : (
                   <Send className="size-3.5" />
                 )}
-                {translate('auto.components.GitLabItemDialog.84012fa8fb', 'Comment')}
+                {t('auto.components.GitLabItemDialog.84012fa8fb', 'Comment')}
               </Button>
             </div>
           </div>
@@ -120,8 +117,7 @@ export function GitLabFilesTab({ item, state, reviewActions, onOpenFiles }: Prop
                     <div className="break-all font-mono text-xs text-foreground">{file.path}</div>
                     {file.oldPath ? (
                       <div className="break-all font-mono text-[11px] text-muted-foreground">
-                        {translate('auto.components.GitLabItemDialog.a7eb4f4916', 'from')}{' '}
-                        {file.oldPath}
+                        {t('auto.components.GitLabItemDialog.a7eb4f4916', 'from')} {file.oldPath}
                       </div>
                     ) : null}
                   </div>
@@ -136,10 +132,7 @@ export function GitLabFilesTab({ item, state, reviewActions, onOpenFiles }: Prop
                 </div>
                 {file.diff ? <GitLabMRFileDiff diff={file.diff} /> : (
                   <div className="px-3 py-3 text-xs text-muted-foreground">
-                    {translate(
-                      'auto.components.GitLabItemDialog.007423f585',
-                      'Diff content unavailable.'
-                    )}
+                    {t('auto.components.GitLabItemDialog.007423f585', 'Diff content unavailable.')}
                   </div>
                 )}
               </div>
@@ -148,7 +141,7 @@ export function GitLabFilesTab({ item, state, reviewActions, onOpenFiles }: Prop
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
-          {translate('auto.components.GitLabItemDialog.808b1ca1ba', 'No changed files.')}
+          {t('auto.components.GitLabItemDialog.808b1ca1ba', 'No changed files.')}
         </p>
       )}
     </TabsContent>

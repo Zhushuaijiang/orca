@@ -5,7 +5,7 @@ import type {
   DfHisEnvironmentPrerequisiteStatus
 } from '../../../../shared/dfhis-environment-types'
 import { Button } from '../ui/button'
-import { SettingsBadge } from './SettingsFormControls'
+import { SettingsBadge } from './form-controls/SettingsFormControls'
 import { translate } from '@/i18n/i18n'
 
 function isWorkflowPackPrerequisite(prerequisite: DfHisEnvironmentPrerequisiteResult): boolean {

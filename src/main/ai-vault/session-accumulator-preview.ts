@@ -1,4 +1,4 @@
-import type { AiVaultSessionPreviewMessage } from '../../shared/ai-vault-types'
+import type { AiVaultSessionPreviewMessage } from '../../shared/ai-vault/contracts/ai-vault-types'
 import type { SessionAccumulator } from './session-scanner-types'
 import {
   extractFullFirstUserPromptText,
@@ -14,7 +14,7 @@ import {
   boundedText,
   transcriptMessageRole,
   transcriptMessagesFromContent
-} from './session-transcript-message-content'
+} from './transcripts/session-transcript-message-content'
 
 const SESSION_PREVIEW_MESSAGE_LIMIT = 5
 

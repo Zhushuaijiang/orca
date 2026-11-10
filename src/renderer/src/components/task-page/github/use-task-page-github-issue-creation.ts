@@ -1,13 +1,13 @@
+import { useTaskPageGitLabIssueCreation } from '../../use-task-page-gitlab-issue-creation'
 import type { TaskPageWorkspaceActionsModel } from '../use-task-page-workspace-actions'
 import { useCallback } from 'react'
-import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '@/runtime/rpc/calls/runtime-rpc-call'
 import { useAppStore } from '@/store/index'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 import type { GitHubWorkItem } from '../../../../../shared/github/work-item-types'
 import { codeHostErrorText } from '@/lib/code-host-error-copy'
-import { openAppHttpLink } from '@/lib/app-http-link-open'
-import { useTaskPageGitLabIssueCreation } from '../../use-task-page-gitlab-issue-creation'
+import { openAppHttpLink } from '@/lib/browser/navigation/app-http-link-open'
 type TaskPageGitHubIssueCreationInput = Pick<
   TaskPageWorkspaceActionsModel,
   | 'setTaskRefreshNonce'
@@ -74,11 +74,6 @@ export function useTaskPageGitHubIssueCreation<Model extends TaskPageGitHubIssue
     }
     setNewIssueSubmitting(true)
     try {
-      if (newIssueProvider === 'gitlab') {
-        await handleCreateGitLabIssue(title)
-        return
-      }
-
       if (newIssueProvider === 'yunxiao') {
         const result = await window.api.yunxiao.createRequirement({
           title,
@@ -127,6 +122,17 @@ export function useTaskPageGitHubIssueCreation<Model extends TaskPageGitHubIssue
         return
       }
 
+      const sourceReady = await useAppStore
+        .getState()
+        .githubSourceCollections.awaitSave(newIssueTargetRepo)
+      // Why: the awaited save's own toast already reports its failure; any other unsafe target is this press's.
+      if (sourceReady === 'save-failed') {
+        return
+      }
+      if (!sourceReady()) {
+        toast.error(translate('auto.components.TaskPage.7437e340b4', 'Failed to create issue.'))
+        return
+      }
       const result = newIssueRuntimeTarget
         ? await callRuntimeRpc<Awaited<ReturnType<typeof window.api.gh.createIssue>>>(
             newIssueRuntimeTarget,

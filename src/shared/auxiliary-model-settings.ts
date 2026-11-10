@@ -1,5 +1,5 @@
-import { isTuiAgent } from './tui-agent-config'
-import type { TuiAgent } from './tui-agent'
+import { isTuiAgent } from './agent-launch/catalog/tui-agent-config'
+import type { TuiAgent } from './agent-launch/catalog/tui-agent'
 import { TASK_DIFFICULTIES } from './automatic-task-routing-types'
 import {
   isAuxiliaryTaskId,

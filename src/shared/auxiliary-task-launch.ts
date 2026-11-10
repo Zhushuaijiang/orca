@@ -1,7 +1,7 @@
 import type { AuxiliaryTaskId } from './auxiliary-model-types'
 import { resolveAuxiliaryModelRoute } from './auxiliary-model-settings'
 import type { GlobalSettings } from './global-settings-types'
-import type { TuiAgent } from './tui-agent'
+import type { TuiAgent } from './agent-launch/catalog/tui-agent'
 
 export type AuxiliaryTaskLaunch = {
   agentId: TuiAgent

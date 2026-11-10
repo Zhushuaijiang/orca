@@ -1,4 +1,4 @@
-import { tokenizeCustomCommandTemplate } from './commit-message-prompt'
+import { tokenizeCustomCommandTemplate } from './source-control/ai/generation/commit-message-prompt'
 import { findOptionOccurrence } from './command-option-occurrence'
 
 export function removeAuxiliaryRecipeModelArgs(command: string | undefined): string | undefined {

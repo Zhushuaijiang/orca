@@ -1,7 +1,7 @@
 import { AuxiliaryTaskRouteCard } from './AuxiliaryTaskRouteCard'
 import { useEffect, useState } from 'react'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
-import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { TuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent'
 import {
   AUXILIARY_TASKS,
   type AuxiliaryModelRoute,
@@ -12,7 +12,7 @@ import {
   resolveAuxiliaryModelRoute
 } from '../../../../shared/auxiliary-model-settings'
 import { getAgentCatalog } from '@/lib/agent-catalog'
-import { isTuiAgent } from '../../../../shared/tui-agent-config'
+import { isTuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent-config'
 import { translate } from '@/i18n/i18n'
 import { Button } from '../ui/button'
 import { Card, CardContent } from '../ui/card'
@@ -24,7 +24,7 @@ import { AutomaticTaskRoutingCard } from './AutomaticTaskRoutingCard'
 import { AutomaticRoutingHistory } from './AutomaticRoutingHistory'
 import { AutomaticRoutingPreview } from './AutomaticRoutingPreview'
 import { useAuxiliaryExecutionHost } from './use-auxiliary-execution-host'
-import { SearchableSetting } from './SearchableSetting'
+import { SearchableSetting } from './section-layout/SearchableSetting'
 import { getAuxiliaryModelSearchEntries } from './auxiliary-model-search'
 
 export function AuxiliaryModelsPane({

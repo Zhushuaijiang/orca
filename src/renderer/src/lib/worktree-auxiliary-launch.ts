@@ -1,11 +1,11 @@
 import { useAppStore } from '@/store'
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
-import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
-import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
-import { runtimeEnvironmentIdOrLocalUnlessTwin } from './worktree-runtime-owner'
+import { runtimeTargetForOwnerEnvironment } from '../runtime/rpc/targets/runtime-client-target'
+import { toRuntimeWorktreeSelector } from '../runtime/rpc/targets/runtime-worktree-selector'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from './workspace/ownership/worktree-runtime-owner'
 import type { AuxiliaryTaskLaunch } from '../../../shared/auxiliary-task-launch'
 import type { AuxiliaryTaskId } from '../../../shared/auxiliary-model-types'
-import type { TuiAgent } from '../../../shared/tui-agent'
+import type { TuiAgent } from '../../../shared/agent-launch/catalog/tui-agent'
 
 export async function resolveWorktreeAuxiliaryLaunch(args: {
   worktreeId: string

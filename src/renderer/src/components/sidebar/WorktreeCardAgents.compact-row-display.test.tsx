@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
-import { makePaneKey } from '../../../../shared/stable-pane-id'
+import { makePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
 
 const LEAF_A = '11111111-1111-4111-8111-111111111111'
 
@@ -108,7 +108,7 @@ vi.mock('@/store', () => ({
   )
 }))
 
-vi.mock('@/lib/worktree-activation', () => ({
+vi.mock('@/lib/workspace/activation/worktree-activation', () => ({
   activateAndRevealWorktree: activationMocks.activateAndRevealWorktree
 }))
 
@@ -116,7 +116,7 @@ vi.mock('@/lib/activate-tab-and-focus-pane', () => ({
   activateTabAndFocusPane: activationMocks.activateTabAndFocusPane
 }))
 
-vi.mock('./useWorktreeAgentRows', () => ({
+vi.mock('./workspace-card/activity/useWorktreeAgentRows', () => ({
   useWorktreeAgentRows: vi.fn(() => mockAgents)
 }))
 
@@ -124,7 +124,7 @@ vi.mock('@/hooks/use-now', () => ({
   useNow: vi.fn(() => 2000)
 }))
 
-vi.mock('./prompt-cache-countdown-clock', () => ({
+vi.mock('./workspace-card/activity/prompt-cache-countdown-clock', () => ({
   usePromptCacheCountdownNow: vi.fn(() => 10_000)
 }))
 
@@ -178,7 +178,7 @@ vi.mock('@/components/dashboard/DashboardAgentRow', () => ({
   }
 }))
 
-vi.mock('./focused-agent-row-highlight', () => ({
+vi.mock('./workspace-card/activity/focused-agent-row-highlight', () => ({
   useFocusedAgentPaneKey: vi.fn(() => mockFocusedAgentPaneKey)
 }))
 
@@ -212,7 +212,7 @@ describe('WorktreeCardAgents compact row display', () => {
         lastAssistantMessage: 'Inspecting changes'
       })
     ]
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
+    const { default: WorktreeCardAgents } = await import('./workspace-card/activity/WorktreeCardAgents')
 
     const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
 
@@ -234,7 +234,7 @@ describe('WorktreeCardAgents compact row display', () => {
         lastAssistantMessage: 'Reading output'
       })
     ]
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
+    const { default: WorktreeCardAgents } = await import('./workspace-card/activity/WorktreeCardAgents')
 
     const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
 
@@ -257,7 +257,7 @@ describe('WorktreeCardAgents compact row display', () => {
       })
     ]
     mockCacheTimerByKey = { [paneKey]: 10_000 }
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
+    const { default: WorktreeCardAgents } = await import('./workspace-card/activity/WorktreeCardAgents')
 
     const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
     const timerIndex = markup.indexOf('Prompt cache expires in 1:00')
@@ -282,7 +282,7 @@ describe('WorktreeCardAgents compact row display', () => {
       })
     ]
     mockCacheTimerByKey = { [otherPaneKey]: 10_000 }
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
+    const { default: WorktreeCardAgents } = await import('./workspace-card/activity/WorktreeCardAgents')
 
     const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
 
@@ -304,7 +304,7 @@ describe('WorktreeCardAgents compact row display', () => {
       })
     ]
     mockCacheTimerByKey = { [paneKey]: 10_000 }
-    const { default: WorktreeCardAgents } = await import('./WorktreeCardAgents')
+    const { default: WorktreeCardAgents } = await import('./workspace-card/activity/WorktreeCardAgents')
 
     const markup = renderToStaticMarkup(<WorktreeCardAgents worktreeId="wt-1" />)
 
@@ -315,7 +315,7 @@ describe('WorktreeCardAgents compact row display', () => {
   it('keeps hidden retained compact rows from rendering prompt-cache timers', async () => {
     const paneKey = makePaneKey('tab-1', LEAF_A)
     mockCacheTimerByKey = { [paneKey]: 10_000 }
-    const { CompactAgentRow } = await import('./worktree-card-compact-agents')
+    const { CompactAgentRow } = await import('./workspace-card/activity/worktree-card-compact-agent-row')
 
     const markup = renderToStaticMarkup(
       <CompactAgentRow

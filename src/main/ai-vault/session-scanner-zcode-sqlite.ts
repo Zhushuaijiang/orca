@@ -1,4 +1,4 @@
-import type { AiVaultSession, AiVaultSessionPreviewMessage } from '../../shared/ai-vault-types'
+import type { AiVaultSession, AiVaultSessionPreviewMessage } from '../../shared/ai-vault/contracts/ai-vault-types'
 import {
   addPreviewMessage,
   createAccumulator,
@@ -13,7 +13,7 @@ import { readZcodeDatabase } from './session-scanner-zcode-sqlite-open'
 import { normalizeTitleText } from './session-scanner-values'
 import type SyncDatabase from '../sqlite/sync-database'
 import { columnExists, tableExists } from '../opencode-usage/schema-helpers'
-import type { TranscriptMessageSink } from './session-transcript-consumers'
+import type { TranscriptMessageSink } from './transcripts/session-transcript-consumers'
 
 // Why: ZCode persists sessions in one SQLite DB (~/.zcode/cli/db/db.sqlite) with
 // an OpenCode-family three-table schema. Only the session columns above were

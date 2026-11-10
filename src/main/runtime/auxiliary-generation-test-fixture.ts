@@ -1,4 +1,4 @@
-import type { RuntimeGitTarget } from './runtime-git-command-target'
+import type { RuntimeGitTarget } from './integrations/git/runtime-git-command-target'
 
 export function createAuxiliaryRuntimeTarget(path: string): RuntimeGitTarget {
   return {

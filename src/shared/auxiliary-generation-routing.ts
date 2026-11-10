@@ -2,14 +2,14 @@ import {
   getCommitMessageAgentSpec,
   getCommitMessageModel,
   resolveCommitMessageAgentChoice
-} from './commit-message-agent-spec'
-import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from './commit-message-host-key'
+} from './source-control/ai/generation/commit-message-agent-spec'
+import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from './source-control/ai/generation/commit-message-host-key'
 import { resolveAuxiliaryModelRoute } from './auxiliary-model-settings'
 import type { AuxiliaryTaskId } from './auxiliary-model-types'
 import type { GlobalSettings } from './global-settings-types'
-import type { ResolvedSourceControlAiGenerationParams } from './source-control-ai'
+import type { ResolvedSourceControlAiGenerationParams } from './source-control/ai/source-control-ai-operation-resolution'
 import { removeAuxiliaryRecipeModelArgs } from './auxiliary-recipe-model-args'
-import type { TuiAgent } from './tui-agent'
+import type { TuiAgent } from './agent-launch/catalog/tui-agent'
 
 export function getAuxiliaryBaselineAgentSpec(
   settings: Partial<

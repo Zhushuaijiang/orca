@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import type { TranscriptMessage } from '../ai-vault/session-transcript-consumers'
+import type { TranscriptMessage } from '../ai-vault/transcripts/session-transcript-consumers'
 import { SessionSearchIndexWriter } from './session-search-index-writer'
 import {
   openSessionSearchIndexFile,

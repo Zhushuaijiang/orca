@@ -1,9 +1,9 @@
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { sendNotesToActiveAgentSession } from './active-agent-note-send'
-import type { ParsedAgentStatusPayload } from '../../../shared/agent-status-types'
-import { parsePaneKey } from '../../../shared/stable-pane-id'
-import { isProvenProcessExit } from '../../../shared/terminal-exit-cause'
+import type { ParsedAgentStatusPayload } from '../../../shared/agent-status/contracts/agent-status-types'
+import { parsePaneKey } from '../../../shared/workspace-layout/stable-pane-id'
+import { isProvenProcessExit } from '../../../shared/terminal/pty/lifecycle/terminal-exit-cause'
 
 export function createYunxiaoReviewHandoffReturn(args: {
   worktreeId: string

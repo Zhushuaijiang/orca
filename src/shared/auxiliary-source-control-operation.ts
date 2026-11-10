@@ -1,7 +1,7 @@
 import { resolveAuxiliaryGenerationParams } from './auxiliary-generation-routing'
 import { resolveAuxiliaryModelRoute } from './auxiliary-model-settings'
-import { normalizeSourceControlAiSettings as normalizeSettings } from './source-control-ai-settings'
-import { normalizeRepoSourceControlAiOverrides as normalizeRepoOverrides } from './source-control-ai-repo-settings'
+import { normalizeSourceControlAiSettings as normalizeSettings } from './source-control/ai/settings/source-control-ai-settings'
+import { normalizeRepoSourceControlAiOverrides as normalizeRepoOverrides } from './source-control/ai/settings/source-control-ai-repo-settings'
 import type { ResolveSourceControlAiInput, ResolveSourceControlAiResult } from './source-control-ai'
 
 export function resolveAuxiliarySourceControlOperation(

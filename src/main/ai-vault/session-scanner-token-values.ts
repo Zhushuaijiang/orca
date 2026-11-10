@@ -1,4 +1,4 @@
-import type { AiVaultTokenUsage } from '../../shared/ai-vault-types'
+import type { AiVaultTokenUsage } from '../../shared/ai-vault/contracts/ai-vault-types'
 import type { CodexUsageSnapshot, SessionAccumulator } from './session-scanner-types'
 import { asRecord } from './session-scanner-record-value'
 

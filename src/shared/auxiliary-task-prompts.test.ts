@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { attachAuxiliaryImages, buildAuxiliaryTaskPrompt } from './auxiliary-task-prompts'
 import { removeAuxiliaryRecipeModelArgs } from './auxiliary-recipe-model-args'
-import { planCommitMessageGeneration } from './commit-message-plan'
+import { planCommitMessageGeneration } from './source-control/ai/generation/commit-message-plan'
 
 describe('auxiliary task execution inputs', () => {
   it('keeps task instructions and image paths in the prompt without granting execution authority', () => {

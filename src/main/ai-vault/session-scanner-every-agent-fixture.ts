@@ -1,14 +1,14 @@
+import { writeCodebuddyScannerFixture } from './session-scanner-codebuddy-fixtures'
 import {
   isolatedScanRoots,
   writeJcodeSessionFixture,
   writeMuseScannerFixture,
   writeOpenCode2SqliteFixture
 } from './session-scanner-test-fixtures'
-import { writeCodebuddyScannerFixture } from './session-scanner-codebuddy-fixtures'
-import { writeKiroSessionFixture } from './session-scanner-kiro-fixtures'
+import { writeKiroSessionFixture } from './scanners/kiro/session-scanner-kiro-fixtures'
 import { writeDocumentAgentFixtures } from './session-scanner-document-agent-fixtures'
 import { writeLogAgentFixtures } from './session-scanner-log-agent-fixtures'
-import { writeOpenCodeSqliteDatabase } from './session-scanner-opencode-sqlite-fixture'
+import { writeOpenCodeSqliteDatabase } from './scanners/opencode/sqlite/session-scanner-opencode-sqlite-fixture'
 
 export type EveryAgentVault = {
   roots: ReturnType<typeof isolatedScanRoots>

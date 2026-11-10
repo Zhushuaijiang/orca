@@ -1,10 +1,10 @@
 import {
   cleanGeneratedCommitMessage,
-  stripPrefilledReasoningPreamble,
-  type CommandTemplateBackslash
-} from '../../shared/commit-message-prompt'
-import { isCustomAgentId } from '../../shared/commit-message-agent-spec'
-import type { CommitMessagePlan } from '../../shared/commit-message-plan'
+  stripPrefilledReasoningPreamble
+} from '../../shared/source-control/ai/generation/commit-message-agent-output'
+import type { CommandTemplateBackslash } from '../../shared/source-control/ai/generation/commit-message-prompt'
+import { isCustomAgentId } from '../../shared/source-control/ai/generation/commit-message-agent-spec'
+import type { CommitMessagePlan } from '../../shared/source-control/ai/generation/commit-message-plan'
 import type { ResolvedSourceControlAiGenerationParams } from '../../shared/source-control-ai'
 import { openCodeVariantRetryPlan } from '../../shared/opencode-generation-command'
 import { runLocalPlanForAgent } from './source-control-local-generation'

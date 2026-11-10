@@ -67,7 +67,7 @@ async function performAction(inputParams) {
 
 ## OAPI MagicAPI 动态脚本
 
-详见 `references/company-environment/本地152开发环境.md` 中的 OAPI 章节。
+内网 152 环境的 OAPI 章节见仓库内 `docs/dfhis/company-environment/本地152开发环境.md`（不随 skill 安装分发）。
 
 ### 适用场景
 

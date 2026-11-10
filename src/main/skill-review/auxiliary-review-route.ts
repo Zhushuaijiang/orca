@@ -1,8 +1,8 @@
 import type { GlobalSettings } from '../../shared/global-settings-types'
-import type { TuiAgent } from '../../shared/tui-agent'
+import type { TuiAgent } from '../../shared/agent-launch/catalog/tui-agent'
 import { resolveAuxiliaryModelRoute } from '../../shared/auxiliary-model-settings'
-import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from '../../shared/commit-message-host-key'
-import { resolveAgentSessionOptionLaunch } from '../../shared/agent-session-option-launch'
+import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from '../../shared/source-control/ai/generation/commit-message-host-key'
+import { resolveAgentSessionOptionLaunch } from '../../shared/agent-session/options/agent-session-option-launch'
 import type { ReviewAgentSpawnSpec } from './review-agent-command'
 
 export function resolveAuxiliaryReviewRoute(

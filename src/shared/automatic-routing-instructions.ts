@@ -1,7 +1,7 @@
 import type { AuxiliaryModelSettings } from './auxiliary-model-types'
 import { normalizeAuxiliaryModelSettings } from './auxiliary-model-settings'
-import { isTuiAgent } from './tui-agent-config'
-import type { AgentJournalMessageItem } from './agent-session-journal-types'
+import { isTuiAgent } from './agent-launch/catalog/tui-agent-config'
+import type { AgentJournalMessageItem } from './agent-session/journal/agent-session-journal-types'
 
 export function automaticRoutingInstructions(
   settings: AuxiliaryModelSettings | undefined,

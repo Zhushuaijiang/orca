@@ -2,7 +2,7 @@ import {
   containsYunxiaoRequirementReference,
   shouldApplyYunxiaoRequirementPromptGate
 } from '../../shared/yunxiao-requirement-prompt-gate'
-import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-process-recognition'
+import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-status/process/agent-process-recognition'
 import { ensureDfHisWorkflowPackInstalled } from './dfhis-workflow-pack-installer'
 
 let workflowPackRefresh: Promise<void> | null = null

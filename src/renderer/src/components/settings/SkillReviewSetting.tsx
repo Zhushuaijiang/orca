@@ -5,7 +5,7 @@ import {
   getSkillReviewSearchKeywords,
   getSkillReviewTitle
 } from './skill-review-setting-copy'
-import { SearchableSetting } from './SearchableSetting'
+import { SearchableSetting } from './section-layout/SearchableSetting'
 
 type SkillReviewSettingProps = {
   settings: GlobalSettings

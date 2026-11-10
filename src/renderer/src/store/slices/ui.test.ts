@@ -18,16 +18,16 @@ import type {
 import type { GitLabWorkItem } from '../../../../shared/gitlab-types'
 import { createUISlice } from './ui'
 import { createWorktreeNavHistorySlice } from './worktree-nav-history'
-import { createSettingsSearchState } from './settings-search-state'
+import { createSettingsSearchState } from './settings/settings-search-state'
 import type { AppState } from '../types'
 import type { ContextualTourId } from '../../../../shared/contextual-tours'
 import type { FeatureInteractionState } from '../../../../shared/feature-interactions'
-import { makePaneKey } from '../../../../shared/stable-pane-id'
+import { makePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
 import { buildAgentNotificationId } from '../../../../shared/agent-notification-id'
-import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
-import type { TaskSourceContext } from '../../../../shared/task-source-context'
+import type { AgentStatusEntry } from '../../../../shared/agent-status/contracts/agent-status-types'
+import type { TaskSourceContext } from '../../../../shared/work-items/task-source-context'
 import { getSetupScriptPromptDismissalKey } from '../../lib/setup-script-prompt'
-import { getRepoHostIdentityForParts } from './repo-host-identity'
+import { getRepoHostIdentityForParts } from '../../../../shared/repo-host-identity'
 
 const mocks = vi.hoisted(() => ({
   sendNotesToActiveAgentSession: vi.fn(),
@@ -3011,7 +3011,7 @@ describe('createUISlice contextual tours', () => {
     expect(store.getState().activeContextualTourId).toBe('tasks')
     expect(store.getState().activeContextualTourStepIndex).toBe(0)
     expect(store.getState().activeContextualTourSource).toBe('tasks_open')
-    expect(store.getState().contextualTourShownThisSession).toBe(true)
+    expect(store.getState().contextualToursStartedThisSession).toEqual(['tasks'])
     expect(store.getState().contextualToursSeenIds).toEqual([])
   })
 
@@ -3076,7 +3076,7 @@ describe('createUISlice contextual tours', () => {
 
     expect(store.getState().activeContextualTourId).toBeNull()
     expect(store.getState().contextualToursSeenIds).toEqual([])
-    expect(store.getState().contextualTourShownThisSession).toBe(false)
+    expect(store.getState().contextualToursStartedThisSession).toEqual([])
   })
 
   it('does not start while a root confirmation surface is visible', () => {
@@ -3088,7 +3088,7 @@ describe('createUISlice contextual tours', () => {
     store.getState().requestContextualTour('tasks', 'tasks_open')
 
     expect(store.getState().activeContextualTourId).toBeNull()
-    expect(store.getState().contextualTourShownThisSession).toBe(false)
+    expect(store.getState().contextualToursStartedThisSession).toEqual([])
   })
 
   it('does not auto-start tours for profiles that are not eligible', () => {
@@ -3099,7 +3099,7 @@ describe('createUISlice contextual tours', () => {
     store.getState().requestContextualTour('tasks', 'tasks_open')
 
     expect(store.getState().activeContextualTourId).toBeNull()
-    expect(store.getState().contextualTourShownThisSession).toBe(false)
+    expect(store.getState().contextualToursStartedThisSession).toEqual([])
   })
 
   it('force-starts a tour from an explicit user action even after auto tours are unavailable', () => {
@@ -3267,7 +3267,7 @@ describe('createUISlice contextual tours', () => {
       activeContextualTourStepIndex: 0,
       activeContextualTourSource: 'browser_visible',
       activeContextualTourWasFeaturePreviouslyInteracted: false,
-      contextualTourShownThisSession: true
+      contextualToursStartedThisSession: ['browser']
     })
 
     store.getState().suppressContextualTour('tasks', 'tasks_open')
@@ -3284,7 +3284,7 @@ describe('createUISlice contextual tours', () => {
       activeContextualTourStepIndex: 3,
       activeContextualTourSource: 'workspace_agent_sessions_visible',
       activeContextualTourWasFeaturePreviouslyInteracted: false,
-      contextualTourShownThisSession: true
+      contextualToursStartedThisSession: ['workspace-agent-sessions']
     })
 
     store
@@ -3313,13 +3313,13 @@ describe('createUISlice contextual tours', () => {
       activeContextualTourId: 'tasks',
       activeContextualTourStepIndex: 0,
       activeContextualTourSource: 'tasks_open',
-      contextualTourShownThisSession: true
+      contextualToursStartedThisSession: ['tasks']
     })
 
     store.getState().cancelContextualTour('tasks')
 
     expect(store.getState().activeContextualTourId).toBeNull()
-    expect(store.getState().contextualTourShownThisSession).toBe(false)
+    expect(store.getState().contextualToursStartedThisSession).toEqual([])
     expect(store.getState().lastCompletedContextualTourId).toBeNull()
     expect(store.getState().contextualToursSeenIds).toEqual([])
     expect(setMock).not.toHaveBeenCalled()
@@ -3339,14 +3339,14 @@ describe('createUISlice contextual tours', () => {
       activeContextualTourId: 'tasks',
       activeContextualTourStepIndex: 0,
       activeContextualTourSource: 'tasks_open',
-      contextualTourShownThisSession: true,
+      contextualToursStartedThisSession: ['tasks'],
       contextualToursSeenIds: ['tasks']
     })
 
     store.getState().cancelContextualTour('tasks')
 
     expect(store.getState().activeContextualTourId).toBeNull()
-    expect(store.getState().contextualTourShownThisSession).toBe(true)
+    expect(store.getState().contextualToursStartedThisSession).toEqual(['tasks'])
     expect(store.getState().contextualToursSeenIds).toEqual<ContextualTourId[]>(['tasks'])
     expect(setMock).not.toHaveBeenCalled()
   })
@@ -3365,7 +3365,7 @@ describe('createUISlice contextual tours', () => {
       activeContextualTourId: 'automations',
       activeContextualTourStepIndex: 0,
       activeContextualTourSource: 'automations_open',
-      contextualTourShownThisSession: true
+      contextualToursStartedThisSession: ['automations']
     })
 
     store.getState().dismissContextualTour('automations')
@@ -3390,7 +3390,7 @@ describe('createUISlice contextual tours', () => {
       activeContextualTourId: 'tasks',
       activeContextualTourStepIndex: 0,
       activeContextualTourSource: 'tasks_open',
-      contextualTourShownThisSession: true
+      contextualToursStartedThisSession: ['tasks']
     })
 
     store.getState().dismissContextualTour('browser')

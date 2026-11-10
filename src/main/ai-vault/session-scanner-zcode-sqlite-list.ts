@@ -1,4 +1,4 @@
-import type { AiVaultAgent, AiVaultScanIssue } from '../../shared/ai-vault-types'
+import type { AiVaultAgent, AiVaultScanIssue } from '../../shared/ai-vault/contracts/ai-vault-types'
 import { buildZcodeSqliteCandidatePath } from './session-scanner-zcode-sqlite-paths'
 import { readZcodeDatabase, zcodeDatabaseScanIssue } from './session-scanner-zcode-sqlite-open'
 import type { SessionFileCandidate } from './session-scanner-types'

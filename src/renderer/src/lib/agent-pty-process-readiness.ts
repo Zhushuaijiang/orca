@@ -1,5 +1,5 @@
 import { inspectRuntimeTerminalProcess } from '@/runtime/runtime-terminal-inspection'
-import { isExpectedAgentProcess } from '../../../shared/agent-process-recognition'
+import { isExpectedAgentProcess } from '../../../shared/agent-status/process/agent-process-recognition'
 
 /** Polls the PTY's foreground process until the expected agent owns it or the budget expires. */
 export async function waitForExpectedAgentOnPty(

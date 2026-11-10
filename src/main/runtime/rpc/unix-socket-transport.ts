@@ -3,8 +3,9 @@
 import { createServer, type Server, type Socket } from 'node:net'
 import { chmodSync, existsSync, rmSync } from 'node:fs'
 import type { RpcMessageContext, RpcTransport } from './transport'
+import type { RuntimeRpcProgress } from '../../../shared/runtime-rpc-envelope'
+import { MAX_LOCAL_RUNTIME_RPC_MESSAGE_BYTES } from '../../../shared/local-runtime-rpc-limits'
 
-const MAX_RUNTIME_RPC_MESSAGE_BYTES = 1024 * 1024
 const RUNTIME_RPC_SOCKET_IDLE_TIMEOUT_MS = 30_000
 const MAX_RUNTIME_RPC_CONNECTIONS = 32
 const DEFAULT_KEEPALIVE_INTERVAL_MS = 10_000
@@ -131,7 +132,7 @@ export class UnixSocketTransport implements RpcTransport {
       // setEncoding('utf8') keeps split codepoints intact, so chunk byte lengths add exactly.
       retainedBytes += Buffer.byteLength(chunk, 'utf8')
       // Bound oversized frames before they grow buffers and stall Electron main.
-      if (retainedBytes > MAX_RUNTIME_RPC_MESSAGE_BYTES) {
+      if (retainedBytes > MAX_LOCAL_RUNTIME_RPC_MESSAGE_BYTES) {
         oversized = true
         this.messageHandler?.('', (response) => {
           socket.write(`${response}\n`)
@@ -214,9 +215,17 @@ export class UnixSocketTransport implements RpcTransport {
       }
     }
 
+    const reportProgress = (progress: RuntimeRpcProgress): void => {
+      if (replied || socket.destroyed || !socket.writable) {
+        return
+      }
+      socket.write(`${JSON.stringify({ _keepalive: true, progress })}\n`)
+    }
+
     this.messageHandler?.(rawMessage, reply, {
       signal: abortController.signal,
-      startKeepalive
+      startKeepalive,
+      reportProgress
     })
   }
 }

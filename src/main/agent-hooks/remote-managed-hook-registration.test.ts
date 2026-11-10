@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
 
 import { qoderHookService, qoderCnHookService } from '../qoder/hook-service'
 import { qwenCodeHookService } from '../qwen-code/hook-service'
-import { codexHookService } from '../codex/hook-service'
+import { codexHookService } from '../codex/hooks/installation/hook-service'
 import { droidHookService } from '../droid/hook-service'
 import { cursorHookService } from '../cursor/hook-service'
 import { commandCodeHookService } from '../command-code/hook-service'
@@ -28,8 +28,8 @@ import { dshHookService } from '../dsh/hook-service'
 import { jcodeHookService } from '../jcode/hook-service'
 import { kiroHookService } from '../kiro/hook-service'
 import { openClaudeHookService } from '../openclaude/hook-service'
-import { REMOTE_MANAGED_HOOK_INSTALLER_AGENTS } from './remote-managed-hook-installers'
-import { MANAGED_AGENT_HOOK_INSTALLERS } from './managed-agent-hook-controls'
+import { REMOTE_MANAGED_HOOK_INSTALLER_AGENTS } from './installation/remote-managed-hook-installers'
+import { MANAGED_AGENT_HOOK_INSTALLERS } from './installation/managed-agent-hook-registry'
 
 describe('remote managed hook installer registration', () => {
   // Why: Droid (and Copilot) each shipped a working installRemote but were never

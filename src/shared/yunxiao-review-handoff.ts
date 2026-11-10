@@ -1,6 +1,6 @@
 import type { AutomationYunxiaoReviewHandoff } from './automations-types'
-import type { TuiAgent } from './tui-agent'
-import { isTuiAgent } from './tui-agent-config'
+import type { TuiAgent } from './agent-launch/catalog/tui-agent'
+import { isTuiAgent } from './agent-launch/catalog/tui-agent-config'
 
 export const YUNXIAO_REVIEW_HANDOFF_MARKER = 'Orca Yunxiao review handoff'
 export const DEFAULT_YUNXIAO_REVIEW_HANDOFF_AGENT: TuiAgent = 'codex'

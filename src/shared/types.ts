@@ -1,167 +1,64 @@
-// Thin re-export facade over the per-domain shared modules.
-// Upstream split the old monolithic barrel; keep every historic export name
-// working for the ~54 files that still import from here.
-
-export type { WorkspaceSource as WorkspaceCreateTelemetrySource } from './workspace-source'
-export type { TaskProvider } from './task-providers'
-export type {
-  GitBranchChangeStatus,
-  GitConflictKind,
-  GitConflictOperation,
-  GitConflictResolutionStatus,
-  GitConflictStatusSource,
-  GitFileStatus,
-  GitStagingArea,
-  GitStatusEntry,
-  GitStatusResult,
-  GitSubmoduleStatus,
-  GitUncommittedEntry,
-  GitUpstreamStatus
-} from './git-status-types'
-export type { ForkSyncMode, GitForkSyncExpectedUpstream, GitForkSyncResult } from './git-fork-sync'
-export type {
-  GitLabAssignableUser,
-  GitLabAuthDiagnostic,
-  GitLabCommentResult,
-  GitLabDiscussionResolveResult,
-  GitLabIssueInfo,
-  GitLabIssueState,
-  GitLabIssueUpdate,
-  GitLabJobTraceResult,
-  GitLabRateLimitBucket,
-  GitLabRateLimitSnapshot,
-  GitLabMRApprovalRule,
-  GitLabMRApprovalState,
-  GitLabMRFile,
-  GitLabMRInlineCommentInput,
-  GitLabMRReviewersUpdateResult,
-  GitLabMRUpdate,
-  GitLabPagedResult,
-  GitLabPipelineJob,
-  GitLabProjectRef,
-  GitLabProjectSettings,
-  GitLabRetryJobResult,
-  GitLabReaction,
-  GitLabTodo,
-  GitLabTodoTargetType,
-  GitLabViewer,
-  GitLabWorkItem,
-  GitLabWorkItemDetails,
-  GetGitLabRateLimitResult,
-  ListMergeRequestsResult,
-  MRCheckDetail,
-  MRComment,
-  MRInfo,
-  MRListState,
-  MRMergeableState,
-  MRState
-} from './gitlab-types'
-export type {
-  JiraAuthType,
-  JiraComment,
-  JiraConnectArgs,
-  JiraConnectionStatus,
-  JiraCreateField,
-  JiraCreateFieldAllowedValue,
-  JiraCreateIssueArgs,
-  JiraCreateIssueResult,
-  JiraIssue,
-  JiraIssueFilter,
-  JiraIssueType,
-  JiraIssueUpdate,
-  JiraMutationResult,
-  JiraPriority,
-  JiraProject,
-  JiraProjectStatusOrder,
-  JiraSite,
-  JiraSiteSelection,
-  JiraStatus,
-  JiraTransition,
-  JiraUser,
-  JiraViewer
-} from './jira/jira-types'
-export type {
-  YunxiaoArchiveRequirementArgs,
-  YunxiaoArchiveRequirementResult,
-  YunxiaoCreateRequirementArgs,
-  YunxiaoListWorkItemsArgs,
-  YunxiaoListWorkItemsResult,
-  YunxiaoRequirementFieldOption,
-  YunxiaoRequirementFieldOptionsResult,
-  YunxiaoRequirementPriority,
-  YunxiaoRequirementContractDecision,
-  YunxiaoRequirementContractOwner,
-  YunxiaoRequirementContractQuestion,
-  YunxiaoRequirementContractQuestionOption,
-  YunxiaoRequirementContractSnapshot,
-  YunxiaoRequirementContractStatus,
-  YunxiaoRequirementDesignAlternative,
-  YunxiaoRequirementGateOutcome,
-  YunxiaoRequirementImplementationPlanSnapshot,
-  YunxiaoRequirementMethodologyGate,
-  YunxiaoRequirementResult,
-  YunxiaoRequirementReviewCheck,
-  YunxiaoRequirementReviewTier,
-  YunxiaoRequirementRiskProfile,
-  YunxiaoRequirementVerificationEvidence,
-  YunxiaoTodoPoolAddArgs,
-  YunxiaoTodoPoolItem,
-  YunxiaoTodoPoolStatus,
-  YunxiaoTodoPoolUpdateArgs,
-  YunxiaoWorkItem,
-  YunxiaoWorkItemCategory,
-  YunxiaoWorkItemFacet,
-  YunxiaoWorkItemFilters,
-  YunxiaoWorkItemPerson,
-  YunxiaoWorkItemSprint
-} from './yunxiao-types'
-export type { YunxiaoRequirementReviewExpectation } from './yunxiao-requirement-review-policy'
-export type { YunxiaoRequirementCompletionGate } from './yunxiao-requirement-review-policy'
-
-export type { ShellHydrationFailureReason, PathSource } from './shell-path-hydration-types'
-export type { RepoKind, IssueSourcePreference, ExternalWorktreeVisibility, Repo, BaseRefDefaultResult, BaseRefSearchResult } from './repo-types'
-export type { ProjectProviderIdentity, Project, ProjectUpdateArgs, ProjectHostSetupState, ProjectHostSetupMethod, RepoProjectHostSetupMethod, ProjectHostSetup, ProjectHostSetupExistingFolderArgs, ProjectHostSetupCreateArgs, ProjectHostSetupCloneArgs, ProjectHostSetupUpdateArgs, ProjectHostSetupDeleteArgs, ProjectHostSetupResult, ProjectHostSetupCreateResult, ProjectHostSetupUpdateResult, ProjectHostSetupDeleteResult } from './project-types'
-export type { ProjectGroupCreatedFrom, ProjectGroup, NestedRepoScanOptions, NestedRepoCandidate, NestedRepoScanResult, ProjectGroupImportMode, ProjectGroupImportProjectResult, ProjectGroupImportResult } from './project-group-types'
-export type { WorkspaceScope, WorkspaceKey, FolderWorkspace, FolderWorkspaceLinkedTask } from './folder-workspace-types'
-export type { WorkspaceLinkedItem, GitWorktreeInfo, WorktreeHeadIdentity, WorkspaceStatus, WorkspaceStatusDefinition, Worktree, CliWorkspaceProvenance, WorkspaceCreatorProvenance, AutomationWorkspaceProvenance, AutomationWorkspaceProvenanceRequest, GitPushTarget, GitHubPrStartPoint, WorktreeOwnership, DetectedWorktreeListSource, DetectedWorktree, DetectedWorktreeListResult } from './worktree/types'
-export type { SetupRunPolicy, SetupAgentStartupPolicy, HookCommandSourcePolicy, OrcaHooks, OrcaWorktreeDefaults, OrcaDefaultTabTemplate, OrcaVmRecipe, OrcaVmRecipeDiagnostic, RepoHookSettings, PersistedTrustedOrcaHookEntry, PersistedTrustedOrcaHookRepo, PersistedTrustedOrcaHooks } from './orca-yaml-hook-types'
-export type { SetupDecision, WorktreeCreateTimingPhase, WorktreeCreateTiming, CreateSparseCheckoutRequest, SparsePreset, CreateWorktreeArgs, CreateWorktreeResult, WorktreeCreateBaseFallback, PreservedWorktreeBranch, RemoveWorktreeResult, ForceDeleteWorktreeBranchResult } from './worktree/create-types'
-export type { WorktreeMeta } from './worktree/meta-types'
-export type { WorktreeLineageOrigin, WorktreeLineageCaptureConfidence, WorktreeLineageCaptureSource, WorktreeLineageCapture, WorktreeLineage, WorkspaceLineage, WorktreeLineageWarningCode, WorktreeLineageWarning } from './worktree/lineage-types'
-export type { DiffCommentSource, DiffReviewScope, MobileDiffReviewFileState, MobileDiffReviewState, DiffComment } from './diff-comment-types'
-export type { TabGroupSplitDirection, TabGroupLayoutNode, TabContentType, WorkspaceVisibleTabType, CtrlTabOrderMode, Tab, TabGroup } from './tab-types'
-export type { TerminalTab, TerminalPaneSplitDirection, TerminalPaneLayoutNode, TerminalLayoutSnapshot } from './terminal-tab-types'
-export type { BrowserHistoryEntry, BrowserLoadError, BrowserCertificateFailure, BrowserCertificateProceedFailureReason, BrowserCertificateProceedResult, BrowserViewportPresetId, BrowserViewportOverride, BrowserPage, BrowserWorkspace, BrowserTab, BrowserSessionProfileScope, BrowserSessionUserAgentMode, BrowserSessionProfileCreateOptions, BrowserSessionProfileSource, BrowserSessionProfile, BrowserCookieImportSummary, BrowserCookieImportResult } from './browser-workspace-types'
-export type { PersistedOpenFile, WorkspaceSessionState, WorkspaceSessionPatch } from './workspace-session-state-types'
-export type { PRState, IssueState, CheckStatus, PRMergeableState, PRReviewDecision, PRConflictSummary, GitHubRepositoryIdentity, GitHubPRMergeMethod, GitHubPRMergeMethodSettings, GitHubPRStackEntry, GitHubPRStack, PRInfo, IssueInfo, GitHubViewer, GitHubAssignableUser, ProviderCheckSummary, GitHubPRReviewSummary, GitHubPRFileViewedState, GitHubPRFile, GitHubPRFileContents, GitHubOwnerRepo } from './github/pull-request-types'
-export type { PRRefreshErrorType, PRRefreshUpstreamErrorType, PRRefreshOutcome, GitHubPRRefreshReason, GitHubPRRefreshEnqueueResult, GitHubPRRefreshAlias, GitHubPRRefreshCandidate, GitHubPRRefreshSkippedReason, GitHubPRRefreshEvent } from './github/pull-request-refresh-types'
-export type { PRCheckDetail, PRCheckAnnotation, PRCheckStep, PRCheckJob, PRCheckRunDetails, GitHubRerunPRChecksResult } from './github/check-types'
-export type { GitHubReactionContent, GitHubReaction, PRComment, GitHubIssueTimelineTarget, GitHubIssueTimelineItem, GitHubCommentResult, GitHubPRReviewCommentInput } from './github/comment-types'
-export type { GitHubWorkItem, GitHubWorkItemDetails, ListWorkItemsResult } from './github/work-item-types'
-export type { LinearViewer, LinearWorkspace, LinearWorkspaceSelection, LinearWorkspaceSelector, LinearConcreteWorkspaceId, LinearWorkspaceError, LinearCollectionResult, LinearConnectionStatus, LinearWorkflowState, LinearLabel, LinearMember, LinearTeam } from './linear/workspace-types'
-export type { LinearIssue, LinearIssueChildSummary, LinearComment } from './linear/issue-types'
-export type { LinearProjectSummary, LinearProjectStatusSummary, LinearProjectMemberSummary, LinearProjectMilestoneSummary, LinearProjectResourceSummary, LinearProjectUpdateSummary, LinearProjectDetail, LinearCustomViewModel, LinearCustomViewSummary } from './linear/project-types'
-export type { GitHubCreateIssueFields, GitHubCreateIssueResult, GitHubIssueCloseReason, GitHubIssueUpdate, GitHubPullRequestStateUpdate, LinearIssueUpdate } from './issue-mutation-types'
+// Thin re-export facade over upstream's per-domain shared modules.
+// Keeps the fork's historic shared barrel imports working.
+export { PET_SIZE_DEFAULT, PET_SIZE_MAX, PET_SIZE_MIN } from './pet-types'
+export type { TuiAgent } from './agent-launch/catalog/tui-agent'
+export type { BrowserCertificateFailure, BrowserCertificateProceedFailureReason, BrowserCertificateProceedResult, BrowserCookieImportResult, BrowserCookieImportSummary, BrowserHistoryEntry, BrowserLoadError, BrowserPage, BrowserSessionProfile, BrowserSessionProfileCreateOptions, BrowserSessionProfileScope, BrowserSessionProfileSource, BrowserSessionUserAgentMode, BrowserViewportOverride, BrowserViewportPresetId, BrowserWorkspace, BrowserWorkspace as BrowserTab } from './browser-workspace-types'
 export type { ClassifiedError } from './classified-error'
-export type { GitHubRateLimitBucket, GitHubRateLimitSnapshot, GetRateLimitResult } from './github/rate-limit-types'
-export type { WorktreeSetupLaunch, WorktreeStartupLaunch, WorktreeDefaultTabsLaunch } from './worktree/launch-types'
-export type { LocalBaseRefRefreshResult, LocalBaseRefUpdateSuggestion, WorktreeBaseStatusKind, WorktreeBaseStatusEvent, WorktreeRemoteBranchConflictEvent } from './worktree/base-ref-drift-types'
-export type { ChangelogRelease, ChangelogData, UpdateCheckOptions, UpdateSource, LinuxRootPackageType, LinuxPackageInstallFailureReason, LinuxPackageInstallRecovery, LinuxPackageCommandUnavailableReason, LinuxPackageInstallInstructions, UpdateStatus, ReleaseBuildListResult } from './update-status-types'
-export type { NotificationSettings, NotificationEventSource, NotificationDispatchRequest, NotificationDispatchResult, NotificationDismissResult, NotificationSoundResult, NotificationSoundDataResult, NotificationSoundPathResult, NotificationPermissionStatusResult, NotificationDeliveryProbeResult } from './notification-settings-types'
-export type { CodexManagedAccount, CodexManagedAccountSummary, CodexSystemDefaultIdentity, CodexRateLimitAccountsState, CodexManagedAccountRuntimeSelection, ClaudeManagedAccount, ClaudeManagedAccountSummary, ClaudeRateLimitAccountsState, ClaudeManagedAccountRuntimeSelection } from './managed-account-types'
-export type { TuiAgent } from './tui-agent'
-export type { TaskViewPresetId, OpenInApplication, SourceControlViewMode, SourceControlGroupOrder, LeftSidebarAppearanceMode, BranchPrefixStrategy, FloatingTerminalCwdRequest, AgentDashboardMode, WorktreeCardProperty, WorktreeCardMode, AgentActivityDisplayMode, StatusBarItem, FloatingTerminalTriggerLocation, TaskResumeState, RightSidebarTab, ActiveRightSidebarTab, RightSidebarExplorerView, ProjectOrderBy, WorkspaceHostScope, VisibleWorkspaceHostIds, WorkspaceHostOrder, ManualRepoOrderEntry, TopLevelView } from './ui-chrome-types'
-export type { TerminalColorOverrides } from './terminal-color-overrides'
-export type { TerminalQuickCommandScope, TerminalQuickCommandAction, TerminalQuickCommandBase, TerminalCommandQuickCommand, TerminalAgentQuickCommand, TerminalQuickCommand } from './terminal-quick-command-types'
+export type { DiffComment, DiffCommentSource, DiffReviewScope, MobileDiffReviewFileState, MobileDiffReviewState } from './diff-comment-types'
+export type { FilesystemPathFlavor } from './file-access/filesystem-path-flavor'
+export type { DirEntry } from './file-listing/directory-entry'
+export type { MarkdownDocument } from './file-listing/file-document'
+export type { SearchFileResult, SearchMatch, SearchOptions, SearchResult } from './file-search/code-search-types'
+export type { FsChangeEvent, FsChangedPayload } from './file-watch/filesystem-change-event'
+export type { FolderWorkspace } from './folder-workspaces/folder-workspace-types'
+export type { GitBranchChangeEntry, GitBranchCompareResult, GitBranchCompareSummary, GitCommitCompareResult, GitCommitCompareSummary, GitDiffBinaryResult, GitDiffResult, GitDiffTextResult } from './git/diff/git-diff-compare-types'
+export type { ForkSyncMode, GitForkSyncExpectedUpstream, GitForkSyncResult } from './git/remotes/git-fork-sync'
+export type { GitBranchChangeStatus, GitConflictKind, GitConflictOperation, GitConflictResolutionStatus, GitConflictStatusSource, GitFileStatus, GitStagingArea, GitStatusEntry, GitStatusResult, GitSubmoduleStatus, GitUncommittedEntry, GitUpstreamStatus } from './git/status/git-status-types'
+export type { GitHubRerunPRChecksResult, PRCheckAnnotation, PRCheckDetail, PRCheckJob, PRCheckRunDetails, PRCheckStep } from './github/check-types'
+export type { GitHubCommentResult, GitHubIssueTimelineItem, GitHubIssueTimelineTarget, GitHubPRReviewCommentInput, GitHubReaction, GitHubReactionContent, PRComment } from './github/comment-types'
+export type { GitHubPRRefreshAlias, GitHubPRRefreshCandidate, GitHubPRRefreshEnqueueResult, GitHubPRRefreshEvent, GitHubPRRefreshReason, GitHubPRRefreshSkippedReason, PRRefreshErrorType, PRRefreshOutcome, PRRefreshUpstreamErrorType } from './github/pull-request-refresh-types'
+export type { CheckStatus, GitHubAssignableUser, GitHubOwnerRepo, GitHubPRFile, GitHubPRFileContents, GitHubPRFileViewedState, GitHubPRMergeMethod, GitHubPRMergeMethodSettings, GitHubPRReviewSummary, GitHubPRStack, GitHubPRStackEntry, GitHubRepositoryIdentity, GitHubViewer, IssueInfo, IssueState, PRConflictSummary, PRInfo, PRMergeableState, PRReviewDecision, PRState, ProviderCheckSummary } from './github/pull-request-types'
+export type { GetRateLimitResult, GitHubRateLimitBucket, GitHubRateLimitSnapshot } from './github/rate-limit-types'
+export type { GitHubWorkItem, GitHubWorkItemDetails, ListWorkItemsResult } from './github/work-item-types'
+export type { GetGitLabRateLimitResult, GitLabAssignableUser, GitLabAuthDiagnostic, GitLabCommentResult, GitLabDiscussionResolveResult, GitLabIssueInfo, GitLabIssueState, GitLabIssueUpdate, GitLabJobTraceResult, GitLabMRApprovalRule, GitLabMRApprovalState, GitLabMRFile, GitLabMRInlineCommentInput, GitLabMRReviewersUpdateResult, GitLabMRUpdate, GitLabPagedResult, GitLabPipelineJob, GitLabProjectRef, GitLabProjectSettings, GitLabRateLimitBucket, GitLabRateLimitSnapshot, GitLabReaction, GitLabRetryJobResult, GitLabTodo, GitLabTodoTargetType, GitLabViewer, GitLabWorkItem, GitLabWorkItemDetails, ListMergeRequestsResult, MRCheckDetail, MRComment, MRInfo, MRListState, MRMergeableState, MRState } from './gitlab-types'
+export type { GhosttyImportPreview, GlobalSettings, OrcaWorkspaceLayout } from './global-settings-types'
 export type { HostSettingOverrides } from './host-setting-overrides'
-export type { GlobalSettings, OrcaWorkspaceLayout, GhosttyImportPreview } from './global-settings-types'
-export type { CommitMessageAiModelCapability, CommitMessageAiSettings } from './commit-message-ai-types'
-export type { DiscoveryStatusEmitted, OnboardingOutcome, OnboardingChecklistState, OnboardingState } from './onboarding-state-types'
+export type { GitHubCreateIssueFields, GitHubCreateIssueResult, GitHubIssueCloseReason, GitHubIssueUpdate, GitHubPullRequestStateUpdate, LinearIssueUpdate } from './issue-mutation-types'
+export type { JiraAuthType, JiraComment, JiraConnectArgs, JiraConnectionStatus, JiraCreateField, JiraCreateFieldAllowedValue, JiraCreateIssueArgs, JiraCreateIssueResult, JiraIssue, JiraIssueFilter, JiraIssueType, JiraIssueUpdate, JiraMutationResult, JiraPriority, JiraProject, JiraProjectStatusOrder, JiraSite, JiraSiteSelection, JiraStatus, JiraTransition, JiraUser, JiraViewer } from './jira/jira-types'
+export type { LinearComment, LinearIssue, LinearIssueChildSummary } from './linear/issue-types'
+export type { LinearCustomViewModel, LinearCustomViewSummary, LinearProjectDetail, LinearProjectMemberSummary, LinearProjectMilestoneSummary, LinearProjectResourceSummary, LinearProjectStatusSummary, LinearProjectSummary, LinearProjectUpdateSummary } from './linear/project-types'
+export type { LinearCollectionResult, LinearConcreteWorkspaceId, LinearConnectionStatus, LinearLabel, LinearMember, LinearTeam, LinearViewer, LinearWorkflowState, LinearWorkspace, LinearWorkspaceError, LinearWorkspaceSelection, LinearWorkspaceSelector } from './linear/workspace-types'
+export type { ClaudeManagedAccount, ClaudeManagedAccountRuntimeSelection, ClaudeManagedAccountSummary, ClaudeRateLimitAccountsState, CodexManagedAccount, CodexManagedAccountRuntimeSelection, CodexManagedAccountSummary, CodexRateLimitAccountsState, CodexSystemDefaultIdentity } from './managed-account-types'
+export type { NotificationDeliveryProbeResult, NotificationDismissResult, NotificationDispatchRequest, NotificationDispatchResult, NotificationEventSource, NotificationPermissionStatusResult, NotificationSettings, NotificationSoundDataResult, NotificationSoundPathResult, NotificationSoundResult } from './notification-settings-types'
+export type { DiscoveryStatusEmitted, OnboardingChecklistState, OnboardingOutcome, OnboardingState } from './onboarding-state-types'
+export type { HookCommandSourcePolicy, OrcaDefaultTabTemplate, OrcaHooks, OrcaVmRecipe, OrcaVmRecipeDiagnostic, OrcaWorktreeDefaults, PersistedTrustedOrcaHookEntry, PersistedTrustedOrcaHookRepo, PersistedTrustedOrcaHooks, RepoHookSettings, SetupAgentStartupPolicy, SetupRunPolicy } from './orca-yaml-hook-types'
+export type { LegacyPaneKeyAliasEntry, PersistedMobileClientTabSelection, PersistedMobileClientTabSelections, PersistedState } from './persisted-state-types'
 export type { PersistedUIState } from './persisted-ui-state-types'
 export type { CustomPet, SpriteAnimation } from './pet-types'
-export { PET_SIZE_MIN, PET_SIZE_MAX, PET_SIZE_DEFAULT } from './pet-types'
-export type { LegacyPaneKeyAliasEntry, PersistedMobileClientTabSelection, PersistedMobileClientTabSelections, PersistedState } from './persisted-state-types'
-export type { FilesystemPathFlavor, DirEntry, MarkdownDocument, FsChangeEvent, FsChangedPayload } from './filesystem-entry-types'
-export type { GitBranchChangeEntry, GitBranchCompareSummary, GitBranchCompareResult, GitCommitCompareSummary, GitCommitCompareResult, GitDiffTextResult, GitDiffBinaryResult, GitDiffResult } from './git-diff-compare-types'
-export type { SearchMatch, SearchFileResult, SearchResult, SearchOptions } from './code-search-types'
-export type { StatsSummary, UsageValues, ProcessMemoryMetric, HostAvailableMemorySource, AppMemory, SessionMemory, WorktreeMemory, HostMemory, MemorySnapshot } from './process-stats-types'
+export type { AppMemory, HostAvailableMemorySource, HostMemory, MemorySnapshot, ProcessMemoryMetric, SessionMemory, StatsSummary, UsageValues, WorktreeMemory } from './process-stats-types'
+export type { NestedRepoCandidate, NestedRepoScanOptions, NestedRepoScanResult, ProjectGroup, ProjectGroupCreatedFrom, ProjectGroupImportMode, ProjectGroupImportProjectResult, ProjectGroupImportResult } from './project-group-types'
+export type { Project, ProjectHostSetup, ProjectHostSetupCloneArgs, ProjectHostSetupCreateArgs, ProjectHostSetupCreateResult, ProjectHostSetupDeleteArgs, ProjectHostSetupDeleteResult, ProjectHostSetupExistingFolderArgs, ProjectHostSetupMethod, ProjectHostSetupResult, ProjectHostSetupState, ProjectHostSetupUpdateArgs, ProjectHostSetupUpdateResult, ProjectProviderIdentity, ProjectUpdateArgs, RepoProjectHostSetupMethod } from './project-types'
+export type { BaseRefDefaultResult, BaseRefSearchResult, ExternalWorktreeVisibility, IssueSourcePreference, Repo, RepoKind } from './repo-types'
+import { z } from 'zod'
+import { FolderWorkspaceLinkedTask as FolderWorkspaceLinkedTaskSchema } from './rpc-contract/folder-workspace-params'
+export type FolderWorkspaceLinkedTask = z.infer<typeof FolderWorkspaceLinkedTaskSchema>
+export type { PathSource, ShellHydrationFailureReason } from './shell/launch/shell-path-hydration-types'
+export type { CommitMessageAiModelCapability, CommitMessageAiSettings } from './source-control/ai/generation/commit-message-ai-types'
+export type { CtrlTabOrderMode, Tab, TabContentType, TabGroup, TabGroupLayoutNode, TabGroupSplitDirection, WorkspaceVisibleTabType } from './tab-types'
+export type { TerminalColorOverrides } from './terminal-themes/terminal-color-overrides'
+export type { TerminalAgentQuickCommand, TerminalCommandQuickCommand, TerminalQuickCommand, TerminalQuickCommandAction, TerminalQuickCommandBase, TerminalQuickCommandScope } from './terminal/quick-commands/terminal-quick-command-types'
+export type { ActiveRightSidebarTab, AgentActivityDisplayMode, AgentDashboardMode, BranchPrefixStrategy, FloatingTerminalCwdRequest, FloatingTerminalTriggerLocation, LeftSidebarAppearanceMode, ManualRepoOrderEntry, OpenInApplication, ProjectOrderBy, RightSidebarExplorerView, RightSidebarTab, SourceControlGroupOrder, SourceControlViewMode, StatusBarItem, TaskResumeState, TaskViewPresetId, TopLevelView, VisibleWorkspaceHostIds, WorkspaceHostOrder, WorkspaceHostScope, WorktreeCardMode, WorktreeCardProperty } from './ui-chrome-types'
+export type { ChangelogData, ChangelogRelease, LinuxPackageCommandUnavailableReason, LinuxPackageInstallFailureReason, LinuxPackageInstallInstructions, LinuxPackageInstallRecovery, LinuxRootPackageType, ReleaseBuildListResult, UpdateCheckOptions, UpdateSource, UpdateStatus } from './update-status-types'
+export type { TaskProvider } from './work-items/task-providers'
+export type { TerminalLayoutSnapshot, TerminalPaneLayoutNode, TerminalPaneSplitDirection, TerminalTab } from './workspace-layout/terminal-tab-types'
+export type { WorkspaceKey, WorkspaceScope } from './workspace-scope'
+export type { PersistedOpenFile, WorkspaceSessionPatch, WorkspaceSessionState } from './workspace-session/workspace-session-state-types'
+export type { WorkspaceSource as WorkspaceCreateTelemetrySource } from './workspace-source'
+export type { LocalBaseRefRefreshResult, LocalBaseRefUpdateSuggestion, WorktreeBaseStatusEvent, WorktreeBaseStatusKind, WorktreeRemoteBranchConflictEvent } from './worktree/base-ref-drift-types'
+export type { CreateSparseCheckoutRequest, CreateWorktreeArgs, CreateWorktreeResult, ForceDeleteWorktreeBranchResult, PreservedWorktreeBranch, RemoveWorktreeResult, SetupDecision, SparsePreset, WorktreeCreateBaseFallback, WorktreeCreateTiming, WorktreeCreateTimingPhase } from './worktree/create-types'
+export type { WorktreeDefaultTabsLaunch, WorktreeSetupLaunch, WorktreeStartupLaunch } from './worktree/launch-types'
+export type { WorkspaceLineage, WorktreeLineage, WorktreeLineageCapture, WorktreeLineageCaptureConfidence, WorktreeLineageCaptureSource, WorktreeLineageOrigin, WorktreeLineageWarning, WorktreeLineageWarningCode } from './worktree/lineage-types'
+export type { WorktreeMeta } from './worktree/meta-types'
+export type { AutomationWorkspaceProvenance, AutomationWorkspaceProvenanceRequest, CliWorkspaceProvenance, DetectedWorktree, DetectedWorktreeListResult, DetectedWorktreeListSource, GitHubPrStartPoint, GitPushTarget, GitWorktreeInfo, WorkspaceCreatorProvenance, WorkspaceLinkedItem, WorkspaceStatus, WorkspaceStatusDefinition, Worktree, WorktreeHeadIdentity, WorktreeOwnership } from './worktree/types'
+export type { YunxiaoRequirementCompletionGate, YunxiaoRequirementReviewExpectation } from './yunxiao-requirement-review-policy'
+export type { YunxiaoArchiveRequirementArgs, YunxiaoArchiveRequirementResult, YunxiaoCreateRequirementArgs, YunxiaoListWorkItemsArgs, YunxiaoListWorkItemsResult, YunxiaoRequirementContractDecision, YunxiaoRequirementContractOwner, YunxiaoRequirementContractQuestion, YunxiaoRequirementContractQuestionOption, YunxiaoRequirementContractSnapshot, YunxiaoRequirementContractStatus, YunxiaoRequirementDesignAlternative, YunxiaoRequirementFieldOption, YunxiaoRequirementFieldOptionsResult, YunxiaoRequirementGateOutcome, YunxiaoRequirementImplementationPlanSnapshot, YunxiaoRequirementMethodologyGate, YunxiaoRequirementPriority, YunxiaoRequirementResult, YunxiaoRequirementReviewCheck, YunxiaoRequirementReviewTier, YunxiaoRequirementRiskProfile, YunxiaoRequirementVerificationEvidence, YunxiaoTodoPoolAddArgs, YunxiaoTodoPoolItem, YunxiaoTodoPoolStatus, YunxiaoTodoPoolUpdateArgs, YunxiaoWorkItem, YunxiaoWorkItemCategory, YunxiaoWorkItemFacet, YunxiaoWorkItemFilters, YunxiaoWorkItemPerson, YunxiaoWorkItemSprint } from './yunxiao-types'

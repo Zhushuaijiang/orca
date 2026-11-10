@@ -1,6 +1,6 @@
-import { isShellProcess } from '../../../../shared/shell-process-detection'
-import { TUI_AGENT_CONFIG, isTuiAgent } from '../../../../shared/tui-agent-config'
-import type { TuiAgent } from '../../../../shared/tui-agent'
+import { isShellProcess } from '../../../../shared/agent-status/process/shell-process-detection'
+import { TUI_AGENT_CONFIG, isTuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent-config'
+import type { TuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent'
 import { getFirstCommandToken } from '../../../../shared/command-token-scanner'
 
 // Why: write-gating must know which TUI agent owns a PTY even when only the

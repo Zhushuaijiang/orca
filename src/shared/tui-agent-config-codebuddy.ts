@@ -1,4 +1,4 @@
-import type { TuiAgentConfig } from './tui-agent-config-types'
+import type { TuiAgentConfig } from './agent-launch/catalog/tui-agent-config-types'
 
 /** Authoring form: `launchCmd` and `expectedProcess` default to `detectCmd`. */
 type TuiAgentConfigSource = Omit<TuiAgentConfig, 'launchCmd' | 'expectedProcess'> & {

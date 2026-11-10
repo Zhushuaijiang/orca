@@ -1,4 +1,4 @@
-import type { CommitMessageModel, ThinkingLevel } from './commit-message-agent-spec'
+import type { CommitMessageModel, ThinkingLevel } from './source-control/ai/generation/commit-message-agent-spec'
 
 export function buildCopilotCommitMessageModels(
   openAiThinkingLevels: ThinkingLevel[]

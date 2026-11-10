@@ -4,7 +4,7 @@ import { withReceiptNext } from './receipt-next-text'
 import { getOptionalStringFlag, getPresentStringFlag } from '../../flags'
 import { RuntimeClientError, type RuntimeClient } from '../../runtime-client'
 import type { RuntimeStatus } from '../../../shared/runtime-types'
-import { ORCHESTRATION_WORKER_LAUNCH_PREFERENCES_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
+import { ORCHESTRATION_WORKER_LAUNCH_PREFERENCES_RUNTIME_CAPABILITY } from '../../../shared/orchestration/orchestration-runtime-capabilities'
 import { callOrchestrationMutation } from './mutation-request'
 import { getOptionalPositiveIntegerValueFlag } from './numeric-flags'
 import { isDevCliInvocation } from './runtime-compatibility'
@@ -86,7 +86,7 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
       process.exitCode = 1
     }
     const keepOpenState =
-      flags.has('keep-open') &&
+      (flags.has('keep-open') || startsInNewWorkspace(flags)) &&
       (result.result.state === 'ready' || isUnobservedTurnStart(result.result))
         ? await keepWorkerOpen(client, result.result.dispatchId)
         : undefined
@@ -107,7 +107,8 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
     } else {
       printOrchestrationResult(renderedResult, json, WORKER_START_VIEW)
     }
-    if (keepOpenState && keepOpenState !== 'retained') {
+    // Only an explicit --keep-open fails the start; a new workspace's default is best effort.
+    if (flags.has('keep-open') && keepOpenState && keepOpenState !== 'retained') {
       const dispatchId = result.result.dispatchId
       // The worker runs either way, so the next step never starts it again.
       const verb =
@@ -122,6 +123,12 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
       })
     }
   }
+}
+
+// A worker given its own new workspace is that workspace's chat; closing it frees no space.
+function startsInNewWorkspace(flags: Map<string, string | boolean>): boolean {
+  const worktree = getOptionalStringFlag(flags, 'worktree')
+  return worktree === 'new-child' || worktree === 'new-top-level'
 }
 
 // Every host version serves workerRetain, so older servers keep the worker open too.

@@ -1,14 +1,17 @@
-import type { DispatchContextRow, TaskRow, WorkerDispatchRow } from '../../types'
+import type { DispatchContextRow, TaskRow, WorkerDispatchRow } from '../orchestration-records'
 import { OrchestrationError } from '../../orchestration-error'
-import { ensureMutationReceiptCapacity } from '../../mutation-receipt-capacity'
-import { CURRENT_CONTRACT_VERSION } from '../contract-constants'
+import { ensureMutationReceiptCapacity } from '../mutation-receipts/mutation-receipt-capacity'
+import { ORCHESTRATION_CONTRACT_VERSION as CURRENT_CONTRACT_VERSION } from '../../../../../shared/orchestration/orchestration-runtime-capabilities'
 import { generateId } from '../generated-id'
 import type { OrchestrationDb } from '../orchestration-db'
 import { insertStartingDispatchContextRow } from '../dispatch-row-writer'
 import { recordedCreatorIdentity, type DispatchCreator } from '../dispatch-depth'
 import { transitionLifecycleWithDb } from '../lifecycle-transition'
-import { taskNotFoundError, taskNotStartableError } from '../../task-dispatch-refusal'
-import { getFollowUpDispatch } from '../dispatch-context/worker-follow-up-lineage'
+import {
+  taskNotFoundError,
+  taskNotStartableError
+} from '../../coordinator/dispatch/task-dispatch-refusal'
+import { getFollowUpDispatch, takeFollowUpMail } from '../dispatch-context/worker-follow-up-lineage'
 
 export function createStartingWorkerDispatch(
   this: OrchestrationDb,
@@ -48,8 +51,8 @@ export function createStartingWorkerDispatch(
     followUpOf?: string
     /** Another mutation's pending receipt (a send's follow-up), told what this start accepted. */
     acceptedBy?: { callerFingerprint: string; requestId: string }
-    /** Mail this start delivers as its Task, read in the same claim. */
-    consumesMessageIds?: readonly string[]
+    /** The Dispatch whose unread mail this follow-up's Task tells it to check, moved to it in the claim. */
+    takesMailOf?: string
   }
 ): { dispatch: DispatchContextRow; worker: WorkerDispatchRow; task: TaskRow } {
   this.db.exec('BEGIN IMMEDIATE')
@@ -160,6 +163,13 @@ export function createStartingWorkerDispatch(
         { effectsApplied: false }
       )
     }
+    if (creatorDispatchId && this.isWorkerStopRequested(creatorDispatchId)) {
+      throw new OrchestrationError(
+        'consumer_fenced',
+        `Dispatch ${creatorDispatchId} is being stopped, so it cannot start a helper.`,
+        { effectsApplied: false }
+      )
+    }
     const accepting = params.mutationReceipt ?? params.acceptedBy
     if (accepting) {
       this.db
@@ -174,9 +184,6 @@ export function createStartingWorkerDispatch(
           accepting.requestId
         )
     }
-    if (params.consumesMessageIds?.length) {
-      this.markAsReadAndDelivered([...params.consumesMessageIds])
-    }
     insertStartingDispatchContextRow(this.db, {
       id,
       runId: task.run_id,
@@ -190,6 +197,9 @@ export function createStartingWorkerDispatch(
       followUpOfDispatchId: params.followUpOf ?? null,
       ...recordedCreatorIdentity(params.creator)
     })
+    if (params.takesMailOf) {
+      takeFollowUpMail(this, params.takesMailOf, id)
+    }
     this.db
       .prepare(
         `INSERT INTO worker_dispatches (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RESUMABLE_TUI_AGENTS } from '../../../shared/agent-session-resume'
+import { RESUMABLE_TUI_AGENTS } from '../../../shared/agent-session/lifecycle/agent-session-resume'
 import {
   AGENT_SESSION_QODER_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_QODER_CN_RESUME_RUNTIME_CAPABILITY,
@@ -11,11 +11,11 @@ import {
   AGENT_SESSION_CURSOR_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_MUSE_RESUME_RUNTIME_CAPABILITY,
   AGENT_SESSION_OPENCODE2_RESUME_RUNTIME_CAPABILITY,
-  AGENT_SESSION_OMP_RESUME_PATH_RUNTIME_CAPABILITY,
-  AGENT_SESSION_ZCODE_RESUME_RUNTIME_CAPABILITY,
-  RUNTIME_CAPABILITIES
-} from '../../../shared/protocol-version'
-import { agentResumeHostAuthorityCapability } from './agent-resume-host-authority-capability'
+  AGENT_SESSION_ZCODE_RESUME_RUNTIME_CAPABILITY
+} from '../../../shared/agent-session/lifecycle/agent-session-resume-runtime-capabilities'
+import { AGENT_SESSION_OMP_RESUME_PATH_RUNTIME_CAPABILITY } from '../../../shared/agent-session/agent-session-runtime-capabilities'
+import { RUNTIME_CAPABILITIES } from '../../../shared/protocol-version'
+import { agentResumeHostAuthorityCapability } from './hosted-terminals/creation/agent-launch/agent-resume-host-authority-capability'
 
 describe('agentResumeHostAuthorityCapability', () => {
   it('requires Cursor support from the owning host', () => {

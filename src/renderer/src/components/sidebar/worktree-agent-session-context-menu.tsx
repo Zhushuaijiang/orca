@@ -9,31 +9,31 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { useAppStore } from '@/store'
-import type { AiVaultAgent, AiVaultSession } from '../../../../shared/ai-vault-types'
+import type { AiVaultAgent, AiVaultSession } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import { translate } from '@/i18n/i18n'
-import { SessionActionMenuItems } from '../right-sidebar/AiVaultSessionActionMenuItems'
+import { SessionActionMenuItems } from '../right-sidebar/ai-vault/session-list/AiVaultSessionActionMenuItems'
 import {
   aiVaultSessionResumeLabel,
   aiVaultSessionRowResumeGating,
   resolveAiVaultSessionResumeState,
   type AiVaultSessionResumeState,
   type AiVaultSessionResumeTargetState
-} from '../right-sidebar/ai-vault-session-resume'
-import { useAiVaultSessionLaunchActions } from '../right-sidebar/ai-vault-session-launch-actions'
-import { canContinueAiVaultSessionInNewSession } from '../right-sidebar/ai-vault-session-continuation'
+} from '../right-sidebar/ai-vault/session-actions/ai-vault-session-resume'
+import { useAiVaultSessionLaunchActions } from '../right-sidebar/ai-vault/session-actions/ai-vault-session-launch-actions'
+import { canContinueAiVaultSessionInNewSession } from '../right-sidebar/ai-vault/session-actions/ai-vault-session-continuation'
 import {
   canOpenAiVaultSessionLogInOrca,
   canUseLocalAiVaultSessionPathActions
-} from '../right-sidebar/ai-vault-session-path-actions'
-import { openAiVaultSessionLogInOrca } from '../right-sidebar/ai-vault-session-log-open'
+} from '../right-sidebar/ai-vault/session-actions/ai-vault-session-path-actions'
+import { openAiVaultSessionLogInOrca } from '../right-sidebar/ai-vault/session-actions/ai-vault-session-log-open'
 import { AgentSessionContinuationDialog } from '@/components/agent-session-continuation/AgentSessionContinuationDialog'
 import { CLOSE_ALL_CONTEXT_MENUS_EVENT } from '@/lib/close-all-context-menus'
 import {
   shouldSuppressContextMenuFollowUpClick,
   WORKTREE_CONTEXT_MENU_SCOPE_ATTR
-} from './WorktreeContextMenu'
-import { isEventTargetInsideCurrentTarget } from './worktree-card-dom-events'
+} from './workspace-actions/context-menu/worktree-context-menu-policy'
+import { isEventTargetInsideCurrentTarget } from './workspace-card/controller/worktree-card-dom-events'
 import {
   EMPTY_AGENT_ROW_RESUME_TARGET_STATE,
   resolveAgentRowWorkspaceTarget,

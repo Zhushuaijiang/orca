@@ -1,9 +1,9 @@
+import { encodePowerShellCommand } from '../../shared/powershell-command-encoding'
 import {
-  encodePowerShellCommand,
   getPowerShellOsc133Bootstrap,
   getPowerShellOsc133StartupCommandMark
-} from '../powershell-osc133-bootstrap'
-import { quoteStartupArg } from '../../shared/tui-agent-startup-shell'
+} from '../pty/shell-startup/powershell-osc133-bootstrap'
+import { quoteStartupArg } from '../../shared/agent-launch/startup/tui-agent-startup-shell'
 
 const POWERSHELL_STARTUP_COMMAND_TEXT_MAX_CHARS = 6000
 // Includes ~400 encoded chars for the startup command mark so real commands keep the prior budget.

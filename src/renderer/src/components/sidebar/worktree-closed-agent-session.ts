@@ -1,9 +1,9 @@
 import { useAppStore } from '@/store'
-import { launchSleepingAgentSession } from '@/lib/sleeping-agent-session-launch'
+import { launchSleepingAgentSession } from '../../lib/agent-session/resume/sleeping-agent-session-launch'
 import {
   activateAndRevealFolderWorkspace,
   activateAndRevealWorktree
-} from '@/lib/worktree-activation'
+} from '../../lib/workspace/activation/worktree-activation'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
 
 function activateRestoredWorkspace(worktreeId: string): void {

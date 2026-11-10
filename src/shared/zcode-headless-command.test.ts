@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { isHeadlessOneShotAgentCommand } from './agent-headless-command'
-import { isZCodeHeadlessOneShotCommand } from './zcode-headless-command'
+import { isHeadlessOneShotAgentCommand } from './agent-status/process/agent-headless-command'
+import { isZCodeHeadlessOneShotCommand } from './agent-status/process/zcode-headless-command'
 
 describe('isZCodeHeadlessOneShotCommand', () => {
   it.each([

@@ -17,7 +17,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { CodexManagedAccount, GlobalSettings } from '../../shared/types'
-import type * as ShellStartupEnv from '../pty/shell-startup-env'
+import type * as ShellStartupEnv from '../pty/shell-startup/shell-startup-env'
 import type * as WslPaths from '../../shared/wsl-paths'
 
 const testState = {
@@ -2615,7 +2615,7 @@ describe('CodexRuntimeHomeService', () => {
     const store = createStore(createSettings())
     const { CodexRuntimeHomeService } = await import('./runtime-home-service')
     const { startSystemCodexSessionBridgeInBackground } =
-      await import('../codex/codex-session-bridge')
+      await import('../codex/history/bridges/codex-session-bridge')
     const service = new CodexRuntimeHomeService(store as never)
 
     service.prepareForCodexLaunch()
@@ -2868,7 +2868,7 @@ describe('CodexRuntimeHomeService', () => {
   })
 
   it('anchors WSL seed rewrites to the Linux-side home parsed from the UNC source', async () => {
-    const { prepareWslRuntimeSeedConfig } = await import('../codex/codex-config-mirror')
+    const { prepareWslRuntimeSeedConfig } = await import('../codex/configuration/settings/codex-config-mirror')
 
     // Why: real UNC sources cannot back live fs operations in tests, so pin
     // the UNC -> Linux-side anchor translation on the extracted seed function.

@@ -1,4 +1,4 @@
-import type { SettingsSearchEntry } from './settings-search'
+import type { SettingsSearchEntry } from './search/settings-search'
 import { translate } from '@/i18n/i18n'
 
 export function getDfHisEnvironmentPaneSearchEntries(): SettingsSearchEntry[] {

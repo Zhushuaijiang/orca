@@ -1,9 +1,9 @@
 import { translate } from '@/i18n/i18n'
-import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
-import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
-import { captureRuntimeEnvironmentRequestRevision } from '@/runtime/runtime-environment-revision'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from './workspace/ownership/worktree-runtime-owner'
+import { runtimeTargetForOwnerEnvironment } from '../runtime/rpc/targets/runtime-client-target'
+import { captureRuntimeEnvironmentRequestRevision } from '../runtime/rpc/environment-revisions/runtime-environment-revision'
 import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
-import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
+import { toRuntimeWorktreeSelector } from '../runtime/rpc/targets/runtime-worktree-selector'
 import { useAppStore } from '@/store'
 import {
   getAuxiliaryBaselineAgentSpec,

@@ -4,7 +4,7 @@ import type { HandlerContext } from '../dispatch'
 import { getOptionalStringFlag, getRepeatedStringFlag } from '../flags'
 import { buildCurrentWorktreeSelector } from '../selectors'
 import { RuntimeClientError } from '../runtime/types'
-import { isTuiAgent } from '../../shared/tui-agent-config'
+import { isTuiAgent } from '../../shared/agent-launch/catalog/tui-agent-config'
 
 export async function readAuxiliaryCommandInput({ flags, cwd }: HandlerContext) {
   const file = getOptionalStringFlag(flags, 'prompt-file')

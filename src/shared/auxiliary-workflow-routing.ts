@@ -1,11 +1,11 @@
 import type { GlobalSettings } from './global-settings-types'
-import type { AiActionId, SourceControlActionRecipe } from './source-control-ai-actions'
-import { SOURCE_CONTROL_LAUNCH_ACTION_IDS } from './source-control-ai-actions'
+import type { AiActionId, SourceControlActionRecipe } from './source-control/ai/recipes/source-control-ai-actions'
+import { SOURCE_CONTROL_LAUNCH_ACTION_IDS } from './source-control/ai/recipes/source-control-ai-actions'
 import { resolveAuxiliaryModelRoute } from './auxiliary-model-settings'
-import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from './commit-message-host-key'
-import { resolveAgentSessionOptionLaunch } from './agent-session-option-launch'
+import { LOCAL_COMMIT_MESSAGE_HOST_KEY } from './source-control/ai/generation/commit-message-host-key'
+import { resolveAgentSessionOptionLaunch } from './agent-session/options/agent-session-option-launch'
 import { removeAuxiliaryRecipeModelArgs } from './auxiliary-recipe-model-args'
-import { quotePosixShell } from './shell-argument-quoting'
+import { quotePosixShell } from './shell/launch/shell-argument-quoting'
 
 export function applyAuxiliaryWorkflowRoute(
   settings: Partial<GlobalSettings> | null | undefined,

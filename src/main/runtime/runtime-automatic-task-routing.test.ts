@@ -7,7 +7,7 @@ import { createAuxiliaryRuntimeTarget } from './auxiliary-generation-test-fixtur
 import { RuntimeAuxiliaryGeneration } from './runtime-auxiliary-generation'
 import { RuntimeAutomaticTaskRouting } from './runtime-automatic-task-routing'
 import { AutomaticRoutingHistory } from './automatic-routing-history'
-import { getCommitMessageAgentSpec } from '../../shared/commit-message-agent-spec'
+import { getCommitMessageAgentSpec } from '../../shared/source-control/ai/generation/commit-message-agent-spec'
 import type { AuxiliaryTaskRoutes } from '../../shared/auxiliary-model-types'
 
 const fastModel = getCommitMessageAgentSpec('kimi')?.defaultModelId ?? 'kimi-code/kimi-for-coding'

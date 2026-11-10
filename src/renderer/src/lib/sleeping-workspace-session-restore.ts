@@ -1,13 +1,13 @@
 import { useAppStore } from '@/store'
 import { activateTabAndFocusPane } from '@/lib/activate-tab-and-focus-pane'
-import { launchSleepingAgentSession } from '@/lib/sleeping-agent-session-launch'
+import { launchSleepingAgentSession } from './agent-session/resume/sleeping-agent-session-launch'
 import {
   activateAndRevealFolderWorkspace,
   activateAndRevealWorktree
-} from '@/lib/worktree-activation'
-import type { AiVaultSession } from '../../../shared/ai-vault-types'
-import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
-import { parsePaneKey } from '../../../shared/stable-pane-id'
+} from './workspace/activation/worktree-activation'
+import type { AiVaultSession } from '../../../shared/ai-vault/contracts/ai-vault-types'
+import type { SleepingAgentSessionRecord } from '../../../shared/agent-session/lifecycle/agent-session-resume'
+import { parsePaneKey } from '../../../shared/workspace-layout/stable-pane-id'
 import { parseWorkspaceKey } from '../../../shared/workspace-scope'
 
 function activateWorkspace(workspaceId: string): void {

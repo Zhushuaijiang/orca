@@ -36,11 +36,11 @@ export function runLocalSourceControlPlan(
 ): LocalProcessExecution<InternalTextGenerationResult> {
   let { plan } = input
   const { cwd, operation } = input
-  const distro = plan.promptFile ? wslDistroForCommand(cwd, input.wslDistro) : null
+  const distro =
+    plan.promptFile || plan.taskFiles?.length ? wslDistroForCommand(cwd, input.wslDistro) : null
   const guest = distro ? prepareWslPrompt(plan, distro) : undefined
   let closed = false
   let promptDirectory: string | undefined
-  const timeoutMs = input.timeoutMs ?? SOURCE_CONTROL_GENERATION_TIMEOUT_MS
   let markProcessClosed!: () => void
   const processClosed = new Promise<void>((resolve) => {
     markProcessClosed = () => {
@@ -102,7 +102,8 @@ export function runLocalSourceControlPlan(
     }
 
     const stop = new AbortController()
-    const deadline = Date.now() + SOURCE_CONTROL_GENERATION_TIMEOUT_MS
+    const timeoutMs = input.timeoutMs ?? SOURCE_CONTROL_GENERATION_TIMEOUT_MS
+    const deadline = Date.now() + timeoutMs
     let stdout = ''
     let stderr = ''
     let stdoutBytes = 0

@@ -4,7 +4,7 @@ import {
   DEFAULT_VISIBLE_TASK_PROVIDERS,
   normalizeTaskProviderSettings,
   TASK_PROVIDERS
-} from '../../../shared/task-providers'
+} from '../../../shared/work-items/task-providers'
 
 export type PreparedLoadedTaskProviderSettings = {
   taskProviderSettings: Pick<GlobalSettings, 'defaultTaskSource' | 'visibleTaskProviders'>

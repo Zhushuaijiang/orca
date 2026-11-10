@@ -15,11 +15,11 @@ import {
   DEFAULT_ISSUE_COMMAND_TEMPLATE,
   renderIssueCommandTemplate
 } from '@/lib/new-workspace'
-import type { SetupRunPolicy } from '../../../../shared/orca-yaml-hook-types'
-import { getDefaultSetupDecision, getSetupConfig } from '../../../../shared/orca-hook-setup-config'
+import { getSetupConfig } from '../../../../shared/orca-hook-setup-config'
+import { deriveWorkspaceSetupState } from '@/lib/workspace/creation/setup/workspace-setup-preparation'
 import type { SparsePreset } from '../../../../shared/worktree/create-types'
 import { useRetiredWorktreeNames } from '@/hooks/useRetiredWorktreeNames'
-import { getSuggestedCreatureName } from '@/components/sidebar/worktree-name-suggestions'
+import { getSuggestedCreatureName } from '@/components/sidebar/workspace-creation/naming/worktree-name-suggestions'
 const EMPTY_SPARSE_PRESETS: SparsePreset[] = []
 
 export function useDerivedComposerState(input: DerivedComposerStateInput) {
@@ -123,9 +123,22 @@ export function useDerivedComposerState(input: DerivedComposerStateInput) {
     () => (selectedRepoIsGit ? getSetupConfig(selectedRepo, currentYamlHooks) : null),
     [currentYamlHooks, selectedRepo, selectedRepoIsGit]
   )
-
-  const setupPolicy: SetupRunPolicy = selectedRepo?.hookSettings?.setupRunPolicy ?? 'run-by-default'
-
+  const isSetupCheckPending =
+    selectedRepoIsGit &&
+    Boolean(selectedRepoHookContextKey) &&
+    checkedHooksContextKey !== selectedRepoHookContextKey
+  const {
+    setupPolicy,
+    requiresExplicitSetupChoice,
+    resolvedSetupDecision,
+    shouldWaitForSetupCheck
+  } = deriveWorkspaceSetupState(
+    selectedRepo,
+    setupConfig,
+    setupDecision,
+    selectedRepoIsGit,
+    isSetupCheckPending
+  )
   const linkedWorkItemProvider = linkedWorkItem ? getLinkedWorkItemProvider(linkedWorkItem) : null
 
   // Why: sentinel-based Jira/Linear items must bypass repository issue templates.
@@ -139,18 +152,6 @@ export function useDerivedComposerState(input: DerivedComposerStateInput) {
     enableIssueAutomation &&
     (parsedLinkedIssueNumber !== null || willApplyIssueCommandAsPrompt) &&
     !hasLoadedIssueCommand
-
-  const requiresExplicitSetupChoice = Boolean(setupConfig) && setupPolicy === 'ask'
-
-  const resolvedSetupDecision =
-    setupDecision ?? getDefaultSetupDecision(Boolean(setupConfig), setupPolicy)
-
-  const isSetupCheckPending =
-    selectedRepoIsGit &&
-    Boolean(selectedRepoHookContextKey) &&
-    checkedHooksContextKey !== selectedRepoHookContextKey
-
-  const shouldWaitForSetupCheck = Boolean(selectedRepo) && selectedRepoIsGit && isSetupCheckPending
 
   // Blank unseeded names need globally unique creature names; exclude retired paths too.
   const retiredNamesRefreshKey = useMemo(

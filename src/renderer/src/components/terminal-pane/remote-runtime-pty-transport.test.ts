@@ -8,13 +8,13 @@ import {
   encodeTerminalStreamFrame,
   encodeTerminalStreamJson,
   encodeTerminalStreamText
-} from '../../../../shared/terminal-stream-protocol'
+} from '../../../../shared/terminal/stream/terminal-stream-protocol'
 import {
   TERMINAL_INPUT_CHUNK_MAX_BYTES,
   TERMINAL_INPUT_MAX_BYTES
-} from '../../../../shared/terminal-input'
+} from '../../../../shared/terminal/input/terminal-input'
 import { CLIPBOARD_TEXT_MEASURE_YIELD_CODE_UNITS } from '../../../../shared/clipboard-text'
-import { TERMINAL_CREATE_IDEMPOTENCY_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
+import { TERMINAL_CREATE_IDEMPOTENCY_RUNTIME_CAPABILITY } from '../../../../shared/terminal/runtime-policy/terminal-runtime-capabilities'
 
 describe('createRemoteRuntimePtyTransport', () => {
   const runtimeCall = vi.fn()
@@ -250,7 +250,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('attaches to an existing remote runtime terminal handle', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -298,7 +298,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('reports a rejected multiplex write through the pane recovery callback', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onWriteUnavailable = vi.fn()
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -340,7 +340,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         return { unsubscribe: vi.fn(), sendBinary: subscriptionSendBinary }
       }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onWriteUnavailable = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -376,7 +376,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('does not report attachment health until the authoritative PTY snapshot arrives', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
 
     transport.attach({ existingPtyId: 'remote:terminal-1', callbacks: {} })
@@ -392,9 +392,9 @@ describe('createRemoteRuntimePtyTransport', () => {
   it.each(['detach', 'destroy'] as const)(
     'drops its side-effect gauge from the census on %s',
     async (teardown) => {
-      await import('./pty-side-effect-pending-census')
+      await import('./pty-transport/output/pty-side-effect-pending-census')
       const { collectRendererMemoryProfileCounts } = await import('@/lib/renderer-memory-profile')
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       expect(collectRendererMemoryProfileCounts()['ptySideEffects.processors']).toBe(0)
 
       const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
@@ -426,7 +426,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           return { unsubscribe: vi.fn(), sendBinary: subscriptionSendBinary }
         }
       )
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const onData = vi.fn()
       const recoveryStates: { phase: string; epoch: number; attempt: number }[] = []
@@ -485,7 +485,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           return { unsubscribe: vi.fn(), sendBinary: subscriptionSendBinary }
         }
       )
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
 
@@ -522,7 +522,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         return { unsubscribe, sendBinary: subscriptionSendBinary }
       }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
 
@@ -557,7 +557,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return { ok: true, result: {} }
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onPtySpawn = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -611,7 +611,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         }
         return { ok: true, result: {} }
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
 
       const connect = transport.connect({ url: '', callbacks: {} })
@@ -638,7 +638,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         code: 'runtime_timeout'
       })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
 
@@ -663,7 +663,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         code: 'runtime_timeout'
       })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
 
@@ -706,7 +706,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           code: 'runtime_timeout'
         })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const recoveryStates: string[] = []
       const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
@@ -782,7 +782,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           code: 'runtime_timeout'
         })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -849,7 +849,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return { ok: true, result: {} }
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -880,7 +880,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('resolves web mirrors through host session inventory, not client-side pane aliases', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'web-terminal-host-tab-1',
@@ -926,7 +926,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return healthyRuntimeCall?.(request)
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const recoveryPhases: string[] = []
     const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -979,7 +979,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           code: 'remote_runtime_unavailable'
         })
       )
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'web-terminal-host-tab-1',
@@ -1022,7 +1022,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           code: 'unauthorized'
         })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
@@ -1071,7 +1071,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           rejectInFlight = reject
         })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'web-terminal-host-tab-1',
@@ -1128,7 +1128,7 @@ describe('createRemoteRuntimePtyTransport', () => {
             rejectSubscription = reject
           })
       )
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'web-terminal-host-tab-1',
@@ -1183,7 +1183,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         }
         return healthyRuntimeCall?.(request)
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'web-terminal-host-tab-1',
@@ -1235,7 +1235,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return healthyRuntimeCall?.(request)
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const staleOnError = vi.fn()
     const currentOnError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -1288,7 +1288,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       throw new Error(`Unexpected method ${request.method}`)
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('hub-env', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -1370,7 +1370,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       throw new Error(`Unexpected method ${request.method}`)
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('legacy-env', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -1438,7 +1438,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       throw new Error(`Unexpected method ${request.method}`)
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('legacy-env', {
       worktreeId: 'wt-1',
@@ -1457,7 +1457,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('scopes the same legacy handle independently for each runtime environment', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const first = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -1479,7 +1479,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('parks passive peers when another remote desktop owns the grid', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const { getFitOverrideForPty, setFitOverride } =
       await import('@/lib/pane-manager/mobile-fit-overrides')
     const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
@@ -1510,7 +1510,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('gives separate paired viewers of the same host pane distinct refresh identities', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const first = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -1546,7 +1546,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('does not let an encoded restored terminal id override the current worktree owner', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-2', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -1588,7 +1588,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return { ok: true, result: {} }
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('legacy-env', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -1613,7 +1613,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('re-derives the host session handle after a transport close instead of resubscribing the stale one', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const { getAllOverrides, setFitOverride } =
       await import('@/lib/pane-manager/mobile-fit-overrides')
     const { getAllDrivers, setDriverForPty } =
@@ -1691,7 +1691,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('retires the mirror when the host no longer publishes the surface after a transport close', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onPtyExit = vi.fn()
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -1736,7 +1736,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('does not close host-owned terminal handles attached from session snapshots', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'web-terminal-tab-1',
@@ -1763,7 +1763,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('detaches laptop-created remote runtime terminals without closing the server session', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -1784,7 +1784,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('keeps the regular TUI and draft through inventory failure and stale-handle reconnect', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const onPtyExit = vi.fn()
     const onPtySpawn = vi.fn()
@@ -1908,7 +1908,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('reattaches from a later host snapshot after bounded replacement polling stops', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const onPtyExit = vi.fn()
       const onPtyRebind = vi.fn()
@@ -1993,7 +1993,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       expect(transport.getPtyId()).toBe('remote:env-1@@terminal-stale')
       // Cached pixels and a known PTY id do not imply that input/output is attached.
       expect(transport.isConnected()).toBe(false)
-      const handleEvents = await import('../../runtime/web-session-terminal-handle-events')
+      const handleEvents = await import('../../runtime/web-session-tabs-sync/terminal-handles/web-session-terminal-handle-events')
       expect(handleEvents.getWebSessionTerminalHandleSubscriberCountForTests()).toBe(1)
 
       const listCallsAfterBound = hostListCalls
@@ -2061,7 +2061,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('materializes a host surface whose PTY died instead of polling a dead inventory', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const onPtyExit = vi.fn()
       const onPtyRebind = vi.fn()
@@ -2158,7 +2158,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('re-activates when a stale ready activation response precedes the pending surface', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const onPtyExit = vi.fn()
       const onPtyRebind = vi.fn()
@@ -2250,7 +2250,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('falls back to inventory when activation fails for a non-missing reason', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const onPtyExit = vi.fn()
       const onPtyRebind = vi.fn()
@@ -2334,7 +2334,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('retries activation when inventory disproves a transient missing-surface response', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const onPtyExit = vi.fn()
       const onPtyRebind = vi.fn()
@@ -2432,8 +2432,8 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('keeps a mounted HUB mirror alive when the old stream ends before the replacement snapshot', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
-    const handleEvents = await import('../../runtime/web-session-terminal-handle-events')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
+    const handleEvents = await import('../../runtime/web-session-tabs-sync/terminal-handles/web-session-terminal-handle-events')
     const onPtyExit = vi.fn()
     const onPtySpawn = vi.fn()
     const onPtyRebind = vi.fn()
@@ -2551,7 +2551,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('retries inventory and reattaches the same HUB handle after a stream ends', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onPtyExit = vi.fn()
       const onPtyRebind = vi.fn()
       const transport = createRemoteRuntimePtyTransport('hub-env', {
@@ -2621,7 +2621,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     vi.useFakeTimers()
     try {
       resolvedPaneHandle = 'terminal-stable'
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('hub-env', {
         worktreeId: 'wt-1',
         tabId: 'web-terminal-host-tab-1',
@@ -2671,7 +2671,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     vi.useFakeTimers()
     try {
       resolvedPaneHandle = 'terminal-stable'
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onPtyExit = vi.fn()
       const transport = createRemoteRuntimePtyTransport('hub-env', {
         worktreeId: 'wt-1',
@@ -2723,7 +2723,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     vi.useFakeTimers()
     try {
       resolvedPaneHandle = 'terminal-flapping'
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('hub-env', {
         worktreeId: 'wt-1',
         tabId: 'web-terminal-host-tab-1',
@@ -2781,7 +2781,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       resolveOldSend = resolve
     })
     let hostListCalls = 0
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onPtyExit = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -2841,7 +2841,7 @@ describe('createRemoteRuntimePtyTransport', () => {
 
   it('honors a sticky replacement requirement during non-web pane resolution', async () => {
     resolvedPaneHandle = 'terminal-old'
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onPtyExit = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -2917,7 +2917,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     vi.useFakeTimers()
     try {
       resolvedPaneHandle = 'terminal-old'
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onPtyRebind = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
@@ -2994,7 +2994,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       expect(transport.getPtyId()).toBe('remote:env-1@@terminal-old')
       expect(transport.isConnected()).toBe(false)
 
-      const handleEvents = await import('../../runtime/web-session-terminal-handle-events')
+      const handleEvents = await import('../../runtime/web-session-tabs-sync/terminal-handles/web-session-terminal-handle-events')
       handleEvents.queueAcceptedWebSessionTerminalSnapshot(
         {
           worktree: 'wt-1',
@@ -3035,7 +3035,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     vi.useFakeTimers()
     try {
       resolvedPaneHandle = 'terminal-old'
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'web-terminal-host-tab-1',
@@ -3104,7 +3104,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     vi.useFakeTimers()
     try {
       resolvedPaneHandle = 'terminal-flapping'
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onPtyExit = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
@@ -3167,7 +3167,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       resolvedPaneHandle = 'terminal-stable'
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'web-terminal-host-tab-1',
@@ -3228,7 +3228,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           throw new Error('Remote runtime connection closed.')
         }
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onPtyRebind = vi.fn()
       const transport = createRemoteRuntimePtyTransport('hub-env', {
         worktreeId: 'wt-1',
@@ -3313,7 +3313,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('coalesces concurrent stale errors for the handle that was replaced', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onPtyExit = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -3398,7 +3398,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('still retires the regular TUI surface after an explicit terminal exit', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onPtyExit = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -3436,7 +3436,7 @@ describe('createRemoteRuntimePtyTransport', () => {
     const onPtyExit = vi.fn()
     const onPtyRebind = vi.fn()
     resolvedPaneHandle = 'terminal-expired'
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('hub-env', {
       worktreeId: 'wt-1',
       tabId: 'web-terminal-host-tab-1',
@@ -3503,7 +3503,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('fails closed when an older HUB cannot recover an expired SSH pane', async () => {
     const onError = vi.fn()
     resolvedPaneHandle = 'terminal-expired'
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('legacy-hub', {
       worktreeId: 'wt-1',
       tabId: 'web-terminal-host-tab-1',
@@ -3544,7 +3544,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('ignores stale stream end after reattaching a newer remote terminal', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onPtyExit = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -3619,7 +3619,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         }
         return defaultRuntimeCall?.(args)
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onWriteUnavailable = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
@@ -3661,7 +3661,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         }
         return defaultRuntimeCall?.(args)
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onWriteUnavailable = vi.fn()
       const onError = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -3706,7 +3706,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         }
         return defaultRuntimeCall?.(args)
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const oldWriteUnavailable = vi.fn()
       const replacementWriteUnavailable = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -3762,7 +3762,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
     )
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -3827,7 +3827,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       REMOTE_TERMINAL_SNAPSHOT_TOO_LARGE: 'remote_terminal_snapshot_too_large',
       getRemoteRuntimeTerminalMultiplexer: vi.fn(() => ({ subscribeTerminal }))
     }))
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const onPtyExit = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -3865,7 +3865,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('does not send queued input through a stale stream during remote handle replacement', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -3919,7 +3919,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -3949,7 +3949,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onPtySpawn = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -3992,7 +3992,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -4042,7 +4042,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'provisional-tab',
@@ -4076,7 +4076,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('passes activation intent when creating the remote runtime terminal', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -4104,7 +4104,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('scopes ephemeral setup terminals to the floating-terminal selector (#6789)', async () => {
     const { brandEphemeralSetupTerminalWorktreeId } =
       await import('../../../../shared/ephemeral-setup-terminal-worktree-id')
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: brandEphemeralSetupTerminalWorktreeId(
         'feature-wall-orchestration-skill-terminal'
@@ -4127,7 +4127,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('passes startup command delivery when creating the remote runtime terminal', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -4167,7 +4167,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           }
         : { ok: true, result: { terminal: { handle: 'terminal-1' } } }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -4241,9 +4241,9 @@ describe('createRemoteRuntimePtyTransport', () => {
             }
           }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const { resolveWebAgentSessionHandoff } =
-      await import('../../runtime/web-agent-session-handoff')
+      await import('../../runtime/hosted-terminals/creation/agent-launch/web-agent-session-handoff')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'provisional-tab',
@@ -4283,7 +4283,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           }
         : { ok: true, result: { terminal: { handle: 'terminal-legacy' } } }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -4387,7 +4387,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: { terminal: { handle: 'duplicate-terminal' } } })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'web-terminal-host-tab-1',
@@ -4447,7 +4447,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return { ok: true, result: {} }
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('hub-env', {
       worktreeId: 'wt-1',
       tabId: 'web-terminal-host-tab-1',
@@ -4539,7 +4539,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: { terminal: { handle: 'duplicate-terminal' } } })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'web-terminal-host-tab-1',
@@ -4649,7 +4649,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: { terminal: { handle: 'duplicate-terminal' } } })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'web-terminal-host-tab-1',
@@ -4732,7 +4732,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         }
         return Promise.resolve({ ok: true, result: { terminal: { handle: 'duplicate-terminal' } } })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
@@ -4807,7 +4807,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           }
         })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
@@ -4870,7 +4870,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           }
         })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
@@ -4927,7 +4927,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         )
       }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -4947,7 +4947,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('delivers cleaned remote data before deferred title, bell, and OSC 9999 handlers', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onData = vi.fn()
     const onTitleChange = vi.fn()
     const onBell = vi.fn()
@@ -4983,7 +4983,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('processes binary remote data chunks through the terminal parser', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onData = vi.fn()
     const onTitleChange = vi.fn()
     const onBell = vi.fn()
@@ -5014,7 +5014,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('resubscribes without surfacing a PTY error when the remote runtime subscription closes', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onExit = vi.fn()
     const onDisconnect = vi.fn()
     const onPtyExit = vi.fn()
@@ -5038,7 +5038,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('reapplies negotiated output pause across reconnect and resumes exact snapshot plus live data', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onReplayData = vi.fn()
     const onData = vi.fn()
     const onOutputPauseChanged = vi.fn()
@@ -5114,7 +5114,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('backs off before retrying a capacity-rejected terminal stream', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5165,7 +5165,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         return { unsubscribe: vi.fn(), sendBinary: subscriptionSendBinary }
       }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -5200,7 +5200,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         return { unsubscribe, sendBinary: subscriptionSendBinary }
       }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
     await transport.connect({ url: '', callbacks: { onError } })
@@ -5231,7 +5231,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         return { unsubscribe, sendBinary: subscriptionSendBinary }
       }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onData = vi.fn()
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -5297,7 +5297,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           return { unsubscribe: vi.fn(), sendBinary: subscriptionSendBinary }
         }
       )
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const onError = vi.fn()
       const recoveryStates: { phase: string; epoch: number; attempt: number }[] = []
       const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -5356,7 +5356,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('releases pending claimed input when reconnect subscription fails', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onError = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
@@ -5384,7 +5384,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('releases pending claimed input when the remote terminal ends', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5412,7 +5412,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         return { unsubscribe: vi.fn(), sendBinary: subscriptionSendBinary }
       }
     )
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5433,7 +5433,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('resubscribes with the latest pane viewport after the remote stream closes', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5474,7 +5474,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
     }
 
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5518,7 +5518,7 @@ describe('createRemoteRuntimePtyTransport', () => {
           return { unsubscribe: vi.fn(), sendBinary: subscriptionSendBinary }
         }
       )
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5560,7 +5560,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('coalesces rapid remote terminal input before sending it to the runtime', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5592,7 +5592,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('sends coalesced terminal input as binary frames once the stream is established', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5622,7 +5622,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('does not coalesce large remote terminal input chunks above the terminal ceiling', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5669,7 +5669,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5708,7 +5708,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         }
         return Promise.resolve({ ok: true, result: {} })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5753,7 +5753,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5784,7 +5784,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5823,7 +5823,7 @@ describe('createRemoteRuntimePtyTransport', () => {
         }
         return Promise.resolve({ ok: true, result: {} })
       })
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5872,7 +5872,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5898,7 +5898,7 @@ describe('createRemoteRuntimePtyTransport', () => {
       }
       return Promise.resolve({ ok: true, result: {} })
     })
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', {
       worktreeId: 'wt-1',
       tabId: 'tab-1',
@@ -5917,7 +5917,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('preserves literal LF input when sending remote PTY binary frames', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5946,7 +5946,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('coalesces rapid remote viewport updates before sending the latest size', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -5981,7 +5981,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   it('sends an activity claim before the user input it sizes', async () => {
     vi.useFakeTimers()
     try {
-      const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+      const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
       const transport = createRemoteRuntimePtyTransport('env-1', {
         worktreeId: 'wt-1',
         tabId: 'tab-1',
@@ -6015,7 +6015,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('replays remote scrollback through the parser without firing stale attention events', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onReplayData = vi.fn()
     const onTitleChange = vi.fn()
     const onBell = vi.fn()
@@ -6044,7 +6044,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('replays binary snapshot chunks without firing stale attention events', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onReplayData = vi.fn()
     const onTitleChange = vi.fn()
     const onBell = vi.fn()
@@ -6072,7 +6072,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('resolves explicit binary snapshot requests without replaying into xterm', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onReplayData = vi.fn()
     const onData = vi.fn()
     const onConnect = vi.fn()
@@ -6131,7 +6131,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('forwards requested snapshot availability through the remote transport', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const transport = createRemoteRuntimePtyTransport('env-1', { worktreeId: 'wt-1' })
 
     await transport.connect({ url: '', callbacks: {} })
@@ -6166,7 +6166,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('keeps initial replay separate from in-flight explicit binary snapshot requests', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onReplayData = vi.fn()
     const onConnect = vi.fn()
     const transport = createRemoteRuntimePtyTransport('env-1', {
@@ -6221,7 +6221,7 @@ describe('createRemoteRuntimePtyTransport', () => {
   })
 
   it('bounds oversized binary snapshots without closing the live stream', async () => {
-    const { createRemoteRuntimePtyTransport } = await import('./remote-runtime-pty-transport')
+    const { createRemoteRuntimePtyTransport } = await import('./pty-transport/remote-runtime/remote-runtime-pty-transport')
     const onReplayData = vi.fn()
     const onData = vi.fn()
     const onError = vi.fn()

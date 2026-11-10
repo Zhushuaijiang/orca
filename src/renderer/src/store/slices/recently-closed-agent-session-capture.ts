@@ -1,4 +1,4 @@
-import type { SleepingAgentSessionRecord } from '../../../../shared/agent-session-resume'
+import type { SleepingAgentSessionRecord } from '../../../../shared/agent-session/lifecycle/agent-session-resume'
 import type { AppState } from '../types'
 import { collectSleepingAgentSessionRecordsForWorktree } from './agent-status/agent-status-recovery-collection'
 

@@ -1,17 +1,17 @@
 import { CANCELED_AUXILIARY_RESULT } from '../text-generation/auxiliary-generation-fallback'
-import { getCommitMessageAgentSpec } from '../../shared/commit-message-agent-spec'
+import { getCommitMessageAgentSpec } from '../../shared/source-control/ai/generation/commit-message-agent-spec'
 import {
   getAuxiliaryBaselineAgentSpec,
   resolveAuxiliaryGenerationParams
 } from '../../shared/auxiliary-generation-routing'
 import { AUXILIARY_TASKS, type AuxiliaryTaskId } from '../../shared/auxiliary-model-types'
-import { planCommitMessageGeneration } from '../../shared/commit-message-plan'
+import { planCommitMessageGeneration } from '../../shared/source-control/ai/generation/commit-message-plan'
 import {
   attachAuxiliaryImages,
   buildAuxiliaryTaskPrompt
 } from '../../shared/auxiliary-task-prompts'
 import type { ResolvedSourceControlAiGenerationParams } from '../../shared/source-control-ai'
-import type { TuiAgent } from '../../shared/tui-agent'
+import type { TuiAgent } from '../../shared/agent-launch/catalog/tui-agent'
 import { resolveAuxiliaryTaskLaunch } from '../../shared/auxiliary-task-launch'
 import { cancelLocalGeneration } from '../text-generation/source-control-generation-lanes'
 import { prepareLocalCommitMessageAgentEnv } from '../text-generation/commit-message-agent-environment'
@@ -24,12 +24,12 @@ import {
   modelDiscoveryHostKeyForTarget,
   localAgentRuntimeTargetForTarget,
   localTextGenerationTargetForTarget
-} from './runtime-git-generation-context'
+} from './integrations/git/runtime-git-generation-context'
 import {
   runtimeGitRouteForTarget,
   type RuntimeGitCommandHost,
   type RuntimeGitTarget
-} from './runtime-git-command-target'
+} from './integrations/git/runtime-git-command-target'
 
 export class RuntimeAuxiliaryGeneration {
   private readonly pending = new Map<string, AbortController>()

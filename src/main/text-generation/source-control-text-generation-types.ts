@@ -1,12 +1,12 @@
-import type { AgentSessionUnavailable } from '../../shared/agent-session-availability'
+import { type AuxiliaryTaskId } from '../../shared/auxiliary-model-types'
+import type { AgentSessionUnavailable } from '../../shared/agent-session/agent-session-availability'
 import type { spawnProcess } from '@orca/process-host'
 import type { AgentGenerationFailureOutput } from './agent-failure-output'
 import type {
   CommitMessageAgentCapability,
   CommitMessageModelCapability
-} from '../../shared/commit-message-agent-spec'
-import type { CommitMessagePlan } from '../../shared/commit-message-plan'
-import type { AuxiliaryTaskId } from '../../shared/auxiliary-model-types'
+} from '../../shared/source-control/ai/generation/commit-message-agent-spec'
+import type { CommitMessagePlan } from '../../shared/source-control/ai/generation/commit-message-plan'
 import type { TextGenerationFailureFields } from '../../shared/text-generation-failure-copy'
 
 export type GenerateCommitMessageResult =
@@ -133,10 +133,10 @@ export type SpawnSourceControlAgent = (
 
 export type LocalSourceControlPlanInput = {
   plan: CommitMessagePlan
-  timeoutMs?: number
   cwd: string
   env: NodeJS.ProcessEnv | undefined
   operation: TextGenerationOperation
   wslDistro?: string
   spawnAgent: SpawnSourceControlAgent
+  timeoutMs?: number
 }

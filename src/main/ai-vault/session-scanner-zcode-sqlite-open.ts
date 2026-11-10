@@ -1,9 +1,9 @@
 import { basename } from 'node:path'
-import type { AiVaultScanIssue } from '../../shared/ai-vault-types'
+import type { AiVaultScanIssue } from '../../shared/ai-vault/contracts/ai-vault-types'
 import { isWslUncPath } from '../../shared/wsl-paths'
 import SyncDatabase from '../sqlite/sync-database'
 import { classifySqliteReadFailure } from '../sqlite/sqlite-read-failure'
-import { openCodeBusyTimeoutMs } from './session-scanner-opencode-sqlite-open'
+import { openCodeBusyTimeoutMs } from './scanners/opencode/sqlite/session-scanner-opencode-sqlite-open'
 import { errorMessage } from './session-scanner-values'
 
 // Why (#15036, measured on the OpenCode twin): SQLite's 0 ms default busy

@@ -3,9 +3,9 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import {
   getCommitMessageModel,
   listCommitMessageAgentCapabilities
-} from '../../../../shared/commit-message-agent-spec'
-import { isTuiAgent } from '../../../../shared/tui-agent-config'
-import { getAgentSessionOptionLaunchCatalog } from '../../../../shared/agent-session-option-launch'
+} from '../../../../shared/source-control/ai/generation/commit-message-agent-spec'
+import { isTuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent-config'
+import { getAgentSessionOptionLaunchCatalog } from '../../../../shared/agent-session/options/agent-session-option-catalog'
 import { translate } from '@/i18n/i18n'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Input } from '../ui/input'

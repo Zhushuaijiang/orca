@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { buildAgentDraftLaunchPlan, buildAgentStartupPlan } from './tui-agent-startup'
+import { buildAgentDraftLaunchPlan, buildAgentStartupPlan } from './agent-launch/startup/tui-agent-startup'
 import { setYunxiaoRequirementPromptGateEnabled } from './yunxiao-requirement-prompt-gate'
 
 afterEach(() => {

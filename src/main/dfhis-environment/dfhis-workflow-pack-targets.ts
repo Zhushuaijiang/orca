@@ -4,7 +4,7 @@ import {
   AGENT_SKILL_HOME_DIRECTORIES,
   UNIVERSAL_AGENT_SKILL_HOME_DIRECTORY
 } from '../../shared/agent-skill-home-directories'
-import { TUI_AGENT_DISPLAY_NAMES } from '../../shared/tui-agent-display-names'
+import { TUI_AGENT_DISPLAY_NAMES } from '../../shared/agent-launch/catalog/tui-agent-display-names'
 import type {
   BundledSkillPackDefinition,
   BundledSkillPackTarget

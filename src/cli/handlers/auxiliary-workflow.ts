@@ -3,7 +3,7 @@ import { getOptionalStringFlag, getRepeatedStringFlag } from '../flags'
 import { buildCurrentWorktreeSelector } from '../selectors'
 import { RuntimeClientError } from '../runtime/types'
 import type { AuxiliaryTaskLaunch } from '../../shared/auxiliary-task-launch'
-import type { TuiAgent } from '../../shared/tui-agent'
+import type { TuiAgent } from '../../shared/agent-launch/catalog/tui-agent'
 
 export async function runAuxiliaryWorkflow(
   context: HandlerContext,

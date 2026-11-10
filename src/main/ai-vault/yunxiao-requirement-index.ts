@@ -3,16 +3,16 @@ import { readFile, readdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { isPathInsideOrEqual } from '../../shared/cross-platform-path'
-import type { AiVaultSession } from '../../shared/ai-vault-types'
+import type { AiVaultSession } from '../../shared/ai-vault/contracts/ai-vault-types'
 import { readDfHisEnvironmentConfigSync } from '../dfhis-environment/config'
 import SyncDatabase from '../sqlite/sync-database'
 import {
   kimiSessionIndexPathFromStatePath,
   readKimiWorkDirBySessionId,
   resolveKimiSessionsDir
-} from './session-scanner-kimi-paths'
-import { parseOpenCodeSqliteSession } from './session-scanner-opencode-sqlite'
-import { parseAgentSessionFileCached } from './session-scanner-parse-cache'
+} from './scanners/kimi/session-scanner-kimi-paths'
+import { parseOpenCodeSqliteSession } from './scanners/opencode/sqlite/session-scanner-opencode-sqlite'
+import { parseAgentSessionFileCached } from './parse-cache/session-scanner-parse-cache'
 import type { SessionFileCandidate } from './session-scanner-types'
 import { extractString, parseJsonObject } from './session-scanner-values'
 

@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+import type { AiVaultSession } from '../../../../shared/ai-vault/contracts/ai-vault-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
-import type { AiVaultSessionResumeTargetState } from './ai-vault-session-resume'
+import type { AiVaultSessionResumeTargetState } from './ai-vault/session-actions/ai-vault-session-resume'
 
 const mocks = vi.hoisted(() => ({
   activateTabAndFocusPane: vi.fn(),
@@ -46,8 +46,8 @@ vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: mocks.toastSuccess }
 }))
 
-import { useAiVaultSessionLaunchActions } from './ai-vault-session-launch-actions'
-import { resolveAiVaultSessionLaunchTarget } from './ai-vault-session-launch-target'
+import { useAiVaultSessionLaunchActions } from './ai-vault/session-actions/ai-vault-session-launch-actions'
+import { resolveAiVaultSessionLaunchTarget } from './ai-vault/session-actions/ai-vault-session-launch-target'
 
 const ROOT_WORKSPACE_ID = 'repo-1::workspace-root'
 const REQUIREMENT_WORKSPACE_ID = 'repo-1::workspace-dfhis-32238'

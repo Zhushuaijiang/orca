@@ -1,5 +1,5 @@
-import type { AiVaultSession } from '../../../shared/ai-vault-types'
-import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
+import type { AiVaultSession } from '../../../shared/ai-vault/contracts/ai-vault-types'
+import type { FolderWorkspace } from '../../../shared/folder-workspaces/folder-workspace-types'
 import type { Worktree } from '../../../shared/worktree/types'
 import { extractYunxiaoRequirementIdentifier } from '../../../shared/yunxiao-requirement-prompt-gate'
 

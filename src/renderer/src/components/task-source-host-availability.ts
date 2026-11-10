@@ -1,6 +1,6 @@
 import { translate } from '@/i18n/i18n'
 import { getExecutionHostLabel, type ExecutionHostScope } from '../../../shared/execution-host'
-import type { ExecutionHostHealth } from '../../../shared/execution-host-registry'
+import type { ExecutionHostHealth } from '../../../shared/execution-host/execution-host-health'
 import type { SshConnectionStatus } from '../../../shared/ssh-types'
 
 export type TaskSourceAvailabilityNotice = {

@@ -5,7 +5,7 @@ import type {
 } from '../../../../shared/auxiliary-model-types'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { resolveAuxiliaryModelRoute } from '../../../../shared/auxiliary-model-settings'
-import { listCommitMessageAgentCapabilities } from '../../../../shared/commit-message-agent-spec'
+import { listCommitMessageAgentCapabilities } from '../../../../shared/source-control/ai/generation/commit-message-agent-spec'
 import { translate } from '@/i18n/i18n'
 import { Button } from '../ui/button'
 import { Card, CardContent } from '../ui/card'

@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { useActiveProjectSkillRuntime } from '@/hooks/useActiveProjectSkillRuntime'
-import { getRuntimeGitScope } from '@/runtime/runtime-git-client-context'
+import { getRuntimeGitScope } from '../../../../runtime/source-control/git/runtime-git-client-context'
 import {
   getCommitMessageModelDiscoveryHostKeyForLocalRuntime,
   getCommitMessageModelDiscoveryHostKeyForScope
-} from '../../../../../../shared/commit-message-host-key'
+} from '../../../../../../shared/source-control/ai/generation/commit-message-host-key'
 import type { SourceControlAiControllerParams } from './controller-types'
 
 export function getSourceControlAiControllerDiscoveryHostKey(

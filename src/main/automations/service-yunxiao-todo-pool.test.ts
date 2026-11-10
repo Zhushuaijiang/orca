@@ -4,6 +4,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { YunxiaoWorkItem } from '../../shared/yunxiao-types'
+import type { AutomationLauncher } from './automation-launch'
+import { runNowSettled } from './automation-run-now-settled.test-fixture'
 import { AutomationService } from './service'
 
 vi.mock('electron', () => ({
@@ -64,15 +66,23 @@ describe('Yunxiao todo pool automation service', () => {
       rrule: 'FREQ=HOURLY;BYMINUTE=15',
       dtstart: new Date('2026-05-14T00:00:00Z').getTime()
     })
-    const send = vi.fn()
-    const service = new AutomationService(store, { tickMs: 60_000 })
-    service.setWebContents({
-      isDestroyed: () => false,
-      send
-    } as never)
-    service.setRendererReady()
+    let finishDelivery: (result: { error: string | null }) => void = () => {}
+    const delivery = new Promise<{ error: string | null }>((resolve) => {
+      finishDelivery = resolve
+    })
+    const launch = vi.fn<AutomationLauncher>(async () => ({
+      workspaceId: 'wt1',
+      terminalSessionId: 'tab-1',
+      delivery
+    }))
+    const service = new AutomationService(store, {
+      tickMs: 60_000,
+      terminalLauncher: { launch, available: () => true }
+    })
 
-    const run = await service.runNow(automation.id)
+    await service.runNow(automation.id)
+    await vi.waitFor(() => expect(launch).toHaveBeenCalledTimes(1))
+    const run = store.listAutomationRuns(automation.id)[0]!
 
     expect(run.status).toBe('dispatching')
     expect(run.yunxiaoTodoPoolClaim?.itemIds).toEqual(['item-1'])
@@ -84,7 +94,7 @@ describe('Yunxiao todo pool automation service', () => {
       claimedByAutomationId: automation.id,
       claimedByRunId: run.id
     })
-    const [, payload] = send.mock.calls[0]
+    const [payload] = launch.mock.calls[0]
     expect(payload.automation.prompt).toContain('DFHIS-31704')
     // Why: the compact workflow replaced the older "direct Yunxiao MCP" wording (285a3ebe54).
     expect(payload.automation.prompt).toContain('执行 $yunxiao-requirement-archiver')
@@ -101,6 +111,8 @@ describe('Yunxiao todo pool automation service', () => {
       status: 'completed',
       workspaceId: 'wt1'
     })
+    finishDelivery({ error: null })
+    await service.runInAutomationLane(automation.id, async () => undefined)
 
     expect(store.getYunxiaoTodoPool()[0]).toMatchObject({
       poolStatus: 'ready-to-build',
@@ -132,17 +144,18 @@ describe('Yunxiao todo pool automation service', () => {
       rrule: 'FREQ=HOURLY;BYMINUTE=15',
       dtstart: new Date('2026-05-14T00:00:00Z').getTime()
     })
-    const send = vi.fn()
-    const service = new AutomationService(store, { tickMs: 60_000 })
-    service.setWebContents({
-      isDestroyed: () => false,
-      send
-    } as never)
-    service.setRendererReady()
+    const launch = vi.fn<AutomationLauncher>(async () => ({
+      workspaceId: 'wt1',
+      terminalSessionId: 'tab-1'
+    }))
+    const service = new AutomationService(store, {
+      tickMs: 60_000,
+      terminalLauncher: { launch, available: () => true }
+    })
 
-    const run = await service.runNow(automation.id)
+    const run = await runNowSettled(service, store, automation.id)
 
-    expect(run.status).toBe('dispatching')
+    expect(run.status).toBe('dispatched')
     expect(run.title).toBe('DFHIS-31705 折扣套餐，医嘱名称变更后，同步变更 +1')
     expect(run.yunxiaoTodoPoolClaim?.itemIds).toHaveLength(2)
     expect(run.yunxiaoTodoPoolClaim?.itemIds).toEqual(
@@ -150,12 +163,12 @@ describe('Yunxiao todo pool automation service', () => {
     )
     expect(store.getYunxiaoTodoPool()).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'workspace-item', poolStatus: 'running', attempts: 1 }),
-        expect.objectContaining({ id: 'ready-item', poolStatus: 'running', attempts: 1 }),
+        expect.objectContaining({ id: 'workspace-item', poolStatus: 'done', attempts: 1 }),
+        expect.objectContaining({ id: 'ready-item', poolStatus: 'done', attempts: 1 }),
         expect.objectContaining({ id: 'clarify-item', poolStatus: 'needs-clarification' })
       ])
     )
-    expect(send).toHaveBeenCalled()
+    expect(launch).toHaveBeenCalled()
   })
 
   it('keeps a launched Yunxiao claim done when the renderer marks the run completed', async () => {
@@ -229,18 +242,19 @@ describe('Yunxiao todo pool automation service', () => {
       rrule: 'FREQ=HOURLY;BYMINUTE=15',
       dtstart: new Date('2026-05-14T00:00:00Z').getTime()
     })
-    const send = vi.fn()
-    const service = new AutomationService(store, { tickMs: 60_000 })
-    service.setWebContents({
-      isDestroyed: () => false,
-      send
-    } as never)
-    service.setRendererReady()
+    const launch = vi.fn<AutomationLauncher>(async () => ({
+      workspaceId: 'wt1',
+      terminalSessionId: 'tab-1'
+    }))
+    const service = new AutomationService(store, {
+      tickMs: 60_000,
+      terminalLauncher: { launch, available: () => true }
+    })
 
-    const run = await service.runNow(automation.id)
+    const run = await runNowSettled(service, store, automation.id)
 
     expect(run.status).toBe('skipped_precheck')
     expect(run.error).toBe('No matching actionable Yunxiao todo pool items are available.')
-    expect(send).not.toHaveBeenCalled()
+    expect(launch).not.toHaveBeenCalled()
   })
 })

@@ -1,3 +1,4 @@
+import { getTaskWorkspaceRepoForSourceRepo } from '../task-page-default-repo-selection'
 import type { TaskPageGitHubCacheReconciliationModel } from './use-task-page-github-cache-reconciliation'
 import { useState, useMemo, useEffect } from 'react'
 import type { GitHubAssignableUser } from '../../../../../shared/github/pull-request-types'
@@ -9,8 +10,7 @@ import {
   resolveVanishedNewIssueRepoReset,
   isNewIssueDraftContentful
 } from '@/components/task-page/task-page-new-issue-draft'
-import { getTaskPageRepoSourceContext } from '../task-page-source-context'
-import { getTaskWorkspaceRepoForSourceRepo } from '@/components/task-page/task-page-default-repo-selection'
+import { getTaskPageRepoSourceContext } from '../../../lib/task-repo-source-context'
 
 export type NewIssueProvider = 'github' | 'gitlab' | 'yunxiao'
 

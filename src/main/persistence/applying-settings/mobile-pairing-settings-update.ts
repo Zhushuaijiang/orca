@@ -2,7 +2,7 @@ import {
   addMobilePairingCustomAddress,
   normalizeMobilePairingCustomAddress,
   normalizeMobilePairingCustomAddresses
-} from '../../../shared/mobile-pairing-custom-address'
+} from '../../../shared/remote-runtime/pairing/mobile-pairing-custom-address'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 
 /** Normalizes the mobile pairing address write and folds a single address into the list. */
