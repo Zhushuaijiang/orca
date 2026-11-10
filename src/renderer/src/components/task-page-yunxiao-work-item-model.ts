@@ -1,5 +1,6 @@
 import { translate } from '@/i18n/i18n'
 import type {
+  YunxiaoListWorkItemsResult,
   YunxiaoTodoPoolStatus,
   YunxiaoWorkItem,
   YunxiaoWorkItemCategory,
@@ -8,6 +9,32 @@ import type {
 
 export type YunxiaoRelationFilter = 'all' | 'assigned-self' | 'participant-self'
 export type YunxiaoListView = 'work-items' | 'todo-pool'
+
+export type YunxiaoWorkItemFetchInputs = {
+  appliedQuery: string
+  category: YunxiaoWorkItemCategory | 'all'
+  page: number
+  refreshNonce: number
+  relation: YunxiaoRelationFilter
+  sprintId: string
+  statusIds: string[]
+}
+
+export type YunxiaoWorkItemListSession = Omit<YunxiaoWorkItemFetchInputs, 'refreshNonce'> & {
+  defaultStatusesPending: boolean
+  result: YunxiaoListWorkItemsResult
+}
+
+// Why: the task page unmounts on every view switch; keep the last list so returning is instant until a manual refresh.
+let lastYunxiaoWorkItemListSession: YunxiaoWorkItemListSession | null = null
+
+export function restoreYunxiaoWorkItemListSession(): YunxiaoWorkItemListSession | null {
+  return lastYunxiaoWorkItemListSession
+}
+
+export function recordYunxiaoWorkItemListSession(session: YunxiaoWorkItemListSession): void {
+  lastYunxiaoWorkItemListSession = session
+}
 
 export const YUNXIAO_PAGE_SIZE = 100
 export const YUNXIAO_GRID_CLASS =
@@ -145,4 +172,28 @@ export function resolveDefaultYunxiaoStatusIds(
     const status = statuses.find((facet) => facet.name === name || facet.id === name)
     return status?.id ?? name
   })
+}
+
+export function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) {
+    return false
+  }
+  const rightSet = new Set(right)
+  return left.every((value) => rightSet.has(value))
+}
+
+export function sameYunxiaoWorkItemFetchInputs(
+  left: YunxiaoWorkItemFetchInputs | null,
+  right: YunxiaoWorkItemFetchInputs
+): boolean {
+  return (
+    left !== null &&
+    left.appliedQuery === right.appliedQuery &&
+    left.category === right.category &&
+    left.page === right.page &&
+    left.refreshNonce === right.refreshNonce &&
+    left.relation === right.relation &&
+    left.sprintId === right.sprintId &&
+    sameStringSet(left.statusIds, right.statusIds)
+  )
 }

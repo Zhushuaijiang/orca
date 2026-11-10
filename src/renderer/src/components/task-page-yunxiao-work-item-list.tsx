@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { toast } from 'sonner'
 
 import { translate } from '@/i18n/i18n'
 import type {
-  YunxiaoListWorkItemsResult,
   YunxiaoTodoPoolItem,
   YunxiaoTodoPoolStatus,
   YunxiaoWorkItem,
@@ -17,16 +16,18 @@ import { TaskPageYunxiaoWorkItemToolbar } from './task-page-yunxiao-work-item-to
 import { useYunxiaoRequirementDecisionAnswer } from './use-yunxiao-requirement-decision-answer'
 import { useYunxiaoTodoPoolOrder } from './use-yunxiao-todo-pool-order'
 import { useYunxiaoTodoPool } from './use-yunxiao-todo-pool'
+import { useYunxiaoWorkItemListFetch } from './use-yunxiao-work-item-list-fetch'
 import { useYunxiaoTodoPoolAutomation } from './yunxiao-todo-pool-automation'
 import {
   DEFAULT_VISIBLE_YUNXIAO_TODO_POOL_STATUSES,
   facetLabel,
   itemMatchesText,
   resolveDefaultYunxiaoStatusIds,
+  restoreYunxiaoWorkItemListSession,
+  sameStringSet,
   statusSelectionLabel,
   todoPoolStatusLabel,
   workItemIdentity,
-  YUNXIAO_PAGE_SIZE,
   type YunxiaoListView,
   type YunxiaoRelationFilter
 } from './task-page-yunxiao-work-item-model'
@@ -35,32 +36,39 @@ type TaskPageYunxiaoWorkItemListProps = {
   onStartWorkspace: (item: YunxiaoWorkItem) => void
 }
 
-function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) {
-    return false
-  }
-  const rightSet = new Set(right)
-  return left.every((value) => rightSet.has(value))
-}
-
 export function TaskPageYunxiaoWorkItemList({
   onStartWorkspace
 }: TaskPageYunxiaoWorkItemListProps): JSX.Element {
+  const [restoredSession] = useState(restoreYunxiaoWorkItemListSession)
   const [view, setView] = useState<YunxiaoListView>('work-items')
-  const [category, setCategory] = useState<YunxiaoWorkItemCategory | 'all'>('all')
-  const [relation, setRelation] = useState<YunxiaoRelationFilter>('assigned-self')
-  const [sprintId, setSprintId] = useState<string>('all')
-  const [statusIds, setStatusIds] = useState<string[]>([])
-  const [defaultStatusesPending, setDefaultStatusesPending] = useState(true)
+  const [category, setCategory] = useState<YunxiaoWorkItemCategory | 'all'>(
+    restoredSession?.category ?? 'all'
+  )
+  const [relation, setRelation] = useState<YunxiaoRelationFilter>(
+    restoredSession?.relation ?? 'assigned-self'
+  )
+  const [sprintId, setSprintId] = useState<string>(restoredSession?.sprintId ?? 'all')
+  const [statusIds, setStatusIds] = useState<string[]>(restoredSession?.statusIds ?? [])
+  const [defaultStatusesPending, setDefaultStatusesPending] = useState(
+    restoredSession?.defaultStatusesPending ?? true
+  )
   const [todoPoolStatuses, setTodoPoolStatuses] = useState<YunxiaoTodoPoolStatus[]>([])
-  const [queryInput, setQueryInput] = useState('')
-  const [appliedQuery, setAppliedQuery] = useState('')
-  const [page, setPage] = useState(1)
+  const [queryInput, setQueryInput] = useState(restoredSession?.appliedQuery ?? '')
+  const [appliedQuery, setAppliedQuery] = useState(restoredSession?.appliedQuery ?? '')
+  const [page, setPage] = useState(restoredSession?.page ?? 1)
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [todoPoolNonce, setTodoPoolNonce] = useState(0)
-  const [result, setResult] = useState<YunxiaoListWorkItemsResult | null>(null)
-  const { todoPool, setTodoPool, todoPoolLoading } = useYunxiaoTodoPool(todoPoolNonce, view)
-  const [loading, setLoading] = useState(false)
+  const { result, loading } = useYunxiaoWorkItemListFetch({
+    appliedQuery,
+    category,
+    defaultStatusesPending,
+    page,
+    refreshNonce,
+    relation,
+    sprintId,
+    statusIds
+  })
+  const { todoPool, setTodoPool, todoPoolLoading } = useYunxiaoTodoPool(todoPoolNonce)
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [answerTarget, setAnswerTarget] = useState<YunxiaoTodoPoolItem | null>(null)
@@ -80,49 +88,20 @@ export function TaskPageYunxiaoWorkItemList({
     onTodoPoolChanged: () => setTodoPoolNonce((value) => value + 1)
   })
 
+  const previousQueryInputRef = useRef(queryInput)
+
   useEffect(() => {
+    // Why: only debounce real typing; the mount run must not reset a restored page.
+    if (previousQueryInputRef.current === queryInput) {
+      return
+    }
+    previousQueryInputRef.current = queryInput
     const timer = window.setTimeout(() => {
       setAppliedQuery(queryInput.trim())
       setPage(1)
     }, 350)
     return () => window.clearTimeout(timer)
   }, [queryInput])
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    void window.api.yunxiao
-      .listWorkItems({
-        filters: {
-          category,
-          sprintId: sprintId === 'all' ? null : sprintId,
-          statusIds: statusIds.length > 0 ? statusIds : undefined,
-          assigneeId: relation === 'assigned-self' ? 'self' : null,
-          participantId: relation === 'participant-self' ? 'self' : null,
-          query: appliedQuery,
-          page,
-          perPage: YUNXIAO_PAGE_SIZE
-        }
-      })
-      .then((nextResult) => {
-        if (!cancelled) {
-          setResult(nextResult)
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setResult({ ok: false, error: error instanceof Error ? error.message : String(error) })
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [appliedQuery, category, page, refreshNonce, relation, sprintId, statusIds])
 
   const items = useMemo(() => (result?.ok ? result.items : []), [result])
   const sprints = useMemo(() => (result?.ok ? result.sprints : []), [result])

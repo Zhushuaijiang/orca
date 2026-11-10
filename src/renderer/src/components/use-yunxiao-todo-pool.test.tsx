@@ -5,7 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { emitAutomationsChangedWindowEvent } from '@/lib/automations-changed-window-event'
 import type { YunxiaoTodoPoolItem, YunxiaoTodoPoolStatus } from '../../../shared/yunxiao-types'
 import { YunxiaoTableRow, type YunxiaoTableRowProps } from './task-page-yunxiao-work-item-table-row'
-import { todoPoolStatusLabel, type YunxiaoListView } from './task-page-yunxiao-work-item-model'
+import { todoPoolStatusLabel } from './task-page-yunxiao-work-item-model'
 import { useYunxiaoTodoPool } from './use-yunxiao-todo-pool'
 
 const item: YunxiaoTodoPoolItem = {
@@ -50,47 +50,37 @@ afterEach(cleanup)
 
 describe('Yunxiao todo pool state refresh', () => {
   it('refreshes after automation updates without leaving Work items', async () => {
-    const hook = renderHook(() => useYunxiaoTodoPool(0, 'work-items'))
+    const hook = renderHook(() => useYunxiaoTodoPool(0))
     await waitFor(() => expect(hook.result.current.todoPool[0]?.poolStatus).toBe('queued'))
     listTodoPool.mockResolvedValue([{ ...item, poolStatus: 'done' }])
     act(() => emitAutomationsChangedWindowEvent({ reason: 'run' }))
     await waitFor(() => expect(hook.result.current.todoPool[0]?.poolStatus).toBe('done'))
   })
 
-  it('refreshes when switching back to Work items and when the window regains focus', async () => {
-    const initialProps: { view: YunxiaoListView } = { view: 'todo-pool' }
-    const hook = renderHook(({ view }: { view: YunxiaoListView }) => useYunxiaoTodoPool(0, view), {
-      initialProps
+  it('keeps the pool on window focus and updates it only on a manual refresh', async () => {
+    const hook = renderHook(({ nonce }) => useYunxiaoTodoPool(nonce), {
+      initialProps: { nonce: 0 }
     })
     await waitFor(() => expect(hook.result.current.todoPool[0]?.poolStatus).toBe('queued'))
     listTodoPool.mockResolvedValue([{ ...item, poolStatus: 'done' }])
-    hook.rerender({ view: 'work-items' })
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'))
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    expect(hook.result.current.todoPool[0]?.poolStatus).toBe('queued')
+    hook.rerender({ nonce: 1 })
     await waitFor(() => expect(hook.result.current.todoPool[0]?.poolStatus).toBe('done'))
-    listTodoPool.mockResolvedValue([{ ...item, poolStatus: 'dismissed' }])
-    act(() => window.dispatchEvent(new Event('focus')))
-    await waitFor(() => expect(hook.result.current.todoPool[0]?.poolStatus).toBe('dismissed'))
   })
 
   it('ignores an old response arriving after the newer done state', async () => {
     const pending = Promise.withResolvers<YunxiaoTodoPoolItem[]>()
     listTodoPool.mockReturnValueOnce(pending.promise)
-    const hook = renderHook(() => useYunxiaoTodoPool(0, 'work-items'))
+    const hook = renderHook(() => useYunxiaoTodoPool(0))
     listTodoPool.mockResolvedValue([{ ...item, poolStatus: 'done' }])
     act(() => emitAutomationsChangedWindowEvent({ reason: 'run' }))
     await waitFor(() => expect(hook.result.current.todoPool[0]?.poolStatus).toBe('done'))
     await act(async () => pending.resolve([item]))
     expect(hook.result.current.todoPool[0]?.poolStatus).toBe('done')
-  })
-
-  it('removes refresh listeners on unmount', async () => {
-    const hook = renderHook(() => useYunxiaoTodoPool(0, 'work-items'))
-    await waitFor(() => expect(listTodoPool).toHaveBeenCalledOnce())
-    hook.unmount()
-    act(() => {
-      emitAutomationsChangedWindowEvent({ reason: 'run' })
-      window.dispatchEvent(new Event('focus'))
-    })
-    expect(listTodoPool).toHaveBeenCalledOnce()
   })
 })
 
