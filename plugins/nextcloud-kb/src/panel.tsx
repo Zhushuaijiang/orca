@@ -92,6 +92,8 @@ const sharePreparing = atom(false)
 const downloading = atom(false)
 const downloadHint = atom<string | null>(null)
 const shareFallback = atom<{ path: string; url: string } | null>(null)
+const mcpState = atom<{ running: boolean; url: string; configFile: string } | null>(null)
+const mcpBusy = atom(false)
 const searchIndexed = atom(true)
 const searchSource = atom<'index' | 'ocs'>('index')
 const searchIndexSize = atom(0)
@@ -681,6 +683,26 @@ function treeItemsFor(dir: string, branch: ReadonlySet<string> = new Set()): Tre
     }))
 }
 
+async function toggleMcp(): Promise<void> {
+  set(mcpBusy, true)
+  try {
+    if (read(mcpState)?.running) {
+      await plugin.request('kb.mcp.stop')
+      set(mcpState, null)
+    } else {
+      const result = (await plugin.request('kb.mcp.start')) as {
+        url: string
+        configFile: string
+      }
+      set(mcpState, { running: true, url: result.url, configFile: result.configFile })
+    }
+  } catch (error) {
+    set(lastError, `MCP 启停失败：${errorMessage(error)}`)
+  } finally {
+    set(mcpBusy, false)
+  }
+}
+
 /** Double-click and the action bar's 打开: the browser shows the file, no preview detour. */
 async function openEntryOnline(entry: KbEntry): Promise<void> {
   set(selectedKey, entry.path)
@@ -908,6 +930,27 @@ function SelectionActions() {
       {read(downloadHint) !== null ? (
         <Text muted size="xs">
           {read(downloadHint)}
+        </Text>
+      ) : null}
+      <Row gap="xs">
+        <Button
+          variant="outline"
+          icon="settings"
+          disabled={read(mcpBusy)}
+          onPress={() => void toggleMcp()}
+        >
+          {read(mcpState)?.running ? '停用 MCP' : '启用 MCP'}
+        </Button>
+        {read(mcpState)?.running ? (
+          <Text muted size="xs" truncate>
+            {read(mcpState)?.url}
+          </Text>
+        ) : null}
+      </Row>
+      {read(mcpState)?.running ? (
+        <Text muted size="xs">
+          已写入 {read(mcpState)?.configFile}，把该文件加入 agent 的 mcp-config 即可调用
+          kb_list/kb_search/kb_read。
         </Text>
       ) : null}
     </Stack>

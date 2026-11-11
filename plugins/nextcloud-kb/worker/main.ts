@@ -4,6 +4,7 @@
 
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { KbEntry } from '../src/protocol'
+import { startMcpServer, writeMcpConfigFile } from './mcp-server'
 import { readFile, stat } from 'node:fs/promises'
 import {
   crawlNameIndex,
@@ -315,6 +316,20 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
       indexTruncated: index.truncated
     }
   })
+
+  let mcp: { port: number; url: string; close: () => void } | null = null
+  orca.panels.handle('kb.mcp.start', async () => {
+    mcp ??= await startMcpServer(fetchLike, currentConnection)
+    return { port: mcp.port, url: mcp.url, configFile: writeMcpConfigFile(mcp.url) }
+  })
+  orca.panels.handle('kb.mcp.stop', async () => {
+    mcp?.close()
+    mcp = null
+    return { stopped: true }
+  })
+  orca.panels.handle('kb.mcp.status', async () =>
+    mcp ? { running: true, port: mcp.port, url: mcp.url } : { running: false }
+  )
 
   orca.panels.handle('kb.share', async ({ path }) => {
     const connection = requireConnection(await currentConnection())
