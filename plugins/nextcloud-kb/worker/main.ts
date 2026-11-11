@@ -4,7 +4,7 @@
 
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { KbEntry } from '../src/protocol'
-import { startMcpServer, writeMcpConfigFile } from './mcp-server'
+import { mcpConfigFilePath, startMcpServer, writeMcpConfigFile } from './mcp-server'
 import { readFile, stat } from 'node:fs/promises'
 import {
   crawlNameIndex,
@@ -317,18 +317,32 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
     }
   })
 
+  // Orca reaps a worker after 5 minutes without host traffic, and the MCP server's own HTTP
+  // requests never reach the host. A cheap host call keeps the endpoint alive for agents.
+  const MCP_HEARTBEAT_MS = 2 * 60_000
   let mcp: { port: number; url: string; close: () => void } | null = null
-  orca.panels.handle('kb.mcp.start', async () => {
+  let mcpHeartbeat: ReturnType<typeof setInterval> | null = null
+
+  async function enableMcp(): Promise<{ port: number; url: string; configFile: string }> {
     mcp ??= await startMcpServer(fetchLike, currentConnection)
+    mcpHeartbeat ??= setInterval(() => void orca.settings.get('serverUrl'), MCP_HEARTBEAT_MS)
     return { port: mcp.port, url: mcp.url, configFile: writeMcpConfigFile(mcp.url) }
-  })
+  }
+
+  orca.panels.handle('kb.mcp.start', async () => enableMcp())
   orca.panels.handle('kb.mcp.stop', async () => {
+    if (mcpHeartbeat) {
+      clearInterval(mcpHeartbeat)
+      mcpHeartbeat = null
+    }
     mcp?.close()
     mcp = null
     return { stopped: true }
   })
   orca.panels.handle('kb.mcp.status', async () =>
-    mcp ? { running: true, port: mcp.port, url: mcp.url } : { running: false }
+    mcp
+      ? { running: true, port: mcp.port, url: mcp.url, configFile: mcpConfigFilePath() }
+      : { running: false }
   )
 
   orca.panels.handle('kb.share', async ({ path }) => {
@@ -415,4 +429,9 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
     invalidateIndex()
     return { ok: true as const, etag: result.etag, size: info.size }
   })
+
+  // Enabled plugins serve MCP without a button press. A second instance may already own the
+  // fixed port; its endpoint serves the same URL, so losing the race is harmless. Await so the
+  // worker isn't ready before the endpoint is listening and panel status can't race a start.
+  await enableMcp().catch(() => undefined)
 }

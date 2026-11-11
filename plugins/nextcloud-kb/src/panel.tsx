@@ -640,6 +640,7 @@ async function renameSelected(): Promise<void> {
 }
 
 export function setup(_ctx: PanelContext): void {
+  void syncMcpStatus()
   // Switching sidebar tabs recreates the guest; the persisted tree renders without a network call.
   const view = read(status)
   if (
@@ -681,6 +682,24 @@ function treeItemsFor(dir: string, branch: ReadonlySet<string> = new Set()): Tre
           ? treeItemsFor(entry.path, next)
           : undefined
     }))
+}
+
+async function syncMcpStatus(): Promise<void> {
+  try {
+    const result = await plugin.request('kb.mcp.status')
+    if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+      set(mcpState, null)
+      return
+    }
+    const url = typeof result.url === 'string' ? result.url : ''
+    const configFile = typeof result.configFile === 'string' ? result.configFile : ''
+    set(
+      mcpState,
+      result.running === true && url && configFile ? { running: true, url, configFile } : null
+    )
+  } catch {
+    set(mcpState, null)
+  }
 }
 
 async function toggleMcp(): Promise<void> {
@@ -949,8 +968,8 @@ function SelectionActions() {
       </Row>
       {read(mcpState)?.running ? (
         <Text muted size="xs">
-          已自动写入各编码 agent 的用户级 MCP
-          配置（Claude/Codex/Gemini/OpenCode/Kimi/CodeBuddy/Devin），新会话即可调用
+          插件启用后自动开启 MCP 并写入各编码 agent 的用户级配置
+          （Claude/Codex/Gemini/OpenCode/Kimi/CodeBuddy/Devin），新会话即可调用
           kb_list/kb_search/kb_read；备用配置：{read(mcpState)?.configFile}
         </Text>
       ) : null}

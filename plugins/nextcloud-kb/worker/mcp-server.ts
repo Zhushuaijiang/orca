@@ -159,11 +159,14 @@ async function requireConn(
   return conn
 }
 
+export function mcpConfigFilePath(): string {
+  return join(homedir(), '.orca', 'nextcloud-kb.mcp.json')
+}
+
 /** Drop a ready-made MCP client config where agents and Orca can pick it up. */
 export function writeMcpConfigFile(url: string): string {
-  const dir = join(homedir(), '.orca')
-  const file = join(dir, 'nextcloud-kb.mcp.json')
-  mkdirSync(dir, { recursive: true })
+  const file = mcpConfigFilePath()
+  mkdirSync(join(homedir(), '.orca'), { recursive: true })
   const json = { mcpServers: { 'nextcloud-kb': { type: 'http', url } } }
   writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`, { mode: 0o600 })
   upsertAgentConfigs(url)
