@@ -14,6 +14,8 @@ SPLIT_BRANCH='kb-plugin-export'
 TAG="${1:-}"
 
 cd "$REPO_ROOT"
+# The export branch is derived from the subtree; drop it so re-runs don't fail on -b.
+git branch -D "$SPLIT_BRANCH" >/dev/null 2>&1 || true
 git subtree split --prefix="$PLUGIN_PREFIX" -b "$SPLIT_BRANCH"
 git push --force "$PLUGIN_REPO" "$SPLIT_BRANCH:main"
 
