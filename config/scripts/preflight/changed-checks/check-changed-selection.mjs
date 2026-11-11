@@ -64,6 +64,18 @@ export const VERIFY_CHECKS = [
     inputs: ['src/main/runtime/rpc/', 'src/shared/']
   },
   {
+    name: 'plugin declarative runtime',
+    args: [
+      'config/scripts/plugin-build/declarative-runtime/build-plugin-declarative-runtime.mjs',
+      '--check'
+    ],
+    inputs: [
+      'src/shared/plugins/declarative/',
+      'src/main/plugins/testing/',
+      'resources/plugins/declarative/'
+    ]
+  },
+  {
     name: 'acp protocol',
     args: ['config/scripts/acp/generate-protocol.mjs', '--check'],
     inputs: ['src/main/acp/generated/', 'config/scripts/acp/']

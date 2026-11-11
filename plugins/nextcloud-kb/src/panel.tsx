@@ -509,26 +509,40 @@ async function uploadPaths(
   }
 }
 
+function chosenPaths(result: unknown): string[] {
+  if (
+    typeof result !== 'object' ||
+    result === null ||
+    !('status' in result) ||
+    !('paths' in result) ||
+    result.status !== 'picked' ||
+    !Array.isArray(result.paths)
+  ) {
+    return []
+  }
+  return result.paths.filter((path): path is string => typeof path === 'string' && path !== '')
+}
+
 async function pickFilesTo(dirPath: string): Promise<void> {
   if (read(uploadBusy)) {
     return
   }
   if (!host.has('files.pick')) {
-    set(uploadMessage, '当前 Orca 不支持文件选择，请升级 Orca 后再上传。')
+    set(uploadMessage, '当前 Orca 不支持系统文件选择，请升级 Orca 后再上传。')
     return
   }
-  // The native chooser needs the one-shot press grant from the context-menu pick: call it first.
-  let picked: { status: 'picked' | 'cancelled'; paths: string[] }
+  // The chooser needs the press grant; host.call survives a guest runtime older than files.pick.
+  let paths: string[]
   try {
-    picked = await files.pick({ multiple: true })
+    paths = chosenPaths(await host.call('files.pick', { multiple: true }))
   } catch (error) {
     set(uploadMessage, `选择文件失败，请再次右键上传：${errorMessage(error)}`)
     return
   }
-  if (picked.status !== 'picked' || picked.paths.length === 0) {
+  if (paths.length === 0) {
     return
   }
-  await uploadPaths(picked.paths, null, dirPath)
+  await uploadPaths(paths, null, dirPath)
 }
 
 function onTreeFilesDrop(event: TreeFilesDropEvent): void {
@@ -557,6 +571,8 @@ async function createFolder(): Promise<void> {
     await plugin.request('kb.mkdir', { path: target })
     set(mkdirOpen, false)
     set(mkdirName, '')
+    // A folder made under a collapsed row would be invisible until the person expands it.
+    update(expandedKeys, (keys) => [...new Set([...keys, parent])])
     set(selectedKey, target)
     set(uploadDir, target)
     void loadDir(parent)
@@ -641,22 +657,26 @@ type TreeItemData = {
   children?: TreeItemData[]
 }
 
-function treeItemsFor(dir: string): TreeItemData[] {
+function treeItemsFor(dir: string, branch: ReadonlySet<string> = new Set()): TreeItemData[] {
   const entries = read(dirEntries)[dir]
-  if (!entries) {
+  if (!entries || branch.has(dir)) {
     return []
   }
-  return entries.map((entry) => ({
-    key: entry.path,
-    label: entry.name,
-    icon: entry.dir ? 'folder' : 'file',
-    hasChildren: entry.dir,
-    // Undefined children keep the lazy contract (loading row until loaded); [] would read as empty.
-    children:
-      entry.dir && Object.hasOwn(read(dirEntries), entry.path)
-        ? treeItemsFor(entry.path)
-        : undefined
-  }))
+  const next = new Set(branch).add(dir)
+  // One repeated key would make Orca drop the whole items list.
+  return entries
+    .filter((entry) => !next.has(entry.path))
+    .map((entry) => ({
+      key: entry.path,
+      label: entry.name,
+      icon: entry.dir ? 'folder' : 'file',
+      hasChildren: entry.dir,
+      // Undefined children keep the lazy contract (loading row until loaded); [] would read as empty.
+      children:
+        entry.dir && Object.hasOwn(read(dirEntries), entry.path)
+          ? treeItemsFor(entry.path, next)
+          : undefined
+    }))
 }
 
 /** Double-click and the action bar's 打开: the browser shows the file, no preview detour. */
@@ -685,25 +705,30 @@ const TREE_CONTEXT_ITEMS = [
   { key: 'delete', label: '删除', icon: 'delete', danger: true }
 ] as const
 
+function contextDirFor(item: string): string {
+  if (item === '/') {
+    return '/'
+  }
+  const entry = findEntry(item)
+  if (entry) {
+    return entry.dir ? entry.path : parentPath(entry.path)
+  }
+  // A cached directory key is still a directory even after its parent list was pruned.
+  return Object.hasOwn(read(dirEntries), item) ? item : parentPath(item)
+}
+
 function onTreeContextAction({ item, action }: { item: string; action: string }): void {
   const entry = item === '/' ? null : findEntry(item)
-  // A file's "here" is its parent directory.
-  const dir = item === '/' ? '/' : entry?.dir ? entry.path : entry ? parentPath(entry.path) : null
+  const dir = contextDirFor(item)
   set(selectedKey, item)
   set(renameOpen, false)
   set(pendingDelete, null)
   if (action === 'upload-here') {
-    if (dir === null) {
-      return
-    }
     set(uploadDir, dir)
     void pickFilesTo(dir)
     return
   }
   if (action === 'new-folder') {
-    if (dir === null) {
-      return
-    }
     set(uploadDir, dir)
     set(mkdirOpen, true)
     set(mkdirName, '')
@@ -990,29 +1015,34 @@ function FilesTab({ serverUrl }: { serverUrl: string }) {
   return (
     <Stack gap="sm">
       {read(mkdirOpen) ? (
-        <Row gap="xs">
-          <Input
-            label="文件夹名称"
-            labelHidden
-            value={read(mkdirName)}
-            placeholder={`在 ${mkdirTarget} 下新建文件夹`}
-            disabled={read(mkdirBusy)}
-            onChange={(value) => set(mkdirName, value)}
-            onSubmit={() => void createFolder()}
-          />
-          <IconButton
-            icon="check"
-            label="创建文件夹"
-            disabled={read(mkdirBusy)}
-            onPress={() => void createFolder()}
-          />
-          <IconButton
-            icon="close"
-            label="取消新建"
-            disabled={read(mkdirBusy)}
-            onPress={() => set(mkdirOpen, false)}
-          />
-        </Row>
+        <Stack gap="xs">
+          <Text muted size="xs" truncate>
+            在 {mkdirTarget} 下新建文件夹
+          </Text>
+          <Row gap="xs">
+            <Input
+              label="文件夹名称"
+              labelHidden
+              value={read(mkdirName)}
+              placeholder="输入文件夹名称"
+              disabled={read(mkdirBusy)}
+              onChange={(value) => set(mkdirName, value)}
+              onSubmit={() => void createFolder()}
+            />
+            <IconButton
+              icon="check"
+              label="创建文件夹"
+              disabled={read(mkdirBusy)}
+              onPress={() => void createFolder()}
+            />
+            <IconButton
+              icon="close"
+              label="取消新建"
+              disabled={read(mkdirBusy)}
+              onPress={() => set(mkdirOpen, false)}
+            />
+          </Row>
+        </Stack>
       ) : null}
       {read(uploadMessage) !== null ? (
         <Text muted size="xs">

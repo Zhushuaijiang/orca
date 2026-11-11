@@ -33,6 +33,7 @@ export const LINT_STEPS = [
   'check:legacy-relay-fence-ratchet',
   'check:runtime-electron-ratchet',
   'verify:rpc-params-catalog',
+  'verify:plugin-declarative-runtime',
   'check:repo-host-read-ratchet',
   'test:ast-grep',
   'check:max-lines-ratchet',

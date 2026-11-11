@@ -80,6 +80,7 @@
     "smoke:serve-terminal": "node config/scripts/runtime-verification/daemon-lifecycle/runtime-serve-terminal-smoke.mjs",
     "check:feature-wall-assets": "node config/scripts/assets/feature-wall/check-feature-wall-assets.mjs",
     "generate:plugin-declarative-runtime": "node config/scripts/plugin-build/declarative-runtime/build-plugin-declarative-runtime.mjs",
+    "verify:plugin-declarative-runtime": "node config/scripts/plugin-build/declarative-runtime/build-plugin-declarative-runtime.mjs --check",
     "generate:plugin-declarative-typings": "node config/scripts/plugin-authoring/generated-contracts/generate-plugin-declarative-typings.mjs",
     "generate:plugin-schemas": "node config/scripts/plugin-authoring/generated-contracts/generate-plugin-schemas.mjs",
     "generate:plugin-author-typings": "node config/scripts/plugin-authoring/generated-contracts/generate-plugin-author-typings.mjs",
