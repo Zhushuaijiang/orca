@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { FetchLike, NextcloudConnection } from './nextcloud'
@@ -7,6 +7,8 @@ import { listDirectory, readFile, searchFiles } from './nextcloud'
 import type { KbEntry } from '../src/protocol'
 
 const READ_MAX_BYTES = 512 * 1024
+// A fixed port keeps the MCP URL stable across enables, so agent configs written once stay valid.
+const MCP_PORT = 18099
 
 const TOOLS: Record<string, { description: string; schema: Record<string, unknown> }> = {
   kb_list: {
@@ -138,7 +140,7 @@ export function startMcpServer(
 
   return new Promise((resolve, reject) => {
     server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(MCP_PORT, '127.0.0.1', () => {
       const addr = server.address()
       const port = typeof addr === 'object' && addr ? addr.port : 0
       resolve({ port, url: `http://127.0.0.1:${port}/mcp`, close: () => server.close() })
@@ -163,5 +165,27 @@ export function writeMcpConfigFile(url: string): string {
   mkdirSync(dir, { recursive: true })
   const json = { mcpServers: { 'nextcloud-kb': { type: 'http', url } } }
   writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`, { mode: 0o600 })
+  upsertClaudeUserServers(url)
   return file
+}
+
+// Claude Code reads ~/.claude.json mcpServers at user scope, making the tools visible to every
+// Orca-managed claude session without per-project setup. Only our key is touched.
+function upsertClaudeUserServers(url: string): void {
+  const file = join(homedir(), '.claude.json')
+  let doc: Record<string, unknown> = {}
+  if (existsSync(file)) {
+    try {
+      doc = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+    } catch {
+      return
+    }
+  }
+  const servers =
+    typeof doc.mcpServers === 'object' && doc.mcpServers !== null
+      ? (doc.mcpServers as Record<string, unknown>)
+      : {}
+  servers['nextcloud-kb'] = { type: 'http', url }
+  doc.mcpServers = servers
+  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`, { mode: 0o600 })
 }

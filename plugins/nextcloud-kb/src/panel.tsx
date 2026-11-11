@@ -949,8 +949,8 @@ function SelectionActions() {
       </Row>
       {read(mcpState)?.running ? (
         <Text muted size="xs">
-          已写入 {read(mcpState)?.configFile}，把该文件加入 agent 的 mcp-config 即可调用
-          kb_list/kb_search/kb_read。
+          已自动加入 Claude 用户级 MCP（~/.claude.json），新会话即可调用
+          kb_list/kb_search/kb_read；备用配置：{read(mcpState)?.configFile}
         </Text>
       ) : null}
     </Stack>
