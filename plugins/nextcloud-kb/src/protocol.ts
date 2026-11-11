@@ -21,7 +21,7 @@ export type KbSearchEntry = {
 declare module 'orca' {
   // oxlint-disable-next-line typescript/consistent-type-definitions -- declaration merging needs an interface
   interface PluginRequests {
-    /** Connection state; `ok` re-validates the stored credentials with a cheap PROPFIND. `refreshIndex` drops the local search index first. */
+    /** Connection state; `ok` re-validates the stored credentials with a cheap PROPFIND. `refreshIndex` rebuilds the local index in the background; the current index stays usable meanwhile. */
     'kb.status': {
       input: { refreshIndex?: boolean }
       output: {

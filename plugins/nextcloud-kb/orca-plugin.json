@@ -4,7 +4,7 @@
   "execution": "trusted-worker",
   "id": "nextcloud-kb",
   "name": "Nextcloud 知识库",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "浏览、搜索并在线打开 Nextcloud 知识库文件（WebDAV + OCS），支持系统文件选择与拖拽上传、右键目录操作和下载；切换标签页不自动刷新。",
   "engines": {
     "orca": ">=1.4.246"
@@ -44,6 +44,9 @@
     },
     {
       "kind": "secrets:own"
+    },
+    {
+      "kind": "storage:own"
     }
   ]
 }

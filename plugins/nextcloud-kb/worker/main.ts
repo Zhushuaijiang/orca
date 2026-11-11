@@ -5,6 +5,7 @@
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { KbEntry } from '../src/protocol'
 import { mcpConfigFilePath, startMcpServer, writeMcpConfigFile } from './mcp-server'
+import { connectionFingerprint, persistIndex, restoreIndex, clearIndex } from './index-store'
 import { readFile, stat } from 'node:fs/promises'
 import {
   crawlNameIndex,
@@ -100,6 +101,44 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
   }
 
   let indexGeneration = 0
+  let restorePromise: Promise<void> | null = null
+  let restoredFingerprint: string | null = null
+  let cacheDirty = false
+  let storeChain: Promise<void> = Promise.resolve()
+
+  /** Serializes cache writes so a mutation's clear can never land after a newer persist. */
+  function queueStore(task: () => Promise<void>): void {
+    storeChain = storeChain
+      .catch(() => undefined)
+      .then(task)
+      .catch(() => undefined)
+  }
+
+  async function ensureRestored(connection: NextcloudConnection): Promise<void> {
+    if (cacheDirty) {
+      return
+    }
+    const fingerprint = connectionFingerprint(connection)
+    if (restorePromise !== null && restoredFingerprint === fingerprint) {
+      return restorePromise
+    }
+    restoredFingerprint = fingerprint
+    restorePromise = (async () => {
+      const snapshot = await restoreIndex(orca.storage, connection)
+      if (snapshot === null || nameIndex !== null) {
+        return
+      }
+      nameIndex = {
+        entries: snapshot.entries,
+        complete: snapshot.complete,
+        truncated: snapshot.truncated,
+        // Reading from cache is instant; reset the clock so TTL refresh stays in the background.
+        builtAt: snapshot.builtAt,
+        done: Promise.resolve({ truncated: snapshot.truncated })
+      }
+    })().catch(() => undefined)
+    return restorePromise
+  }
 
   function indexSize(): number {
     return nameIndex?.entries.length ?? 0
@@ -121,6 +160,7 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
           state.complete = true
           state.truncated = truncated
           state.builtAt = Date.now()
+          queueStore(() => persistIndex(orca.storage, connection, state))
         }
       })
       .catch(() => {
@@ -129,6 +169,32 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
         }
       })
     return state
+  }
+
+  /** Rebuild in the background so search keeps serving the current index until the new one is ready. */
+  function rebuildInBackground(connection: NextcloudConnection): void {
+    if (indexRefresh !== null) {
+      return
+    }
+    const generation = indexGeneration
+    const next = startIndex(connection)
+    indexRefresh = next
+    // With no usable index yet, expose the partial crawl at once so the first search stays local.
+    if (nameIndex === null) {
+      nameIndex = next
+    }
+    void next.done
+      .then(() => {
+        if (generation === indexGeneration) {
+          nameIndex = next
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (indexRefresh === next) {
+          indexRefresh = null
+        }
+      })
   }
 
   /** Starts or advances the crawl but never awaits it; the caller reads live partial entries. */
@@ -140,21 +206,7 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
       Date.now() - nameIndex.builtAt >= INDEX_TTL_MS &&
       indexRefresh === null
     ) {
-      const generation = indexGeneration
-      const next = startIndex(connection)
-      indexRefresh = next
-      void next.done
-        .then(() => {
-          if (generation === indexGeneration) {
-            nameIndex = next
-          }
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (indexRefresh === next) {
-            indexRefresh = null
-          }
-        })
+      rebuildInBackground(connection)
     }
     return nameIndex
   }
@@ -163,6 +215,10 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
     indexGeneration += 1
     nameIndex = null
     indexRefresh = null
+    restorePromise = null
+    restoredFingerprint = null
+    cacheDirty = true
+    queueStore(() => clearIndex(orca.storage))
   }
 
   orca.panels.handle('kb.status', async ({ refreshIndex }) => {
@@ -187,8 +243,10 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
         error: error instanceof Error ? error.message : String(error)
       }
     }
+    await ensureRestored(connection)
     if (refreshIndex === true) {
-      invalidateIndex()
+      // Refresh rebuilds in the background; dropping the index here forced a full crawl on every 刷新.
+      rebuildInBackground(connection)
     }
     // Warm the name index in the background so the first search is already local.
     ensureIndex(connection)
@@ -258,8 +316,9 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
         indexTruncated: nameIndex?.truncated ?? false
       }
     }
+    await ensureRestored(connection)
     if (refresh === true) {
-      invalidateIndex()
+      rebuildInBackground(connection)
     }
     const index = ensureIndex(connection)
     if (index.entries.length === 0) {
