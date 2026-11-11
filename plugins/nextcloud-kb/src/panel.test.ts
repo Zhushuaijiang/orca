@@ -67,3 +67,37 @@ test('a first open with nothing saved lists the root folder', async () => {
   await view.settled()
   assert.deepEqual(listedFiles(view), ['新文件.md'])
 })
+
+test('打开 resolves the share link without a late gesture-gated host call', async () => {
+  const url = 'http://192.168.1.10:18100/s/AbCdEf123456'
+  const entry = file('部署手册.md')
+  const host = mockHost({
+    requests: {
+      'kb.status': { configured: true, ...connection, ok: true, error: null },
+      'kb.list': { entries: [entry] },
+      'kb.share': { url, reused: true }
+    }
+  })
+  const view = await mount(panel, {
+    host,
+    persisted: {
+      plugin: {
+        'kb.status-view': { phase: 'ready', ...connection },
+        'kb.dir-entries': { '/': [entry] },
+        'kb.selected': entry.path
+      }
+    }
+  })
+  await view.settled()
+  const open = view.find({ type: 'Button', text: '打开' })
+  assert(open, 'the 打开 button should be drawn')
+  await view.press(open)
+  await view.settled()
+  // A share fetch is a network round trip; shell.openExternal after it loses the one-shot
+  // press grant in the real host. The reliable path is a Link with a real href instead.
+  assert.deepEqual(host.callsOf('shell.openExternal'), [])
+  const link = view.find({ type: 'Link' })
+  assert(link, '打开 should publish a Link carrying the public URL')
+  assert.equal(link.props.href, url)
+  assert.equal(view.find({ type: 'Callout' }), null)
+})

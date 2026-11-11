@@ -78,6 +78,7 @@ const expandedKeys = atom<string[]>('kb.expanded', ['/'], { persist: 'plugin' })
 const selectedKey = atom<string | null>('kb.selected', null, { persist: 'plugin' })
 const term = atom('kb.search.term', '', { persist: 'plugin' })
 const searchResults = atom<KbSearchEntry[]>([])
+const searchSelection = atom<string | null>(null)
 const searchCursor = atom<string | null>(null)
 const searchLoading = atom(false)
 const connectForm = atom<ConnectForm>({
@@ -91,7 +92,7 @@ const lastError = atom<string | null>(null)
 const sharePreparing = atom(false)
 const downloading = atom(false)
 const downloadHint = atom<string | null>(null)
-const shareFallback = atom<{ path: string; url: string } | null>(null)
+const shareLink = atom<{ path: string; url: string } | null>(null)
 const mcpState = atom<{ running: boolean; url: string; configFile: string } | null>(null)
 const mcpBusy = atom(false)
 const searchIndexed = atom(true)
@@ -114,8 +115,8 @@ const renameBusy = atom(false)
 // bytes are prefetched while the person aims and the 下载 press only writes them out.
 let blobCache: { path: string; data: ArrayBuffer } | null = null
 let blobPrefetch: { path: string; promise: Promise<void> } | null = null
-// The share link is also prefetched: 在线打开 then opens the browser with no round trip.
-let shareCache: { path: string; url: string } | null = null
+// The resolved public link lives in an atom so the panel always renders a Link with a real
+// href. A Link press goes through the preload action, which has no one-shot activation grant.
 let sharePrefetch: { path: string; promise: Promise<void> } | null = null
 
 function errorMessage(error: unknown): string {
@@ -243,6 +244,9 @@ function startBlobPrefetch(entry: KbEntry): void {
 }
 
 function startSharePrefetch(entry: KbEntry): void {
+  if (sharePrefetch?.path === entry.path || read(shareLink)?.path === entry.path) {
+    return
+  }
   const request: { path: string; promise: Promise<void> } = {
     path: entry.path,
     promise: Promise.resolve()
@@ -251,34 +255,35 @@ function startSharePrefetch(entry: KbEntry): void {
     try {
       const { url } = await plugin.request('kb.share', { path: entry.path })
       if (sharePrefetch === request) {
-        shareCache = { path: entry.path, url }
+        set(shareLink, { path: entry.path, url })
       }
     } catch {
-      if (sharePrefetch === request) {
-        sharePrefetch = null
-      }
+      // A failed prefetch must be restartable by the next press.
+    }
+    if (sharePrefetch === request) {
+      sharePrefetch = null
     }
   })()
   sharePrefetch = request
 }
 
-/** Reuse-or-fetch the public share URL; null when the server refuses or the fetch failed. */
+/** Publish the public link as an atom; a Link press has no one-shot activation grant. */
 async function ensureShare(entry: KbEntry): Promise<string | null> {
-  if (shareCache?.path === entry.path) {
-    return shareCache.url
+  const ready = read(shareLink)
+  if (ready?.path === entry.path) {
+    return ready.url
   }
   set(sharePreparing, true)
   try {
+    startSharePrefetch(entry)
     if (sharePrefetch?.path === entry.path) {
       await sharePrefetch.promise
-    } else {
-      startSharePrefetch(entry)
-      await sharePrefetch?.promise
     }
   } finally {
     set(sharePreparing, false)
   }
-  return shareCache?.path === entry.path ? shareCache.url : null
+  const resolved = read(shareLink)
+  return resolved?.path === entry.path ? resolved.url : null
 }
 
 async function decodeBlob(base64: string): Promise<ArrayBuffer> {
@@ -303,6 +308,7 @@ function stopIndexPoll(): void {
 
 function onSearchChange(value: string): void {
   set(term, value)
+  set(searchSelection, null)
   stopIndexPoll()
   if (searchTimer !== null) {
     clearTimeout(searchTimer)
@@ -328,6 +334,9 @@ async function runSearch(query: string, cursor: string | null, reset: boolean): 
       return
     }
     set(searchResults, reset ? result.entries : [...read(searchResults), ...result.entries])
+    if (reset) {
+      set(searchSelection, null)
+    }
     set(searchCursor, result.cursor)
     set(searchIndexed, result.indexed)
     set(searchSource, result.source)
@@ -355,34 +364,16 @@ function findEntry(path: string): KbEntry | null {
   return entries?.find((entry) => entry.path === path) ?? null
 }
 
-async function revealPath(target: KbSearchEntry): Promise<void> {
-  const filePath = target.dir ? null : target.path
-  if (filePath === null || target.path === '') {
-    // A folder (or an entry without a path): browse it with its parent loaded.
-    const dir = target.path === '' ? '/' : parentPath(target.path)
-    if (!Object.hasOwn(read(dirEntries), dir)) {
-      await loadDir(dir)
-    }
-    set(selectedKey, target.path === '' ? '/' : target.path)
-    return
-  }
-  const ancestors: string[] = []
-  let current = parentPath(filePath)
-  while (current !== '/') {
-    ancestors.unshift(current)
-    current = parentPath(current)
-  }
-  for (const ancestor of ['/'].concat(ancestors)) {
-    if (!Object.hasOwn(read(dirEntries), ancestor)) {
-      await loadDir(ancestor)
-    }
-  }
-  update(expandedKeys, (keys) => [...new Set([...keys, ...ancestors])])
-  const entry = findEntry(filePath)
-  if (entry) {
-    await openEntryOnline(entry)
-  } else {
-    set(lastError, `找不到 ${target.path}（可能已被移动或删除）`)
+/** Search results carry no size/etag; the open/download helpers only need these fields. */
+function searchEntryAsKb(result: KbSearchEntry): KbEntry {
+  return {
+    name: result.name,
+    path: result.path,
+    dir: result.dir,
+    size: 0,
+    modifiedMs: null,
+    etag: null,
+    fileId: null
   }
 }
 
@@ -722,25 +713,33 @@ async function toggleMcp(): Promise<void> {
   }
 }
 
-/** Double-click and the action bar's 打开: the browser shows the file, no preview detour. */
+/**
+ * Double-click, the action bar's 打开, the context menu and search results.
+ *
+ * The hidden declarative guest has no user activation of its own: the host admits
+ * shell.openExternal through a one-shot press grant that any await in front of it consumes
+ * (resolving the public link is an OCS network round trip). A Link press instead goes through
+ * the preload panel action, which only needs a settled control, so the rendered Link is the
+ * reliable opener. When the link is already cached we still try the host call in the same
+ * synchronous turn — the grant is live then — and ignore a refusal because the Link remains.
+ */
 async function openEntryOnline(entry: KbEntry): Promise<void> {
   set(selectedKey, entry.path)
   set(downloadHint, null)
-  set(shareFallback, null)
-  startBlobPrefetch(entry)
-  startSharePrefetch(entry)
+  set(lastError, null)
+  const cached = read(shareLink)
+  if (cached?.path === entry.path) {
+    void shell.openExternal(cached.url).catch(() => {
+      set(downloadHint, '点击下方「在浏览器中打开」即可访问。')
+    })
+    return
+  }
   const url = await ensureShare(entry)
   if (url === null) {
     set(lastError, '获取在线链接失败：服务器可能禁止了公开链接分享')
     return
   }
-  try {
-    await shell.openExternal(url)
-  } catch (error) {
-    // The press grant may expire waiting for the share fetch; a settled Link press has no window.
-    set(shareFallback, { path: entry.path, url })
-    set(lastError, `在线打开失败：${errorMessage(error)}（请再次双击，或点击下方链接）`)
-  }
+  set(downloadHint, '在线链接已就绪，点击下方「在浏览器中打开」即可访问。')
 }
 
 // Older hosts drop unknown Tree props with a warning.
@@ -827,14 +826,16 @@ function onTreeToggle({ key, expanded }: { key: string; expanded: boolean }): vo
 
 function onTreeSelect({ key }: { key: string }): void {
   set(selectedKey, key)
-  set(shareFallback, null)
+  if (read(shareLink)?.path !== key) {
+    set(shareLink, null)
+  }
   const entry = findEntry(key)
   if (entry?.dir) {
     set(uploadDir, key)
     return
   }
   if (entry) {
-    // Warm both caches while the person aims, so 打开/下载 land inside the one-shot press grant.
+    // Warm both caches while the person aims, so the Link is ready when they press 打开.
     startBlobPrefetch(entry)
     startSharePrefetch(entry)
   }
@@ -849,7 +850,7 @@ function SelectionActions() {
   }
   const rename = read(renameOpen)
   const deleting = read(pendingDelete) === entry.path
-  const fallback = read(shareFallback)
+  const link = read(shareLink)
   return (
     <Stack gap="xs">
       <Row justify="between" gap="xs" wrap>
@@ -898,9 +899,9 @@ function SelectionActions() {
           />
         </Row>
       </Row>
-      {fallback !== null && fallback.path === entry.path ? (
+      {link !== null && link.path === entry.path ? (
         <Row gap="xs">
-          <Link href={fallback.url}>在浏览器中打开 {entry.name}</Link>
+          <Link href={link.url}>在浏览器中打开 {entry.name}</Link>
         </Row>
       ) : null}
       {rename ? (
@@ -1168,6 +1169,24 @@ function FilesTab({ serverUrl }: { serverUrl: string }) {
   )
 }
 
+function resultForRow(results: KbSearchEntry[], key: string | null): KbSearchEntry | null {
+  if (key === null) {
+    return null
+  }
+  return results[Number(key.slice(0, key.indexOf('|')))] ?? null
+}
+
+function onSearchSelectionChange(keys: string[]): void {
+  const key = keys[0] ?? null
+  set(searchSelection, key)
+  set(lastError, null)
+  const target = resultForRow(read(searchResults), key)
+  if (target && !target.dir && target.path !== '') {
+    // Warm the link while the person aims, so 打开 is ready without an activation race.
+    startSharePrefetch(searchEntryAsKb(target))
+  }
+}
+
 function SearchResults() {
   const query = read(term).trim()
   const results = read(searchResults)
@@ -1178,6 +1197,9 @@ function SearchResults() {
       path: result.path !== '' ? result.path : result.subline
     }
   }))
+  const selectedKey = read(searchSelection)
+  const selected = resultForRow(results, selectedKey)
+  const link = read(shareLink)
   return (
     <Stack gap="xs">
       {!read(searchIndexed) ? (
@@ -1199,18 +1221,62 @@ function SearchResults() {
           { key: 'path', label: '位置', hideBelow: 'md' }
         ]}
         rows={rows}
+        selectionMode="single"
+        selected={selectedKey === null ? [] : [selectedKey]}
+        onSelectionChange={({ keys }) => onSearchSelectionChange(keys)}
         emptyText="没有匹配的文件"
         loading={read(searchLoading) && rows.length === 0}
         hasMore={read(searchCursor) !== null}
         onLoadMore={() => void runSearch(query, read(searchCursor), false)}
         onRowAction={({ key }) => {
-          const index = Number(key.slice(0, key.indexOf('|')))
-          const target = results[index]
-          if (target) {
-            void revealPath(target)
+          onSearchSelectionChange([key])
+          const target = resultForRow(results, key)
+          if (target && !target.dir && target.path !== '') {
+            void openEntryOnline(searchEntryAsKb(target))
           }
         }}
       />
+      {selected !== null ? (
+        <Stack gap="xs">
+          <Row justify="between" gap="xs" wrap>
+            <Text muted size="xs" truncate>
+              {selected.dir ? `${selected.name}/` : selected.name}
+            </Text>
+            <Row gap="xs">
+              {!selected.dir && selected.path !== '' ? (
+                <>
+                  <Button
+                    variant="outline"
+                    icon="open-external"
+                    disabled={read(sharePreparing)}
+                    onPress={() => void openEntryOnline(searchEntryAsKb(selected))}
+                  >
+                    打开
+                  </Button>
+                  <Button
+                    variant="outline"
+                    icon="download"
+                    disabled={read(downloading)}
+                    onPress={() => void downloadEntry(searchEntryAsKb(selected))}
+                  >
+                    下载
+                  </Button>
+                </>
+              ) : null}
+            </Row>
+          </Row>
+          {link !== null && link.path === selected.path ? (
+            <Row gap="xs">
+              <Link href={link.url}>在浏览器中打开 {selected.name}</Link>
+            </Row>
+          ) : null}
+          {read(downloadHint) !== null ? (
+            <Text muted size="xs">
+              {read(downloadHint)}
+            </Text>
+          ) : null}
+        </Stack>
+      ) : null}
     </Stack>
   )
 }
