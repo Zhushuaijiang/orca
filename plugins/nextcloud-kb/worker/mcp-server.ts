@@ -1,7 +1,8 @@
 import { createServer, type Server } from 'node:http'
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { env as processEnv } from 'node:process'
 import type { FetchLike, NextcloudConnection } from './nextcloud'
 import { listDirectory, readFile, searchFiles } from './nextcloud'
 import type { KbEntry } from '../src/protocol'
@@ -170,24 +171,38 @@ export function writeMcpConfigFile(url: string): string {
 }
 
 // Orca has no agent-agnostic MCP injection yet, so each managed harness gets its own
-// user-level entry. Only the nextcloud-kb key/table is touched; agents without a file are
-// skipped rather than created, so this stays a no-op where the harness isn't installed.
-const MCP_ENTRY = { type: 'http' } as const
+// user-level entry. Only the nextcloud-kb key/table is touched. A missing config is
+// created only when the harness's data dir exists, so this stays a no-op where it isn't
+// installed.
+const HTTP_JSON_ENTRY = { type: 'http' } as const
 
-function upsertJsonServers(file: string, url: string): void {
+type JsonMcpTarget = {
+  file: string
+  key: string
+  entry: Record<string, unknown>
+  createWhenDirExists?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function upsertJsonServers(target: JsonMcpTarget, url: string): void {
   let doc: Record<string, unknown>
   try {
-    doc = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+    const parsed: unknown = JSON.parse(readFileSync(target.file, 'utf8'))
+    doc = isRecord(parsed) ? parsed : {}
   } catch {
-    return
+    if (!target.createWhenDirExists || !existsSync(target.createWhenDirExists)) {
+      return
+    }
+    doc = {}
   }
-  const servers =
-    typeof doc.mcpServers === 'object' && doc.mcpServers !== null
-      ? (doc.mcpServers as Record<string, unknown>)
-      : {}
-  servers['nextcloud-kb'] = { ...MCP_ENTRY, url }
-  doc.mcpServers = servers
-  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`, { mode: 0o600 })
+  const current = doc[target.key]
+  const servers: Record<string, unknown> = isRecord(current) ? current : {}
+  servers['nextcloud-kb'] = { ...target.entry, url }
+  doc[target.key] = servers
+  writeFileSync(target.file, `${JSON.stringify(doc, null, 2)}\n`, { mode: 0o600 })
 }
 
 // Codex keeps mcp_servers in TOML; rewrite just our table instead of parsing the file.
@@ -203,10 +218,78 @@ function upsertCodexToml(file: string, url: string): void {
   writeFileSync(file, `${stripped.replace(/\n+$/, '')}${entry}`, { mode: 0o600 })
 }
 
+function upsertCodeBuddyConfig(url: string): void {
+  const dir = join(homedir(), '.codebuddy')
+  // User scope reads only the first existing file; creating a higher-priority one would
+  // hide servers the user already configured in a lower-priority file.
+  const candidates = [
+    join(dir, '.mcp.json'),
+    join(dir, 'mcp.json'),
+    join(homedir(), '.codebuddy.json')
+  ]
+  const existing = candidates.find((file) => existsSync(file))
+  upsertJsonServers(
+    {
+      file: existing ?? candidates[0],
+      key: 'mcpServers',
+      entry: HTTP_JSON_ENTRY,
+      createWhenDirExists: existing ? undefined : dir
+    },
+    url
+  )
+}
+
+function upsertKimiConfig(url: string): void {
+  const dir = processEnv.KIMI_CODE_HOME?.trim() || join(homedir(), '.kimi-code')
+  // Kimi infers an http server from `url`; `type` is not part of its mcp.json entry shape.
+  upsertJsonServers(
+    { file: join(dir, 'mcp.json'), key: 'mcpServers', entry: {}, createWhenDirExists: dir },
+    url
+  )
+}
+
+function upsertDevinConfig(url: string): void {
+  const dir = processEnv.APPDATA
+    ? join(processEnv.APPDATA, 'devin')
+    : join(homedir(), '.config', 'devin')
+  // v3000.3+ reads the dedicated file; older builds read mcpServers from config.json and
+  // newer ones migrate that key on startup, so both stay covered.
+  upsertJsonServers(
+    {
+      file: join(dir, 'mcp_config.json'),
+      key: 'mcpServers',
+      entry: { transport: 'http' },
+      createWhenDirExists: dir
+    },
+    url
+  )
+  upsertJsonServers(
+    { file: join(dir, 'config.json'), key: 'mcpServers', entry: { transport: 'http' } },
+    url
+  )
+}
+
 function upsertAgentConfigs(url: string): void {
   const home = homedir()
-  upsertJsonServers(join(home, '.claude.json'), url)
-  upsertJsonServers(join(home, '.gemini', 'settings.json'), url)
-  upsertJsonServers(join(home, '.config', 'opencode', 'opencode.json'), url)
+  upsertJsonServers(
+    { file: join(home, '.claude.json'), key: 'mcpServers', entry: HTTP_JSON_ENTRY },
+    url
+  )
+  upsertJsonServers(
+    { file: join(home, '.gemini', 'settings.json'), key: 'mcpServers', entry: HTTP_JSON_ENTRY },
+    url
+  )
+  // OpenCode's config uses `mcp` with remote entries, not Claude's mcpServers/http shape.
+  upsertJsonServers(
+    {
+      file: join(home, '.config', 'opencode', 'opencode.json'),
+      key: 'mcp',
+      entry: { type: 'remote', enabled: true }
+    },
+    url
+  )
   upsertCodexToml(join(home, '.codex', 'config.toml'), url)
+  upsertCodeBuddyConfig(url)
+  upsertKimiConfig(url)
+  upsertDevinConfig(url)
 }

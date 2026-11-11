@@ -949,7 +949,8 @@ function SelectionActions() {
       </Row>
       {read(mcpState)?.running ? (
         <Text muted size="xs">
-          已自动写入各编码 agent 的用户级 MCP 配置（Claude/Codex/Gemini/OpenCode），新会话即可调用
+          已自动写入各编码 agent 的用户级 MCP
+          配置（Claude/Codex/Gemini/OpenCode/Kimi/CodeBuddy/Devin），新会话即可调用
           kb_list/kb_search/kb_read；备用配置：{read(mcpState)?.configFile}
         </Text>
       ) : null}

@@ -18,6 +18,10 @@ declare module 'node:os' {
   export function homedir(): string
 }
 
+declare module 'node:process' {
+  export const env: Record<string, string | undefined>
+}
+
 declare module 'node:path' {
   export function join(...parts: string[]): string
 }
