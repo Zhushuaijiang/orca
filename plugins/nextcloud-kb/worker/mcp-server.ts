@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { FetchLike, NextcloudConnection } from './nextcloud'
@@ -165,27 +165,48 @@ export function writeMcpConfigFile(url: string): string {
   mkdirSync(dir, { recursive: true })
   const json = { mcpServers: { 'nextcloud-kb': { type: 'http', url } } }
   writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`, { mode: 0o600 })
-  upsertClaudeUserServers(url)
+  upsertAgentConfigs(url)
   return file
 }
 
-// Claude Code reads ~/.claude.json mcpServers at user scope, making the tools visible to every
-// Orca-managed claude session without per-project setup. Only our key is touched.
-function upsertClaudeUserServers(url: string): void {
-  const file = join(homedir(), '.claude.json')
-  let doc: Record<string, unknown> = {}
-  if (existsSync(file)) {
-    try {
-      doc = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
-    } catch {
-      return
-    }
+// Orca has no agent-agnostic MCP injection yet, so each managed harness gets its own
+// user-level entry. Only the nextcloud-kb key/table is touched; agents without a file are
+// skipped rather than created, so this stays a no-op where the harness isn't installed.
+const MCP_ENTRY = { type: 'http' } as const
+
+function upsertJsonServers(file: string, url: string): void {
+  let doc: Record<string, unknown>
+  try {
+    doc = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+  } catch {
+    return
   }
   const servers =
     typeof doc.mcpServers === 'object' && doc.mcpServers !== null
       ? (doc.mcpServers as Record<string, unknown>)
       : {}
-  servers['nextcloud-kb'] = { type: 'http', url }
+  servers['nextcloud-kb'] = { ...MCP_ENTRY, url }
   doc.mcpServers = servers
   writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`, { mode: 0o600 })
+}
+
+// Codex keeps mcp_servers in TOML; rewrite just our table instead of parsing the file.
+function upsertCodexToml(file: string, url: string): void {
+  let doc: string
+  try {
+    doc = readFileSync(file, 'utf8')
+  } catch {
+    return
+  }
+  const stripped = doc.replace(/\n?#?\s*\[mcp_servers\.nextcloud-kb][^[]*/g, '')
+  const entry = `\n[mcp_servers.nextcloud-kb]\nurl = ${JSON.stringify(url)}\n`
+  writeFileSync(file, `${stripped.replace(/\n+$/, '')}${entry}`, { mode: 0o600 })
+}
+
+function upsertAgentConfigs(url: string): void {
+  const home = homedir()
+  upsertJsonServers(join(home, '.claude.json'), url)
+  upsertJsonServers(join(home, '.gemini', 'settings.json'), url)
+  upsertJsonServers(join(home, '.config', 'opencode', 'opencode.json'), url)
+  upsertCodexToml(join(home, '.codex', 'config.toml'), url)
 }
