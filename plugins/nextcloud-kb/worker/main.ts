@@ -111,7 +111,9 @@ export default async function activate(orca: OrcaWorkerApi): Promise<void> {
     storeChain = storeChain
       .catch(() => undefined)
       .then(task)
-      .catch(() => undefined)
+      .catch((error) => {
+        orca.log(`kb index store: ${error instanceof Error ? error.message : String(error)}`)
+      })
   }
 
   async function ensureRestored(connection: NextcloudConnection): Promise<void> {

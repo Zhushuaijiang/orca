@@ -38,8 +38,9 @@ worker/index-store.test.ts 持久化单测：重启恢复、跨服务器隔离�
 
 ## 验证结论（2026-11-11）
 
-- 插件：`validate` ok · `tsc` 0 错误 · `plugin test` 27/27（worker 24 + 面板 3）· `plugin check` 两场景渲染通过 · `oxlint` / `oxfmt --check` 通过
-- 「刷新不丢索引」：完成的索引持久化到 `storage:own`，`kb.status {refreshIndex}` 与 `kb.search {refresh}` 改为后台重建、保留当前索引（不再 `invalidateIndex()` 清空），worker 重启经 `ensureRestored()` 立即恢复。索引只存 `[name, path, dir]`，单值上限内分块写入；换连接指纹 / 目录变更（`mkdir`/`delete`/`move`/`upload`）会清空旧缓存
+- 插件：`validate` ok · `tsc` 0 错误 · `plugin test` 28/28（worker 25 + 面板 3）· `plugin check` 两场景渲染通过 · `oxlint` / `oxfmt --check` 通过
+- 「刷新不丢索引」：完成的索引持久化到 `storage:own`，`kb.status {refreshIndex}` 与 `kb.search {refresh}` 改为后台重建、保留当前索引（不再 `invalidateIndex()` 清空），worker 重启经 `ensureRestored()` 立即恢复。索引只存 `[name, path, dir]`，按 **UTF-8 字节数**（`TextEncoder`）分块写入，留足单值 256 KiB / 总量 5 MiB 上限的余量——中文文件名按 JS `.length` 算会低估约 2–3 倍，曾导致 `storage.set` 被拒、`storage.json` 写不进去；换连接指纹 / 目录变更（`mkdir`/`delete`/`move`/`upload`）会清空旧缓存
+- 0.6.5 端到端（2026-11-11，内网 13,653 项）：首轮建索引约 2.5 min 后写出 `storage.json`（15 块、每块 ~184 KB、共 ~2.9 MB、`complete:true`）；点「刷新」后 `kb.search` 仍 `indexed:true` / 13,653 项；`plugin restart` 后首次检索 0 s 即从缓存恢复 `indexed:true` / 13,653 项，不再重建
 - 「不自动刷新」：面板测试用已保存的目录树重新挂载，且让服务器返回连接失败，目录树仍原样显示、没有错误提示；把 `setup()` 改回每次都 `refreshStatus()` 时该用例失败。另有「点刷新才重新列目录」「没有已存数据时首次列根目录」两个用例
 - 真实内网 Nextcloud 35 端到端（2026-11-10，这些链路之后未改动）：`list` 中文目录 · 索引搜索首次 0.15 s（渐进结果）/ 就绪后 0.15 s，服务器搜索对照 0.84 s · `share` 首次创建、再次调用 `reused: true`，分享 URL 匿名访问返回 200 且直接渲染文件查看器（无登录表单） · `blobChunk` 两块（699 KB / 392 KB 响应）拼出 818,331 字节完整 PDF（`%PDF-` … `%%EOF`）
 - 下载失败的两个根因：`String.fromCharCode` 一次展开 512 KiB 参数导致 V8 爆栈；旧实现在多次 Range 往返后才调用 `files.saveAs`，超过声明式面板 1 秒的一次性点击授权。现改为后台预取 + 解码，点击时零等待存盘

@@ -113,3 +113,26 @@ test('a large snapshot is split across chunks and fully restored', async () => {
   assert(snapshot, 'the chunked snapshot is restored')
   assert.deepEqual(snapshot.entries, entries)
 })
+
+// The host counts a value's size in UTF-8 bytes, but JS string length counts CJK characters as
+// one. Sizing by `.length` made CJK-dense chunks ~2x too big and `storage.set` refused them.
+test('CJK-heavy chunks stay within the 256 KiB per-value cap', async () => {
+  const storage = memoryStorage()
+  const entries: KbEntry[] = []
+  for (let i = 0; i < 20_000; i += 1) {
+    entries.push(entry(`脑卒中患者入院病历记录${i}.md`))
+  }
+  await persistIndex(storage, connection, {
+    entries,
+    complete: true,
+    truncated: false,
+    builtAt: 1
+  })
+  const encoder = new TextEncoder()
+  for (const [key, value] of storage.values) {
+    if (/\.c\d+$/.test(key)) {
+      const bytes = encoder.encode(JSON.stringify(value)).length
+      assert.ok(bytes <= 256 * 1024, `chunk ${key} is ${bytes} bytes, over the 256 KiB cap`)
+    }
+  }
+})

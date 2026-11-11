@@ -7,7 +7,11 @@ import type { KbEntry } from '../src/protocol'
 import type { NextcloudConnection } from './nextcloud'
 
 export const INDEX_STORE_PREFIX = 'kb.nameIndex.v1'
+// The host caps one value at 256 KiB and the whole store at 5 MiB, both counted in UTF-8 bytes
+// (the store pretty-prints the file, so leave headroom). CJK names are ~3x their JS string length,
+// so size chunks with TextEncoder, never `JSON.stringify(...).length`.
 export const INDEX_CHUNK_BYTES = 180 * 1024
+export const MAX_PERSISTED_BYTES = 3 * 1024 * 1024
 export const MAX_INDEX_CHUNKS = 24
 export const MAX_PERSISTED_ENTRIES = 60_000
 
@@ -56,24 +60,30 @@ export async function persistIndex(
   snapshot: IndexSnapshot
 ): Promise<void> {
   await clearIndex(storage)
+  const encoder = new TextEncoder()
   const tuples: StoredEntry[] = snapshot.entries
     .slice(0, MAX_PERSISTED_ENTRIES)
     .map((entry) => [entry.name, entry.path, entry.dir ? 1 : 0])
   const chunks: StoredEntry[][] = []
   let current: StoredEntry[] = []
-  let bytes = 2
+  let chunkBytes = 2
+  let totalBytes = 0
   for (const tuple of tuples) {
-    const size = JSON.stringify(tuple).length + 1
-    if (current.length > 0 && bytes + size > INDEX_CHUNK_BYTES) {
+    const size = encoder.encode(JSON.stringify(tuple)).length + 1
+    if (totalBytes + size > MAX_PERSISTED_BYTES) {
+      break
+    }
+    if (current.length > 0 && chunkBytes + size > INDEX_CHUNK_BYTES) {
+      chunks.push(current)
+      current = []
+      chunkBytes = 2
       if (chunks.length >= MAX_INDEX_CHUNKS) {
         break
       }
-      chunks.push(current)
-      current = []
-      bytes = 2
     }
     current.push(tuple)
-    bytes += size
+    chunkBytes += size
+    totalBytes += size
   }
   if (current.length > 0 && chunks.length < MAX_INDEX_CHUNKS) {
     chunks.push(current)
@@ -81,12 +91,13 @@ export async function persistIndex(
   for (let i = 0; i < chunks.length; i += 1) {
     await storage.set(`${INDEX_STORE_PREFIX}.c${i}`, chunks[i])
   }
+  const kept = chunks.reduce((count, chunk) => count + chunk.length, 0)
   const header: IndexHeader = {
     version: 1,
     fingerprint: connectionFingerprint(connection),
     builtAt: Date.now(),
     complete: snapshot.complete,
-    truncated: snapshot.truncated || snapshot.entries.length > MAX_PERSISTED_ENTRIES,
+    truncated: snapshot.truncated || kept < tuples.length,
     chunkCount: chunks.length
   }
   await storage.set(`${INDEX_STORE_PREFIX}.header`, header)
