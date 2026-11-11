@@ -17,6 +17,7 @@ import {
   Heading,
   IconButton,
   Input,
+  Link,
   Row,
   Spinner,
   Stack,
@@ -90,6 +91,7 @@ const lastError = atom<string | null>(null)
 const sharePreparing = atom(false)
 const downloading = atom(false)
 const downloadHint = atom<string | null>(null)
+const shareFallback = atom<{ path: string; url: string } | null>(null)
 const searchIndexed = atom(true)
 const searchSource = atom<'index' | 'ocs'>('index')
 const searchIndexSize = atom(0)
@@ -106,7 +108,7 @@ const renameOpen = atom(false)
 const renameValue = atom('')
 const renameBusy = atom(false)
 
-// The save dialog must run inside a one-shot press grant (about one second), so file
+// The save dialog must run inside a one-shot press grant (a few seconds), so file
 // bytes are prefetched while the person aims and the 下载 press only writes them out.
 let blobCache: { path: string; data: ArrayBuffer } | null = null
 let blobPrefetch: { path: string; promise: Promise<void> } | null = null
@@ -683,6 +685,7 @@ function treeItemsFor(dir: string, branch: ReadonlySet<string> = new Set()): Tre
 async function openEntryOnline(entry: KbEntry): Promise<void> {
   set(selectedKey, entry.path)
   set(downloadHint, null)
+  set(shareFallback, null)
   startBlobPrefetch(entry)
   startSharePrefetch(entry)
   const url = await ensureShare(entry)
@@ -693,12 +696,16 @@ async function openEntryOnline(entry: KbEntry): Promise<void> {
   try {
     await shell.openExternal(url)
   } catch (error) {
-    set(lastError, `在线打开失败：${errorMessage(error)}（若为交互超时，请再次双击）`)
+    // The press grant may expire waiting for the share fetch; a settled Link press has no window.
+    set(shareFallback, { path: entry.path, url })
+    set(lastError, `在线打开失败：${errorMessage(error)}（请再次双击，或点击下方链接）`)
   }
 }
 
 // Older hosts drop unknown Tree props with a warning.
 const TREE_CONTEXT_ITEMS = [
+  { key: 'open-online', label: '打开', icon: 'open-external' },
+  { key: 'download', label: '下载', icon: 'download' },
   { key: 'upload-here', label: '上传文件到此处…', icon: 'upload' },
   { key: 'new-folder', label: '新建文件夹', icon: 'folder' },
   { key: 'rename', label: '重命名', icon: 'edit' },
@@ -723,6 +730,24 @@ function onTreeContextAction({ item, action }: { item: string; action: string })
   set(selectedKey, item)
   set(renameOpen, false)
   set(pendingDelete, null)
+  if (action === 'open-online') {
+    if (entry === null) {
+      return
+    }
+    void openEntryOnline(entry)
+    return
+  }
+  if (action === 'download') {
+    if (entry === null) {
+      return
+    }
+    if (entry.dir) {
+      set(downloadHint, '文件夹暂不支持下载，请使用「打开」在浏览器中查看。')
+      return
+    }
+    void downloadEntry(entry)
+    return
+  }
   if (action === 'upload-here') {
     set(uploadDir, dir)
     void pickFilesTo(dir)
@@ -761,6 +786,7 @@ function onTreeToggle({ key, expanded }: { key: string; expanded: boolean }): vo
 
 function onTreeSelect({ key }: { key: string }): void {
   set(selectedKey, key)
+  set(shareFallback, null)
   const entry = findEntry(key)
   if (entry?.dir) {
     set(uploadDir, key)
@@ -782,6 +808,7 @@ function SelectionActions() {
   }
   const rename = read(renameOpen)
   const deleting = read(pendingDelete) === entry.path
+  const fallback = read(shareFallback)
   return (
     <Stack gap="xs">
       <Row justify="between" gap="xs" wrap>
@@ -830,6 +857,11 @@ function SelectionActions() {
           />
         </Row>
       </Row>
+      {fallback !== null && fallback.path === entry.path ? (
+        <Row gap="xs">
+          <Link href={fallback.url}>在浏览器中打开 {entry.name}</Link>
+        </Row>
+      ) : null}
       {rename ? (
         <Row gap="xs">
           <Input

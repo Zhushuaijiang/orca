@@ -17,7 +17,7 @@ import { createPluginDeclarativeGestureGeometry } from '@/components/plugins/dec
 import type { PluginDeclarativePress } from '@/components/plugins/declarative/PluginDeclarativeControls'
 
 /** How long a press on Orca's own controls lets the panel make one user-gesture call. */
-export const PLUGIN_DECLARATIVE_PRESS_GRANT_MS = 1_000
+export const PLUGIN_DECLARATIVE_PRESS_GRANT_MS = 5_000
 /** Plugin error text shown in the banner; the full message is the plugin's own to log. */
 export const PLUGIN_DECLARATIVE_ERROR_MAX_CHARS = 300
 // Floor on the retry delay for a rate-limited render, so retries cannot spin.
