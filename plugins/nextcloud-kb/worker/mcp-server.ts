@@ -208,13 +208,16 @@ function upsertJsonServers(target: JsonMcpTarget, url: string): void {
   writeFileSync(target.file, `${JSON.stringify(doc, null, 2)}\n`, { mode: 0o600 })
 }
 
-// Codex keeps mcp_servers in TOML; rewrite just our table instead of parsing the file.
-function upsertCodexToml(file: string, url: string): void {
+// Codex and Kimi keep mcp_servers in TOML; rewrite just our table instead of parsing.
+function upsertTomlServers(file: string, url: string, create: boolean): void {
   let doc: string
   try {
     doc = readFileSync(file, 'utf8')
   } catch {
-    return
+    if (!create) {
+      return
+    }
+    doc = ''
   }
   const stripped = doc.replace(/\n?#?\s*\[mcp_servers\.nextcloud-kb][^[]*/g, '')
   const entry = `\n[mcp_servers.nextcloud-kb]\nurl = ${JSON.stringify(url)}\n`
@@ -291,7 +294,11 @@ function upsertAgentConfigs(url: string): void {
     },
     url
   )
-  upsertCodexToml(join(home, '.codex', 'config.toml'), url)
+  upsertJsonServers(
+    { file: join(home, '.qwen', 'settings.json'), key: 'mcpServers', entry: HTTP_JSON_ENTRY },
+    url
+  )
+  upsertTomlServers(join(home, '.codex', 'config.toml'), url, false)
   upsertCodeBuddyConfig(url)
   upsertKimiConfig(url)
   upsertDevinConfig(url)
