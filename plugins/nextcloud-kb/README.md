@@ -62,6 +62,15 @@ orca plugin check .             # 面板渲染检查（含场景）
 
 ## 对 Orca 版本的要求
 
-需要 Orca ≥1.4.246。右键菜单需要 Tree `contextMenu`（1.4.214-rc.23 起）；系统文件选择需要 Host API 1.5 的 `files.pick`，拖拽上传需要 Tree `onFilesDrop`，这两项在 rc.23 及更早的已发布版本里都没有。
+`engines.orca` 为 `>=1.4.246`，这是 **manifest v2 的 schema 下限**，不是 DFHIS 桌面端的发版号：manifest 省略 `publisher`（由仓库属主推导）且面板/worker 用无构建的 `.ts/.tsx` 源码，两项都要求 `>=1.4.246`，`orca plugin release-entry` 算出的 `minimumOrca` 也是 `1.4.246`。把它改低会让 `orca plugin validate` 直接失败。
+
+DFHIS 桌面端发版号是 `1.4.214-rc.N`，两套编号不冲突：Orca 用 `pluginHostVersion()` 把预发布/开发构建的版本夹到当前 schema 的最新版再比对，所以能读这份 manifest 的 rc.N 构建都满足该下限（实测从 rc.25 起 git 安装、加载均正常）。
+
+完整交互还依赖宿主 `src/` 的能力，不在插件包内，须由服务端发布流程产出：
+
+- 目录树右键菜单（Tree `contextMenu`）、系统文件选择（`files.pick`）、拖拽上传（`onFilesDrop`）：需 rc.23 及以上
+- 5 秒手势授权窗口（慢分享「在线打开」不退回 Link 兜底）：需 rc.26 及以上
+
+MCP 端点、worker 激活即自动启用、以及写入各编码 agent 用户级配置都在插件侧，与 Orca 版本无关，装上插件即可用。
 
 面板固定传入 `contextMenu` / `onContextAction` / `onFilesDrop`，不查 `ui.catalog`，旧版宿主会丢弃不认识的属性（只记警告），目录树照常显示；上传前用 `host.has('files.pick')` 检测，旧版宿主点「上传文件到此处…」只提示升级，拖入的文件被忽略，其余功能不受影响。
